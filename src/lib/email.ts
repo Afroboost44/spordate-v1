@@ -100,7 +100,7 @@ function getBookingConfirmationTemplate(data: {
               <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 25px;">
                 <tr>
                   <td align="center">
-                    <a href="https://spordateur.com/discovery" style="display: inline-block; padding: 14px 30px; background: linear-gradient(135deg, #7B1FA2 0%, #E91E63 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                    <a href="${getBaseUrl()}/discovery" style="display: inline-block; padding: 14px 30px; background: linear-gradient(135deg, #7B1FA2 0%, #E91E63 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
                       Voir mes réservations
                     </a>
                   </td>
