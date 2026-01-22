@@ -176,7 +176,7 @@ export default function DiscoveryPage() {
     if (typeof window === 'undefined') return;
     
     const userCode = localStorage.getItem('spordate_user_code') || 'SPORT-USER';
-    const shareUrl = `https://spordateur.com/discovery?ref=${userCode}&profile=${currentProfile?.id}`;
+    const shareUrl = `${window.location.origin}/discovery?ref=${userCode}&profile=${currentProfile?.id}`;
     const shareText = `Regarde ce profil sur Spordateur, on va faire une séance ensemble ? 💪🔥`;
 
     if (navigator.share) {
