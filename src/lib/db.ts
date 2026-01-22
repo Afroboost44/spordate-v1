@@ -452,7 +452,9 @@ export async function findPartnerByReferralId(referralId: string): Promise<Partn
  * Get partner referral URL
  */
 export function getPartnerReferralUrl(referralId: string): string {
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://spordateur.com';
+  const baseUrl = typeof window !== 'undefined' 
+    ? window.location.origin 
+    : (process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || '');
   return `${baseUrl}/?ref=${referralId}`;
 }
 
