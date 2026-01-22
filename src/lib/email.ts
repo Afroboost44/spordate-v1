@@ -205,7 +205,7 @@ function getPartnerNotificationTemplate(data: {
               <table width="100%" cellpadding="0" cellspacing="0" style="margin-top: 25px;">
                 <tr>
                   <td align="center">
-                    <a href="https://spordateur.com/admin/dashboard" style="display: inline-block; padding: 14px 30px; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
+                    <a href="${getBaseUrl()}/admin/dashboard" style="display: inline-block; padding: 14px 30px; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px;">
                       Voir mon tableau de bord
                     </a>
                   </td>
