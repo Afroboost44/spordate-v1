@@ -1,7 +1,7 @@
 import { Resend } from 'resend';
 
-// Base URL for emails - use environment variable or fallback to production
-const getBaseUrl = () => process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
+// Base URL for emails - use environment variable, no hardcoded fallback
+const getBaseUrl = () => process.env.NEXT_PUBLIC_APP_URL || process.env.APP_URL || '';
 
 // Initialize Resend client
 const getResend = () => {
