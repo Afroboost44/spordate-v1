@@ -429,16 +429,17 @@ export default function DiscoveryPage() {
   const shareTicketOnWhatsApp = () => {
     if (!lastBooking) return;
     
+    const baseUrl = window.location.origin;
     let message: string;
     if (lastBooking.isDuo) {
       // Duo ticket message - inviting partner
       message = encodeURIComponent(
-        `🎁 Je t'offre une séance Afroboost avec ${lastBooking.profile} !\n\n📍 RDV à ${lastBooking.partner}\n💪 C'est gratuit pour toi, je t'ai déjà payé ta place !\n\nDétails sur Spordateur\nhttps://spordateur.com/discovery`
+        `🎁 Je t'offre une séance Afroboost avec ${lastBooking.profile} !\n\n📍 RDV à ${lastBooking.partner}\n💪 C'est gratuit pour toi, je t'ai déjà payé ta place !\n\nDétails sur Spordateur\n${baseUrl}/discovery`
       );
     } else {
       // Solo ticket message
       message = encodeURIComponent(
-        `Je vais m'entraîner à ${lastBooking.partner}, rejoins-moi ! 💪🔥\n\nRDV avec ${lastBooking.profile} sur Spordateur\nhttps://spordateur.com/discovery`
+        `Je vais m'entraîner à ${lastBooking.partner}, rejoins-moi ! 💪🔥\n\nRDV avec ${lastBooking.profile} sur Spordateur\n${baseUrl}/discovery`
       );
     }
     window.open(`https://wa.me/?text=${message}`, '_blank');
