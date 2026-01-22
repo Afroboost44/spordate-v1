@@ -38,9 +38,11 @@ export async function POST(request: NextRequest) {
     }
     
     // Try to call the FastAPI backend first
+    // In Kubernetes, backend is accessible via internal service name or localhost
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:8001';
     try {
       console.log('[Checkout Proxy] Attempting to call FastAPI backend...');
-      const backendResponse = await fetch('http://localhost:8001/api/checkout', {
+      const backendResponse = await fetch(`${backendUrl}/api/checkout`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ packageType, originUrl, metadata }),
