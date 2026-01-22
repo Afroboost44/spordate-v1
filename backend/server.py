@@ -13,11 +13,12 @@ from typing import Optional, Dict
 from dotenv import load_dotenv
 
 # Load environment variables
-# Priority: Kubernetes secrets > backend/.env > .env.local
-env_paths = ["/app/backend/.env", "/app/.env.local", ".env.local", "../.env.local"]
+# Priority: Kubernetes secrets (already in env) > .env.local (has real keys) > backend/.env (defaults)
+# Load in reverse order so higher priority overrides lower
+env_paths = ["/app/backend/.env", "/app/.env.local"]
 for env_path in env_paths:
     if os.path.exists(env_path):
-        load_dotenv(env_path, override=False)  # Don't override existing env vars
+        load_dotenv(env_path, override=True)  # Override with higher priority files
         print(f"[Backend] Loaded environment from {env_path}")
 
 app = FastAPI(title="Spordateur API", version="1.0.0")
