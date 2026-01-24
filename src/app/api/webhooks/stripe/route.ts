@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { sendBookingConfirmationEmail, sendPartnerNotificationEmail } from '@/lib/email';
 
+// Force dynamic rendering for this API route
+export const dynamic = 'force-dynamic';
+
 // Initialize Stripe
 const getStripe = () => {
   const apiKey = process.env.STRIPE_SECRET_KEY;

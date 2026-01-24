@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Force dynamic rendering for this API route
+export const dynamic = 'force-dynamic';
+
 // Fixed packages - NEVER accept amounts from frontend
 const PACKAGES = {
   solo: 25.00,  // 25€
