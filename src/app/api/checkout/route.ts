@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
 
     // Dynamic import Stripe to avoid issues at build time
     const Stripe = (await import('stripe')).default;
-    const stripe = new Stripe(apiKey, { apiVersion: '2025-01-27.acacia' });
+    const stripe = new Stripe(apiKey);
 
     // Build URLs
     const successUrl = `${originUrl}/discovery?payment=success&session_id={CHECKOUT_SESSION_ID}`;
