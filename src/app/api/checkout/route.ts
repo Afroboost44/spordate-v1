@@ -96,11 +96,13 @@ export async function POST(request: NextRequest) {
     const Stripe = (await import('stripe')).default;
     const stripe = new Stripe(apiKey);
 
-    // Build URLs
-    const successUrl = `${originUrl}/discovery?payment=success&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${originUrl}/discovery?payment=cancelled`;
+    // Build URLs - use originUrl from frontend, fallback to NEXTAUTH_URL or APP_URL
+    const baseUrl = originUrl || process.env.NEXTAUTH_URL || process.env.APP_URL || '';
+    const successUrl = `${baseUrl}/discovery?payment=success&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${baseUrl}/discovery?payment=cancelled`;
 
     console.log('[Checkout API] Creating Stripe session...');
+    console.log('[Checkout API] Base URL:', baseUrl);
     console.log('[Checkout API] Success URL:', successUrl);
 
     // Create Stripe Checkout Session
