@@ -1,80 +1,117 @@
 # Spordateur - Product Requirements Document
 
-## Overview
-Spordateur est une plateforme web de communauté sportive permettant aux utilisateurs de découvrir des partenaires d'entraînement et de réserver des séances dans des lieux partenaires.
+## Original Problem Statement
+Build and optimize "spordateur.com", a sports community web app with:
+- User onboarding and referrals
+- Demo Mode → Production transition
+- Stripe payment integration (Solo 25€ / Duo 50€)
+- Partner directory with QR codes
+- Admin dashboard
 
-## 🎉 Current Status
-✅ **PAIEMENTS STRIPE LIVE ACTIVÉS !**
-- Clés LIVE configurées et validées
-- Checkout Stripe fonctionne avec les vrais paiements
-- Montants : Solo 25€ / Duo 50€
+## Architecture
+- **Stack**: Next.js 15 (App Router) + TypeScript + Tailwind CSS + ShadCN UI
+- **Database**: Firebase (Firestore) with localStorage fallback
+- **Payment**: Stripe Checkout (LIVE keys)
+- **Port**: 3000 only (no secondary backend)
 
-⚠️ **ATTENTION : Les paiements sont RÉELS** (clés `pk_live_`, `sk_live_`)
+## What's Been Implemented
 
-## Core Features
+### Phase 1 - Core Features ✅
+- User onboarding flow with referral system
+- Discovery page with profile cards
+- Partner directory integration
+- Admin dashboard with sports management
 
-### 1. Onboarding Flow ✅
-- Inscription multi-étapes (Email/Pass -> Sports/Niveau -> Referral)
-- Code de parrainage unique (format SPORT-XXXX)
-- Mode localStorage si Firebase non configuré
+### Phase 2 - Payment Integration ✅ (Jan 24, 2026)
+- Stripe Checkout integration (LIVE keys)
+- Solo ticket (25€) and Duo ticket (50€)
+- Free session support (0€ → "SÉANCE D'ESSAI")
+- SuccessTicket modal with:
+  - WhatsApp sharing (partner name + time)
+  - Google Calendar integration
+  - .ics file download
+- Stripe webhook for payment confirmation
 
-### 2. Discovery Page ✅
-- Swipe-style profile cards
-- Match system avec réservation de séance
-- Section "Où pratiquer ?" avec partenaires
+### Phase 3 - Architecture Cleanup ✅ (Jan 24, 2026)
+- Removed FastAPI backend (port 8001)
+- Centralized API in `/api/checkout/route.ts`
+- Fixed hardcoded URLs (now use `window.location.origin`)
+- Build passes with `npm run build`
 
-### 3. Payment & Booking System ✅ LIVE
-- **Stripe Checkout LIVE** fonctionnel
-  - `POST /api/checkout` - Crée une session de paiement
-  - `GET /api/checkout/status/[sessionId]` - Vérifie le statut
-  - `POST /api/webhooks/stripe` - Webhook pour confirmation
-- **Solo : 25€** | **Duo : 50€**
-- Redirection vers checkout.stripe.com
-- Support : Carte, Apple Pay, Google Pay
+## API Endpoints
 
-### 4. Email Notifications ✅
-- **Service Resend** avec templates HTML
-- **Email client** : "Ton ticket pour [LIEU] est prêt !"
-- **Email partenaire** : "Nouveau RDV sportif confirmé !"
-- Fallback console.log si Resend non configuré
+### POST /api/checkout
+Creates a Stripe Checkout session or handles free bookings.
 
-### 5. Success Modal Features ✅
-- Confirmation avec badge Solo/Duo
-- Boutons calendrier (Google Calendar + .ics)
-- Partage WhatsApp dynamique
-
-## Environment Variables (Configured)
-
-### Stripe LIVE ✅
+**Request:**
+```json
+{
+  "packageType": "solo" | "duo" | "free",
+  "amount": number, // optional, for free sessions
+  "originUrl": "https://...",
+  "metadata": { ... }
+}
 ```
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_51P7B76Rs7hrWkMqg...
-STRIPE_SECRET_KEY=sk_live_51P7B76Rs7hrWkMqg...
-STRIPE_WEBHOOK_SECRET=whsec_hKIuiGdcswiOGYvhIpLLb0re8EaH9Po1
+
+**Response (paid):**
+```json
+{
+  "url": "https://checkout.stripe.com/...",
+  "sessionId": "cs_live_..."
+}
 ```
 
-### Firebase (Optional)
-Non configuré - utilise localStorage fallback
+**Response (free):**
+```json
+{
+  "url": "/discovery?payment=success&free=true",
+  "sessionId": "free_...",
+  "isFree": true
+}
+```
 
-### Resend (Optional)
-Non configuré - logs console
+### POST /api/webhooks/stripe
+Handles Stripe webhook events (checkout.session.completed).
 
-## API Routes
-- `POST /api/checkout` - Crée session Stripe
-- `GET /api/checkout/status/[sessionId]` - Status paiement
-- `POST /api/webhooks/stripe` - Webhook Stripe
+## User Flows
 
-## Latest Changes (Jan 22, 2026)
-- ✅ Clés Stripe LIVE configurées et validées
-- ✅ Checkout Stripe fonctionnel (50€ Duo testé)
-- ✅ Redirection vers checkout.stripe.com confirmée
-- ✅ Produit affiché : "Séance Duo Afroboost (2 places)"
+### Free Session (0€)
+1. User clicks "Séance d'essai gratuite"
+2. Frontend calls `/api/checkout` with `amount: 0`
+3. API returns `isFree: true`
+4. Frontend shows SuccessTicket modal immediately
 
-## Next Steps
-- [ ] Configurer webhook URL dans Stripe Dashboard
-- [ ] Configurer Resend pour emails réels
-- [ ] Ajouter Firebase (optionnel)
-- [ ] Tests de paiement complets
+### Paid Session (25€/50€)
+1. User clicks "Payer XX€"
+2. Frontend calls `/api/checkout`
+3. API creates Stripe session, returns URL
+4. User redirected to Stripe Checkout
+5. On success, redirected to `/discovery?payment=success&session_id=...`
+6. Frontend polls status, shows SuccessTicket
 
 ## Credentials
-- **Admin Sports:** Code `AFRO2026`
-- **Admin Dashboard:** Email `contact.artboost@gmail.com`
+
+### Admin Access
+- `/admin/sports`: code `AFRO2026`
+- `/admin/dashboard`: email `contact.artboost@gmail.com`
+
+### Stripe (LIVE)
+- Keys stored in `/app/.env.local`
+- Webhook secret configured
+
+## Backlog (P1/P2)
+
+### P1 - High Priority
+- [ ] Real-time partner list sync (admin → discovery)
+- [ ] Full Firebase integration (remove localStorage fallback)
+
+### P2 - Medium Priority
+- [ ] Real email notifications via Resend API
+- [ ] Payment tracking dashboard in admin
+- [ ] Component refactoring (discovery/page.tsx is large)
+
+## Files of Reference
+- `/app/src/app/api/checkout/route.ts` - Payment API
+- `/app/src/app/api/webhooks/stripe/route.ts` - Webhook handler
+- `/app/src/app/discovery/page.tsx` - Main discovery page
+- `/app/.env.local` - Environment variables (Stripe keys)
