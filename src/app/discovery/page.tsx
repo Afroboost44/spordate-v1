@@ -295,8 +295,8 @@ export default function DiscoveryPage() {
         // Clean up
         localStorage.removeItem('pending_booking');
         
-        // Show success modal
-        setShowSuccessModal(true);
+        // Show success modal (SuccessTicket)
+        setShowTicketSuccess(true);
         
         toast({
           title: "Réservation confirmée ! 🎉",
