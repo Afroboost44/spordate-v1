@@ -536,7 +536,8 @@ export default function DiscoveryPage() {
     const location = lastBooking.partnerAddress 
       ? encodeURIComponent(lastBooking.partnerAddress)
       : encodeURIComponent('Spordateur');
-    const details = encodeURIComponent(`🎟️ Ticket ${ticketType} - ${lastBooking.amount}€\nPartenaire: ${lastBooking.profile}\nLieu: ${lastBooking.partner}\n\nRéservé via Spordateur`);
+    const priceLabel = lastBooking.amount === 0 ? 'OFFERT' : `${lastBooking.amount}€`;
+    const details = encodeURIComponent(`🎟️ Ticket ${ticketType} - ${priceLabel}\nPartenaire: ${lastBooking.profile}\nLieu: ${lastBooking.partner}\n\nRéservé via Spordateur`);
     
     // Create event for tomorrow at 19:00
     const startDate = new Date();
