@@ -20,7 +20,6 @@ export async function POST(request: NextRequest) {
   let event: Stripe.Event;
 
   try {
-    // Verify webhook signature if secret is configured
     if (process.env.STRIPE_WEBHOOK_SECRET && sig) {
       event = stripe.webhooks.constructEvent(
         body,
@@ -28,7 +27,6 @@ export async function POST(request: NextRequest) {
         process.env.STRIPE_WEBHOOK_SECRET
       );
     } else {
-      // For testing without signature verification
       event = JSON.parse(body) as Stripe.Event;
       console.log('[Stripe Webhook] Warning: No signature verification');
     }
@@ -43,7 +41,6 @@ export async function POST(request: NextRequest) {
 
   console.log('[Stripe Webhook] Event type:', event.type);
 
-  // Handle the event
   switch (event.type) {
     case 'checkout.session.completed': {
       const session = event.data.object as Stripe.Checkout.Session;
@@ -53,7 +50,6 @@ export async function POST(request: NextRequest) {
         await handleSuccessfulPayment(session);
       } catch (error) {
         console.error('[Stripe Webhook] Error processing payment:', error);
-        // Still acknowledge receipt to Stripe
       }
       break;
     }
@@ -62,7 +58,6 @@ export async function POST(request: NextRequest) {
       const session = event.data.object as Stripe.Checkout.Session;
       console.log('[Stripe Webhook] Session expired:', session.id);
       
-      // Update booking status to failed if exists
       try {
         await prisma.booking.updateMany({
           where: { sessionId: session.id },
@@ -82,40 +77,85 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Handle successful payment - Create Booking in database
+ * Handle successful payment - Create Booking in PostgreSQL database
  */
 async function handleSuccessfulPayment(session: Stripe.Checkout.Session) {
   const metadata = session.metadata || {};
   const customerEmail = session.customer_details?.email;
   const amountPaid = (session.amount_total || 0) / 100;
 
+  // Extract metadata
+  const ticketType = metadata.ticketType || 'solo';
+  const profileName = metadata.profileName || 'Partenaire';
+  const sport = metadata.sport || 'Afroboost';
+  const partnerName = metadata.partnerName || null;
+  const partnerAddress = metadata.partnerAddress || null;
+  const partnerId = metadata.partnerId || null;
+  const profileId = metadata.profileId || '';
+  let userId = metadata.userId;
+
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-  console.log('💳 CREATING BOOKING IN DATABASE');
+  console.log('💳 CREATING BOOKING IN POSTGRESQL');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(`🔢 Session ID: ${session.id}`);
-  console.log(`👤 User ID: ${metadata.userId || 'unknown'}`);
-  console.log(`🎟️ Type: ${metadata.ticketType || 'solo'}`);
+  console.log(`👤 User ID: ${userId || 'will create'}`);
+  console.log(`🎟️ Ticket Type: ${ticketType}`);
   console.log(`💰 Amount: ${amountPaid}€`);
-  console.log(`👤 Profile: ${metadata.profileName || 'Unknown'}`);
-  console.log(`🏃 Sport: ${metadata.sport || 'Afroboost'}`);
-  console.log(`📍 Partner: ${metadata.partnerName || 'Non défini'}`);
+  console.log(`👤 Profile: ${profileName}`);
+  console.log(`🏃 Sport: ${sport}`);
+  console.log(`📍 Partner: ${partnerName || 'Non défini'}`);
   console.log(`📧 Email: ${customerEmail || 'Non fourni'}`);
 
   try {
+    // First, ensure user exists (create if not)
+    let user;
+    
+    if (userId) {
+      user = await prisma.user.findUnique({ where: { id: userId } });
+    }
+    
+    if (!user && customerEmail) {
+      user = await prisma.user.findUnique({ where: { email: customerEmail } });
+    }
+    
+    if (!user) {
+      // Create new user
+      user = await prisma.user.create({
+        data: {
+          id: userId || undefined,
+          email: customerEmail || null,
+          name: profileName,
+        },
+      });
+      console.log('✅ New user created:', user.id);
+    }
+    
+    userId = user.id;
+
+    // Check if booking already exists
+    const existingBooking = await prisma.booking.findUnique({
+      where: { sessionId: session.id },
+    });
+
+    if (existingBooking) {
+      console.log('[Stripe Webhook] Booking already exists for this session');
+      return existingBooking;
+    }
+
     // Create booking in database
     const booking = await prisma.booking.create({
       data: {
         sessionId: session.id,
         paymentStatus: 'paid',
-        userId: metadata.userId || `user_${Date.now()}`,
+        userId: userId,
         userEmail: customerEmail || null,
-        profileId: metadata.profileId || '',
-        profileName: metadata.profileName || 'Partenaire',
-        sport: metadata.sport || 'Afroboost',
-        partnerId: metadata.partnerId || null,
-        partnerName: metadata.partnerName || null,
-        partnerAddress: metadata.partnerAddress || null,
-        ticketType: metadata.ticketType || 'solo',
+        profileId: profileId,
+        profileName: profileName,
+        sport: sport,
+        partnerId: partnerId,
+        partnerName: partnerName,
+        partnerAddress: partnerAddress,
+        ticketType: ticketType,
         amount: amountPaid,
         currency: session.currency?.toUpperCase() || 'EUR',
       },
@@ -127,22 +167,15 @@ async function handleSuccessfulPayment(session: Stripe.Checkout.Session) {
     return booking;
   } catch (error) {
     console.error('❌ ERROR CREATING BOOKING:', error);
-    
-    // Check if it's a duplicate (booking already exists)
-    if (error instanceof Error && error.message.includes('Unique constraint')) {
-      console.log('[Stripe Webhook] Booking already exists for this session');
-      return null;
-    }
-    
     throw error;
   }
 }
 
-// GET endpoint for health check
 export async function GET() {
   return NextResponse.json({
     status: 'ok',
     webhook: 'stripe',
+    database: 'postgresql',
     stripeConfigured: !!process.env.STRIPE_SECRET_KEY,
     webhookSecretConfigured: !!process.env.STRIPE_WEBHOOK_SECRET,
   });
