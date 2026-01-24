@@ -681,7 +681,7 @@ END:VCALENDAR`;
                     className="flex-1 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] text-white"
                   >
                     <Zap className="mr-2 h-4 w-4" />
-                    {currentProfile.price === 0 ? 'Réserver gratuitement' : `Réserver une séance • ${currentProfile.price}€`}
+                    {currentProfile.price === 0 ? 'Séance d\'essai gratuite' : `Réserver une séance • ${currentProfile.price}€`}
                   </Button>
                 ) : (
                   <Button 
@@ -890,7 +890,7 @@ END:VCALENDAR`;
               ) : (
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5" />
-                  <span>{getCurrentPrice() === 0 ? 'Réserver gratuitement' : `Payer ${getCurrentPrice()}€`}</span>
+                  <span>{getCurrentPrice() === 0 ? 'Confirmer ma séance d\'essai' : `Payer ${getCurrentPrice()}€`}</span>
                   {isDuoTicket && <Badge className="bg-white/20 text-white text-xs ml-1">Duo</Badge>}
                 </div>
               )}
