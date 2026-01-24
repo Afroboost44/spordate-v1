@@ -581,7 +581,7 @@ BEGIN:VEVENT
 DTSTART:${formatIcsDate(startDate)}
 DTEND:${formatIcsDate(endDate)}
 SUMMARY:Séance Afroboost ${ticketType} avec ${lastBooking.profile}
-DESCRIPTION:🎟️ Ticket ${ticketType} - ${lastBooking.amount}€\\nPartenaire: ${lastBooking.profile}\\nLieu: ${lastBooking.partner}\\n\\nRéservé via Spordateur
+DESCRIPTION:🎟️ Ticket ${ticketType} - ${lastBooking.amount === 0 ? 'OFFERT' : lastBooking.amount + '€'}\\nPartenaire: ${lastBooking.profile}\\nLieu: ${lastBooking.partner}\\n\\nRéservé via Spordateur
 LOCATION:${location}
 STATUS:CONFIRMED
 END:VEVENT
