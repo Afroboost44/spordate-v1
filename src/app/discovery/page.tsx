@@ -481,7 +481,7 @@ export default function DiscoveryPage() {
         
         setLastBooking(booking);
         setShowPaymentModal(false);
-        setShowSuccessModal(true);
+        setShowTicketSuccess(true);
         setIsProcessing(false);
         localStorage.removeItem('pending_booking');
         
