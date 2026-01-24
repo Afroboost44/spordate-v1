@@ -812,7 +812,7 @@ END:VCALENDAR`;
                 <span className="text-gray-400">
                   {isDuoTicket ? 'Séance Duo Afroboost (2x 1h)' : 'Séance Afroboost (1h)'}
                 </span>
-                <span className="font-semibold">{getCurrentPrice() === 0 ? 'Gratuit' : `${getCurrentPrice()}€`}</span>
+                <span className="font-semibold">{getCurrentPrice() === 0 ? 'SÉANCE D\'ESSAI' : `${getCurrentPrice()}€`}</span>
               </div>
               {isDuoTicket && (
                 <div className="flex justify-between items-center text-sm text-violet-300 mb-2">
@@ -829,7 +829,7 @@ END:VCALENDAR`;
               <Separator className="my-3 bg-white/10" />
               <div className="flex justify-between items-center text-lg font-bold">
                 <span>Total</span>
-                <span className="text-green-400">{getCurrentPrice() === 0 ? 'Gratuit' : `${getCurrentPrice()}€`}</span>
+                <span className="text-green-400">{getCurrentPrice() === 0 ? 'OFFERT' : `${getCurrentPrice()}€`}</span>
               </div>
             </div>
 
@@ -1116,7 +1116,7 @@ END:VCALENDAR`;
                 <div className="flex justify-between">
                   <span className="text-gray-400">Montant</span>
                   <span className="text-green-400 font-semibold">
-                    {lastBooking?.amount === 0 ? 'Gratuit' : `${lastBooking?.amount}€`}
+                    {lastBooking?.amount === 0 ? 'OFFERT' : `${lastBooking?.amount}€`}
                   </span>
                 </div>
               </div>
