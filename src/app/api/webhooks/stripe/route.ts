@@ -107,8 +107,10 @@ async function handleSuccessfulPayment(session: Stripe.Checkout.Session) {
   
   const bookingDetails = {
     sessionId: session.id,
+    userId: metadata.userId || '',
     profileName: metadata.profileName || 'Partenaire',
     profileId: metadata.profileId || '',
+    sport: metadata.sport || 'Afroboost',
     partnerId: metadata.partnerId || '',
     partnerName: metadata.partnerName || '',
     partnerAddress: metadata.partnerAddress || '',
@@ -128,9 +130,11 @@ async function handleSuccessfulPayment(session: Stripe.Checkout.Session) {
   console.log('💳 PAIEMENT CONFIRMÉ PAR WEBHOOK');
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
   console.log(`🔢 Session ID: ${session.id}`);
+  console.log(`👤 User ID: ${bookingDetails.userId}`);
   console.log(`🎟️ Type: ${bookingDetails.ticketType}`);
   console.log(`💰 Montant: ${bookingDetails.amount}€`);
   console.log(`👤 Profil: ${bookingDetails.profileName}`);
+  console.log(`🏃 Sport: ${bookingDetails.sport}`);
   console.log(`📍 Partenaire: ${bookingDetails.partnerName || 'Non défini'}`);
   console.log(`📧 Email client: ${customerEmail || 'Non fourni'}`);
   console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
