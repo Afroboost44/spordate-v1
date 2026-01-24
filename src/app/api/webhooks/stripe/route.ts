@@ -4,6 +4,7 @@ import { sendBookingConfirmationEmail, sendPartnerNotificationEmail } from '@/li
 
 // Force dynamic rendering for this API route
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Prevent timeout during webhook processing
 
 // Initialize Stripe
 const getStripe = () => {

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // Force dynamic rendering for this API route
 export const dynamic = 'force-dynamic';
+export const maxDuration = 60; // Prevent timeout during Stripe session creation
 
 // Fixed packages - NEVER accept amounts from frontend
 const PACKAGES = {

@@ -3,6 +3,7 @@ import Stripe from 'stripe';
 
 // Force dynamic rendering for this API route
 export const dynamic = 'force-dynamic';
+export const maxDuration = 30; // Prevent timeout during status check
 
 // Initialize Stripe
 const getStripe = () => {
