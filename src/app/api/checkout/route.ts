@@ -1,6 +1,7 @@
 /**
  * Spordateur V2 — Checkout API
  * Session Stripe Checkout : TWINT + Card + Apple Pay (CHF)
+ * Supports: credit packages + premium subscriptions + partner subscriptions
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -8,12 +9,44 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// Packages de crédits (montants en centimes CHF)
-const PACKAGES: Record<string, { price: number; credits: number; label: string; description: string }> = {
-  '1_date':   { price: 1000,  credits: 1,  label: '1 Sport Date',  description: '1 crédit Sport Date' },
-  '3_dates':  { price: 2500,  credits: 3,  label: '3 Sport Dates', description: '3 crédits Sport Date — le plus populaire' },
-  '10_dates': { price: 6000,  credits: 10, label: '10 Sport Dates', description: '10 crédits Sport Date — meilleur rapport' },
-  'partner_monthly': { price: 4900, credits: 0, label: 'Partenaire Pro', description: 'Abonnement partenaire mensuel' },
+// All packages (amounts in CHF centimes)
+const PACKAGES: Record<string, {
+  price: number;
+  credits: number;
+  label: string;
+  description: string;
+  type: 'one_time' | 'subscription';
+  interval?: 'month' | 'year';
+  features?: string[];
+}> = {
+  // Test package (remove before production)
+  'test_1chf': { price: 100, credits: 1, label: 'Test 1 CHF', description: 'Package de test — 1 CHF', type: 'one_time' },
+
+  // Credit packages (one-time)
+  '1_date':   { price: 1000,  credits: 1,  label: '1 Sport Date',  description: '1 crédit Sport Date', type: 'one_time' },
+  '3_dates':  { price: 2500,  credits: 3,  label: '3 Sport Dates', description: '3 crédits Sport Date — le plus populaire', type: 'one_time' },
+  '10_dates': { price: 6000,  credits: 10, label: '10 Sport Dates', description: '10 crédits Sport Date — meilleur rapport', type: 'one_time' },
+
+  // Premium user subscriptions
+  'premium_monthly': {
+    price: 1990, credits: 5, label: 'Spordate Premium',
+    description: 'Abonnement Premium mensuel — Matching illimité + 5 crédits/mois',
+    type: 'subscription', interval: 'month',
+    features: ['Matching illimité', '5 crédits/mois', 'Profil mis en avant', 'Chat illimité', 'Pas de pub'],
+  },
+  'premium_yearly': {
+    price: 14900, credits: 60, label: 'Spordate Premium Annuel',
+    description: 'Abonnement Premium annuel — Économisez 37% + 60 crédits',
+    type: 'subscription', interval: 'year',
+    features: ['Matching illimité', '60 crédits/an', 'Profil mis en avant', 'Chat illimité', 'Pas de pub', 'Badge exclusif'],
+  },
+
+  // Partner subscription
+  'partner_monthly': {
+    price: 4900, credits: 0, label: 'Partenaire Pro',
+    description: 'Abonnement partenaire mensuel',
+    type: 'subscription', interval: 'month',
+  },
 };
 
 export async function POST(request: NextRequest) {
@@ -39,23 +72,32 @@ export async function POST(request: NextRequest) {
     const Stripe = (await import('stripe')).default;
     const stripe = new Stripe(apiKey);
 
-    const isSubscription = packageId === 'partner_monthly';
+    const isSubscription = pkg.type === 'subscription';
+    const isPremium = packageId.startsWith('premium_');
 
-    // TWINT + Card nativement supportés pour CHF
-    // Apple Pay est activé automatiquement quand 'card' est dans la liste
+    // Determine success/cancel URLs based on package type
+    const successUrl = isPremium
+      ? `${baseUrl}/premium?status=success&session_id={CHECKOUT_SESSION_ID}`
+      : `${baseUrl}/payment?status=success&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = isPremium
+      ? `${baseUrl}/premium?status=cancel`
+      : `${baseUrl}/payment?status=cancel`;
+
+    // TWINT + Card natively supported for CHF
     const paymentMethodTypes: ('card' | 'twint')[] = ['card', 'twint'];
 
     const sessionParams: Record<string, unknown> = {
       payment_method_types: paymentMethodTypes,
       mode: isSubscription ? 'subscription' : 'payment',
-      success_url: `${baseUrl}/payment?status=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/payment?status=cancel`,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
       metadata: {
         userId,
         packageId,
         creditsToGrant: String(pkg.credits),
         matchId: matchId || '',
         referralCode: referralCode || '',
+        isPremium: isPremium ? 'true' : 'false',
       },
     };
 
@@ -68,10 +110,18 @@ export async function POST(request: NextRequest) {
             description: pkg.description,
           },
           unit_amount: pkg.price,
-          recurring: { interval: 'month' },
+          recurring: { interval: pkg.interval || 'month' },
         },
         quantity: 1,
       }];
+      // Pass subscription metadata for renewal tracking
+      sessionParams.subscription_data = {
+        metadata: {
+          userId,
+          packageId,
+          isPremium: isPremium ? 'true' : 'false',
+        },
+      };
     } else {
       sessionParams.line_items = [{
         price_data: {
@@ -108,6 +158,8 @@ export async function GET() {
       price: `${(pkg.price / 100).toFixed(2)} CHF`,
       credits: pkg.credits,
       label: pkg.label,
+      type: pkg.type,
+      interval: pkg.interval,
     })),
     paymentMethods: ['card', 'twint', 'apple_pay'],
     currency: 'CHF',

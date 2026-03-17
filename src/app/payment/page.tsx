@@ -33,6 +33,13 @@ interface CreditPackage {
 
 const CREDIT_PACKAGES: CreditPackage[] = [
   {
+    id: 'test_1chf',
+    dates: 1,
+    price: 1,
+    badge: 'TEST',
+    description: 'Test 1 CHF'
+  },
+  {
     id: '1_date',
     dates: 1,
     price: 10,
