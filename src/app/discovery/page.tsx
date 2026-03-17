@@ -748,117 +748,122 @@ END:VCALENDAR`;
     <div className="min-h-[calc(100vh-4rem)] bg-black">
       {currentProfile ? (
         <div className="relative w-full max-w-6xl mx-auto md:flex md:flex-row-reverse md:gap-6 md:px-6 md:py-6">
-          {/* Profile Card — full width mobile, right side on desktop */}
-          <div className="md:flex-1 relative h-[calc(100vh-12rem)] md:h-[85vh] min-h-[500px] max-h-[900px] overflow-hidden md:rounded-3xl order-2 md:order-1">
-            {/* Profile Photo - full bleed with lazy loading */}
-            {(currentProfile as any).photoURL ? (
-              <img
-                src={(currentProfile as any).photoURL}
-                alt={currentProfile.name}
-                loading="lazy"
-                decoding="async"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            ) : profileImage ? (
-              <img
-                src={profileImage.imageUrl}
-                alt={currentProfile.name}
-                loading="lazy"
-                decoding="async"
-                className="absolute inset-0 w-full h-full object-cover"
-              />
-            ) : (
-              <div className="absolute inset-0 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
-                <span className="text-8xl font-light text-white/20">{currentProfile.name.charAt(0)}</span>
+          {/* Profile Card — clean photo + info below */}
+          <div className="md:flex-1 order-2 md:order-1 flex flex-col">
+
+            {/* === PHOTO ZONE === Only name + location on image */}
+            <div className="relative aspect-[4/5] md:aspect-[3/4] w-full overflow-hidden md:rounded-3xl">
+              {(currentProfile as any).photoURL ? (
+                <img
+                  src={(currentProfile as any).photoURL}
+                  alt={currentProfile.name}
+                  loading="lazy"
+                  decoding="async"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              ) : profileImage ? (
+                <img
+                  src={profileImage.imageUrl}
+                  alt={currentProfile.name}
+                  loading="lazy"
+                  decoding="async"
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
+                  <span className="text-8xl font-light text-white/20">{currentProfile.name.charAt(0)}</span>
+                </div>
+              )}
+
+              {/* Subtle gradient — just enough for name readability */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+
+              {/* Top badges */}
+              <div className="absolute top-5 left-5 right-5 z-20 flex justify-between items-start">
+                {(currentProfile as any).matchScore > 0 && (
+                  <Badge className={`px-3 py-1.5 flex items-center gap-1.5 backdrop-blur-md text-sm ${
+                    (currentProfile as any).matchScore >= 70 ? 'bg-green-500/80 text-white' :
+                    (currentProfile as any).matchScore >= 40 ? 'bg-yellow-500/80 text-black' :
+                    'bg-white/20 text-white'
+                  }`}>
+                    <Zap className="h-3.5 w-3.5" />
+                    {(currentProfile as any).matchScore}% match
+                  </Badge>
+                )}
+                {hasTicket && (
+                  <Badge className="bg-green-500/80 backdrop-blur-md text-white px-3 py-1.5 flex items-center gap-1.5">
+                    <Ticket className="h-3.5 w-3.5" />
+                    Réservé
+                  </Badge>
+                )}
               </div>
-            )}
 
-            {/* Gradient overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+              {/* Name + Location — only these on the photo */}
+              <div className="absolute bottom-0 left-0 right-0 p-6 pb-7 z-10">
+                <h2 className="text-4xl font-light tracking-tight text-white drop-shadow-2xl">{currentProfile.name}</h2>
+                <p className="flex items-center gap-1.5 text-white/60 text-sm mt-1 tracking-wide">
+                  <MapPin size={14} className="text-[#D91CD2]" />
+                  {currentProfile.location}
+                </p>
+              </div>
 
-            {/* Top badges */}
-            <div className="absolute top-4 left-4 right-4 z-20 flex justify-between items-start">
-              {(currentProfile as any).matchScore > 0 && (
-                <Badge className={`px-3 py-1.5 flex items-center gap-1.5 backdrop-blur-md text-sm ${
-                  (currentProfile as any).matchScore >= 70 ? 'bg-green-500/80 text-white' :
-                  (currentProfile as any).matchScore >= 40 ? 'bg-yellow-500/80 text-black' :
-                  'bg-white/20 text-white'
-                }`}>
-                  <Zap className="h-3.5 w-3.5" />
-                  {(currentProfile as any).matchScore}% match
-                </Badge>
-              )}
-              {hasTicket && (
-                <Badge className="bg-green-500/80 backdrop-blur-md text-white px-3 py-1.5 flex items-center gap-1.5">
-                  <Ticket className="h-3.5 w-3.5" />
-                  Réservé
-                </Badge>
-              )}
+              {/* Like / Dislike floating on photo */}
+              <div className="absolute bottom-6 right-6 z-20 flex items-center gap-3">
+                <button
+                  onClick={handleNextProfile}
+                  className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/60 hover:text-red-400 hover:border-red-400/40 transition-all active:scale-90"
+                >
+                  <X size={22} />
+                </button>
+                <button
+                  onClick={handleLike}
+                  className="w-12 h-12 rounded-full bg-[#D91CD2]/30 backdrop-blur-md border border-[#D91CD2]/40 flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
+                >
+                  <Heart size={20} fill="currentColor" />
+                </button>
+              </div>
             </div>
 
-            {/* Bottom info overlay */}
-            <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 z-10">
-              {/* Name & Location */}
-              <h2 className="text-4xl font-bold text-white mb-1 drop-shadow-2xl">{currentProfile.name}</h2>
-              <p className="flex items-center gap-1.5 text-white/70 text-base mb-4">
-                <MapPin size={16} className="text-[#D91CD2]" />
-                {currentProfile.location}
-              </p>
+            {/* === INFO ZONE === Below photo, on pure black */}
+            <div className="px-6 md:px-8 pt-6 pb-4 space-y-5">
 
               {/* Sports Tags */}
-              <div className="flex flex-wrap gap-2 mb-4">
+              <div className="flex flex-wrap gap-2">
                 {currentProfile.sports.map(sport => (
-                  <span key={sport} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-white/10 backdrop-blur-sm text-white border border-white/20">
+                  <span key={sport} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-light tracking-wider uppercase text-white/80 border border-white/10">
                     {sport === 'Afroboost' && <Zap className="h-3 w-3 text-[#D91CD2]" />}
                     {sport}
                   </span>
                 ))}
               </div>
 
-              {/* Bio */}
-              <p className="text-white/60 text-sm leading-relaxed mb-5">{currentProfile.bio}</p>
+              {/* Bio — clean, on black, font-light */}
+              <p className="text-white text-sm font-light leading-relaxed tracking-wide">
+                {currentProfile.bio}
+              </p>
 
-              {/* Action buttons row */}
-              <div className="flex items-center gap-3">
-                {/* Dislike */}
-                <button
-                  onClick={handleNextProfile}
-                  className="w-14 h-14 rounded-full border-2 border-white/20 flex items-center justify-center text-white/50 hover:border-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all active:scale-90"
-                >
-                  <X size={26} />
-                </button>
-
-                {/* Book / CTA */}
+              {/* CTA Button — Glassmorphism */}
+              <div className="pt-2 flex items-center gap-3">
                 {!hasTicket ? (
                   <button
                     onClick={handleBookSession}
-                    className="flex-1 h-14 rounded-full bg-gradient-to-r from-[#D91CD2] to-[#E91E63] text-white font-semibold text-base flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#D91CD2]/30 transition-all active:scale-[0.98]"
+                    className="flex-1 h-14 rounded-full bg-white/5 backdrop-blur-xl border border-[#D91CD2] text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 hover:bg-[#D91CD2]/10 transition-all active:scale-[0.98]"
                   >
-                    <Zap className="h-5 w-5" />
-                    {currentProfile.price === 0 ? 'Séance d\'essai gratuite' : `Réserver • ${currentProfile.price} CHF`}
+                    <Zap className="h-4 w-4 text-[#D91CD2]" />
+                    {currentProfile.price === 0 ? 'Séance d\'essai gratuite' : `Réserver · ${currentProfile.price} CHF`}
                   </button>
                 ) : (
                   <button
                     disabled
-                    className="flex-1 h-14 rounded-full bg-green-600/80 text-white font-semibold text-base flex items-center justify-center gap-2 cursor-default"
+                    className="flex-1 h-14 rounded-full bg-green-500/10 backdrop-blur-xl border border-green-500/30 text-green-400 font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 cursor-default"
                   >
-                    <Check className="h-5 w-5" />
+                    <Check className="h-4 w-4" />
                     Séance Réservée
                   </button>
                 )}
-
-                {/* Like */}
-                <button
-                  onClick={handleLike}
-                  className="w-14 h-14 rounded-full bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white shadow-lg shadow-[#D91CD2]/30 hover:scale-110 transition-all active:scale-90"
-                >
-                  <Heart size={24} fill="currentColor" />
-                </button>
-
-                {/* Share */}
                 <button
                   onClick={handleShareProfile}
-                  className="w-10 h-10 rounded-full border border-white/15 flex items-center justify-center text-white/40 hover:text-white/80 transition-all"
+                  className="w-12 h-12 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/40 hover:text-white/70 transition-all"
                 >
                   <Share2 className="h-4 w-4" />
                 </button>
