@@ -747,20 +747,24 @@ END:VCALENDAR`;
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-black">
       {currentProfile ? (
-        <div className="relative w-full max-w-lg mx-auto">
-          {/* Full-screen style profile card */}
-          <div className="relative h-[85vh] min-h-[600px] max-h-[900px] overflow-hidden rounded-b-3xl">
-            {/* Profile Photo - full bleed */}
+        <div className="relative w-full md:max-w-lg mx-auto">
+          {/* Full-screen style profile card — 100vw mobile, capped on desktop */}
+          <div className="relative h-[calc(100vh-5rem)] md:h-[85vh] min-h-[500px] max-h-[900px] overflow-hidden md:rounded-b-3xl">
+            {/* Profile Photo - full bleed with lazy loading */}
             {(currentProfile as any).photoURL ? (
               <img
                 src={(currentProfile as any).photoURL}
                 alt={currentProfile.name}
+                loading="lazy"
+                decoding="async"
                 className="absolute inset-0 w-full h-full object-cover"
               />
             ) : profileImage ? (
               <img
                 src={profileImage.imageUrl}
                 alt={currentProfile.name}
+                loading="lazy"
+                decoding="async"
                 className="absolute inset-0 w-full h-full object-cover"
               />
             ) : (

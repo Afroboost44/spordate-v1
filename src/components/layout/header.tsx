@@ -18,8 +18,7 @@ export default function Header() {
   const { isLoggedIn, loading, logout, user } = useAuth();
 
   const navLinks = [
-    { href: "/discovery", label: t('nav_discovery') || "Rencontres" },
-    { href: "/dashboard", label: t('nav_find_match') || "Find Match" },
+    { href: "/discovery", label: t('nav_discovery') || "Découvrir" },
     { href: "/profile", label: t('nav_profile') || "Mon Profil" },
     { href: "/activities", label: t('nav_activities') || "Activités" },
     { href: "/premium", label: "Premium", isPremium: true },
@@ -34,7 +33,7 @@ export default function Header() {
   };
 
   return (
-    <header className="sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+    <header className="hidden md:block sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
         <div className="flex items-center md:flex-1">
           <Link href="/" className="mr-6 flex items-center space-x-2">

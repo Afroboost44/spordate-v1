@@ -72,6 +72,15 @@ export async function POST(request: NextRequest) {
     case 'customer.subscription.deleted':
       await handleSubCancelled(obj);
       break;
+    case 'customer.subscription.updated':
+      await handleSubUpdated(obj);
+      break;
+    case 'invoice.payment_succeeded':
+      await handleInvoicePaid(obj);
+      break;
+    case 'invoice.payment_failed':
+      await handleInvoiceFailed(obj);
+      break;
   }
 
   return NextResponse.json({ received: true });
@@ -160,11 +169,27 @@ async function handlePaymentSuccess(session: Record<string, unknown>, stripe: In
     [`byPaymentMethod.${pm}`]: FV.increment(amountTotal / 100),
   }, { merge: true });
 
-  // 5. Notification
+  // 5. Activate Premium if applicable
+  const isPremium = meta.isPremium === 'true';
+  if (isPremium) {
+    const userRef = db.collection('users').doc(userId);
+    batch.update(userRef, {
+      isPremium: true,
+      premiumPackage: packageId,
+      premiumStartedAt: FV.serverTimestamp(),
+      updatedAt: FV.serverTimestamp(),
+    });
+  }
+
+  // 6. Notification
   const nRef = db.collection('notifications').doc();
+  const notifBody = isPremium
+    ? 'Votre abonnement Premium est activé ! Profitez du matching illimité.'
+    : `${creditsToGrant} crédit(s) ajouté(s)`;
   batch.set(nRef, {
     notificationId: nRef.id, userId, type: 'payment',
-    title: 'Paiement confirmé', body: `${creditsToGrant} crédit(s) ajouté(s)`,
+    title: isPremium ? 'Premium activé !' : 'Paiement confirmé',
+    body: notifBody,
     data: { transactionId: txRef.id, packageId }, isRead: false,
     createdAt: FV.serverTimestamp(),
   });
@@ -211,8 +236,128 @@ async function handleExpired(session: Record<string, unknown>) {
 
 async function handleSubCancelled(sub: Record<string, unknown>) {
   const { db, FV } = await initAdmin();
-  const pid = (sub.metadata as Record<string, string>)?.partnerId;
-  if (pid) await db.collection('partners').doc(pid).update({ subscriptionStatus: 'cancelled', updatedAt: FV.serverTimestamp() });
+  const meta = (sub.metadata || {}) as Record<string, string>;
+
+  // Handle partner subscription cancellation
+  const pid = meta.partnerId;
+  if (pid) {
+    await db.collection('partners').doc(pid).update({ subscriptionStatus: 'cancelled', updatedAt: FV.serverTimestamp() });
+  }
+
+  // Handle user premium cancellation
+  const userId = meta.userId;
+  const isPremium = meta.isPremium === 'true';
+  if (userId && isPremium) {
+    await db.collection('users').doc(userId).update({
+      isPremium: false,
+      premiumCancelledAt: FV.serverTimestamp(),
+      updatedAt: FV.serverTimestamp(),
+    });
+    // Notify user
+    const nRef = db.collection('notifications').doc();
+    await nRef.set({
+      notificationId: nRef.id, userId, type: 'payment',
+      title: 'Abonnement Premium annulé',
+      body: 'Votre abonnement Premium a été annulé. Vous conservez vos crédits restants.',
+      data: {}, isRead: false, createdAt: FV.serverTimestamp(),
+    });
+  }
+}
+
+async function handleSubUpdated(sub: Record<string, unknown>) {
+  const { db, FV } = await initAdmin();
+  const meta = (sub.metadata || {}) as Record<string, string>;
+  const userId = meta.userId;
+  const status = sub.status as string;
+
+  if (userId && meta.isPremium === 'true') {
+    const isPremiumActive = status === 'active' || status === 'trialing';
+    await db.collection('users').doc(userId).update({
+      isPremium: isPremiumActive,
+      updatedAt: FV.serverTimestamp(),
+    });
+  }
+}
+
+async function handleInvoicePaid(invoice: Record<string, unknown>) {
+  const { db, FV } = await initAdmin();
+  const subId = invoice.subscription as string;
+  if (!subId) return;
+
+  // Get subscription metadata to find user
+  const lines = invoice.lines as Record<string, unknown>;
+  const data = (lines?.data as Array<Record<string, unknown>>) || [];
+  if (data.length === 0) return;
+
+  const subMeta = (data[0]?.metadata || {}) as Record<string, string>;
+  const userId = subMeta.userId;
+  const isPremium = subMeta.isPremium === 'true';
+  const packageId = subMeta.packageId || '';
+
+  if (!userId || !isPremium) return;
+
+  // Grant monthly credits for premium renewal
+  const RENEWAL_CREDITS: Record<string, number> = {
+    'premium_monthly': 5,
+    'premium_yearly': 5, // 5 per month even on annual (60/12)
+  };
+  const credits = RENEWAL_CREDITS[packageId] || 5;
+
+  const batch = db.batch();
+
+  // Add credits
+  const userRef = db.collection('users').doc(userId);
+  batch.update(userRef, {
+    credits: FV.increment(credits),
+    isPremium: true,
+    updatedAt: FV.serverTimestamp(),
+  });
+
+  // Credit entry
+  const creditRef = db.collection('credits').doc();
+  batch.set(creditRef, {
+    creditId: creditRef.id, userId, type: 'purchase', amount: credits,
+    balance: 0, // Will be overwritten by actual read if needed
+    description: `Renouvellement Premium — ${credits} crédits`,
+    relatedId: subId, createdAt: FV.serverTimestamp(),
+  });
+
+  // Notification
+  const nRef = db.collection('notifications').doc();
+  batch.set(nRef, {
+    notificationId: nRef.id, userId, type: 'payment',
+    title: 'Premium renouvelé',
+    body: `${credits} crédits ajoutés à votre compte.`,
+    data: { packageId }, isRead: false, createdAt: FV.serverTimestamp(),
+  });
+
+  // Analytics
+  const amountPaid = ((invoice.amount_paid as number) || 0) / 100;
+  batch.set(db.collection('analytics').doc('global'), {
+    totalRevenue: FV.increment(amountPaid), lastUpdated: FV.serverTimestamp(),
+  }, { merge: true });
+
+  await batch.commit();
+}
+
+async function handleInvoiceFailed(invoice: Record<string, unknown>) {
+  const { db, FV } = await initAdmin();
+  const lines = invoice.lines as Record<string, unknown>;
+  const data = (lines?.data as Array<Record<string, unknown>>) || [];
+  if (data.length === 0) return;
+
+  const subMeta = (data[0]?.metadata || {}) as Record<string, string>;
+  const userId = subMeta.userId;
+  if (!userId) return;
+
+  // Notify user of failed payment
+  const nRef = db.collection('notifications').doc();
+  await nRef.set({
+    notificationId: nRef.id, userId, type: 'payment',
+    title: 'Échec de paiement',
+    body: 'Le renouvellement de votre abonnement a échoué. Mettez à jour votre moyen de paiement.',
+    data: {}, isRead: false, createdAt: FV.serverTimestamp(),
+  });
 }
 
 async function logErr(db: FirebaseFirestore.Firestore, FV: typeof import('firebase-admin/firestore').FieldValue, msg: string, rid: string) {
