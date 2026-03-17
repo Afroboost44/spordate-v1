@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, Heart, MapPin, Undo2, Zap, Lock, CheckCircle, RefreshCcw, Handshake, Share2, CreditCard, Check, Ticket, Loader2, Building2, Navigation, Clock, Users, Calendar, MessageCircle, Send, ChevronRight, Download, Gift } from 'lucide-react';
-import Image from 'next/image';
+// Using regular img tags instead of next/image for external URLs reliability
 import { Badge } from "@/components/ui/badge";
 import { PlaceHolderImages } from '@/lib/placeholder-images';
 import {
@@ -745,163 +745,169 @@ END:VCALENDAR`;
   const hasTicket = currentProfile && confirmedTickets.includes(currentProfile.id);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)] p-4 bg-black">
+    <div className="min-h-[calc(100vh-4rem)] bg-black">
       {currentProfile ? (
-        <div className="w-full max-w-sm mx-auto">
-          <Card className="relative bg-black border border-white/10 shadow-xl shadow-[#D91CD2]/10 rounded-2xl overflow-hidden">
-            {/* Match Score Badge */}
-            {(currentProfile as any).matchScore > 0 && (
-              <div className="absolute top-4 left-4 z-20">
-                <Badge className={`px-3 py-1 flex items-center gap-1 ${
-                  (currentProfile as any).matchScore >= 70 ? 'bg-green-500 text-white' :
-                  (currentProfile as any).matchScore >= 40 ? 'bg-yellow-500 text-black' :
-                  'bg-gray-600 text-white'
+        <div className="relative w-full max-w-lg mx-auto">
+          {/* Full-screen style profile card */}
+          <div className="relative h-[85vh] min-h-[600px] max-h-[900px] overflow-hidden rounded-b-3xl">
+            {/* Profile Photo - full bleed */}
+            {(currentProfile as any).photoURL ? (
+              <img
+                src={(currentProfile as any).photoURL}
+                alt={currentProfile.name}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            ) : profileImage ? (
+              <img
+                src={profileImage.imageUrl}
+                alt={currentProfile.name}
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+            ) : (
+              <div className="absolute inset-0 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
+                <span className="text-8xl font-light text-white/20">{currentProfile.name.charAt(0)}</span>
+              </div>
+            )}
+
+            {/* Gradient overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black via-black/30 to-transparent" />
+
+            {/* Top badges */}
+            <div className="absolute top-4 left-4 right-4 z-20 flex justify-between items-start">
+              {(currentProfile as any).matchScore > 0 && (
+                <Badge className={`px-3 py-1.5 flex items-center gap-1.5 backdrop-blur-md text-sm ${
+                  (currentProfile as any).matchScore >= 70 ? 'bg-green-500/80 text-white' :
+                  (currentProfile as any).matchScore >= 40 ? 'bg-yellow-500/80 text-black' :
+                  'bg-white/20 text-white'
                 }`}>
-                  <Zap className="h-3 w-3" />
+                  <Zap className="h-3.5 w-3.5" />
                   {(currentProfile as any).matchScore}% match
                 </Badge>
-              </div>
-            )}
-            {/* Ticket Badge */}
-            {hasTicket && (
-              <div className="absolute top-4 right-4 z-20">
-                <Badge className="bg-green-500 text-white px-3 py-1 flex items-center gap-1">
-                  <Ticket className="h-3 w-3" />
-                  Ticket Confirmé
-                </Badge>
-              </div>
-            )}
-            
-            <div className="relative h-[28rem] w-full">
-              {(currentProfile as any).photoURL ? (
-                <img
-                  src={(currentProfile as any).photoURL}
-                  alt={currentProfile.name}
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-              ) : profileImage ? (
-                <Image
-                  src={profileImage.imageUrl}
-                  alt={currentProfile.name}
-                  fill
-                  className="object-cover"
-                />
-              ) : (
-                <div className="absolute inset-0 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
-                  <span className="text-6xl font-bold text-white/30">{currentProfile.name.charAt(0)}</span>
-                </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
-              <div className="absolute bottom-4 left-4 text-white">
-                <h2 className="text-3xl font-bold drop-shadow-lg">{currentProfile.name}</h2>
-                <p className="flex items-center gap-1 text-gray-300 drop-shadow"><MapPin size={16}/>{currentProfile.location}</p>
-              </div>
+              {hasTicket && (
+                <Badge className="bg-green-500/80 backdrop-blur-md text-white px-3 py-1.5 flex items-center gap-1.5">
+                  <Ticket className="h-3.5 w-3.5" />
+                  Réservé
+                </Badge>
+              )}
             </div>
-            <CardContent className="p-6">
-              <div className="mb-4">
-                <h3 className="font-semibold text-lg mb-2">Sports</h3>
-                <div className="flex flex-wrap gap-2">
-                  {currentProfile.sports.map(sport => (
-                    <Badge key={sport} variant="secondary" className="bg-[#D91CD2]/20 text-[#D91CD2] border-[#D91CD2]/30 text-sm">
-                      {sport === 'Afroboost' && <Zap className="h-3 w-3 mr-1" />}
-                      {sport}
-                    </Badge>
-                  ))}
-                </div>
+
+            {/* Bottom info overlay */}
+            <div className="absolute bottom-0 left-0 right-0 p-6 pb-8 z-10">
+              {/* Name & Location */}
+              <h2 className="text-4xl font-bold text-white mb-1 drop-shadow-2xl">{currentProfile.name}</h2>
+              <p className="flex items-center gap-1.5 text-white/70 text-base mb-4">
+                <MapPin size={16} className="text-[#D91CD2]" />
+                {currentProfile.location}
+              </p>
+
+              {/* Sports Tags */}
+              <div className="flex flex-wrap gap-2 mb-4">
+                {currentProfile.sports.map(sport => (
+                  <span key={sport} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium bg-white/10 backdrop-blur-sm text-white border border-white/20">
+                    {sport === 'Afroboost' && <Zap className="h-3 w-3 text-[#D91CD2]" />}
+                    {sport}
+                  </span>
+                ))}
               </div>
-              <div className="mb-4">
-                <h3 className="font-semibold text-lg mb-2">Bio</h3>
-                <p className="text-foreground/70 text-sm">{currentProfile.bio}</p>
-              </div>
-              
-              {/* Action Buttons */}
-              <div className="flex gap-2 mt-4">
+
+              {/* Bio */}
+              <p className="text-white/60 text-sm leading-relaxed mb-5">{currentProfile.bio}</p>
+
+              {/* Action buttons row */}
+              <div className="flex items-center gap-3">
+                {/* Dislike */}
+                <button
+                  onClick={handleNextProfile}
+                  className="w-14 h-14 rounded-full border-2 border-white/20 flex items-center justify-center text-white/50 hover:border-red-400/60 hover:text-red-400 hover:bg-red-500/10 transition-all active:scale-90"
+                >
+                  <X size={26} />
+                </button>
+
+                {/* Book / CTA */}
                 {!hasTicket ? (
-                  <Button
+                  <button
                     onClick={handleBookSession}
-                    className="flex-1 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white"
+                    className="flex-1 h-14 rounded-full bg-gradient-to-r from-[#D91CD2] to-[#E91E63] text-white font-semibold text-base flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-[#D91CD2]/30 transition-all active:scale-[0.98]"
                   >
-                    <Zap className="mr-2 h-4 w-4" />
-                    {currentProfile.price === 0 ? 'Séance d\'essai gratuite' : `Réserver une séance • ${currentProfile.price} CHF`}
-                  </Button>
+                    <Zap className="h-5 w-5" />
+                    {currentProfile.price === 0 ? 'Séance d\'essai gratuite' : `Réserver • ${currentProfile.price} CHF`}
+                  </button>
                 ) : (
-                  <Button 
+                  <button
                     disabled
-                    className="flex-1 bg-green-600 text-white cursor-default"
+                    className="flex-1 h-14 rounded-full bg-green-600/80 text-white font-semibold text-base flex items-center justify-center gap-2 cursor-default"
                   >
-                    <Check className="mr-2 h-4 w-4" />
+                    <Check className="h-5 w-5" />
                     Séance Réservée
-                  </Button>
+                  </button>
                 )}
-                <Button 
+
+                {/* Like */}
+                <button
+                  onClick={handleLike}
+                  className="w-14 h-14 rounded-full bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white shadow-lg shadow-[#D91CD2]/30 hover:scale-110 transition-all active:scale-90"
+                >
+                  <Heart size={24} fill="currentColor" />
+                </button>
+
+                {/* Share */}
+                <button
                   onClick={handleShareProfile}
-                  variant="outline"
-                  size="icon"
-                  className="border-primary/50 text-primary hover:bg-primary/10"
+                  className="w-10 h-10 rounded-full border border-white/15 flex items-center justify-center text-white/40 hover:text-white/80 transition-all"
                 >
                   <Share2 className="h-4 w-4" />
-                </Button>
+                </button>
               </div>
-            </CardContent>
-          </Card>
-          
-          {/* Like/Dislike Buttons */}
-          <div className="flex justify-center items-center gap-6 mt-6">
-            <Button onClick={handleNextProfile} variant="outline" size="icon" className="h-16 w-16 rounded-full border-2 border-white/20 text-white/60 hover:border-red-500/50 hover:text-red-400 hover:bg-red-500/10">
-              <X size={32} />
-            </Button>
-            <Button onClick={handleLike} size="icon" className="h-20 w-20 rounded-full bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white shadow-lg shadow-[#D91CD2]/30">
-              <Heart size={40} fill="currentColor" />
-            </Button>
+            </div>
           </div>
 
           {/* Où pratiquer ? - Partner Section */}
-          <div className="mt-8 w-full">
+          <div className="px-4 py-6">
             <div className="flex items-center gap-2 mb-4">
-              <Building2 className="h-5 w-5 text-primary" />
-              <h3 className="text-lg font-bold">Où pratiquer ?</h3>
-              <Badge variant="outline" className="ml-auto border-violet-500/50 text-violet-400 text-xs">
-                Partenaires
-              </Badge>
+              <Building2 className="h-5 w-5 text-[#D91CD2]" />
+              <h3 className="text-lg font-semibold text-white">Où pratiquer ?</h3>
+              <span className="ml-auto text-xs text-[#D91CD2]/70 border border-[#D91CD2]/30 rounded-full px-2.5 py-0.5">Partenaires</span>
             </div>
-            <div className="space-y-3">
+            <div className="space-y-2">
               {partners.slice(0, 3).map((partner) => (
-                <Card
+                <div
                   key={partner.id}
-                  className={`bg-zinc-900/50 border-white/10 transition-all duration-300 cursor-pointer group
-                    hover:border-[#D91CD2]/60 hover:shadow-lg hover:shadow-[#D91CD2]/20 hover:scale-[1.02]
-                    ${selectedMeetingPlace === partner.id ? 'border-[#D91CD2] shadow-lg shadow-[#D91CD2]/30 bg-[#D91CD2]/10' : ''}
-                  `}
                   onClick={() => handlePartnerSelect(partner)}
+                  className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200
+                    ${selectedMeetingPlace === partner.id
+                      ? 'bg-[#D91CD2]/15 border border-[#D91CD2]/40'
+                      : 'bg-white/5 border border-transparent hover:bg-white/8 hover:border-white/10'}
+                  `}
                 >
-                  <CardContent className="p-4 flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-lg transition-transform group-hover:scale-110 ${selectedMeetingPlace === partner.id ? 'scale-110' : ''}`}>
-                      {partner.name.charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm truncate group-hover:text-primary transition-colors">
-                        {partner.name}
-                      </h4>
-                      <p className="text-xs text-muted-foreground flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {partner.city}
-                      </p>
-                    </div>
-                    {selectedMeetingPlace === partner.id ? (
-                      <Badge className="bg-[#D91CD2] text-white text-xs">Sélectionné</Badge>
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-[#D91CD2] transition-colors" />
-                    )}
-                  </CardContent>
-                </Card>
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                    {partner.name.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
+                    <p className="text-xs text-white/40 flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />
+                      {partner.city}
+                    </p>
+                  </div>
+                  {selectedMeetingPlace === partner.id ? (
+                    <span className="text-xs text-[#D91CD2] font-medium">Sélectionné</span>
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-white/20" />
+                  )}
+                </div>
               ))}
             </div>
           </div>
         </div>
       ) : (
-        <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4">Plus de profils sportifs dans votre zone pour le moment.</h2>
-          <Button onClick={resetProfiles} variant="outline">
+        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+          <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
+            <Heart className="h-10 w-10 text-white/20" />
+          </div>
+          <h2 className="text-2xl font-semibold text-white mb-2">Plus de profils pour le moment</h2>
+          <p className="text-white/40 mb-6">Revenez plus tard ou recommencez</p>
+          <Button onClick={resetProfiles} variant="outline" className="border-white/20 text-white hover:bg-white/10">
             <Undo2 className="mr-2 h-4 w-4" />
             Recommencer
           </Button>
@@ -1042,7 +1048,7 @@ END:VCALENDAR`;
 
       {/* Match Modal */}
       <Dialog open={isMatch} onOpenChange={setIsMatch}>
-        <DialogContent className="max-w-2xl w-full bg-black border-white/10 text-foreground p-0 overflow-hidden">
+        <DialogContent className="max-w-md w-full bg-zinc-950 border-white/10 text-foreground p-0 overflow-hidden">
 
           <DialogHeader className="items-center p-6 pb-2 bg-gradient-to-b from-[#D91CD2]/10 to-transparent">
             <DialogTitle className="text-3xl sm:text-5xl font-black tracking-tighter text-white flex items-center gap-3 drop-shadow-[0_0_15px_rgba(217,28,210,0.5)]">
@@ -1075,9 +1081,9 @@ END:VCALENDAR`;
                             return (
                                 <CarouselItem key={index} className="pl-4 basis-full sm:basis-1/2">
                                     <Card className="overflow-hidden bg-zinc-900 border-white/10 hover:border-[#D91CD2]/50 transition-all group">
-                                         <div className="relative h-32 w-full">
+                                         <div className="relative h-32 w-full overflow-hidden">
                                             {activityImage && (
-                                                <Image src={activityImage.imageUrl} alt={activity.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500"/>
+                                                <img src={activityImage.imageUrl} alt={activity.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
                                             )}
                                             <div className="absolute top-2 right-2 bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded">BOOST</div>
                                         </div>
