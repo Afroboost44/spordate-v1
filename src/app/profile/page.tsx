@@ -7,8 +7,9 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle, Gift, Copy, CreditCard
+  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle, Gift, Copy, CreditCard, TrendingUp, ArrowRight
 } from 'lucide-react';
+import Link from 'next/link';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { updateUser, getUser } from "@/services/firestore";
@@ -556,6 +557,28 @@ export default function ProfilePage() {
                 Quand un ami s'inscrit avec ton lien et achète des crédits, tu reçois automatiquement <span className="text-[#D91CD2] font-medium">+1 crédit gratuit</span> par achat.
               </p>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* SECTION DEVENIR CRÉATEUR */}
+        <Card className="bg-gradient-to-br from-[#D91CD2]/5 to-[#E91E63]/5 border-[#D91CD2]/20 hover:border-[#D91CD2]/40 transition-colors">
+          <CardContent className="p-6 flex flex-col md:flex-row items-center gap-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-2">
+                <TrendingUp className="h-5 w-5 text-[#D91CD2]" />
+                <h3 className="text-base font-medium text-white">Devenir Créateur</h3>
+              </div>
+              <p className="text-xs text-white/40 leading-relaxed">
+                Partage ton lien sur TikTok, Instagram ou avec tes amis. Gagne <span className="text-[#D91CD2]">10% de commission</span> sur chaque achat généré.
+              </p>
+            </div>
+            <Link
+              href="/creator/dashboard"
+              className="w-full md:w-auto h-12 px-6 bg-white/5 backdrop-blur-xl border border-[#D91CD2] rounded-full text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2 hover:bg-[#D91CD2]/10 transition-all"
+            >
+              Mon dashboard
+              <ArrowRight className="h-4 w-4" />
+            </Link>
           </CardContent>
         </Card>
 
