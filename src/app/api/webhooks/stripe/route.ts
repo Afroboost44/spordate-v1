@@ -208,20 +208,82 @@ async function processCommission(
   db: FirebaseFirestore.Firestore, FV: typeof import('firebase-admin/firestore').FieldValue,
   userId: string, amount: number, code: string
 ) {
-  const snap = await db.collection('creators').where('referralCode', '==', code).where('isActive', '==', true).limit(1).get();
-  if (snap.empty) return;
-  const creator = snap.docs[0];
-  const rate = creator.data().commissionRate || 0.10;
-  const commission = Math.round(amount * rate);
-  const batch = db.batch();
-  batch.update(creator.ref, {
-    totalEarnings: FV.increment(commission / 100), pendingPayout: FV.increment(commission / 100), totalPurchases: FV.increment(1),
-  });
-  const rSnap = await db.collection('referrals').where('referredUserId', '==', userId).where('referrerId', '==', creator.id).limit(1).get();
-  if (!rSnap.empty) {
-    batch.update(rSnap.docs[0].ref, { totalPurchases: FV.increment(1), totalCommission: FV.increment(commission / 100), status: 'active' });
+  // 1. Commission créateur (si le code appartient à un créateur actif)
+  const creatorSnap = await db.collection('creators').where('referralCode', '==', code).where('isActive', '==', true).limit(1).get();
+  if (!creatorSnap.empty) {
+    const creator = creatorSnap.docs[0];
+    const rate = creator.data().commissionRate || 0.10;
+    const commission = Math.round(amount * rate); // en centimes
+    const batch = db.batch();
+
+    // MAJ créateur
+    batch.update(creator.ref, {
+      totalEarnings: FV.increment(commission / 100),
+      pendingPayout: FV.increment(commission / 100),
+      totalPurchases: FV.increment(1),
+    });
+
+    // MAJ referral
+    const rSnap = await db.collection('referrals').where('referredUserId', '==', userId).where('referrerId', '==', creator.id).limit(1).get();
+    if (!rSnap.empty) {
+      batch.update(rSnap.docs[0].ref, {
+        totalPurchases: FV.increment(1),
+        totalCommission: FV.increment(commission / 100),
+        status: 'active',
+      });
+    }
+
+    // Notification au créateur
+    const nRef = db.collection('notifications').doc();
+    batch.set(nRef, {
+      notificationId: nRef.id, userId: creator.id, type: 'affiliation',
+      title: 'Commission reçue !',
+      body: `+${(commission / 100).toFixed(2)} CHF de commission sur un achat de ton filleul`,
+      data: { referredUserId: userId }, isRead: false, createdAt: FV.serverTimestamp(),
+    });
+
+    await batch.commit();
   }
-  await batch.commit();
+
+  // 2. Bonus crédit automatique au parrain (user qui a invité via son code perso)
+  const referrerSnap = await db.collection('users').where('referralCode', '==', code).limit(1).get();
+  if (!referrerSnap.empty) {
+    const referrer = referrerSnap.docs[0];
+    const referrerId = referrer.id;
+
+    // Anti self-referral
+    if (referrerId === userId) return;
+
+    const REFERRAL_BONUS_CREDITS = 1; // 1 crédit gratuit par achat d'un filleul
+    const batch = db.batch();
+
+    // Ajouter crédits au parrain
+    batch.update(referrer.ref, {
+      credits: FV.increment(REFERRAL_BONUS_CREDITS),
+      updatedAt: FV.serverTimestamp(),
+    });
+
+    // Entrée crédit
+    const creditRef = db.collection('credits').doc();
+    batch.set(creditRef, {
+      creditId: creditRef.id, userId: referrerId, type: 'referral_bonus',
+      amount: REFERRAL_BONUS_CREDITS,
+      balance: 0, // Approximatif — le solde exact nécessiterait une lecture
+      description: 'Bonus parrainage — ton filleul a acheté des crédits',
+      relatedId: userId, createdAt: FV.serverTimestamp(),
+    });
+
+    // Notification au parrain
+    const nRef = db.collection('notifications').doc();
+    batch.set(nRef, {
+      notificationId: nRef.id, userId: referrerId, type: 'referral',
+      title: 'Crédit bonus reçu !',
+      body: `+${REFERRAL_BONUS_CREDITS} crédit gratuit — ton ami a fait un achat`,
+      data: { referredUserId: userId }, isRead: false, createdAt: FV.serverTimestamp(),
+    });
+
+    await batch.commit();
+  }
 }
 
 // =============================================================
