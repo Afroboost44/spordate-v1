@@ -747,9 +747,9 @@ END:VCALENDAR`;
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-black">
       {currentProfile ? (
-        <div className="relative w-full md:max-w-lg mx-auto">
-          {/* Full-screen style profile card — 100vw mobile, capped on desktop */}
-          <div className="relative h-[calc(100vh-5rem)] md:h-[85vh] min-h-[500px] max-h-[900px] overflow-hidden md:rounded-b-3xl">
+        <div className="relative w-full max-w-6xl mx-auto md:flex md:flex-row-reverse md:gap-6 md:px-6 md:py-6">
+          {/* Profile Card — full width mobile, right side on desktop */}
+          <div className="md:flex-1 relative h-[calc(100vh-12rem)] md:h-[85vh] min-h-[500px] max-h-[900px] overflow-hidden md:rounded-3xl order-2 md:order-1">
             {/* Profile Photo - full bleed with lazy loading */}
             {(currentProfile as any).photoURL ? (
               <img
@@ -866,41 +866,43 @@ END:VCALENDAR`;
             </div>
           </div>
 
-          {/* Où pratiquer ? - Partner Section */}
-          <div className="px-4 py-6">
-            <div className="flex items-center gap-2 mb-4">
-              <Building2 className="h-5 w-5 text-[#D91CD2]" />
-              <h3 className="text-lg font-semibold text-white">Où pratiquer ?</h3>
-              <span className="ml-auto text-xs text-[#D91CD2]/70 border border-[#D91CD2]/30 rounded-full px-2.5 py-0.5">Partenaires</span>
-            </div>
-            <div className="space-y-2">
-              {partners.slice(0, 3).map((partner) => (
-                <div
-                  key={partner.id}
-                  onClick={() => handlePartnerSelect(partner)}
-                  className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200
-                    ${selectedMeetingPlace === partner.id
-                      ? 'bg-[#D91CD2]/15 border border-[#D91CD2]/40'
-                      : 'bg-white/5 border border-transparent hover:bg-white/8 hover:border-white/10'}
-                  `}
-                >
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                    {partner.name.charAt(0)}
+          {/* Où pratiquer ? — Mobile: above photo (order-first), Desktop: left sidebar */}
+          <div className="px-4 py-4 md:py-0 md:px-0 md:w-80 md:flex-shrink-0 order-1 md:order-2">
+            <div className="md:sticky md:top-20">
+              <div className="flex items-center gap-2 mb-4">
+                <Building2 className="h-5 w-5 text-[#D91CD2]" />
+                <h3 className="text-lg font-semibold text-white">Où pratiquer ?</h3>
+                <span className="ml-auto text-xs text-[#D91CD2]/70 border border-[#D91CD2]/30 rounded-full px-2.5 py-0.5">Partenaires</span>
+              </div>
+              <div className="flex md:flex-col gap-2 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0">
+                {partners.slice(0, 3).map((partner) => (
+                  <div
+                    key={partner.id}
+                    onClick={() => handlePartnerSelect(partner)}
+                    className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 min-w-[220px] md:min-w-0
+                      ${selectedMeetingPlace === partner.id
+                        ? 'bg-[#D91CD2]/15 border border-[#D91CD2]/40'
+                        : 'bg-white/5 border border-transparent hover:bg-white/8 hover:border-white/10'}
+                    `}
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                      {partner.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
+                      <p className="text-xs text-white/40 flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {partner.city}
+                      </p>
+                    </div>
+                    {selectedMeetingPlace === partner.id ? (
+                      <span className="text-xs text-[#D91CD2] font-medium">Sélectionné</span>
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-white/20" />
+                    )}
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
-                    <p className="text-xs text-white/40 flex items-center gap-1">
-                      <MapPin className="h-3 w-3" />
-                      {partner.city}
-                    </p>
-                  </div>
-                  {selectedMeetingPlace === partner.id ? (
-                    <span className="text-xs text-[#D91CD2] font-medium">Sélectionné</span>
-                  ) : (
-                    <ChevronRight className="h-4 w-4 text-white/20" />
-                  )}
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </div>
         </div>

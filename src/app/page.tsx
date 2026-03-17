@@ -21,14 +21,14 @@ interface ActivityItem {
 }
 
 const FEATURED_ACTIVITIES: ActivityItem[] = [
-  { id: 'afroboost',     name: 'Afroboost',      type: 'dance', image: 'https://picsum.photos/seed/spordate-photo-1547153760-18fc86324498?w=600&h=400&fit=crop' },
-  { id: 'zumba',         name: 'Zumba',           type: 'dance', image: 'https://picsum.photos/seed/spordate-photo-1518611012118-696072aa579a?w=600&h=400&fit=crop' },
-  { id: 'salsa',         name: 'Salsa',           type: 'dance', image: 'https://picsum.photos/seed/spordate-photo-1504609813442-a8924e83f76e?w=600&h=400&fit=crop' },
-  { id: 'hiphop',        name: 'Hip-Hop',         type: 'dance', image: 'https://picsum.photos/seed/spordate-photo-1535525153412-5a42439a210d?w=600&h=400&fit=crop' },
-  { id: 'tennis',        name: 'Tennis',          type: 'sport', image: 'https://picsum.photos/seed/spordate-photo-1554068865-24cecd4e34b8?w=600&h=400&fit=crop' },
-  { id: 'yoga',          name: 'Yoga',            type: 'sport', image: 'https://picsum.photos/seed/spordate-photo-1544367567-0f2fcb009e0b?w=600&h=400&fit=crop' },
-  { id: 'fitness',       name: 'Fitness',         type: 'sport', image: 'https://picsum.photos/seed/spordate-photo-1534438327276-14e5300c3a48?w=600&h=400&fit=crop' },
-  { id: 'dance_fitness', name: 'Dance Fitness',   type: 'dance', image: 'https://picsum.photos/seed/spordate-photo-1571019614242-c5c5dee9f50b?w=600&h=400&fit=crop' },
+  { id: 'afroboost',     name: 'Afroboost',      type: 'dance', image: 'https://picsum.photos/seed/afroboost/600/400' },
+  { id: 'zumba',         name: 'Zumba',           type: 'dance', image: 'https://picsum.photos/seed/zumba/600/400' },
+  { id: 'salsa',         name: 'Salsa',           type: 'dance', image: 'https://picsum.photos/seed/salsa/600/400' },
+  { id: 'hiphop',        name: 'Hip-Hop',         type: 'dance', image: 'https://picsum.photos/seed/hiphop/600/400' },
+  { id: 'tennis',        name: 'Tennis',          type: 'sport', image: 'https://picsum.photos/seed/tennis/600/400' },
+  { id: 'yoga',          name: 'Yoga',            type: 'sport', image: 'https://picsum.photos/seed/yogasport/600/400' },
+  { id: 'fitness',       name: 'Fitness',         type: 'sport', image: 'https://picsum.photos/seed/fitness/600/400' },
+  { id: 'dance_fitness', name: 'Dance Fitness',   type: 'dance', image: 'https://picsum.photos/seed/dancefitness/600/400' },
 ];
 
 interface Testimonial {
@@ -43,28 +43,28 @@ const TESTIMONIALS: Testimonial[] = [
   {
     name: 'Amina K.',
     location: 'Geneve',
-    image: 'https://picsum.photos/seed/spordate-photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop',
+    image: 'https://picsum.photos/seed/amina/200/200',
     text: 'J\'ai trouve ma partenaire d\'Afroboost. On se motive chaque semaine, c\'est devenu notre rituel.',
     activity: 'Afroboost',
   },
   {
     name: 'Karim D.',
     location: 'Zurich',
-    image: 'https://picsum.photos/seed/spordate-photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop',
+    image: 'https://picsum.photos/seed/karim/200/200',
     text: 'Fan de salsa depuis 3 ans, j\'ai enfin trouve une partenaire a mon niveau. Le premier pas devient facile.',
     activity: 'Salsa',
   },
   {
     name: 'Lea M.',
     location: 'Lausanne',
-    image: 'https://picsum.photos/seed/spordate-photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop',
+    image: 'https://picsum.photos/seed/leam/200/200',
     text: 'J\'ai decouvert le Dance Fitness via l\'app. Ambiance incroyable, zero pression.',
     activity: 'Dance Fitness',
   },
   {
     name: 'David N.',
     location: 'Bern',
-    image: 'https://picsum.photos/seed/spordate-photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop',
+    image: 'https://picsum.photos/seed/davidn/200/200',
     text: 'Bachata en duo, c\'est 100x mieux. On danse, on rigole, c\'est tout.',
     activity: 'Bachata',
   },
@@ -108,7 +108,7 @@ export default function LandingPage() {
         {/* Background image */}
         <div className="absolute inset-0 z-0">
           <img
-            src="https://picsum.photos/seed/spordate-photo-1524594152303-9fd13543fe6e?w=1920&h=1080&fit=crop"
+            src="https://picsum.photos/seed/hero-dance/1920/1080"
             alt="Dance"
             style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
             className="absolute inset-0 w-full h-full object-cover opacity-30"
@@ -164,19 +164,19 @@ export default function LandingPage() {
                 num: '01',
                 title: 'Choisis ton style',
                 desc: 'Afroboost, Salsa, Tennis, Yoga... Selectionne tes activites et ton niveau.',
-                image: 'https://picsum.photos/seed/spordate-photo-1508700115892-45ecd05ae2ad?w=800&h=600&fit=crop',
+                image: 'https://picsum.photos/seed/step1/800/600',
               },
               {
                 num: '02',
                 title: 'Matche & discute',
                 desc: 'On te propose des partenaires pres de toi. Connecte-toi, organise ta session.',
-                image: 'https://picsum.photos/seed/spordate-photo-1529156069898-49953e39b3ac?w=800&h=600&fit=crop',
+                image: 'https://picsum.photos/seed/step2/800/600',
               },
               {
                 num: '03',
                 title: 'Bouge & kiffe',
                 desc: 'Retrouve ton match dans un studio partenaire. L\'experience commence ici.',
-                image: 'https://picsum.photos/seed/spordate-photo-1571019613454-1cb2f99b2d8b?w=800&h=600&fit=crop',
+                image: 'https://picsum.photos/seed/step3/800/600',
               },
             ].map((step) => (
               <div key={step.num} className="bg-black p-10 md:p-14 group">
@@ -330,7 +330,7 @@ export default function LandingPage() {
             </div>
             <div className="relative h-96 md:h-[500px] overflow-hidden">
               <img
-                src="https://picsum.photos/seed/spordate-photo-1506905925346-21bda4d32df4?w=800&h=1000&fit=crop"
+                src="https://picsum.photos/seed/swiss/800/1000"
                 alt="Switzerland"
                 style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
                 className="absolute inset-0 w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
@@ -366,7 +366,7 @@ export default function LandingPage() {
       <section className="relative py-32 md:py-48 overflow-hidden">
         <div className="absolute inset-0">
           <img
-            src="https://picsum.photos/seed/spordate-photo-1571019613454-1cb2f99b2d8b?w=1920&h=800&fit=crop"
+            src="https://picsum.photos/seed/finalcta/1920/800"
             alt="Dance"
             style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
             className="absolute inset-0 w-full h-full object-cover opacity-15"
