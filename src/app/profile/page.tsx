@@ -7,9 +7,10 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle, Gift, Copy, CreditCard, TrendingUp, ArrowRight
+  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle, Gift, Copy, CreditCard, TrendingUp, ArrowRight, LogOut
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { updateUser, getUser } from "@/services/firestore";
@@ -593,6 +594,20 @@ export default function ProfilePage() {
             Sauvegarder mon profil
           </Button>
         </div>
+
+        {/* DÉCONNEXION */}
+        <button
+          onClick={async () => {
+            const { getAuth, signOut } = await import('firebase/auth');
+            const auth = getAuth();
+            await signOut(auth);
+            window.location.href = '/';
+          }}
+          className="w-full flex items-center justify-center gap-2 h-12 rounded-xl border border-white/10 text-white/40 hover:text-red-400 hover:border-red-400/30 transition-all text-sm font-light tracking-wide"
+        >
+          <LogOut className="h-4 w-4" />
+          Se déconnecter
+        </button>
 
       </div>
     </div>
