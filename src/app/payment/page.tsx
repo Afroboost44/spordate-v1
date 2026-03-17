@@ -173,9 +173,9 @@ export default function PaymentPage() {
             <Button
               size="lg"
               className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-lg py-6 hover:from-green-600 hover:to-emerald-600 transition-all shadow-lg shadow-green-500/30"
-              onClick={() => router.push('/discover')}
+              onClick={() => router.push(`/share?sport=${encodeURIComponent(selectedPackage?.description || 'Sport Date')}`)}
             >
-              Découvrir les profils
+              Partager mon Sport Date
             </Button>
           </CardContent>
         </Card>

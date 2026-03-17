@@ -1323,23 +1323,24 @@ END:VCALENDAR`;
               </div>
             </div>
 
-            {/* Share on WhatsApp */}
-            <Button 
-              onClick={shareTicketOnWhatsApp}
-              className="w-full bg-green-600 hover:bg-green-500"
+            {/* Partage viral — redirige vers /share */}
+            <Button
+              onClick={() => {
+                setShowTicketSuccess(false);
+                router.push(`/share?sport=${encodeURIComponent(lastBooking?.profile || 'Sport Date')}&partner=${encodeURIComponent(lastBooking?.partner || '')}`);
+              }}
+              className="w-full bg-gradient-to-r from-[#D91CD2] to-[#E91E63] hover:from-[#E91E63] hover:to-[#D91CD2] text-white"
             >
-              <MessageCircle className="mr-2 h-4 w-4" />
-              {lastBooking?.isDuo 
-                ? "Envoyer l'invitation à mon partenaire" 
-                : "Envoyer le ticket à un ami"}
+              <Share2 className="mr-2 h-4 w-4" />
+              Partager mon Sport Date
             </Button>
 
-            <Button 
-              variant="ghost" 
+            <Button
+              variant="ghost"
               onClick={() => setShowTicketSuccess(false)}
               className="w-full text-gray-400"
             >
-              Fermer
+              Plus tard
             </Button>
           </div>
         </DialogContent>
