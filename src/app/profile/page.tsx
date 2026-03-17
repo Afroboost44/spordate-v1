@@ -123,20 +123,20 @@ export default function ProfilePage() {
       setProfile({ ...profile, sports: newSports });
   };
 
-  if (!isLoaded) return <div className="min-h-screen bg-[#05090e] flex items-center justify-center text-white"><Loader2 className="animate-spin mr-2"/> Chargement du profil...</div>;
+  if (!isLoaded) return <div className="min-h-screen bg-black flex items-center justify-center text-white"><Loader2 className="animate-spin mr-2"/> Chargement du profil...</div>;
 
   return (
-    <div className="min-h-screen bg-[#05090e] text-white p-4 md:p-8 pb-24">
-      <div className="max-w-4xl mx-auto space-y-8">
-        
+    <div className="min-h-screen bg-black text-white p-4 md:p-8 pb-24">
+      <div className="max-w-4xl mx-auto space-y-10">
+
         {/* HEADER */}
-        <div>
-            <h1 className="text-3xl font-bold">Mon Profil</h1>
-            <p className="text-gray-400">Gérez vos informations et vos photos.</p>
+        <div className="pt-4">
+            <h1 className="text-3xl font-light tracking-wide">Mon Profil</h1>
+            <p className="text-white/40 text-sm font-light mt-1">Gerez vos informations et vos photos.</p>
         </div>
 
         {/* SECTION PHOTOS (FONCTIONNELLE) */}
-        <Card className="bg-[#0a111a] border-gray-800">
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
             <CardHeader><CardTitle>Photos</CardTitle><p className="text-xs text-gray-500">Max 5 photos. Montrez-vous en action !</p></CardHeader>
             <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -184,7 +184,7 @@ export default function ProfilePage() {
         </Card>
 
         {/* SECTION INFOS */}
-        <Card className="bg-[#0a111a] border-gray-800">
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
             <CardHeader><CardTitle>À propos de moi</CardTitle></CardHeader>
             <CardContent className="space-y-6">
                 <div className="space-y-2">
@@ -211,7 +211,7 @@ export default function ProfilePage() {
         </Card>
 
         {/* SECTION SPORTS */}
-        <Card className="bg-[#0a111a] border-gray-800">
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
             <CardHeader><CardTitle>Mes Sports</CardTitle><p className="text-xs text-gray-500">Sélectionnez vos sports favoris</p></CardHeader>
             <CardContent>
                 <div className="flex flex-wrap gap-2">
@@ -233,33 +233,24 @@ export default function ProfilePage() {
         </Card>
 
         {/* SECTION DANSE */}
-        <Card className="bg-[#0a111a] border-gray-800">
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">Mes Danses <span className="text-lg">💃</span></CardTitle>
+              <CardTitle className="flex items-center gap-2 font-light tracking-wide">Mes Danses</CardTitle>
               <p className="text-xs text-gray-500">Sélectionnez vos styles de danse</p>
             </CardHeader>
             <CardContent className="space-y-4">
                 <div className="flex flex-wrap gap-2">
-                    {[
-                      { name: "Afroboost", emoji: "🔥" },
-                      { name: "Zumba", emoji: "💃" },
-                      { name: "Afro Dance", emoji: "🥁" },
-                      { name: "Dance Fitness", emoji: "⚡" },
-                      { name: "Salsa", emoji: "🌶️" },
-                      { name: "Bachata", emoji: "🎶" },
-                      { name: "Hip-Hop", emoji: "🎤" },
-                      { name: "Dance Workout", emoji: "💪" },
-                    ].map((dance) => (
+                    {["Afroboost", "Zumba", "Afro Dance", "Dance Fitness", "Salsa", "Bachata", "Hip-Hop", "Dance Workout"].map((dance) => (
                         <Badge
-                            key={dance.name}
-                            onClick={() => toggleSport(dance.name)}
+                            key={dance}
+                            onClick={() => toggleSport(dance)}
                             className={`cursor-pointer px-4 py-2 text-sm border ${
-                                (profile.sports || []).includes(dance.name)
-                                ? 'bg-orange-900/30 border-orange-500 text-orange-400'
-                                : 'bg-black/40 border-gray-700 text-gray-400 hover:border-gray-500'
+                                (profile.sports || []).includes(dance)
+                                ? 'bg-[#D91CD2]/10 border-[#D91CD2] text-[#D91CD2]'
+                                : 'bg-black/40 border-white/10 text-white/40 hover:border-white/20'
                             }`}
                         >
-                            {dance.emoji} {dance.name}
+                            {dance}
                         </Badge>
                     ))}
                 </div>
@@ -270,20 +261,20 @@ export default function ProfilePage() {
                     <p className="text-sm text-gray-400">Niveau de danse</p>
                     <div className="flex gap-2">
                       {[
-                        { level: "debutant", label: "Débutant", emoji: "🌱" },
-                        { level: "intermediaire", label: "Intermédiaire", emoji: "⭐" },
-                        { level: "avance", label: "Avancé", emoji: "🏆" },
+                        { level: "debutant", label: "Debutant" },
+                        { level: "intermediaire", label: "Intermediaire" },
+                        { level: "avance", label: "Avance" },
                       ].map((lvl) => (
                         <Badge
                           key={lvl.level}
                           onClick={() => setProfile({ ...profile, danceLevel: lvl.level })}
                           className={`cursor-pointer px-4 py-2 text-sm border ${
                             profile.danceLevel === lvl.level
-                              ? 'bg-fuchsia-900/30 border-fuchsia-500 text-fuchsia-400'
-                              : 'bg-black/40 border-gray-700 text-gray-400 hover:border-gray-500'
+                              ? 'bg-[#D91CD2]/10 border-[#D91CD2] text-[#D91CD2]'
+                              : 'bg-black/40 border-white/10 text-white/40 hover:border-white/20'
                           }`}
                         >
-                          {lvl.emoji} {lvl.label}
+                          {lvl.label}
                         </Badge>
                       ))}
                     </div>
@@ -296,11 +287,11 @@ export default function ProfilePage() {
                     onClick={() => setProfile({ ...profile, likesDancing: !profile.likesDancing })}
                     className={`px-4 py-2 rounded-full text-sm font-medium border transition-all ${
                       profile.likesDancing
-                        ? 'bg-gradient-to-r from-orange-500/20 to-rose-500/20 border-orange-500 text-orange-300'
-                        : 'bg-black/40 border-gray-700 text-gray-500 hover:border-gray-500'
+                        ? 'bg-[#D91CD2]/10 border-[#D91CD2] text-[#D91CD2]'
+                        : 'bg-black/40 border-white/10 text-white/40 hover:border-white/20'
                     }`}
                   >
-                    {profile.likesDancing ? '💃 J\'aime la danse !' : '🤔 J\'aime la danse ?'}
+                    {profile.likesDancing ? 'J\'aime la danse' : 'J\'aime la danse ?'}
                   </button>
                 </div>
             </CardContent>
