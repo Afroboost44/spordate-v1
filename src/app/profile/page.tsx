@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle
+  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle, Gift, Copy, CreditCard
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -479,8 +479,88 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
+        {/* SECTION PARRAINAGE & CRÉDITS */}
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Gift className="h-5 w-5 text-[#D91CD2]" />
+              Parrainage & Crédits
+            </CardTitle>
+            <p className="text-xs text-gray-500">Invite tes amis et gagne des crédits gratuits</p>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Crédits */}
+            <div className="flex items-center justify-between p-4 bg-black/40 rounded-xl border border-white/5">
+              <div className="flex items-center gap-3">
+                <CreditCard className="h-5 w-5 text-[#D91CD2]" />
+                <span className="text-sm text-white/70">Mes crédits</span>
+              </div>
+              <span className="text-2xl font-light text-white">{userProfile?.credits ?? 0}</span>
+            </div>
+
+            {/* Code de parrainage */}
+            <div className="space-y-2">
+              <p className="text-sm text-white/50">Ton code de parrainage</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-12 bg-black/40 border border-white/10 rounded-xl flex items-center px-4">
+                  <span className="text-white font-mono tracking-widest text-sm">
+                    {userProfile?.referralCode || '—'}
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-12 w-12 border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10"
+                  onClick={() => {
+                    if (userProfile?.referralCode) {
+                      navigator.clipboard.writeText(userProfile.referralCode);
+                      toast({ title: 'Code copié !' });
+                    }
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Lien de parrainage */}
+            <div className="space-y-2">
+              <p className="text-sm text-white/50">Ton lien d'invitation</p>
+              <div className="flex items-center gap-2">
+                <div className="flex-1 h-12 bg-black/40 border border-white/10 rounded-xl flex items-center px-4 overflow-hidden">
+                  <span className="text-white/60 text-xs truncate">
+                    {userProfile?.referralCode
+                      ? `spordateur.com/signup?ref=${userProfile.referralCode}`
+                      : '—'}
+                  </span>
+                </div>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-12 w-12 border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10"
+                  onClick={() => {
+                    if (userProfile?.referralCode) {
+                      navigator.clipboard.writeText(`https://spordateur.com/signup?ref=${userProfile.referralCode}`);
+                      toast({ title: 'Lien copié !', description: 'Partage-le avec tes amis' });
+                    }
+                  }}
+                >
+                  <Copy className="h-4 w-4" />
+                </Button>
+              </div>
+            </div>
+
+            {/* Explication */}
+            <div className="p-4 bg-[#D91CD2]/5 border border-[#D91CD2]/10 rounded-xl">
+              <p className="text-xs text-white/50 leading-relaxed">
+                Quand un ami s'inscrit avec ton lien et achète des crédits, tu reçois automatiquement <span className="text-[#D91CD2] font-medium">+1 crédit gratuit</span> par achat.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* ACTIONS */}
-        <div className="fixed bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur border-t border-gray-800 md:relative md:bg-transparent md:border-0 md:p-0 flex justify-end">
+        <div className="fixed bottom-20 md:bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur border-t border-gray-800 md:relative md:bg-transparent md:border-0 md:p-0 flex justify-end">
           <Button
             onClick={handleSave}
             disabled={isSaving}
