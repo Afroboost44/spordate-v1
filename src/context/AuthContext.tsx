@@ -14,9 +14,12 @@ import {
   sendPasswordResetEmail,
 } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from '@/lib/firebase';
+import { createUser, getUser } from '@/services/firestore';
+import type { UserProfile } from '@/types/firestore';
 
 interface AuthContextType {
   user: User | null;
+  userProfile: UserProfile | null;
   isLoggedIn: boolean;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
@@ -24,6 +27,7 @@ interface AuthContextType {
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
+  refreshProfile: () => Promise<void>;
   error: string | null;
   clearError: () => void;
 }
@@ -32,20 +36,55 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
+  // Load or create Firestore profile for authenticated user
+  const ensureUserProfile = async (firebaseUser: User): Promise<UserProfile | null> => {
+    try {
+      let profile = await getUser(firebaseUser.uid);
+      if (!profile) {
+        // First time user → create Firestore profile
+        profile = await createUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || '',
+          displayName: firebaseUser.displayName || '',
+          photoURL: firebaseUser.photoURL || '',
+        });
+        console.log('[Auth] Profil Firestore créé pour', firebaseUser.email);
+      }
+      return profile;
+    } catch (err) {
+      console.warn('[Auth] Firestore profile load failed (offline?):', err);
+      return null;
+    }
+  };
+
+  // Refresh profile from Firestore
+  const refreshProfile = async () => {
+    if (user) {
+      const profile = await ensureUserProfile(user);
+      setUserProfile(profile);
+    }
+  };
+
   // Listen to Firebase auth state
   useEffect(() => {
     if (!isFirebaseConfigured || !auth) {
-      // Fallback: no Firebase → demo mode off (user must authenticate)
       setLoading(false);
       return;
     }
 
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       setUser(firebaseUser);
+      if (firebaseUser) {
+        const profile = await ensureUserProfile(firebaseUser);
+        setUserProfile(profile);
+      } else {
+        setUserProfile(null);
+      }
       setLoading(false);
     });
 
@@ -157,6 +196,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return (
     <AuthContext.Provider value={{
       user,
+      userProfile,
       isLoggedIn: !!user,
       loading,
       login,
@@ -164,6 +204,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       loginWithGoogle,
       logout,
       resetPassword,
+      refreshProfile,
       error,
       clearError,
     }}>

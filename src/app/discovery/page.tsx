@@ -32,8 +32,12 @@ import { Switch } from "@/components/ui/switch";
 import { registerBooking, getConfirmedTickets, getPartners, DEFAULT_PARTNERS, type Partner } from "@/lib/db";
 
 import { sendPartnerNotification } from "@/lib/notifications";
-import { isFirebaseConfigured, getMissingConfig } from "@/lib/firebase";
+import { isFirebaseConfigured, getMissingConfig, db } from "@/lib/firebase";
 import { ConfigErrorScreen } from "@/components/ConfigErrorScreen";
+import { useAuth } from "@/context/AuthContext";
+import { collection, query, where, getDocs, limit as firestoreLimit, orderBy } from 'firebase/firestore';
+import type { UserProfile, SportEntry } from '@/types/firestore';
+import { DANCE_ACTIVITIES } from '@/types/firestore';
 
 // Revenue storage key for admin sync (kept for backward compatibility)
 const TICKETS_STORAGE_KEY = 'spordate_tickets';
@@ -53,7 +57,8 @@ const mockSessions = [
   { id: 3, title: 'Cardio Dance', day: 'Vendredi', time: '20:00', spots: 2 },
 ];
 
-const initialProfiles = [
+// Fallback profiles (used when Firestore has no users yet)
+const fallbackProfiles = [
   { id: 1, name: 'Julie, 28', location: 'Paris', sports: ['Afroboost', 'Danse'], bio: 'Passionnée d\'Afroboost, je cherche un partenaire pour danser !', imageId: 'discovery-1', price: 25 },
   { id: 2, name: 'Marc, 32', location: 'Lyon', sports: ['Danse', 'Fitness'], bio: 'Danseur confirmé, fan de rythmes africains.', imageId: 'discovery-2', price: 30 },
   { id: 3, name: 'Sophie, 25', location: 'Marseille', sports: ['Afroboost', 'Fitness'], bio: 'Coach Afroboost, je partage ma passion avec énergie !', imageId: 'discovery-3', price: 35 },
@@ -65,29 +70,146 @@ const boostedActivities = [
     { title: 'Zen Yoga', location: 'Fribourg', time: '19:00', price: '30 CHF', imageId: 'activity-yoga' },
 ];
 
+/** Convert a Firestore UserProfile to the local profile format used by the card UI */
+function firestoreProfileToCard(user: UserProfile, index: number) {
+  // Map sport entries to display labels
+  const sportLabels = (user.sports || []).map((s: SportEntry) => {
+    const danceInfo = DANCE_ACTIVITIES[s.name as keyof typeof DANCE_ACTIVITIES];
+    return danceInfo ? danceInfo.label : s.name;
+  });
+
+  return {
+    id: index + 1000, // Offset to avoid collision with fallback IDs
+    firestoreUid: user.uid,
+    name: user.displayName || 'Utilisateur',
+    location: user.city || 'Suisse',
+    sports: sportLabels.length > 0 ? sportLabels : ['Sport'],
+    bio: user.bio || 'Passionné de sport, à la recherche de partenaires !',
+    imageId: 'discovery-' + ((index % 3) + 1), // Cycle through placeholder images
+    photoURL: user.photoURL || '',
+    price: 25, // Default session price
+    matchScore: 0, // Will be computed
+  };
+}
+
+/** Compute a match score between the current user and a candidate profile */
+function computeMatchScore(myProfile: UserProfile | null, candidate: UserProfile): number {
+  if (!myProfile || !myProfile.sports || myProfile.sports.length === 0) return 50; // Neutral score
+
+  const mySports = new Set(myProfile.sports.map((s: SportEntry) => s.name));
+  const theirSports = candidate.sports || [];
+
+  let score = 0;
+  let sportsInCommon = 0;
+
+  for (const sport of theirSports) {
+    if (mySports.has(sport.name)) {
+      sportsInCommon++;
+      // Bonus for same sport
+      score += 30;
+
+      // Additional bonus for matching level
+      const mySport = myProfile.sports.find((s: SportEntry) => s.name === sport.name);
+      if (mySport && mySport.level === sport.level) {
+        score += 20; // Same level = perfect match
+      } else if (mySport) {
+        score += 10; // Different level but same sport
+      }
+    }
+  }
+
+  // Same city bonus
+  if (myProfile.city && candidate.city && myProfile.city === candidate.city) {
+    score += 15;
+  }
+
+  // Normalize: cap at 100
+  return Math.min(score, 100);
+}
+
 
 export default function DiscoveryPage() {
-  const [profiles, setProfiles] = useState(initialProfiles);
+  const [profiles, setProfiles] = useState(fallbackProfiles);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMatch, setIsMatch] = useState(false);
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [confirmedTickets, setConfirmedTickets] = useState<number[]>([]);
   const [partners, setPartners] = useState<Partner[]>(DEFAULT_PARTNERS);
-  
+  const [loadingProfiles, setLoadingProfiles] = useState(true);
+
   // New states for social features
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [selectedMeetingPlace, setSelectedMeetingPlace] = useState<string>('');
   const [showTicketSuccess, setShowTicketSuccess] = useState(false);
   const [lastBooking, setLastBooking] = useState<{profile: string, partner: string, partnerAddress?: string, isDuo: boolean, amount: number} | null>(null);
-  
+
   // Duo option state
   const [isDuoTicket, setIsDuoTicket] = useState(false);
-  
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
+  const { user, userProfile } = useAuth();
+
+  // Load REAL profiles from Firestore with matching
+  useEffect(() => {
+    const loadFirestoreProfiles = async () => {
+      if (!db || !isFirebaseConfigured || !user) {
+        setLoadingProfiles(false);
+        return;
+      }
+
+      try {
+        const usersRef = collection(db, 'users');
+        // Query: only users who completed onboarding, exclude self, limit to 50
+        const q = query(
+          usersRef,
+          where('onboardingComplete', '==', true),
+          firestoreLimit(50)
+        );
+
+        const snapshot = await getDocs(q);
+        const firestoreUsers: UserProfile[] = [];
+
+        snapshot.forEach(doc => {
+          const data = doc.data() as UserProfile;
+          // Exclude self
+          if (data.uid !== user.uid) {
+            firestoreUsers.push({ ...data, uid: doc.id });
+          }
+        });
+
+        if (firestoreUsers.length > 0) {
+          // Convert to card format and compute match scores
+          let cardProfiles = firestoreUsers.map((u, i) => {
+            const card = firestoreProfileToCard(u, i);
+            card.matchScore = computeMatchScore(userProfile, u);
+            return card;
+          });
+
+          // Sort by match score (highest first)
+          cardProfiles.sort((a, b) => b.matchScore - a.matchScore);
+
+          setProfiles(cardProfiles);
+          setCurrentIndex(0);
+          console.log(`[Discovery] ${cardProfiles.length} profils chargés depuis Firestore`);
+        } else {
+          // No real users yet → keep fallback profiles
+          console.log('[Discovery] Aucun profil Firestore, utilisation des profils démo');
+          setProfiles(fallbackProfiles);
+        }
+      } catch (err) {
+        console.warn('[Discovery] Erreur chargement Firestore, fallback aux profils démo:', err);
+        setProfiles(fallbackProfiles);
+      } finally {
+        setLoadingProfiles(false);
+      }
+    };
+
+    loadFirestoreProfiles();
+  }, [user, userProfile]);
 
   // Load partners function (extracted for reuse)
   const loadPartnersData = async () => {
@@ -102,20 +224,20 @@ export default function DiscoveryPage() {
   // Load confirmed tickets and partners
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     // Load tickets
     const tickets = getConfirmedTickets();
     setConfirmedTickets(tickets);
-    
+
     // Load partners
     loadPartnersData();
-    
+
     // Check for referral in URL
     const ref = searchParams.get('ref');
     const profileId = searchParams.get('profile');
     if (ref && profileId) {
       toast({
-        title: "Invitation reçue ! 🎉",
+        title: "Invitation reçue !",
         description: `Vous avez été invité via le code ${ref}`,
       });
     }
@@ -124,22 +246,21 @@ export default function DiscoveryPage() {
   // Real-time sync: refresh partners when tab becomes visible
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
         loadPartnersData();
       }
     };
-    
+
     document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // Also refresh every 30 seconds when page is active
+
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         loadPartnersData();
       }
     }, 30000);
-    
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       clearInterval(interval);
@@ -637,6 +758,19 @@ END:VCALENDAR`;
       {currentProfile ? (
         <div className="w-full max-w-sm mx-auto">
           <Card className="relative bg-card border-border/20 shadow-lg shadow-accent/10 rounded-2xl overflow-hidden">
+            {/* Match Score Badge */}
+            {(currentProfile as any).matchScore > 0 && (
+              <div className="absolute top-4 left-4 z-20">
+                <Badge className={`px-3 py-1 flex items-center gap-1 ${
+                  (currentProfile as any).matchScore >= 70 ? 'bg-green-500 text-white' :
+                  (currentProfile as any).matchScore >= 40 ? 'bg-yellow-500 text-black' :
+                  'bg-gray-600 text-white'
+                }`}>
+                  <Zap className="h-3 w-3" />
+                  {(currentProfile as any).matchScore}% match
+                </Badge>
+              </div>
+            )}
             {/* Ticket Badge */}
             {hasTicket && (
               <div className="absolute top-4 right-4 z-20">
@@ -648,13 +782,23 @@ END:VCALENDAR`;
             )}
             
             <div className="relative h-96 w-full">
-              {profileImage && (
+              {(currentProfile as any).photoURL ? (
+                <img
+                  src={(currentProfile as any).photoURL}
+                  alt={currentProfile.name}
+                  className="absolute inset-0 w-full h-full object-cover"
+                />
+              ) : profileImage ? (
                 <Image
                   src={profileImage.imageUrl}
                   alt={currentProfile.name}
                   fill
                   className="object-cover"
                 />
+              ) : (
+                <div className="absolute inset-0 bg-gradient-to-br from-[#7B1FA2] to-[#E91E63] flex items-center justify-center">
+                  <span className="text-6xl font-bold text-white/30">{currentProfile.name.charAt(0)}</span>
+                </div>
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent" />
               <div className="absolute bottom-4 left-4 text-white">
