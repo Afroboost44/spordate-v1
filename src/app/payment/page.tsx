@@ -120,10 +120,10 @@ export default function PaymentPage() {
   // Success screen with confetti
   if (paymentSuccess) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4 overflow-hidden">
+      <div className="min-h-screen bg-black flex items-center justify-center p-4 overflow-hidden">
         {showConfetti && <Confetti width={width} height={height} />}
 
-        <Card className="w-full max-w-md bg-gradient-to-br from-slate-800/95 to-slate-900/95 border-green-500/30 backdrop-blur-xl shadow-2xl">
+        <Card className="w-full max-w-md bg-zinc-900/80 border-green-500/30 backdrop-blur-xl shadow-2xl">
           <CardHeader className="text-center pb-2 pt-8">
             <div className="flex justify-center mb-6">
               <div className="relative">
@@ -150,9 +150,9 @@ export default function PaymentPage() {
               </div>
             </div>
 
-            <Separator className="bg-slate-700/50" />
+            <Separator className="bg-white/10" />
 
-            <div className="bg-slate-800/50 rounded-lg p-4">
+            <div className="bg-zinc-900/50 rounded-lg p-4">
               <p className="text-sm text-gray-400 mb-2">Vous pouvez maintenant :</p>
               <ul className="space-y-2 text-sm text-gray-300">
                 <li className="flex items-center gap-2">
@@ -186,11 +186,11 @@ export default function PaymentPage() {
   // Loading state
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
         <div className="text-center">
           <div className="relative w-20 h-20 mx-auto mb-6">
-            <div className="absolute inset-0 bg-gradient-to-r from-violet-500 to-rose-500 rounded-full animate-spin" />
-            <div className="absolute inset-2 bg-slate-900 rounded-full" />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#D91CD2] to-[#E91E63] rounded-full animate-spin" />
+            <div className="absolute inset-2 bg-black rounded-full" />
           </div>
           <h2 className="text-2xl font-bold text-white mb-2">Traitement sécurisé en cours...</h2>
           <p className="text-gray-400">Veuillez ne pas quitter cette page.</p>
@@ -201,11 +201,11 @@ export default function PaymentPage() {
 
   // Main payment page
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 p-4 py-12">
+    <div className="min-h-screen bg-black p-4 py-12">
       <div className="container mx-auto max-w-4xl">
         {/* Header */}
         <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">Achetez des crédits</h1>
+          <h1 className="text-4xl md:text-5xl font-light text-white mb-2">Achetez des crédits</h1>
           <p className="text-gray-400 text-lg">Chaque crédit = 1 Sport Date. Connectez-vous avec d'autres passionnés de sport.</p>
         </div>
 
@@ -224,7 +224,7 @@ export default function PaymentPage() {
                 <div className="absolute -top-3 left-4 z-10">
                   <span className={`inline-block px-4 py-1 rounded-full text-xs font-bold text-white ${
                     pkg.badge === 'Most Popular'
-                      ? 'bg-gradient-to-r from-violet-500 to-rose-500 shadow-lg shadow-violet-500/50'
+                      ? 'bg-gradient-to-r from-[#D91CD2] to-[#E91E63] shadow-lg shadow-[#D91CD2]/50'
                       : 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-lg shadow-amber-500/50'
                   }`}>
                     {pkg.badge}
@@ -235,24 +235,24 @@ export default function PaymentPage() {
               {/* Card */}
               <Card className={`h-full transition-all duration-300 ${
                 selectedPackage?.id === pkg.id
-                  ? 'bg-gradient-to-br from-slate-700/80 to-slate-800/80 border-violet-400/50 shadow-2xl shadow-violet-500/30'
-                  : 'bg-gradient-to-br from-slate-800/50 to-slate-900/50 border-slate-700/50 hover:border-slate-600'
+                  ? 'bg-zinc-900/80 border-[#D91CD2]/50 shadow-2xl shadow-[#D91CD2]/20'
+                  : 'bg-zinc-900/50 border-white/10 hover:border-white/20'
               } backdrop-blur border`}>
                 <CardHeader className="text-center pb-3 pt-6">
-                  <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-rose-400 mb-2">
+                  <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D91CD2] to-[#E91E63] mb-2">
                     {pkg.dates}
                   </div>
                   <CardTitle className="text-xl text-gray-200">{pkg.description}</CardTitle>
                 </CardHeader>
                 <CardContent className="text-center space-y-4">
-                  <Separator className="bg-slate-700/50" />
+                  <Separator className="bg-white/10" />
                   <div>
                     <p className="text-gray-400 text-sm mb-2">Prix</p>
-                    <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-rose-400">
+                    <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D91CD2] to-[#E91E63]">
                       {pkg.price} CHF
                     </p>
                   </div>
-                  <Separator className="bg-slate-700/50" />
+                  <Separator className="bg-white/10" />
                   <div className="text-sm text-gray-400 space-y-1">
                     <p>• Utilisation illimitée</p>
                     <p>• Sans expiration</p>
@@ -262,8 +262,8 @@ export default function PaymentPage() {
                     variant={selectedPackage?.id === pkg.id ? 'default' : 'outline'}
                     className={`w-full mt-4 transition-all ${
                       selectedPackage?.id === pkg.id
-                        ? 'bg-gradient-to-r from-violet-500 to-rose-500 text-white border-0'
-                        : 'border-slate-600 text-gray-300 hover:text-white'
+                        ? 'bg-gradient-to-r from-[#D91CD2] to-[#E91E63] text-white border-0'
+                        : 'border-white/10 text-gray-300 hover:text-white'
                     }`}
                   >
                     {selectedPackage?.id === pkg.id ? '✓ Sélectionné' : 'Sélectionner'}
@@ -275,12 +275,12 @@ export default function PaymentPage() {
         </div>
 
         {/* Divider */}
-        {selectedPackage && <Separator className="bg-slate-700/50 my-8" />}
+        {selectedPackage && <Separator className="bg-white/10 my-8" />}
 
         {/* Payment Methods */}
         {selectedPackage && (
           <div className="mt-8">
-            <Card className="bg-gradient-to-br from-slate-800/50 to-slate-900/50 border-slate-700/50 backdrop-blur">
+            <Card className="bg-zinc-900/50 border-white/10 backdrop-blur">
               <CardHeader>
                 <CardTitle className="text-2xl text-white">Moyen de paiement</CardTitle>
                 <CardDescription>Choisissez comment vous souhaitez payer</CardDescription>
@@ -290,7 +290,7 @@ export default function PaymentPage() {
                 <Button
                   onClick={() => handlePayment()}
                   disabled={loading}
-                  className="w-full justify-center h-16 text-base bg-gradient-to-r from-violet-500 to-rose-500 text-white font-semibold hover:from-violet-600 hover:to-rose-600 transition-all shadow-lg shadow-violet-500/30"
+                  className="w-full justify-center h-16 text-base bg-gradient-to-r from-[#D91CD2] to-[#E91E63] text-white font-semibold hover:from-[#C91BC2] hover:to-[#D91D53] transition-all shadow-lg shadow-[#D91CD2]/30"
                 >
                   {loading ? (
                     <Loader2 className="mr-2 h-5 w-5 animate-spin" />
@@ -307,7 +307,7 @@ export default function PaymentPage() {
                 </div>
 
                 {/* Security Info */}
-                <div className="mt-6 p-4 bg-slate-800/50 rounded-lg border border-slate-700/50">
+                <div className="mt-6 p-4 bg-zinc-900/50 rounded-lg border border-white/10">
                   <div className="flex items-start gap-3">
                     <Lock className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
                     <div>

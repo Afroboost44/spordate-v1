@@ -745,10 +745,10 @@ END:VCALENDAR`;
   const hasTicket = currentProfile && confirmedTickets.includes(currentProfile.id);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)] p-4">
+    <div className="flex flex-col items-center justify-center min-h-[calc(100vh-8rem)] p-4 bg-black">
       {currentProfile ? (
         <div className="w-full max-w-sm mx-auto">
-          <Card className="relative bg-card border-border/20 shadow-lg shadow-accent/10 rounded-2xl overflow-hidden">
+          <Card className="relative bg-black border border-white/10 shadow-xl shadow-[#D91CD2]/10 rounded-2xl overflow-hidden">
             {/* Match Score Badge */}
             {(currentProfile as any).matchScore > 0 && (
               <div className="absolute top-4 left-4 z-20">
@@ -772,7 +772,7 @@ END:VCALENDAR`;
               </div>
             )}
             
-            <div className="relative h-96 w-full">
+            <div className="relative h-[28rem] w-full">
               {(currentProfile as any).photoURL ? (
                 <img
                   src={(currentProfile as any).photoURL}
@@ -787,14 +787,14 @@ END:VCALENDAR`;
                   className="object-cover"
                 />
               ) : (
-                <div className="absolute inset-0 bg-gradient-to-br from-[#7B1FA2] to-[#E91E63] flex items-center justify-center">
+                <div className="absolute inset-0 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
                   <span className="text-6xl font-bold text-white/30">{currentProfile.name.charAt(0)}</span>
                 </div>
               )}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
               <div className="absolute bottom-4 left-4 text-white">
-                <h2 className="text-3xl font-bold">{currentProfile.name}</h2>
-                <p className="flex items-center gap-1 text-gray-300"><MapPin size={16}/>{currentProfile.location}</p>
+                <h2 className="text-3xl font-bold drop-shadow-lg">{currentProfile.name}</h2>
+                <p className="flex items-center gap-1 text-gray-300 drop-shadow"><MapPin size={16}/>{currentProfile.location}</p>
               </div>
             </div>
             <CardContent className="p-6">
@@ -802,7 +802,7 @@ END:VCALENDAR`;
                 <h3 className="font-semibold text-lg mb-2">Sports</h3>
                 <div className="flex flex-wrap gap-2">
                   {currentProfile.sports.map(sport => (
-                    <Badge key={sport} variant="secondary" className="bg-primary/20 text-accent border-accent/50 text-sm">
+                    <Badge key={sport} variant="secondary" className="bg-[#D91CD2]/20 text-[#D91CD2] border-[#D91CD2]/30 text-sm">
                       {sport === 'Afroboost' && <Zap className="h-3 w-3 mr-1" />}
                       {sport}
                     </Badge>
@@ -817,9 +817,9 @@ END:VCALENDAR`;
               {/* Action Buttons */}
               <div className="flex gap-2 mt-4">
                 {!hasTicket ? (
-                  <Button 
+                  <Button
                     onClick={handleBookSession}
-                    className="flex-1 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] text-white"
+                    className="flex-1 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white"
                   >
                     <Zap className="mr-2 h-4 w-4" />
                     {currentProfile.price === 0 ? 'Séance d\'essai gratuite' : `Réserver une séance • ${currentProfile.price} CHF`}
@@ -847,11 +847,11 @@ END:VCALENDAR`;
           
           {/* Like/Dislike Buttons */}
           <div className="flex justify-center items-center gap-6 mt-6">
-            <Button onClick={handleNextProfile} variant="outline" size="icon" className="h-20 w-20 rounded-full border-4 border-red-500/50 text-red-500 hover:bg-red-500/10 hover:text-red-400">
-              <X size={40} />
+            <Button onClick={handleNextProfile} variant="outline" size="icon" className="h-16 w-16 rounded-full border-2 border-white/20 text-white/60 hover:border-red-500/50 hover:text-red-400 hover:bg-red-500/10">
+              <X size={32} />
             </Button>
-            <Button onClick={handleLike} size="icon" className="h-24 w-24 rounded-full bg-gradient-to-br from-[#E91E63] to-[#7B1FA2] text-white shadow-lg shadow-rose-500/30">
-              <Heart size={48} fill="currentColor" />
+            <Button onClick={handleLike} size="icon" className="h-20 w-20 rounded-full bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white shadow-lg shadow-[#D91CD2]/30">
+              <Heart size={40} fill="currentColor" />
             </Button>
           </div>
 
@@ -866,16 +866,16 @@ END:VCALENDAR`;
             </div>
             <div className="space-y-3">
               {partners.slice(0, 3).map((partner) => (
-                <Card 
-                  key={partner.id} 
-                  className={`bg-card/50 border-border/20 transition-all duration-300 cursor-pointer group
-                    hover:border-violet-500/60 hover:shadow-lg hover:shadow-violet-500/20 hover:scale-[1.02]
-                    ${selectedMeetingPlace === partner.id ? 'border-violet-500 shadow-lg shadow-violet-500/30 bg-violet-500/10' : ''}
+                <Card
+                  key={partner.id}
+                  className={`bg-zinc-900/50 border-white/10 transition-all duration-300 cursor-pointer group
+                    hover:border-[#D91CD2]/60 hover:shadow-lg hover:shadow-[#D91CD2]/20 hover:scale-[1.02]
+                    ${selectedMeetingPlace === partner.id ? 'border-[#D91CD2] shadow-lg shadow-[#D91CD2]/30 bg-[#D91CD2]/10' : ''}
                   `}
                   onClick={() => handlePartnerSelect(partner)}
                 >
                   <CardContent className="p-4 flex items-center gap-4">
-                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-[#7B1FA2] to-[#E91E63] flex items-center justify-center text-white font-bold text-lg transition-transform group-hover:scale-110 ${selectedMeetingPlace === partner.id ? 'scale-110' : ''}`}>
+                    <div className={`w-12 h-12 rounded-xl bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-lg transition-transform group-hover:scale-110 ${selectedMeetingPlace === partner.id ? 'scale-110' : ''}`}>
                       {partner.name.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
@@ -888,9 +888,9 @@ END:VCALENDAR`;
                       </p>
                     </div>
                     {selectedMeetingPlace === partner.id ? (
-                      <Badge className="bg-violet-500 text-white text-xs">Sélectionné</Badge>
+                      <Badge className="bg-[#D91CD2] text-white text-xs">Sélectionné</Badge>
                     ) : (
-                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-[#D91CD2] transition-colors" />
                     )}
                   </CardContent>
                 </Card>
@@ -910,8 +910,8 @@ END:VCALENDAR`;
 
       {/* Payment Modal */}
       <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
-        <DialogContent className="max-w-md w-full bg-[#0a0a0a] border-violet-500/30 text-white p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="p-6 pb-0 bg-gradient-to-b from-violet-900/20 to-transparent">
+        <DialogContent className="max-w-md w-full bg-zinc-900 border-white/10 text-white p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="p-6 pb-0 bg-gradient-to-b from-[#D91CD2]/20 to-transparent">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2">
               <Zap className="h-6 w-6 text-yellow-400" />
               Réserver une séance Afroboost
@@ -923,10 +923,10 @@ END:VCALENDAR`;
           
           <div className="p-6 space-y-6">
             {/* Duo Option Toggle */}
-            <div data-testid="duo-option-toggle" className="bg-gradient-to-r from-violet-900/30 to-pink-900/30 rounded-xl p-4 border border-violet-500/30">
+            <div data-testid="duo-option-toggle" className="bg-gradient-to-r from-[#D91CD2]/30 to-[#E91E63]/30 rounded-xl p-4 border border-[#D91CD2]/30">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#7B1FA2] to-[#E91E63] flex items-center justify-center">
+                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
                     <Gift className="h-5 w-5 text-white" />
                   </div>
                   <div>
@@ -937,7 +937,7 @@ END:VCALENDAR`;
                 <Switch
                   checked={isDuoTicket}
                   onCheckedChange={setIsDuoTicket}
-                  className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#7B1FA2] data-[state=checked]:to-[#E91E63]"
+                  className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#D91CD2] data-[state=checked]:to-[#E91E63]"
                 />
               </div>
               {isDuoTicket && (
@@ -948,7 +948,7 @@ END:VCALENDAR`;
             </div>
 
             {/* Price Summary */}
-            <div data-testid="price-summary" className="bg-white/5 rounded-xl p-4 border border-white/10">
+            <div data-testid="price-summary" className="bg-zinc-900/50 rounded-xl p-4 border border-white/10">
               <div className="flex justify-between items-center mb-2">
                 <span className="text-gray-400">
                   {isDuoTicket ? 'Séance Duo Afroboost (2x 1h)' : 'Séance Afroboost (1h)'}
@@ -998,7 +998,7 @@ END:VCALENDAR`;
             </div>
 
             {/* Stripe Checkout Notice */}
-            <div className="bg-gradient-to-r from-violet-900/20 to-pink-900/20 rounded-xl p-4 border border-violet-500/20">
+            <div className="bg-gradient-to-r from-[#D91CD2]/20 to-[#E91E63]/20 rounded-xl p-4 border border-[#D91CD2]/20">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
                   <CreditCard className="h-5 w-5 text-violet-600" />
@@ -1011,17 +1011,17 @@ END:VCALENDAR`;
             </div>
 
             {/* Security Notice */}
-            <div className="flex items-center gap-2 text-xs text-gray-500 bg-white/5 rounded-lg p-3">
+            <div className="flex items-center gap-2 text-xs text-gray-500 bg-zinc-900/50 rounded-lg p-3">
               <Lock className="h-4 w-4" />
               <span>Vos données sont chiffrées. Vous serez redirigé vers Stripe Checkout.</span>
             </div>
 
             {/* Pay Button - with loader and disabled state */}
-            <Button 
+            <Button
               data-testid="pay-button"
               onClick={handlePayment}
               disabled={isProcessing}
-              className="w-full h-14 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] text-white font-semibold text-lg disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+              className="w-full h-14 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white font-semibold text-lg disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             >
               {isProcessing ? (
                 <div className="flex items-center gap-3">
@@ -1042,14 +1042,14 @@ END:VCALENDAR`;
 
       {/* Match Modal */}
       <Dialog open={isMatch} onOpenChange={setIsMatch}>
-        <DialogContent className="max-w-2xl w-full bg-[#0f0f0f] border-violet-500/20 text-foreground p-0 overflow-hidden">
-             
-          <DialogHeader className="items-center p-6 pb-2 bg-gradient-to-b from-violet-900/10 to-transparent">
-            <DialogTitle className="text-3xl sm:text-5xl font-black tracking-tighter text-white flex items-center gap-3 drop-shadow-[0_0_15px_rgba(168,85,247,0.5)]">
+        <DialogContent className="max-w-2xl w-full bg-black border-white/10 text-foreground p-0 overflow-hidden">
+
+          <DialogHeader className="items-center p-6 pb-2 bg-gradient-to-b from-[#D91CD2]/10 to-transparent">
+            <DialogTitle className="text-3xl sm:text-5xl font-black tracking-tighter text-white flex items-center gap-3 drop-shadow-[0_0_15px_rgba(217,28,210,0.5)]">
                 IT'S A MATCH <Zap className="text-yellow-400 fill-yellow-400 h-8 w-8 sm:h-10 sm:w-10" />
             </DialogTitle>
             <DialogDescription className="text-center text-base sm:text-lg text-gray-300 mt-2">
-              Pour discuter avec <span className="text-violet-400 font-bold">{currentProfile?.name.split(',')[0]}</span>, réservez une activité.
+              Pour discuter avec <span className="text-[#D91CD2] font-bold">{currentProfile?.name.split(',')[0]}</span>, réservez une activité.
             </DialogDescription>
           </DialogHeader>
           
@@ -1061,7 +1061,7 @@ END:VCALENDAR`;
               </ul>
           </div>
           
-          <div className="bg-white/5 px-6 sm:px-8 py-6">
+          <div className="bg-zinc-900/50 px-6 sm:px-8 py-6">
              <div className="flex justify-between items-center mb-4">
                 <h4 className="text-lg font-bold text-white flex items-center gap-2">🔥 Activités recommandées</h4>
                 <Badge variant="outline" className="border-yellow-500/50 text-yellow-500">Boosted</Badge>
@@ -1074,7 +1074,7 @@ END:VCALENDAR`;
                             const activityImage = activityImages.find(img => img.id === activity.imageId);
                             return (
                                 <CarouselItem key={index} className="pl-4 basis-full sm:basis-1/2">
-                                    <Card className="overflow-hidden bg-[#1a1a1a] border-white/10 hover:border-violet-500/50 transition-all group">
+                                    <Card className="overflow-hidden bg-zinc-900 border-white/10 hover:border-[#D91CD2]/50 transition-all group">
                                          <div className="relative h-32 w-full">
                                             {activityImage && (
                                                 <Image src={activityImage.imageUrl} alt={activity.title} fill className="object-cover group-hover:scale-105 transition-transform duration-500"/>
@@ -1084,7 +1084,7 @@ END:VCALENDAR`;
                                         <CardContent className="p-3">
                                             <h5 className="font-bold text-white truncate">{activity.title}</h5>
                                             <p className="text-xs text-gray-400 mb-3">{activity.location} • {activity.time}</p>
-                                            <Button onClick={bookActivity} className="w-full bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-500 hover:to-fuchsia-500 text-white text-xs font-bold h-8">
+                                            <Button onClick={bookActivity} className="w-full bg-gradient-to-r from-[#D91CD2] to-[#E91E63] hover:from-[#E91E63] hover:to-[#D91CD2] text-white text-xs font-bold h-8">
                                                 Réserver • {activity.price}
                                             </Button>
                                         </CardContent>
