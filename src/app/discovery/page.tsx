@@ -752,7 +752,7 @@ END:VCALENDAR`;
           <div className="md:flex-1 order-2 md:order-1 flex flex-col">
 
             {/* === PHOTO ZONE === Only name + location on image */}
-            <div className="relative aspect-[4/5] md:aspect-[3/4] w-full overflow-hidden md:rounded-3xl">
+            <div className="relative aspect-[3/4] md:aspect-[4/5] w-full max-h-[60vh] md:max-h-[70vh] overflow-hidden md:rounded-3xl">
               {(currentProfile as any).photoURL ? (
                 <img
                   src={(currentProfile as any).photoURL}
