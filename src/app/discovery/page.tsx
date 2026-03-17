@@ -1050,73 +1050,93 @@ END:VCALENDAR`;
         </DialogContent>
       </Dialog>
 
-      {/* Match Modal */}
+      {/* Match Modal — Flow: Match → Choix activité → Blocage chat → Paiement */}
       <Dialog open={isMatch} onOpenChange={setIsMatch}>
-        <DialogContent className="max-w-md w-full bg-zinc-950 border-white/10 text-foreground p-0 overflow-hidden">
+        <DialogContent className="max-w-md w-full bg-black border-[#D91CD2]/20 text-white p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
 
-          <DialogHeader className="items-center p-6 pb-2 bg-gradient-to-b from-[#D91CD2]/10 to-transparent">
-            <DialogTitle className="text-3xl sm:text-5xl font-black tracking-tighter text-white flex items-center gap-3 drop-shadow-[0_0_15px_rgba(217,28,210,0.5)]">
-                IT'S A MATCH <Zap className="text-yellow-400 fill-yellow-400 h-8 w-8 sm:h-10 sm:w-10" />
-            </DialogTitle>
-            <DialogDescription className="text-center text-base sm:text-lg text-gray-300 mt-2">
-              Pour discuter avec <span className="text-[#D91CD2] font-bold">{currentProfile?.name.split(',')[0]}</span>, réservez une activité.
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="px-6 sm:px-8 py-2">
-              <ul className="flex flex-col sm:flex-row justify-between gap-2 sm:gap-4 text-xs text-gray-400 border-y border-white/5 py-4 text-center sm:text-left">
-                  <li className="flex items-center justify-center sm:justify-start gap-2"><CheckCircle size={14} className="text-green-500"/> Chat débloqué après paiement</li>
-                  <li className="flex items-center justify-center sm:justify-start gap-2"><RefreshCcw size={14} className="text-blue-500"/> Annulation gratuite (-1h)</li>
-                  <li className="flex items-center justify-center sm:justify-start gap-2"><Handshake size={14} className="text-amber-500"/> Paiement sécurisé</li>
-              </ul>
-          </div>
-          
-          <div className="bg-zinc-900/50 px-6 sm:px-8 py-6">
-             <div className="flex justify-between items-center mb-4">
-                <h4 className="text-lg font-bold text-white flex items-center gap-2">🔥 Activités recommandées</h4>
-                <Badge variant="outline" className="border-yellow-500/50 text-yellow-500">Boosted</Badge>
-             </div>
-             
-             <div className="relative px-0 sm:px-8">
-                  <Carousel opts={{ align: "start", loop: true }} className="w-full">
-                    <CarouselContent className="-ml-4">
-                        {boostedActivities.map((activity, index) => {
-                            const activityImage = activityImages.find(img => img.id === activity.imageId);
-                            return (
-                                <CarouselItem key={index} className="pl-4 basis-full sm:basis-1/2">
-                                    <Card className="overflow-hidden bg-zinc-900 border-white/10 hover:border-[#D91CD2]/50 transition-all group">
-                                         <div className="relative h-32 w-full overflow-hidden">
-                                            {activityImage && (
-                                                <img src={activityImage.imageUrl} alt={activity.title} className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"/>
-                                            )}
-                                            <div className="absolute top-2 right-2 bg-yellow-400 text-black text-xs font-bold px-2 py-0.5 rounded">BOOST</div>
-                                        </div>
-                                        <CardContent className="p-3">
-                                            <h5 className="font-bold text-white truncate">{activity.title}</h5>
-                                            <p className="text-xs text-gray-400 mb-3">{activity.location} • {activity.time}</p>
-                                            <Button onClick={bookActivity} className="w-full bg-gradient-to-r from-[#D91CD2] to-[#E91E63] hover:from-[#E91E63] hover:to-[#D91CD2] text-white text-xs font-bold h-8">
-                                                Réserver • {activity.price}
-                                            </Button>
-                                        </CardContent>
-                                    </Card>
-                                </CarouselItem>
-                            )
-                        })}
-                    </CarouselContent>
-                    <CarouselPrevious className="absolute -left-2 sm:-left-4 top-1/2 -translate-y-1/2" />
-                    <CarouselNext className="absolute -right-2 sm:-right-4 top-1/2 -translate-y-1/2" />
-                  </Carousel>
-             </div>
+          {/* Match Header */}
+          <div className="relative px-6 pt-8 pb-4 text-center bg-gradient-to-b from-[#D91CD2]/15 to-transparent">
+            <div className="flex justify-center mb-4">
+              <div className="relative">
+                <div className="absolute inset-0 bg-[#D91CD2]/30 rounded-full blur-2xl animate-pulse" />
+                <Heart className="h-16 w-16 text-[#D91CD2] relative z-10" fill="currentColor" />
+              </div>
+            </div>
+            <DialogHeader className="items-center">
+              <DialogTitle className="text-3xl font-bold tracking-tight text-white">
+                C'est un Match !
+              </DialogTitle>
+              <DialogDescription className="text-base text-white/60 mt-2">
+                Toi et <span className="text-[#D91CD2] font-semibold">{currentProfile?.name.split(',')[0]}</span> avez matché
+              </DialogDescription>
+            </DialogHeader>
           </div>
 
-          <Separator className="bg-white/5"/>
-          
-          <div className="p-6 flex flex-col gap-3">
-             <Button onClick={() => router.push('/chat')} variant="outline" className="w-full border-gray-700 text-gray-500 cursor-not-allowed">
-                <Lock className="mr-2 h-4 w-4" />
-                Chat verrouillé
-            </Button>
-            <Button onClick={closeMatchModal} variant="ghost" className="w-full text-gray-500 hover:text-white">Passer pour cette fois</Button>
+          {/* Blocage intelligent */}
+          <div className="px-6 py-4">
+            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-3">
+              <Lock className="h-5 w-5 text-white/40 flex-shrink-0" />
+              <div>
+                <p className="text-sm font-medium text-white">Chat verrouillé</p>
+                <p className="text-xs text-white/40">Choisis une activité pour débloquer la conversation</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Choix d'activité — Danse en TOP */}
+          <div className="px-6 pb-2">
+            <p className="text-xs text-white/40 uppercase tracking-wider mb-3 font-medium">Propose un date sportif</p>
+            <div className="space-y-2">
+              {[
+                { icon: '🔥', name: 'Danse / Zumba', tag: 'Populaire', highlight: true },
+                { icon: '💃', name: 'Afroboost', tag: 'Tendance', highlight: true },
+                { icon: '🏋️', name: 'Fitness', tag: '', highlight: false },
+                { icon: '🏃', name: 'Running', tag: '', highlight: false },
+                { icon: '🧘', name: 'Yoga', tag: '', highlight: false },
+                { icon: '🚶', name: 'Marche', tag: 'Gratuit', highlight: false },
+              ].map((activity) => (
+                <button
+                  key={activity.name}
+                  onClick={() => {
+                    setIsMatch(false);
+                    handleBookSession();
+                  }}
+                  className={`w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98] min-h-[48px] ${
+                    activity.highlight
+                      ? 'bg-[#D91CD2]/10 border border-[#D91CD2]/30 hover:bg-[#D91CD2]/20'
+                      : 'bg-white/5 border border-transparent hover:bg-white/10'
+                  }`}
+                >
+                  <span className="text-xl">{activity.icon}</span>
+                  <span className="flex-1 text-left text-sm font-medium text-white">{activity.name}</span>
+                  {activity.tag && (
+                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                      activity.tag === 'Populaire' ? 'bg-[#D91CD2]/20 text-[#D91CD2]' :
+                      activity.tag === 'Tendance' ? 'bg-orange-500/20 text-orange-400' :
+                      'bg-green-500/20 text-green-400'
+                    }`}>
+                      {activity.tag}
+                    </span>
+                  )}
+                  <ChevronRight className="h-4 w-4 text-white/20" />
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Info */}
+          <div className="px-6 py-3">
+            <div className="flex items-center justify-center gap-4 text-[11px] text-white/30">
+              <span className="flex items-center gap-1"><CheckCircle size={12} className="text-green-500"/> Chat débloqué après réservation</span>
+              <span className="flex items-center gap-1"><RefreshCcw size={12} className="text-blue-400"/> Annulation gratuite</span>
+            </div>
+          </div>
+
+          {/* Skip */}
+          <div className="px-6 pb-6">
+            <button onClick={closeMatchModal} className="w-full text-center text-sm text-white/30 hover:text-white/50 transition py-2">
+              Passer pour cette fois
+            </button>
           </div>
         </DialogContent>
       </Dialog>

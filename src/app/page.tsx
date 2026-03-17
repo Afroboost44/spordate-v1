@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
+// Using img tags for external images reliability
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import {
@@ -21,14 +21,14 @@ interface ActivityItem {
 }
 
 const FEATURED_ACTIVITIES: ActivityItem[] = [
-  { id: 'afroboost',     name: 'Afroboost',      type: 'dance', image: 'https://images.unsplash.com/photo-1547153760-18fc86324498?w=600&h=400&fit=crop' },
-  { id: 'zumba',         name: 'Zumba',           type: 'dance', image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=600&h=400&fit=crop' },
-  { id: 'salsa',         name: 'Salsa',           type: 'dance', image: 'https://images.unsplash.com/photo-1504609813442-a8924e83f76e?w=600&h=400&fit=crop' },
-  { id: 'hiphop',        name: 'Hip-Hop',         type: 'dance', image: 'https://images.unsplash.com/photo-1535525153412-5a42439a210d?w=600&h=400&fit=crop' },
-  { id: 'tennis',        name: 'Tennis',          type: 'sport', image: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=600&h=400&fit=crop' },
-  { id: 'yoga',          name: 'Yoga',            type: 'sport', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&h=400&fit=crop' },
-  { id: 'fitness',       name: 'Fitness',         type: 'sport', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&h=400&fit=crop' },
-  { id: 'dance_fitness', name: 'Dance Fitness',   type: 'dance', image: 'https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=600&h=400&fit=crop' },
+  { id: 'afroboost',     name: 'Afroboost',      type: 'dance', image: 'https://picsum.photos/seed/spordate-photo-1547153760-18fc86324498?w=600&h=400&fit=crop' },
+  { id: 'zumba',         name: 'Zumba',           type: 'dance', image: 'https://picsum.photos/seed/spordate-photo-1518611012118-696072aa579a?w=600&h=400&fit=crop' },
+  { id: 'salsa',         name: 'Salsa',           type: 'dance', image: 'https://picsum.photos/seed/spordate-photo-1504609813442-a8924e83f76e?w=600&h=400&fit=crop' },
+  { id: 'hiphop',        name: 'Hip-Hop',         type: 'dance', image: 'https://picsum.photos/seed/spordate-photo-1535525153412-5a42439a210d?w=600&h=400&fit=crop' },
+  { id: 'tennis',        name: 'Tennis',          type: 'sport', image: 'https://picsum.photos/seed/spordate-photo-1554068865-24cecd4e34b8?w=600&h=400&fit=crop' },
+  { id: 'yoga',          name: 'Yoga',            type: 'sport', image: 'https://picsum.photos/seed/spordate-photo-1544367567-0f2fcb009e0b?w=600&h=400&fit=crop' },
+  { id: 'fitness',       name: 'Fitness',         type: 'sport', image: 'https://picsum.photos/seed/spordate-photo-1534438327276-14e5300c3a48?w=600&h=400&fit=crop' },
+  { id: 'dance_fitness', name: 'Dance Fitness',   type: 'dance', image: 'https://picsum.photos/seed/spordate-photo-1571019614242-c5c5dee9f50b?w=600&h=400&fit=crop' },
 ];
 
 interface Testimonial {
@@ -43,28 +43,28 @@ const TESTIMONIALS: Testimonial[] = [
   {
     name: 'Amina K.',
     location: 'Geneve',
-    image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop',
+    image: 'https://picsum.photos/seed/spordate-photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop',
     text: 'J\'ai trouve ma partenaire d\'Afroboost. On se motive chaque semaine, c\'est devenu notre rituel.',
     activity: 'Afroboost',
   },
   {
     name: 'Karim D.',
     location: 'Zurich',
-    image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop',
+    image: 'https://picsum.photos/seed/spordate-photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop',
     text: 'Fan de salsa depuis 3 ans, j\'ai enfin trouve une partenaire a mon niveau. Le premier pas devient facile.',
     activity: 'Salsa',
   },
   {
     name: 'Lea M.',
     location: 'Lausanne',
-    image: 'https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop',
+    image: 'https://picsum.photos/seed/spordate-photo-1438761681033-6461ffad8d80?w=200&h=200&fit=crop',
     text: 'J\'ai decouvert le Dance Fitness via l\'app. Ambiance incroyable, zero pression.',
     activity: 'Dance Fitness',
   },
   {
     name: 'David N.',
     location: 'Bern',
-    image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop',
+    image: 'https://picsum.photos/seed/spordate-photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop',
     text: 'Bachata en duo, c\'est 100x mieux. On danse, on rigole, c\'est tout.',
     activity: 'Bachata',
   },
@@ -107,12 +107,11 @@ export default function LandingPage() {
       <section className="relative min-h-[90vh] flex items-center">
         {/* Background image */}
         <div className="absolute inset-0 z-0">
-          <Image
-            src="https://images.unsplash.com/photo-1524594152303-9fd13543fe6e?w=1920&h=1080&fit=crop"
+          <img
+            src="https://picsum.photos/seed/spordate-photo-1524594152303-9fd13543fe6e?w=1920&h=1080&fit=crop"
             alt="Dance"
-            fill
-            className="object-cover opacity-30"
-            priority
+            style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
+            className="absolute inset-0 w-full h-full object-cover opacity-30"
           />
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black" />
         </div>
@@ -124,24 +123,24 @@ export default function LandingPage() {
             </p>
 
             <h1 className="text-5xl md:text-8xl font-extralight leading-[0.95] tracking-tight text-white">
-              Bouge.
+              Rencontre quelqu'un
               <br />
-              Matche.
+              en partageant une
               <br />
-              <span className="text-[#D91CD2] neon-text">Kiffe.</span>
+              <span className="text-[#D91CD2] neon-text">activité sportive.</span>
             </h1>
 
             <p className="text-lg md:text-xl font-light text-white/60 max-w-lg leading-relaxed">
-              Trouve ton partenaire de sport ou de danse pres de chez toi. Zero pression, 100% fun.
+              Danse, fitness, running... Choisis ton sport, matche, et vis une vraie rencontre.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-normal text-sm tracking-wide uppercase px-10 h-14 rounded-none neon-glow">
-                <Link href="/signup">Commencer gratuitement</Link>
+              <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold text-base tracking-wide px-12 h-16 rounded-full neon-glow">
+                <Link href="/signup">Commencer</Link>
               </Button>
-              <Button asChild variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-10 h-14 rounded-none">
+              <Button asChild variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-10 h-16 rounded-full">
                 <Link href="#method">
-                  Decouvrir <ArrowRight className="ml-3 h-4 w-4" />
+                  Comment ça marche <ArrowRight className="ml-3 h-4 w-4" />
                 </Link>
               </Button>
             </div>
@@ -165,28 +164,28 @@ export default function LandingPage() {
                 num: '01',
                 title: 'Choisis ton style',
                 desc: 'Afroboost, Salsa, Tennis, Yoga... Selectionne tes activites et ton niveau.',
-                image: 'https://images.unsplash.com/photo-1508700115892-45ecd05ae2ad?w=800&h=600&fit=crop',
+                image: 'https://picsum.photos/seed/spordate-photo-1508700115892-45ecd05ae2ad?w=800&h=600&fit=crop',
               },
               {
                 num: '02',
                 title: 'Matche & discute',
                 desc: 'On te propose des partenaires pres de toi. Connecte-toi, organise ta session.',
-                image: 'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?w=800&h=600&fit=crop',
+                image: 'https://picsum.photos/seed/spordate-photo-1529156069898-49953e39b3ac?w=800&h=600&fit=crop',
               },
               {
                 num: '03',
                 title: 'Bouge & kiffe',
                 desc: 'Retrouve ton match dans un studio partenaire. L\'experience commence ici.',
-                image: 'https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=800&h=600&fit=crop',
+                image: 'https://picsum.photos/seed/spordate-photo-1571019613454-1cb2f99b2d8b?w=800&h=600&fit=crop',
               },
             ].map((step) => (
               <div key={step.num} className="bg-black p-10 md:p-14 group">
                 <div className="relative h-64 mb-10 overflow-hidden">
-                  <Image
+                  <img
                     src={step.image}
                     alt={step.title}
-                    fill
-                    className="object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
+                    style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
+                    className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
                   />
                   <div className="absolute inset-0 bg-black/30 group-hover:bg-transparent transition-all duration-700" />
                 </div>
@@ -223,11 +222,11 @@ export default function LandingPage() {
                 onMouseLeave={() => setHoveredActivity(null)}
               >
                 <div className="relative h-52 md:h-72 overflow-hidden">
-                  <Image
+                  <img
                     src={activity.image}
                     alt={activity.name}
-                    fill
-                    className="object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700"
+                    style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
+                    className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700"
                   />
                   <div className="absolute inset-0 bg-black/50 group-hover:bg-black/20 transition-all duration-500" />
                 </div>
@@ -287,11 +286,11 @@ export default function LandingPage() {
                 </p>
                 <div className="flex items-center gap-4">
                   <div className="h-12 w-12 overflow-hidden grayscale group-hover:grayscale-0 transition-all duration-500">
-                    <Image
+                    <img
                       src={t.image}
                       alt={t.name}
-                      width={48}
-                      height={48}
+                      
+                      
                       className="w-full h-full object-cover"
                     />
                   </div>
@@ -330,11 +329,11 @@ export default function LandingPage() {
               </div>
             </div>
             <div className="relative h-96 md:h-[500px] overflow-hidden">
-              <Image
-                src="https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800&h=1000&fit=crop"
+              <img
+                src="https://picsum.photos/seed/spordate-photo-1506905925346-21bda4d32df4?w=800&h=1000&fit=crop"
                 alt="Switzerland"
-                fill
-                className="object-cover grayscale hover:grayscale-0 transition-all duration-700"
+                style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
+                className="absolute inset-0 w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
             </div>
@@ -366,11 +365,11 @@ export default function LandingPage() {
       {/* ── FINAL CTA ── */}
       <section className="relative py-32 md:py-48 overflow-hidden">
         <div className="absolute inset-0">
-          <Image
-            src="https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1920&h=800&fit=crop"
+          <img
+            src="https://picsum.photos/seed/spordate-photo-1571019613454-1cb2f99b2d8b?w=1920&h=800&fit=crop"
             alt="Dance"
-            fill
-            className="object-cover opacity-15"
+            style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
+            className="absolute inset-0 w-full h-full object-cover opacity-15"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-black" />
         </div>
