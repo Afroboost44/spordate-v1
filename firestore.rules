@@ -1,42 +1,137 @@
 rules_version = '2';
-
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // Règles pour la collection users
+
+    // === HELPERS ===
+    function isAuth() {
+      return request.auth != null;
+    }
+    function isOwner(uid) {
+      return request.auth.uid == uid;
+    }
+    function isAdmin() {
+      return isAuth()
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
+    }
+
+    // === USERS ===
     match /users/{userId} {
-      // Lecture : uniquement l'utilisateur authentifié peut lire son propre document
-      allow read: if request.auth != null && request.auth.uid == userId;
-      
-      // Création : l'utilisateur authentifié peut créer son propre document
-      allow create: if request.auth != null 
-                    && request.auth.uid == userId
-                    && request.resource.data.keys().hasAll(['email', 'sports', 'level', 'referralCode', 'createdAt'])
-                    && request.resource.data.email is string
-                    && request.resource.data.sports is list
-                    && request.resource.data.level is string
-                    && request.resource.data.referralCode is string
-                    && request.resource.data.referralCode.matches('^SPORT-[A-Z0-9]{4}$');
-      
-      // Mise à jour : l'utilisateur peut modifier son propre document
-      // mais ne peut pas changer son referralCode une fois créé
-      allow update: if request.auth != null 
-                    && request.auth.uid == userId
-                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['referralCode', 'uid', 'createdAt']));
-      
-      // Suppression : non autorisée
+      allow read: if isAuth();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId) || isAdmin();
+      allow delete: if isAdmin();
+
+      match /preferences/{doc} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // === MATCHES ===
+    match /matches/{matchId} {
+      allow read: if isAuth() && request.auth.uid in resource.data.userIds;
+      allow create: if isAuth();
+      allow update: if isAuth() && request.auth.uid in resource.data.userIds;
+      allow delete: if isAdmin();
+    }
+
+    // === ACTIVITIES (public read) ===
+    match /activities/{activityId} {
+      allow read: if true;
+      allow create: if isAuth();
+      allow update: if isAuth() && (resource.data.createdBy == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
+    // === BOOKINGS ===
+    match /bookings/{bookingId} {
+      allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isAuth();
+      allow update: if isAdmin();
       allow delete: if false;
     }
-    
-    // Règle pour rechercher un utilisateur par code de parrainage (lecture seule du code)
-    match /users/{userId} {
-      allow read: if request.auth != null 
-                  && resource.data.referralCode != null;
+
+    // === CREDITS (server-side only) ===
+    match /credits/{creditId} {
+      allow read: if isAuth() && resource.data.userId == request.auth.uid;
+      allow write: if false;
     }
-    
-    // Bloquer tout autre accès par défaut
-    match /{document=**} {
-      allow read, write: if false;
+
+    // === TRANSACTIONS (server-side only) ===
+    match /transactions/{transactionId} {
+      allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow write: if false;
+    }
+
+    // === CREATORS ===
+    match /creators/{creatorId} {
+      allow read: if isAuth();
+      allow create: if isOwner(creatorId);
+      allow update: if isOwner(creatorId) || isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // === PARTNERS (public read) ===
+    match /partners/{partnerId} {
+      allow read: if true;
+      allow create: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
+    }
+
+    // === REFERRALS (server-side only) ===
+    match /referrals/{referralId} {
+      allow read: if isAuth()
+        && (resource.data.referrerId == request.auth.uid
+            || resource.data.referredUserId == request.auth.uid
+            || isAdmin());
+      allow write: if false;
+    }
+
+    // === PAYOUTS ===
+    match /payouts/{payoutId} {
+      allow read: if isAuth()
+        && (resource.data.creatorId == request.auth.uid || isAdmin());
+      allow create: if isAuth()
+        && request.resource.data.creatorId == request.auth.uid;
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // === ANALYTICS (admin only) ===
+    match /analytics/{doc=**} {
+      allow read: if isAdmin();
+      allow write: if false;
+    }
+
+    // === CHATS ===
+    match /chats/{chatId} {
+      allow read: if isAuth() && request.auth.uid in resource.data.participants;
+      allow update: if isAuth() && request.auth.uid in resource.data.participants;
+      allow create, delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if isAuth()
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow create: if isAuth()
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+          && get(/databases/$(database)/documents/matches/$(chatId)).data.chatUnlocked == true;
+        allow update, delete: if false;
+      }
+    }
+
+    // === NOTIFICATIONS ===
+    match /notifications/{notificationId} {
+      allow read: if isAuth() && resource.data.userId == request.auth.uid;
+      allow update: if isAuth() && resource.data.userId == request.auth.uid;
+      allow create, delete: if false;
+    }
+
+    // === ERROR LOGS ===
+    match /errorLogs/{logId} {
+      allow read: if isAdmin();
+      allow create: if isAuth();
+      allow update: if isAdmin();
+      allow delete: if isAdmin();
     }
   }
 }

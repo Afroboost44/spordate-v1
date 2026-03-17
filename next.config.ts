@@ -1,19 +1,22 @@
 import type {NextConfig} from 'next';
 
+const isExport = process.env.NEXT_OUTPUT === 'export';
+
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Static export for GitHub Pages preview
+  ...(isExport ? { output: 'export', basePath: '/spordate-v1' } : {}),
   typescript: {
     ignoreBuildErrors: true,
   },
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Expose environment variables to runtime
   env: {
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
   },
   images: {
+    unoptimized: isExport, // Required for static export
     remotePatterns: [
       {
         protocol: 'https',
