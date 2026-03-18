@@ -428,7 +428,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-white/5 pt-10 flex flex-col md:flex-row justify-between items-center text-xs font-light text-white/20">
-            <p>2026 Spordateur. Tous droits reserves.</p>
+            <Link href="/login" className="hover:text-white/40 transition">2026 Spordateur. Tous droits reserves.</Link>
             <div className="flex gap-8 mt-4 md:mt-0">
               <a href="#" className="hover:text-white/60 transition tracking-wide uppercase">Instagram</a>
               <a href="#" className="hover:text-white/60 transition tracking-wide uppercase">TikTok</a>
