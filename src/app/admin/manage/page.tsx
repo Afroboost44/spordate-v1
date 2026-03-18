@@ -1,240 +1,275 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import React, { useState, useEffect, useMemo } from 'react';
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import {
-  Users, Building2, MapPin, Loader2, Search, Eye, EyeOff, Trash2, Shield, Crown
+  Users, Building2, MapPin, Loader2, Search, Eye, EyeOff, Trash2, Shield,
+  Wallet, TrendingUp, CalendarDays, CreditCard, Gift, Bell, Settings, Bug,
+  Plus, Minus, Send, BarChart3, Zap, Crown
 } from 'lucide-react';
 import { useAuth } from "@/context/AuthContext";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import {
-  collection, query, getDocs, doc, updateDoc, deleteDoc,
-  serverTimestamp, orderBy, limit, where
+  collection, query, getDocs, doc, updateDoc, deleteDoc, setDoc, addDoc,
+  serverTimestamp, orderBy, limit, where, increment
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import Link from 'next/link';
 
-interface UserItem {
-  uid: string;
-  displayName: string;
-  email: string;
-  role: string;
-  city: string;
-  isPremium: boolean;
-  credits: number;
-  isVisible?: boolean;
-  createdAt: any;
-}
+type Tab = 'cockpit' | 'users' | 'partners' | 'credits' | 'promos' | 'settings' | 'errors';
 
-interface PartnerItem {
-  partnerId: string;
-  name: string;
-  city: string;
-  isActive: boolean;
-  isApproved: boolean;
-  totalBookings: number;
-  totalRevenue: number;
-}
+interface UserItem { uid: string; displayName: string; email: string; role: string; city: string; isPremium: boolean; credits: number; isVisible?: boolean; createdAt: any; }
+interface PartnerItem { partnerId: string; name: string; city: string; isActive: boolean; isApproved: boolean; totalBookings: number; totalRevenue: number; }
+interface TxItem { transactionId: string; userId: string; amount: number; status: string; package: string; paymentMethod: string; createdAt: any; }
+interface ErrorItem { logId: string; message: string; source: string; level: string; resolved: boolean; createdAt: any; }
 
 export default function AdminManagePage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [tab, setTab] = useState<'users' | 'partners'>('users');
+  const [tab, setTab] = useState<Tab>('cockpit');
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [partners, setPartners] = useState<PartnerItem[]>([]);
+  const [transactions, setTransactions] = useState<TxItem[]>([]);
+  const [errors, setErrors] = useState<ErrorItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  // Promo form
+  const [promoCode, setPromoCode] = useState('');
+  const [promoCredits, setPromoCredits] = useState('1');
+  const [promoDiscount, setPromoDiscount] = useState('');
+  // Credit adjustment
+  const [creditUserId, setCreditUserId] = useState('');
+  const [creditAmount, setCreditAmount] = useState('1');
+  // Notification
+  const [notifTitle, setNotifTitle] = useState('');
+  const [notifBody, setNotifBody] = useState('');
 
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
-    loadData();
+    loadAll();
   }, [user]);
 
-  const loadData = async () => {
+  const loadAll = async () => {
     if (!db) return;
     try {
-      // Load users
-      const uQ = query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(100));
-      const uSnap = await getDocs(uQ);
+      const [uSnap, pSnap, tSnap, eSnap] = await Promise.all([
+        getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(200))),
+        getDocs(query(collection(db, 'partners'), orderBy('createdAt', 'desc'))),
+        getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(100))),
+        getDocs(query(collection(db, 'errorLogs'), where('resolved', '==', false), orderBy('createdAt', 'desc'), limit(50))),
+      ]);
       setUsers(uSnap.docs.map(d => ({ ...d.data(), uid: d.id } as UserItem)));
-
-      // Load partners
-      const pQ = query(collection(db, 'partners'), orderBy('createdAt', 'desc'));
-      const pSnap = await getDocs(pQ);
       setPartners(pSnap.docs.map(d => d.data() as PartnerItem));
-    } catch (err) {
-      console.error('Erreur chargement admin:', err);
-    } finally {
-      setLoading(false);
-    }
+      setTransactions(tSnap.docs.map(d => d.data() as TxItem));
+      setErrors(eSnap.docs.map(d => d.data() as ErrorItem));
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
   };
 
-  // User actions
-  const toggleUserVisibility = async (uid: string, current: boolean) => {
+  // Stats
+  const totalRevenue = transactions.filter(t => t.status === 'succeeded').reduce((s, t) => s + (t.amount || 0), 0) / 100;
+  const totalUsers = users.length;
+  const premiumUsers = users.filter(u => u.isPremium).length;
+  const activePartners = partners.filter(p => p.isActive).length;
+  const todayTx = transactions.filter(t => {
+    if (!t.createdAt?.toDate) return false;
+    const d = t.createdAt.toDate();
+    const today = new Date();
+    return d.toDateString() === today.toDateString();
+  });
+  const todayRevenue = todayTx.filter(t => t.status === 'succeeded').reduce((s, t) => s + (t.amount || 0), 0) / 100;
+
+  // Filters
+  const filteredUsers = users.filter(u =>
+    (u.displayName || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.email || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (u.city || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+  const filteredPartners = partners.filter(p =>
+    (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (p.city || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  // Actions
+  const toggleUserVisibility = async (uid: string, v: boolean) => {
     if (!db) return;
-    await updateDoc(doc(db, 'users', uid), { isVisible: !current, updatedAt: serverTimestamp() });
-    setUsers(users.map(u => u.uid === uid ? { ...u, isVisible: !current } : u));
-    toast({ title: !current ? 'Utilisateur visible' : 'Utilisateur masqué' });
+    await updateDoc(doc(db, 'users', uid), { isVisible: !v, updatedAt: serverTimestamp() });
+    setUsers(users.map(u => u.uid === uid ? { ...u, isVisible: !v } : u));
+    toast({ title: !v ? 'Visible' : 'Masqué' });
   };
-
-  const changeUserRole = async (uid: string, newRole: string) => {
+  const changeUserRole = async (uid: string, role: string) => {
     if (!db) return;
-    await updateDoc(doc(db, 'users', uid), { role: newRole, updatedAt: serverTimestamp() });
-    setUsers(users.map(u => u.uid === uid ? { ...u, role: newRole } : u));
-    toast({ title: `Rôle changé en "${newRole}"` });
+    await updateDoc(doc(db, 'users', uid), { role, updatedAt: serverTimestamp() });
+    setUsers(users.map(u => u.uid === uid ? { ...u, role } : u));
+    toast({ title: `Rôle → ${role}` });
   };
-
   const deleteUser = async (uid: string, name: string) => {
-    if (!db || !confirm(`Supprimer définitivement ${name} ?`)) return;
+    if (!db || !confirm(`Supprimer ${name} ?`)) return;
     await deleteDoc(doc(db, 'users', uid));
     setUsers(users.filter(u => u.uid !== uid));
-    toast({ title: 'Utilisateur supprimé' });
+    toast({ title: 'Supprimé' });
   };
-
-  // Partner actions
-  const togglePartnerActive = async (pid: string, current: boolean) => {
+  const togglePartner = async (pid: string, field: 'isActive' | 'isApproved', cur: boolean) => {
     if (!db) return;
-    await updateDoc(doc(db, 'partners', pid), { isActive: !current, updatedAt: serverTimestamp() });
-    setPartners(partners.map(p => p.partnerId === pid ? { ...p, isActive: !current } : p));
-    toast({ title: !current ? 'Partenaire activé' : 'Partenaire désactivé' });
+    await updateDoc(doc(db, 'partners', pid), { [field]: !cur, updatedAt: serverTimestamp() });
+    setPartners(partners.map(p => p.partnerId === pid ? { ...p, [field]: !cur } : p));
+    toast({ title: 'Mis à jour' });
   };
-
-  const togglePartnerApproved = async (pid: string, current: boolean) => {
+  const adjustCredits = async (add: boolean) => {
+    if (!db || !creditUserId) return;
+    const amt = parseInt(creditAmount) || 1;
+    const val = add ? amt : -amt;
+    await updateDoc(doc(db, 'users', creditUserId), { credits: increment(val), updatedAt: serverTimestamp() });
+    toast({ title: `${add ? '+' : '-'}${amt} crédits → ${creditUserId.substring(0, 8)}...` });
+    setCreditUserId(''); setCreditAmount('1');
+    await loadAll();
+  };
+  const createPromo = async () => {
+    if (!db || !promoCode) return;
+    await setDoc(doc(db, 'promos', promoCode.toUpperCase()), {
+      code: promoCode.toUpperCase(),
+      creditsBonus: parseInt(promoCredits) || 0,
+      discountPercent: parseInt(promoDiscount) || 0,
+      isActive: true,
+      usageCount: 0,
+      createdAt: serverTimestamp(),
+    });
+    toast({ title: `Code ${promoCode.toUpperCase()} créé !` });
+    setPromoCode(''); setPromoCredits('1'); setPromoDiscount('');
+  };
+  const sendNotification = async () => {
+    if (!db || !notifTitle) return;
+    const batch: Promise<void>[] = [];
+    for (const u of users.slice(0, 500)) {
+      const ref = doc(collection(db, 'notifications'));
+      batch.push(setDoc(ref, {
+        notificationId: ref.id, userId: u.uid, type: 'system',
+        title: notifTitle, body: notifBody, data: {}, isRead: false,
+        createdAt: serverTimestamp(),
+      }));
+    }
+    await Promise.all(batch);
+    toast({ title: `Notification envoyée à ${Math.min(users.length, 500)} utilisateurs` });
+    setNotifTitle(''); setNotifBody('');
+  };
+  const resolveError = async (logId: string) => {
     if (!db) return;
-    await updateDoc(doc(db, 'partners', pid), { isApproved: !current, updatedAt: serverTimestamp() });
-    setPartners(partners.map(p => p.partnerId === pid ? { ...p, isApproved: !current } : p));
-    toast({ title: !current ? 'Partenaire approuvé' : 'Partenaire non approuvé' });
+    await updateDoc(doc(db, 'errorLogs', logId), { resolved: true, resolvedAt: serverTimestamp() });
+    setErrors(errors.filter(e => e.logId !== logId));
+    toast({ title: 'Erreur résolue' });
   };
 
-  // Filter
-  const filteredUsers = users.filter(u =>
-    u.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.city?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  const filteredPartners = partners.filter(p =>
-    p.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    p.city?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const TABS: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
+    { id: 'cockpit', label: 'Cockpit', icon: <BarChart3 className="h-4 w-4" /> },
+    { id: 'users', label: 'Utilisateurs', icon: <Users className="h-4 w-4" />, count: totalUsers },
+    { id: 'partners', label: 'Partenaires', icon: <Building2 className="h-4 w-4" />, count: partners.length },
+    { id: 'credits', label: 'Crédits', icon: <CreditCard className="h-4 w-4" /> },
+    { id: 'promos', label: 'Promos', icon: <Gift className="h-4 w-4" /> },
+    { id: 'settings', label: 'Notifs', icon: <Bell className="h-4 w-4" /> },
+    { id: 'errors', label: 'Erreurs', icon: <Bug className="h-4 w-4" />, count: errors.length },
+  ];
 
   if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 text-[#D91CD2] animate-spin" /></div>;
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="max-w-6xl mx-auto px-4 md:px-6 py-8 space-y-6">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-5">
 
-        {/* Header + nav */}
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-light tracking-tight flex items-center gap-2">
-              <Shield className="h-6 w-6 text-[#D91CD2]" /> Gestion du site
+              <Shield className="h-6 w-6 text-[#D91CD2]" /> Admin Spordate
             </h1>
-            <p className="text-sm text-white/40">Utilisateurs, partenaires, visibilité</p>
           </div>
-          <div className="flex gap-2">
-            <Link href="/admin/revenue">
-              <Button variant="outline" size="sm" className="border-white/10 text-white/50 hover:text-white">Revenus</Button>
-            </Link>
+          <Link href="/admin/revenue"><Button variant="outline" size="sm" className="border-[#D91CD2]/30 text-[#D91CD2] text-xs">Revenus</Button></Link>
+        </div>
+
+        {/* Tabs — horizontal scroll on mobile */}
+        <div className="flex gap-1.5 overflow-x-auto pb-2 -mx-1 px-1">
+          {TABS.map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs whitespace-nowrap transition-all ${
+                tab === t.id ? 'bg-[#D91CD2]/10 border border-[#D91CD2]/30 text-[#D91CD2]' : 'bg-white/5 text-white/40'
+              }`}
+            >
+              {t.icon} {t.label} {t.count !== undefined && <span className="text-[10px] opacity-60">({t.count})</span>}
+            </button>
+          ))}
+        </div>
+
+        {/* Search (for users/partners) */}
+        {(tab === 'users' || tab === 'partners') && (
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
+            <Input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Rechercher..." className="bg-[#1A1A1A] border-white/10 pl-10 h-11" />
           </div>
-        </div>
+        )}
 
-        {/* Tabs */}
-        <div className="flex gap-2">
-          <button
-            onClick={() => setTab('users')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-all ${
-              tab === 'users' ? 'bg-[#D91CD2]/10 border border-[#D91CD2]/30 text-[#D91CD2]' : 'bg-white/5 border border-transparent text-white/40'
-            }`}
-          >
-            <Users className="h-4 w-4" /> Utilisateurs ({users.length})
-          </button>
-          <button
-            onClick={() => setTab('partners')}
-            className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm transition-all ${
-              tab === 'partners' ? 'bg-[#D91CD2]/10 border border-[#D91CD2]/30 text-[#D91CD2]' : 'bg-white/5 border border-transparent text-white/40'
-            }`}
-          >
-            <Building2 className="h-4 w-4" /> Partenaires ({partners.length})
-          </button>
-        </div>
+        {/* ===== COCKPIT ===== */}
+        {tab === 'cockpit' && (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {[
+                { label: 'Revenus total', value: `${totalRevenue.toFixed(0)} CHF`, icon: <Wallet className="h-4 w-4 text-[#D91CD2]" /> },
+                { label: "Aujourd'hui", value: `${todayRevenue.toFixed(0)} CHF`, icon: <TrendingUp className="h-4 w-4 text-green-400" /> },
+                { label: 'Utilisateurs', value: String(totalUsers), icon: <Users className="h-4 w-4 text-blue-400" /> },
+                { label: 'Premium', value: String(premiumUsers), icon: <Crown className="h-4 w-4 text-amber-400" /> },
+                { label: 'Partenaires', value: String(activePartners), icon: <Building2 className="h-4 w-4 text-cyan-400" /> },
+                { label: 'Transactions', value: String(transactions.length), icon: <CreditCard className="h-4 w-4 text-purple-400" /> },
+                { label: 'Erreurs', value: String(errors.length), icon: <Bug className="h-4 w-4 text-red-400" /> },
+                { label: 'Conversion', value: transactions.length > 0 ? `${((transactions.filter(t=>t.status==='succeeded').length / totalUsers) * 100).toFixed(0)}%` : '0%', icon: <Zap className="h-4 w-4 text-yellow-400" /> },
+              ].map((s, i) => (
+                <Card key={i} className="bg-[#1A1A1A] border-white/5">
+                  <CardContent className="p-3.5">
+                    <div className="flex items-center gap-1.5 mb-1">{s.icon}<span className="text-[10px] text-white/40 uppercase tracking-wider">{s.label}</span></div>
+                    <p className="text-xl font-light text-white">{s.value}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+            {/* Recent transactions */}
+            <Card className="bg-[#1A1A1A] border-white/5">
+              <CardContent className="p-4">
+                <h3 className="text-sm text-white/50 mb-3">Dernières transactions</h3>
+                {transactions.slice(0, 5).map(tx => (
+                  <div key={tx.transactionId} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
+                    <div><p className="text-xs text-white/60">{tx.userId?.substring(0, 10)}...</p><p className="text-[10px] text-white/20">{tx.package} · {tx.paymentMethod}</p></div>
+                    <Badge className={tx.status === 'succeeded' ? 'bg-green-500/10 text-green-400 border-green-500/20 text-xs' : 'bg-red-500/10 text-red-400 text-xs'}>{(tx.amount/100).toFixed(2)} CHF</Badge>
+                  </div>
+                ))}
+                {transactions.length === 0 && <p className="text-xs text-white/20 text-center py-4">Aucune transaction</p>}
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/20" />
-          <Input
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            placeholder="Rechercher par nom, email ou ville..."
-            className="bg-[#1A1A1A] border-white/10 pl-10 h-12"
-          />
-        </div>
-
-        {/* Users Tab */}
+        {/* ===== USERS ===== */}
         {tab === 'users' && (
           <div className="space-y-2">
-            {filteredUsers.length === 0 ? (
-              <p className="text-white/30 text-center py-8">Aucun utilisateur trouvé</p>
-            ) : filteredUsers.map(u => (
+            {filteredUsers.map(u => (
               <Card key={u.uid} className="bg-[#1A1A1A] border-white/5">
-                <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center gap-3">
-                  {/* Info */}
+                <CardContent className="p-3 flex flex-col md:flex-row items-start md:items-center gap-2">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm text-white font-medium truncate">{u.displayName || 'Sans nom'}</span>
-                      <Badge className={`text-[10px] ${
-                        u.role === 'admin' ? 'bg-red-500/10 text-red-400 border-red-500/20' :
-                        u.role === 'creator' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
-                        'bg-white/5 text-white/30 border-white/10'
-                      }`}>
-                        {u.role || 'user'}
-                      </Badge>
-                      {u.isPremium && <Badge className="text-[10px] bg-[#D91CD2]/10 text-[#D91CD2] border-[#D91CD2]/20">Premium</Badge>}
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-sm text-white truncate">{u.displayName || 'Sans nom'}</span>
+                      <Badge className={`text-[9px] ${u.role === 'admin' ? 'bg-red-500/10 text-red-400' : u.role === 'creator' ? 'bg-amber-500/10 text-amber-400' : 'bg-white/5 text-white/30'}`}>{u.role || 'user'}</Badge>
+                      {u.isPremium && <Badge className="text-[9px] bg-[#D91CD2]/10 text-[#D91CD2]">Premium</Badge>}
                     </div>
-                    <p className="text-xs text-white/30 truncate">{u.email}</p>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-white/20">
-                      {u.city && <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{u.city}</span>}
-                      <span>{u.credits || 0} crédits</span>
-                    </div>
+                    <p className="text-[11px] text-white/25 truncate">{u.email} · {u.city || '?'} · {u.credits || 0} crédits</p>
                   </div>
-
-                  {/* Actions */}
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {/* Visibility toggle */}
-                    <button
-                      onClick={() => toggleUserVisibility(u.uid, u.isVisible !== false)}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                        u.isVisible !== false ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'
-                      }`}
-                      title={u.isVisible !== false ? 'Masquer' : 'Rendre visible'}
-                    >
+                  <div className="flex items-center gap-1.5 flex-shrink-0">
+                    <button onClick={() => toggleUserVisibility(u.uid, u.isVisible !== false)} className={`w-7 h-7 rounded flex items-center justify-center ${u.isVisible !== false ? 'text-green-400' : 'text-red-400'}`}>
                       {u.isVisible !== false ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                     </button>
-
-                    {/* Role change */}
-                    <select
-                      value={u.role || 'user'}
-                      onChange={e => changeUserRole(u.uid, e.target.value)}
-                      className="bg-black border border-white/10 rounded-lg text-xs text-white/60 px-2 h-8"
-                    >
-                      <option value="user">User</option>
-                      <option value="creator">Creator</option>
-                      <option value="admin">Admin</option>
+                    <select value={u.role || 'user'} onChange={e => changeUserRole(u.uid, e.target.value)} className="bg-black border border-white/10 rounded text-[10px] text-white/50 px-1.5 h-7">
+                      <option value="user">User</option><option value="creator">Creator</option><option value="admin">Admin</option>
                     </select>
-
-                    {/* Delete */}
-                    {u.role !== 'admin' && (
-                      <button
-                        onClick={() => deleteUser(u.uid, u.displayName)}
-                        className="w-8 h-8 rounded-lg bg-red-500/5 text-red-400/40 hover:text-red-400 flex items-center justify-center transition-all"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
+                    {u.role !== 'admin' && <button onClick={() => deleteUser(u.uid, u.displayName)} className="w-7 h-7 rounded text-red-400/30 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>}
                   </div>
                 </CardContent>
               </Card>
@@ -242,43 +277,116 @@ export default function AdminManagePage() {
           </div>
         )}
 
-        {/* Partners Tab */}
+        {/* ===== PARTNERS ===== */}
         {tab === 'partners' && (
           <div className="space-y-2">
-            {filteredPartners.length === 0 ? (
-              <p className="text-white/30 text-center py-8">Aucun partenaire trouvé</p>
-            ) : filteredPartners.map(p => (
+            {filteredPartners.length === 0 && <p className="text-white/30 text-center py-8">Aucun partenaire</p>}
+            {filteredPartners.map(p => (
               <Card key={p.partnerId} className="bg-[#1A1A1A] border-white/5">
-                <CardContent className="p-4 flex flex-col md:flex-row items-start md:items-center gap-3">
+                <CardContent className="p-3 flex items-center gap-3">
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-white font-medium">{p.name}</span>
-                      <Badge className={`text-[10px] ${p.isApproved ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-amber-500/10 text-amber-400 border-amber-500/20'}`}>
-                        {p.isApproved ? 'Approuvé' : 'En attente'}
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-3 mt-1 text-xs text-white/20">
-                      <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{p.city}</span>
-                      <span>{p.totalBookings || 0} réservations</span>
-                      <span>{(p.totalRevenue || 0).toFixed(2)} CHF</span>
-                    </div>
+                    <span className="text-sm text-white">{p.name}</span>
+                    <p className="text-[11px] text-white/25">{p.city} · {p.totalBookings || 0} réservations · {(p.totalRevenue || 0).toFixed(0)} CHF</p>
                   </div>
-
-                  <div className="flex items-center gap-3 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-white/30">Visible</span>
-                      <Switch checked={p.isActive} onCheckedChange={() => togglePartnerActive(p.partnerId, p.isActive)} />
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-white/30">Approuvé</span>
-                      <Switch checked={p.isApproved} onCheckedChange={() => togglePartnerApproved(p.partnerId, p.isApproved)} />
-                    </div>
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">Visible</span><Switch checked={p.isActive} onCheckedChange={() => togglePartner(p.partnerId, 'isActive', p.isActive)} /></div>
+                    <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">Approuvé</span><Switch checked={p.isApproved} onCheckedChange={() => togglePartner(p.partnerId, 'isApproved', p.isApproved)} /></div>
                   </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
+
+        {/* ===== CREDITS ===== */}
+        {tab === 'credits' && (
+          <Card className="bg-[#1A1A1A] border-white/5">
+            <CardContent className="p-5 space-y-4">
+              <h3 className="text-sm text-white/50">Ajouter / Retirer des crédits</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-white/30 block mb-1">User ID</label>
+                  <select value={creditUserId} onChange={e => setCreditUserId(e.target.value)} className="w-full bg-black border border-white/10 rounded-lg text-sm text-white px-3 h-11">
+                    <option value="">Sélectionner un utilisateur</option>
+                    {users.map(u => <option key={u.uid} value={u.uid}>{u.displayName || u.email} ({u.credits} crédits)</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-white/30 block mb-1">Nombre de crédits</label>
+                  <Input type="number" value={creditAmount} onChange={e => setCreditAmount(e.target.value)} className="bg-black border-white/10 h-11" />
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={() => adjustCredits(true)} className="flex-1 bg-green-500/10 border border-green-500/30 text-green-400 hover:bg-green-500/20 h-11"><Plus className="h-4 w-4 mr-1" /> Ajouter</Button>
+                  <Button onClick={() => adjustCredits(false)} className="flex-1 bg-red-500/10 border border-red-500/30 text-red-400 hover:bg-red-500/20 h-11"><Minus className="h-4 w-4 mr-1" /> Retirer</Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ===== PROMOS ===== */}
+        {tab === 'promos' && (
+          <Card className="bg-[#1A1A1A] border-white/5">
+            <CardContent className="p-5 space-y-4">
+              <h3 className="text-sm text-white/50">Créer un code promo</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-xs text-white/30 block mb-1">Code</label>
+                  <Input value={promoCode} onChange={e => setPromoCode(e.target.value)} placeholder="FREEFIRSTDATE" className="bg-black border-white/10 h-11 uppercase" />
+                </div>
+                <div>
+                  <label className="text-xs text-white/30 block mb-1">Crédits offerts</label>
+                  <Input type="number" value={promoCredits} onChange={e => setPromoCredits(e.target.value)} placeholder="1" className="bg-black border-white/10 h-11" />
+                </div>
+                <div>
+                  <label className="text-xs text-white/30 block mb-1">Réduction %</label>
+                  <Input type="number" value={promoDiscount} onChange={e => setPromoDiscount(e.target.value)} placeholder="0" className="bg-black border-white/10 h-11" />
+                </div>
+              </div>
+              <Button onClick={createPromo} disabled={!promoCode} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-11"><Gift className="h-4 w-4 mr-2" /> Créer le code promo</Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ===== NOTIFICATIONS ===== */}
+        {tab === 'settings' && (
+          <Card className="bg-[#1A1A1A] border-white/5">
+            <CardContent className="p-5 space-y-4">
+              <h3 className="text-sm text-white/50">Envoyer une notification à tous les utilisateurs</h3>
+              <div className="space-y-3">
+                <div>
+                  <label className="text-xs text-white/30 block mb-1">Titre</label>
+                  <Input value={notifTitle} onChange={e => setNotifTitle(e.target.value)} placeholder="Il reste 3 places ce soir !" className="bg-black border-white/10 h-11" />
+                </div>
+                <div>
+                  <label className="text-xs text-white/30 block mb-1">Message</label>
+                  <Input value={notifBody} onChange={e => setNotifBody(e.target.value)} placeholder="Réserve ta place pour la Zumba de ce soir" className="bg-black border-white/10 h-11" />
+                </div>
+                <Button onClick={sendNotification} disabled={!notifTitle} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-11"><Send className="h-4 w-4 mr-2" /> Envoyer à {users.length} utilisateurs</Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ===== ERRORS ===== */}
+        {tab === 'errors' && (
+          <div className="space-y-2">
+            {errors.length === 0 && <p className="text-white/30 text-center py-8">Aucune erreur non résolue</p>}
+            {errors.map(e => (
+              <Card key={e.logId} className="bg-[#1A1A1A] border-white/5">
+                <CardContent className="p-3 flex items-start gap-3">
+                  <Bug className={`h-4 w-4 mt-0.5 flex-shrink-0 ${e.level === 'error' ? 'text-red-400' : 'text-amber-400'}`} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white/70 break-all">{e.message}</p>
+                    <p className="text-[10px] text-white/20">{e.source}</p>
+                  </div>
+                  <Button size="sm" variant="outline" onClick={() => resolveError(e.logId)} className="border-green-500/20 text-green-400 text-xs h-7">Résoudre</Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        )}
+
       </div>
     </div>
   );
