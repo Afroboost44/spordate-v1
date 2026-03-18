@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 // Using img tags for external images reliability
 import { Button } from '@/components/ui/button';
@@ -76,6 +76,39 @@ const SWISS_CITIES = ['Geneve', 'Zurich', 'Lausanne', 'Bern', 'Bale', 'Lucerne',
 
 export default function LandingPage() {
   const [hoveredActivity, setHoveredActivity] = useState<string | null>(null);
+  const [site, setSite] = useState({
+    heroTitle1: "Rencontre quelqu'un",
+    heroTitle2: "en partageant une",
+    heroTitle3: "activité sportive.",
+    heroSubtitle: "Danse, fitness, running... Choisis ton sport, matche, et vis une vraie rencontre.",
+    ctaText: "Commencer",
+    primaryColor: "#D91CD2",
+    step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... Selectionne tes activites et ton niveau.",
+    step2Title: "Matche & discute", step2Desc: "On te propose des partenaires pres de toi. Connecte-toi, organise ta session.",
+    step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'experience commence ici.",
+  });
+
+  // Load site config from Firestore (admin-editable)
+  useEffect(() => {
+    const load = async () => {
+      try {
+        const { initializeApp, getApps } = await import('firebase/app');
+        const { getFirestore, doc, getDoc } = await import('firebase/firestore');
+        const firebaseConfig = {
+          apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
+          authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
+          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '',
+        };
+        const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
+        const db = getFirestore(app);
+        const snap = await getDoc(doc(db, 'settings', 'site'));
+        if (snap.exists()) {
+          setSite(prev => ({ ...prev, ...snap.data() }));
+        }
+      } catch { /* use defaults */ }
+    };
+    load();
+  }, []);
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -123,20 +156,20 @@ export default function LandingPage() {
             </p>
 
             <h1 className="text-5xl md:text-8xl font-extralight leading-[0.95] tracking-tight text-white">
-              Rencontre quelqu'un
+              {site.heroTitle1}
               <br />
-              en partageant une
+              {site.heroTitle2}
               <br />
-              <span className="text-[#D91CD2] neon-text">activité sportive.</span>
+              <span style={{ color: site.primaryColor }} className="neon-text">{site.heroTitle3}</span>
             </h1>
 
             <p className="text-lg md:text-xl font-light text-white/60 max-w-lg leading-relaxed">
-              Danse, fitness, running... Choisis ton sport, matche, et vis une vraie rencontre.
+              {site.heroSubtitle}
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold text-base tracking-wide px-12 h-16 rounded-full neon-glow">
-                <Link href="/signup">Commencer</Link>
+              <Button asChild className="text-white font-semibold text-base tracking-wide px-12 h-16 rounded-full neon-glow" style={{ backgroundColor: site.primaryColor }}>
+                <Link href="/signup">{site.ctaText}</Link>
               </Button>
               <Button asChild variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-10 h-16 rounded-full">
                 <Link href="#method">
@@ -160,24 +193,9 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5">
             {[
-              {
-                num: '01',
-                title: 'Choisis ton style',
-                desc: 'Afroboost, Salsa, Tennis, Yoga... Selectionne tes activites et ton niveau.',
-                image: 'https://picsum.photos/seed/step1/800/600',
-              },
-              {
-                num: '02',
-                title: 'Matche & discute',
-                desc: 'On te propose des partenaires pres de toi. Connecte-toi, organise ta session.',
-                image: 'https://picsum.photos/seed/step2/800/600',
-              },
-              {
-                num: '03',
-                title: 'Bouge & kiffe',
-                desc: 'Retrouve ton match dans un studio partenaire. L\'experience commence ici.',
-                image: 'https://picsum.photos/seed/step3/800/600',
-              },
+              { num: '01', title: site.step1Title, desc: site.step1Desc, image: 'https://picsum.photos/seed/step1/800/600' },
+              { num: '02', title: site.step2Title, desc: site.step2Desc, image: 'https://picsum.photos/seed/step2/800/600' },
+              { num: '03', title: site.step3Title, desc: site.step3Desc, image: 'https://picsum.photos/seed/step3/800/600' },
             ].map((step) => (
               <div key={step.num} className="bg-black p-10 md:p-14 group">
                 <div className="relative h-64 mb-10 overflow-hidden">

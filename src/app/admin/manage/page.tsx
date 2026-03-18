@@ -20,7 +20,30 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import Link from 'next/link';
 
-type Tab = 'cockpit' | 'users' | 'partners' | 'credits' | 'promos' | 'settings' | 'tarifs' | 'errors';
+type Tab = 'cockpit' | 'users' | 'partners' | 'credits' | 'promos' | 'tarifs' | 'site' | 'settings' | 'errors';
+
+interface SiteConfig {
+  heroTitle1: string;
+  heroTitle2: string;
+  heroTitle3: string;
+  heroSubtitle: string;
+  ctaText: string;
+  primaryColor: string;
+  step1Title: string; step1Desc: string;
+  step2Title: string; step2Desc: string;
+  step3Title: string; step3Desc: string;
+}
+const DEFAULT_SITE: SiteConfig = {
+  heroTitle1: "Rencontre quelqu'un",
+  heroTitle2: "en partageant une",
+  heroTitle3: "activité sportive.",
+  heroSubtitle: "Danse, fitness, running... Choisis ton sport, matche, et vis une vraie rencontre.",
+  ctaText: "Commencer",
+  primaryColor: "#D91CD2",
+  step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... Selectionne tes activites et ton niveau.",
+  step2Title: "Matche & discute", step2Desc: "On te propose des partenaires pres de toi. Connecte-toi, organise ta session.",
+  step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'experience commence ici.",
+};
 
 interface UserItem { uid: string; displayName: string; email: string; role: string; city: string; isPremium: boolean; credits: number; isVisible?: boolean; createdAt: any; }
 interface PartnerItem { partnerId: string; name: string; city: string; isActive: boolean; isApproved: boolean; totalBookings: number; totalRevenue: number; }
@@ -40,6 +63,8 @@ export default function AdminManagePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [pricing, setPricing] = useState<PricingItem[]>([]);
   const [pricingSaving, setPricingSaving] = useState(false);
+  const [siteConfig, setSiteConfig] = useState<SiteConfig>(DEFAULT_SITE);
+  const [siteSaving, setSiteSaving] = useState(false);
   // Promo form
   const [promoCode, setPromoCode] = useState('');
   const [promoCredits, setPromoCredits] = useState('1');
@@ -103,6 +128,14 @@ export default function AdminManagePage() {
           }
         }
       } catch { /* Firestore rules may block — use defaults */ }
+      // Load site config
+      try {
+        const { getDoc: getDocFn2 } = await import('firebase/firestore');
+        const siteSnap = await getDocFn2(doc(db, 'settings', 'site'));
+        if (siteSnap.exists()) {
+          setSiteConfig({ ...DEFAULT_SITE, ...siteSnap.data() as Partial<SiteConfig> });
+        }
+      } catch { /* use defaults */ }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -230,6 +263,20 @@ export default function AdminManagePage() {
     }
     finally { setPricingSaving(false); }
   };
+  const saveSiteConfig = async () => {
+    if (!db) return;
+    setSiteSaving(true);
+    try {
+      await setDoc(doc(db, 'settings', 'site'), { ...siteConfig, updatedAt: serverTimestamp() });
+      toast({ title: 'Configuration du site sauvegardée !' });
+    } catch (err) {
+      console.error('[Admin] Save site error:', err);
+      toast({ variant: 'destructive', title: 'Erreur', description: String(err) });
+    } finally { setSiteSaving(false); }
+  };
+  const updateSite = (field: keyof SiteConfig, value: string) => {
+    setSiteConfig(prev => ({ ...prev, [field]: value }));
+  };
   const resolveError = async (logId: string) => {
     if (!db) return;
     await updateDoc(doc(db, 'errorLogs', logId), { resolved: true, resolvedAt: serverTimestamp() });
@@ -244,6 +291,7 @@ export default function AdminManagePage() {
     { id: 'credits', label: 'Crédits', icon: <CreditCard className="h-4 w-4" /> },
     { id: 'promos', label: 'Promos', icon: <Gift className="h-4 w-4" /> },
     { id: 'tarifs', label: 'Tarifs', icon: <Wallet className="h-4 w-4" /> },
+    { id: 'site', label: 'Site', icon: <Settings className="h-4 w-4" /> },
     { id: 'settings', label: 'Notifs', icon: <Bell className="h-4 w-4" /> },
     { id: 'errors', label: 'Erreurs', icon: <Bug className="h-4 w-4" />, count: errors.length },
   ];
@@ -520,6 +568,103 @@ export default function AdminManagePage() {
               <p className="text-[11px] text-white/20 text-center mt-4 border-t border-white/5 pt-4">
                 Cet aperçu se met à jour en temps réel. Cliquez "Sauvegarder" pour appliquer les changements sur le site.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* ===== SITE CONFIG ===== */}
+        {tab === 'site' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* LEFT — Éditeur */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base text-white font-medium">Page d'accueil</h3>
+                <Button onClick={saveSiteConfig} disabled={siteSaving} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-10 text-xs">
+                  {siteSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Settings className="h-4 w-4 mr-1" />}
+                  Sauvegarder
+                </Button>
+              </div>
+
+              {/* Couleur principale */}
+              <Card className="bg-[#111] border-white/10">
+                <CardContent className="p-4 space-y-3">
+                  <span className="text-sm text-white font-medium">Couleur principale</span>
+                  <div className="flex items-center gap-3">
+                    <input type="color" value={siteConfig.primaryColor} onChange={e => updateSite('primaryColor', e.target.value)} className="w-12 h-12 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
+                    <Input value={siteConfig.primaryColor} onChange={e => updateSite('primaryColor', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base font-mono w-32" />
+                    <div className="flex gap-2">
+                      {['#D91CD2', '#E91E63', '#7B1FA2', '#FF6B35', '#00BCD4', '#4CAF50'].map(c => (
+                        <button key={c} onClick={() => updateSite('primaryColor', c)} className="w-8 h-8 rounded-lg border border-white/10 hover:scale-110 transition" style={{ backgroundColor: c }} />
+                      ))}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Hero textes */}
+              <Card className="bg-[#111] border-white/10">
+                <CardContent className="p-4 space-y-3">
+                  <span className="text-sm text-white font-medium">Texte Hero</span>
+                  <div><label className="text-[11px] text-white/40 block mb-1">Ligne 1</label><Input value={siteConfig.heroTitle1} onChange={e => updateSite('heroTitle1', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                  <div><label className="text-[11px] text-white/40 block mb-1">Ligne 2</label><Input value={siteConfig.heroTitle2} onChange={e => updateSite('heroTitle2', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                  <div><label className="text-[11px] text-white/40 block mb-1">Ligne 3 (colorée)</label><Input value={siteConfig.heroTitle3} onChange={e => updateSite('heroTitle3', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                  <div><label className="text-[11px] text-white/40 block mb-1">Sous-titre</label><Input value={siteConfig.heroSubtitle} onChange={e => updateSite('heroSubtitle', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                  <div><label className="text-[11px] text-white/40 block mb-1">Texte du bouton</label><Input value={siteConfig.ctaText} onChange={e => updateSite('ctaText', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                </CardContent>
+              </Card>
+
+              {/* Steps */}
+              <Card className="bg-[#111] border-white/10">
+                <CardContent className="p-4 space-y-3">
+                  <span className="text-sm text-white font-medium">3 Étapes</span>
+                  {[
+                    { title: 'step1Title', desc: 'step1Desc', num: '01' },
+                    { title: 'step2Title', desc: 'step2Desc', num: '02' },
+                    { title: 'step3Title', desc: 'step3Desc', num: '03' },
+                  ].map(s => (
+                    <div key={s.num} className="border-t border-white/5 pt-3">
+                      <span className="text-[10px] text-white/20">{s.num}</span>
+                      <Input value={(siteConfig as any)[s.title]} onChange={e => updateSite(s.title as keyof SiteConfig, e.target.value)} placeholder="Titre" className="bg-black border-white/15 h-10 text-white text-sm mt-1" />
+                      <Input value={(siteConfig as any)[s.desc]} onChange={e => updateSite(s.desc as keyof SiteConfig, e.target.value)} placeholder="Description" className="bg-black border-white/15 h-10 text-white text-sm mt-1" />
+                    </div>
+                  ))}
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* RIGHT — Aperçu */}
+            <div className="space-y-4">
+              <h3 className="text-base text-white font-medium flex items-center gap-2"><Eye className="h-4 w-4" style={{ color: siteConfig.primaryColor }} /> Aperçu</h3>
+              <Card className="bg-[#0A0A0A] border-white/10 overflow-hidden">
+                <CardContent className="p-6 space-y-6">
+                  {/* Mini hero preview */}
+                  <div className="space-y-3">
+                    <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: siteConfig.primaryColor }}>Sport · Danse · Rencontres</p>
+                    <h2 className="text-2xl font-light text-white leading-tight">
+                      {siteConfig.heroTitle1}<br />{siteConfig.heroTitle2}<br />
+                      <span style={{ color: siteConfig.primaryColor }}>{siteConfig.heroTitle3}</span>
+                    </h2>
+                    <p className="text-xs text-white/40">{siteConfig.heroSubtitle}</p>
+                    <button className="px-6 py-2 rounded-full text-white text-xs font-medium" style={{ backgroundColor: siteConfig.primaryColor }}>
+                      {siteConfig.ctaText}
+                    </button>
+                  </div>
+                  {/* Mini steps preview */}
+                  <div className="grid grid-cols-3 gap-2 border-t border-white/5 pt-4">
+                    {[
+                      { title: siteConfig.step1Title, num: '01' },
+                      { title: siteConfig.step2Title, num: '02' },
+                      { title: siteConfig.step3Title, num: '03' },
+                    ].map(s => (
+                      <div key={s.num}>
+                        <span className="text-xl font-light text-white/10">{s.num}</span>
+                        <p className="text-[10px] text-white/60 mt-1">{s.title}</p>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+              <p className="text-[11px] text-white/20 text-center">Cliquez "Sauvegarder" pour appliquer sur le site.</p>
             </div>
           </div>
         )}
