@@ -12,39 +12,34 @@ import {
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import { useAuth } from '@/context/AuthContext';
+import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
-const PREMIUM_PLANS = [
-  {
-    id: 'premium_monthly',
-    name: 'Premium Mensuel',
-    price: 19.90,
-    interval: 'mois',
-    credits: 5,
-    badge: null,
+// Visual config (icons, features) — fixed, not admin-editable
+const PLAN_VISUALS: Record<string, { features: { icon: any; text: string; highlight: boolean }[] }> = {
+  'premium_monthly': {
     features: [
       { icon: Zap, text: 'Matching illimité', highlight: true },
-      { icon: Star, text: '5 crédits / mois', highlight: true },
       { icon: Eye, text: 'Profil mis en avant', highlight: false },
       { icon: MessageCircle, text: 'Chat illimité', highlight: false },
       { icon: Shield, text: 'Sans publicité', highlight: false },
     ],
   },
-  {
-    id: 'premium_yearly',
-    name: 'Premium Annuel',
-    price: 149,
-    interval: 'an',
-    credits: 60,
-    badge: 'Économisez 37%',
+  'premium_yearly': {
     features: [
       { icon: Zap, text: 'Matching illimité', highlight: true },
-      { icon: Star, text: '60 crédits / an (5/mois)', highlight: true },
       { icon: Eye, text: 'Profil mis en avant', highlight: false },
       { icon: MessageCircle, text: 'Chat illimité', highlight: false },
       { icon: Shield, text: 'Sans publicité', highlight: false },
       { icon: Crown, text: 'Badge exclusif', highlight: true },
     ],
   },
+};
+
+// Default pricing — overridden by Firestore
+const DEFAULT_PLANS = [
+  { id: 'premium_monthly', name: 'Premium Mensuel', price: 19.90, interval: 'mois', credits: 5, badge: null as string | null },
+  { id: 'premium_yearly', name: 'Premium Annuel', price: 149, interval: 'an', credits: 60, badge: 'Économisez 37%' as string | null },
 ];
 
 export default function PremiumPage() {
@@ -58,6 +53,40 @@ export default function PremiumPage() {
   const [success, setSuccess] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [plans, setPlans] = useState(DEFAULT_PLANS);
+
+  // Load pricing from Firestore (admin-editable)
+  useEffect(() => {
+    const loadPricing = async () => {
+      if (!db || !isFirebaseConfigured) return;
+      try {
+        const snap = await getDocs(collection(db, 'pricing'));
+        const updates: Record<string, any> = {};
+        snap.forEach(d => {
+          const data = d.data();
+          if (data.type === 'subscription' && data.isActive !== false) {
+            updates[d.id] = data;
+          }
+        });
+        if (Object.keys(updates).length > 0) {
+          setPlans(prev => prev.map(p => {
+            const u = updates[p.id];
+            if (!u) return p;
+            return {
+              ...p,
+              name: u.label || p.name,
+              price: u.price || p.price,
+              credits: u.credits ?? p.credits,
+            };
+          }).filter(p => {
+            const u = updates[p.id];
+            return !u || u.isActive !== false;
+          }));
+        }
+      } catch { /* use defaults */ }
+    };
+    loadPricing();
+  }, []);
 
   useEffect(() => {
     const status = searchParams.get('status');
@@ -210,9 +239,16 @@ export default function PremiumPage() {
       {/* Plans */}
       <div className="container mx-auto max-w-5xl px-4 pb-20">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
-          {PREMIUM_PLANS.map((plan) => {
+          {plans.map((plan) => {
             const isSelected = selectedPlan === plan.id;
             const isYearly = plan.id === 'premium_yearly';
+            const visuals = PLAN_VISUALS[plan.id];
+            // Build features list with dynamic credits
+            const features = [
+              ...(visuals?.features || []).slice(0, 1),
+              { icon: Star, text: `${plan.credits} crédits / ${plan.interval}`, highlight: true },
+              ...(visuals?.features || []).slice(1),
+            ];
 
             return (
               <div key={plan.id} className="relative">
@@ -250,14 +286,14 @@ export default function PremiumPage() {
                     </div>
                     {isYearly && (
                       <p className="text-sm text-[#D91CD2] font-light mt-2">
-                        soit ~12.42 CHF / mois
+                        soit ~{(plan.price / 12).toFixed(2)} CHF / mois
                       </p>
                     )}
                   </CardHeader>
 
                   <CardContent className="space-y-6 pb-8">
                     <div className="space-y-3">
-                      {plan.features.map((feature, i) => (
+                      {features.map((feature, i) => (
                         <div key={i} className="flex items-center gap-3">
                           <div className={`p-1 rounded-lg ${
                             feature.highlight ? 'bg-[#D91CD2]/10' : 'bg-zinc-800/50'
