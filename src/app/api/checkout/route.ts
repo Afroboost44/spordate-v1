@@ -50,8 +50,9 @@ async function loadPackages(): Promise<typeof DEFAULT_PACKAGES> {
         const merged = { ...DEFAULT_PACKAGES };
         for (const [id, pkg] of Object.entries(data.packages as Record<string, any>)) {
           if (merged[id]) {
-            merged[id] = { ...merged[id], ...pkg, description: merged[id].description };
-            if (pkg.isActive === false) delete merged[id]; // Remove disabled packages
+            const priceCentimes = pkg.priceCHF ? Math.round(pkg.priceCHF * 100) : (pkg.price || merged[id].price);
+            merged[id] = { ...merged[id], price: priceCentimes, credits: pkg.credits ?? merged[id].credits, label: pkg.label || merged[id].label };
+            if (pkg.isActive === false) delete merged[id];
           }
         }
         return merged;

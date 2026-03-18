@@ -77,16 +77,24 @@ export default function PaymentPage() {
         '10_dates': { price: 60, credits: 10, label: 'Premium', isActive: true },
       };
 
-      // Try Firestore
+      // Try Firestore — read from settings/pricing (single source of truth)
       if (db && isFirebaseConfigured) {
         try {
-          const snap = await getDocs(collection(db, 'pricing'));
-          snap.forEach(d => {
-            const data = d.data();
-            if (data.type === 'one_time' && defaults[d.id]) {
-              defaults[d.id] = { price: data.price, credits: data.credits, label: data.label, isActive: data.isActive !== false };
+          const { doc: firestoreDoc, getDoc } = await import('firebase/firestore');
+          const snap = await getDoc(firestoreDoc(db, 'settings', 'pricing'));
+          if (snap.exists()) {
+            const packages = snap.data()?.packages as Record<string, any> || {};
+            for (const [id, pkg] of Object.entries(packages)) {
+              if (pkg.type === 'one_time' && defaults[id]) {
+                defaults[id] = {
+                  price: pkg.priceCHF ?? (pkg.price ? pkg.price / 100 : defaults[id].price),
+                  credits: pkg.credits ?? defaults[id].credits,
+                  label: pkg.label || defaults[id].label,
+                  isActive: pkg.isActive !== false,
+                };
+              }
             }
-          });
+          }
         } catch { /* use defaults */ }
       }
 

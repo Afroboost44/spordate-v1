@@ -92,7 +92,7 @@ export default function AdminManagePage() {
               if (!saved) return d;
               return {
                 ...d,
-                price: saved.price ? saved.price / 100 : d.price, // centimes → CHF
+                price: saved.priceCHF ?? (saved.price ? saved.price / 100 : d.price),
                 credits: saved.credits ?? d.credits,
                 label: saved.label || d.label,
                 isActive: saved.isActive !== false,
@@ -201,16 +201,11 @@ export default function AdminManagePage() {
     if (!db) return;
     setPricingSaving(true);
     try {
-      for (const p of pricing) {
-        // Remove undefined fields — Firestore rejects them
-        const clean: Record<string, any> = { id: p.id, label: p.label, price: p.price, credits: p.credits, type: p.type, isActive: p.isActive };
-        if (p.interval) clean.interval = p.interval;
-        await setDoc(doc(db, 'pricing', p.id), clean);
-      }
-      // Also update the checkout API config via a settings doc
+      // Single source of truth: settings/pricing
+      // Prices stored in CHF (not centimes) for simplicity
       await setDoc(doc(db, 'settings', 'pricing'), {
         packages: pricing.reduce((acc, p) => {
-          const pkg: Record<string, any> = { price: Math.round(p.price * 100), credits: p.credits, label: p.label, type: p.type, isActive: p.isActive };
+          const pkg: Record<string, any> = { priceCHF: p.price, credits: p.credits, label: p.label, type: p.type, isActive: p.isActive };
           if (p.interval) pkg.interval = p.interval;
           return { ...acc, [p.id]: pkg };
         }, {}),

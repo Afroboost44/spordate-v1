@@ -60,27 +60,22 @@ export default function PremiumPage() {
     const loadPricing = async () => {
       if (!db || !isFirebaseConfigured) return;
       try {
-        const snap = await getDocs(collection(db, 'pricing'));
-        const updates: Record<string, any> = {};
-        snap.forEach(d => {
-          const data = d.data();
-          if (data.type === 'subscription' && data.isActive !== false) {
-            updates[d.id] = data;
-          }
-        });
-        if (Object.keys(updates).length > 0) {
+        const { doc: firestoreDoc, getDoc } = await import('firebase/firestore');
+        const snap = await getDoc(firestoreDoc(db, 'settings', 'pricing'));
+        if (snap.exists()) {
+          const packages = snap.data()?.packages as Record<string, any> || {};
           setPlans(prev => prev.map(p => {
-            const u = updates[p.id];
-            if (!u) return p;
+            const saved = packages[p.id];
+            if (!saved) return p;
             return {
               ...p,
-              name: u.label || p.name,
-              price: u.price || p.price,
-              credits: u.credits ?? p.credits,
+              name: saved.label || p.name,
+              price: saved.priceCHF ?? (saved.price ? saved.price / 100 : p.price),
+              credits: saved.credits ?? p.credits,
             };
           }).filter(p => {
-            const u = updates[p.id];
-            return !u || u.isActive !== false;
+            const saved = packages[p.id];
+            return !saved || saved.isActive !== false;
           }));
         }
       } catch { /* use defaults */ }
