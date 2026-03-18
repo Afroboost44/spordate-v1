@@ -133,5 +133,31 @@ service cloud.firestore {
       allow update: if isAdmin();
       allow delete: if isAdmin();
     }
+
+    // === SETTINGS (admin only — pricing, config, etc.) ===
+    match /settings/{doc} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // === PRICING (admin only) ===
+    match /pricing/{doc} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // === PROMOS (admin only) ===
+    match /promos/{doc} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // === NOTIFICATIONS (admin can create for all users) ===
+    match /notifications/{notificationId} {
+      allow read: if isAuth() && resource.data.userId == request.auth.uid;
+      allow update: if isAuth() && resource.data.userId == request.auth.uid;
+      allow create: if isAdmin();
+      allow delete: if false;
+    }
   }
 }

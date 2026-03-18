@@ -82,8 +82,9 @@ export default function AdminManagePage() {
       setErrors(eSnap.docs.map(d => d.data() as ErrorItem));
       // Load saved pricing from settings/pricing (single source of truth)
       try {
-        const { getDoc } = await import('firebase/firestore');
-        const settingsSnap = await getDoc(doc(db, 'settings', 'pricing'));
+        const { getDoc: getDocFn } = await import('firebase/firestore');
+        const settingsSnap = await getDocFn(doc(db, 'settings', 'pricing'));
+        console.log('[Admin] settings/pricing exists:', settingsSnap.exists(), settingsSnap.data());
         if (settingsSnap.exists()) {
           const data = settingsSnap.data();
           if (data?.packages) {
@@ -198,21 +199,35 @@ export default function AdminManagePage() {
     setPricing(updated);
   };
   const savePricing = async () => {
-    if (!db) return;
+    if (!db) {
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Firestore non connecté' });
+      return;
+    }
     setPricingSaving(true);
     try {
+      const packagesData = pricing.reduce((acc, p) => {
+        const pkg: Record<string, any> = { priceCHF: p.price, credits: p.credits, label: p.label, type: p.type, isActive: p.isActive };
+        if (p.interval) pkg.interval = p.interval;
+        return { ...acc, [p.id]: pkg };
+      }, {});
+
+      console.log('[Admin] Saving pricing:', JSON.stringify(packagesData));
+
       // Single source of truth: settings/pricing
-      // Prices stored in CHF (not centimes) for simplicity
       await setDoc(doc(db, 'settings', 'pricing'), {
-        packages: pricing.reduce((acc, p) => {
-          const pkg: Record<string, any> = { priceCHF: p.price, credits: p.credits, label: p.label, type: p.type, isActive: p.isActive };
-          if (p.interval) pkg.interval = p.interval;
-          return { ...acc, [p.id]: pkg };
-        }, {}),
+        packages: packagesData,
         updatedAt: serverTimestamp(),
       });
-      toast({ title: 'Tarifs sauvegardés !' });
-    } catch (err) { toast({ variant: 'destructive', title: 'Erreur', description: String(err) }); }
+
+      console.log('[Admin] Pricing saved successfully');
+      toast({ title: 'Tarifs sauvegardés !', description: 'Les changements sont en ligne.' });
+
+      // Reload to confirm
+      await loadAll();
+    } catch (err) {
+      console.error('[Admin] Save pricing error:', err);
+      toast({ variant: 'destructive', title: 'Erreur de sauvegarde', description: String(err) });
+    }
     finally { setPricingSaving(false); }
   };
   const resolveError = async (logId: string) => {
