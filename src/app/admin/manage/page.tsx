@@ -80,11 +80,26 @@ export default function AdminManagePage() {
       setPartners(pSnap.docs.map(d => d.data() as PartnerItem));
       setTransactions(tSnap.docs.map(d => d.data() as TxItem));
       setErrors(eSnap.docs.map(d => d.data() as ErrorItem));
-      // Try to load saved pricing from Firestore
+      // Load saved pricing from settings/pricing (single source of truth)
       try {
-        const prSnap = await getDocs(collection(db, 'pricing'));
-        if (!prSnap.empty) {
-          setPricing(prSnap.docs.map(d => ({ ...d.data(), id: d.id } as PricingItem)));
+        const { getDoc } = await import('firebase/firestore');
+        const settingsSnap = await getDoc(doc(db, 'settings', 'pricing'));
+        if (settingsSnap.exists()) {
+          const data = settingsSnap.data();
+          if (data?.packages) {
+            const loaded = defaults.map(d => {
+              const saved = (data.packages as Record<string, any>)[d.id];
+              if (!saved) return d;
+              return {
+                ...d,
+                price: saved.price ? saved.price / 100 : d.price, // centimes → CHF
+                credits: saved.credits ?? d.credits,
+                label: saved.label || d.label,
+                isActive: saved.isActive !== false,
+              };
+            });
+            setPricing(loaded);
+          }
         }
       } catch { /* Firestore rules may block — use defaults */ }
     } catch (err) { console.error(err); }
