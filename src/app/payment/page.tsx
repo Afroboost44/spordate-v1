@@ -2,63 +2,86 @@
 
 import React, { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { CreditCard, Lock, CheckCircle, Smartphone, Apple, Loader2 } from "lucide-react";
-import { Separator } from "@/components/ui/separator";
+import { Card, CardContent } from "@/components/ui/card";
+import { CheckCircle, Zap, Crown, Rocket, Lock, CreditCard, Smartphone, Apple, Loader2, ArrowLeft, Gift, Star } from "lucide-react";
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import { useAuth } from '@/context/AuthContext';
-
-const ApplePayIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" {...props}>
-    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.3-3.14-2.53C4.3 17.68 3 13.75 4.7 10.97c.85-1.48 2.45-2.41 4.05-2.54 1.27-.08 2.46.88 3.25.88.78 0 2.33-1.1 3.92-.92 1.83.23 3.55 1.23 4.37 2.53-2.59 1.59-4.27 4.77-2.25 7.65z"/><path d="M12.03 5.26c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
-  </svg>
-);
-
-const TWINTIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" {...props}>
-    <rect x="2" y="4" width="20" height="16" rx="2" fill="currentColor" opacity="0.7"/>
-    <text x="12" y="15" textAnchor="middle" fontSize="10" fontWeight="bold" fill="white">TWINT</text>
-  </svg>
-);
+import Link from 'next/link';
 
 interface CreditPackage {
   id: string;
-  dates: number;
+  credits: number;
   price: number;
+  pricePerCredit: number;
+  savings?: string;
   badge?: string;
-  description: string;
+  color: string;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+  features: string[];
+  cta: string;
+  popular?: boolean;
 }
 
-const CREDIT_PACKAGES: CreditPackage[] = [
-  {
-    id: 'test_1chf',
-    dates: 1,
-    price: 1,
-    badge: 'TEST',
-    description: 'Test 1 CHF'
-  },
+const PACKAGES: CreditPackage[] = [
   {
     id: '1_date',
-    dates: 1,
+    credits: 1,
     price: 10,
-    description: '1 Sport Date'
+    pricePerCredit: 10,
+    title: 'Starter',
+    subtitle: 'Idéal pour tester',
+    color: 'from-emerald-500 to-teal-500',
+    icon: <Zap className="h-6 w-6" />,
+    features: [
+      '1 crédit = 1 date sportif',
+      'Accès à toutes les activités',
+      'Débloque la conversation',
+    ],
+    cta: 'Commencer',
   },
   {
     id: '3_dates',
-    dates: 3,
+    credits: 3,
     price: 25,
-    badge: 'Most Popular',
-    description: '3 Sport Dates'
+    pricePerCredit: 8.33,
+    savings: '15%',
+    badge: 'Populaire',
+    title: 'Populaire',
+    subtitle: 'Multiplie les rencontres',
+    color: 'from-[#D91CD2] to-[#E91E63]',
+    icon: <Star className="h-6 w-6" />,
+    features: [
+      '3 crédits = 3 dates',
+      'Économise 15%',
+      'Accès prioritaire Afroboost & Zumba',
+      'Offre la plus choisie',
+    ],
+    cta: 'Choisir cette offre',
+    popular: true,
   },
   {
     id: '10_dates',
-    dates: 10,
+    credits: 10,
     price: 60,
-    badge: 'Best Value',
-    description: '10 Sport Dates'
-  }
+    pricePerCredit: 6,
+    savings: '40%',
+    badge: 'Meilleur prix',
+    title: 'Premium',
+    subtitle: 'Passe à l\'action',
+    color: 'from-amber-500 to-orange-500',
+    icon: <Rocket className="h-6 w-6" />,
+    features: [
+      '10 crédits = 10 dates',
+      'Économise jusqu\'à 40%',
+      'Accès prioritaire + suggestions',
+      'Expérience complète',
+    ],
+    cta: 'Passer au Premium',
+  },
 ];
 
 export default function PaymentPage() {
@@ -67,272 +90,193 @@ export default function PaymentPage() {
   const { width, height } = useWindowSize();
   const { user, isLoggedIn } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [selectedPackage, setSelectedPackage] = useState<CreditPackage | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState<string | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
 
-  // Check for success/cancel from URL params
   useEffect(() => {
-    const status = searchParams.get('status');
-    if (status === 'success') {
+    if (searchParams.get('status') === 'success') {
       setPaymentSuccess(true);
       setShowConfetti(true);
     }
   }, [searchParams]);
 
-  const handlePayment = async () => {
-    if (!selectedPackage) return;
+  const selectedPkg = PACKAGES.find(p => p.id === selectedId);
 
+  const handlePayment = async (pkg: CreditPackage) => {
     if (!isLoggedIn || !user) {
       router.push('/login?redirect=/payment');
       return;
     }
 
+    setSelectedId(pkg.id);
     setLoading(true);
 
     try {
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          packageId: selectedPackage.id,
-          userId: user.uid,
-        }),
+        body: JSON.stringify({ packageId: pkg.id, userId: user.uid }),
       });
-
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Erreur lors du paiement');
-      }
-
-      // Redirect to Stripe Checkout
-      if (data.url) {
-        window.location.href = data.url;
-      }
+      if (!response.ok) throw new Error(data.error || 'Erreur');
+      if (data.url) window.location.href = data.url;
     } catch (error) {
       console.error('Payment error:', error);
       setLoading(false);
     }
   };
 
-  // Success screen with confetti
+  // Success screen
   if (paymentSuccess) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4 overflow-hidden">
+      <div className="min-h-screen bg-black flex items-center justify-center p-4">
         {showConfetti && <Confetti width={width} height={height} />}
-
-        <Card className="w-full max-w-md bg-zinc-900/80 border-green-500/30 backdrop-blur-xl shadow-2xl">
-          <CardHeader className="text-center pb-2 pt-8">
-            <div className="flex justify-center mb-6">
-              <div className="relative">
-                <div className="absolute inset-0 bg-green-500/20 rounded-full blur-xl animate-pulse" />
-                <CheckCircle className="h-24 w-24 text-green-400 relative z-10" />
-              </div>
-            </div>
-            <CardTitle className="text-3xl font-bold text-white mb-2">Paiement confirmé ! 🎉</CardTitle>
-            <CardDescription className="text-base text-gray-300">
-              Merci ! Vos crédits Sport Date ont été ajoutés à votre compte.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-gray-300">Crédits achetés :</span>
-                <span className="text-2xl font-bold text-green-400">{selectedPackage?.dates}</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-gray-300">Total payé :</span>
-                <span className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-400 to-emerald-400">
-                  {selectedPackage?.price} CHF
-                </span>
-              </div>
-            </div>
-
-            <Separator className="bg-white/10" />
-
-            <div className="bg-zinc-900/50 rounded-lg p-4">
-              <p className="text-sm text-gray-400 mb-2">Vous pouvez maintenant :</p>
-              <ul className="space-y-2 text-sm text-gray-300">
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                  Naviguer tous les profils disponibles
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                  Envoyer des messages à vos matchs
-                </li>
-                <li className="flex items-center gap-2">
-                  <div className="h-1.5 w-1.5 rounded-full bg-green-400" />
-                  Réserver vos Sport Dates
-                </li>
-              </ul>
-            </div>
-
-            <Button
-              size="lg"
-              className="w-full bg-gradient-to-r from-green-500 to-emerald-500 text-white font-bold text-lg py-6 hover:from-green-600 hover:to-emerald-600 transition-all shadow-lg shadow-green-500/30"
-              onClick={() => router.push(`/share?sport=${encodeURIComponent(selectedPackage?.description || 'Sport Date')}`)}
-            >
-              Partager mon Sport Date
-            </Button>
-          </CardContent>
-        </Card>
+        <div className="max-w-sm w-full text-center space-y-6">
+          <div className="relative inline-block">
+            <div className="absolute inset-0 bg-green-500/20 rounded-full blur-2xl animate-pulse" />
+            <CheckCircle className="h-20 w-20 text-green-400 relative z-10" />
+          </div>
+          <h1 className="text-3xl font-light text-white">Paiement confirmé !</h1>
+          <p className="text-white/40">Vos crédits ont été ajoutés à votre compte.</p>
+          <Button
+            onClick={() => router.push(`/share?sport=Sport+Date`)}
+            className="w-full h-14 bg-gradient-to-r from-[#D91CD2] to-[#E91E63] text-white rounded-full"
+          >
+            Partager mon Sport Date
+          </Button>
+          <Link href="/discovery" className="block text-sm text-white/30 hover:text-white/50">
+            Retour aux profils
+          </Link>
+        </div>
       </div>
     );
   }
 
-  // Loading state
+  // Loading
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center p-4">
+      <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
-          <div className="relative w-20 h-20 mx-auto mb-6">
-            <div className="absolute inset-0 bg-gradient-to-r from-[#D91CD2] to-[#E91E63] rounded-full animate-spin" />
-            <div className="absolute inset-2 bg-black rounded-full" />
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Traitement sécurisé en cours...</h2>
-          <p className="text-gray-400">Veuillez ne pas quitter cette page.</p>
+          <Loader2 className="h-12 w-12 text-[#D91CD2] animate-spin mx-auto mb-4" />
+          <p className="text-white/40">Redirection vers le paiement sécurisé...</p>
         </div>
       </div>
     );
   }
 
-  // Main payment page
   return (
-    <div className="min-h-screen bg-black p-4 py-12">
-      <div className="container mx-auto max-w-4xl">
+    <div className="min-h-screen bg-black pb-20 md:pb-0">
+      {/* Back button */}
+      <div className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 h-12 flex items-center md:hidden">
+        <button onClick={() => router.back()} className="flex items-center gap-2 text-white/50 text-sm">
+          <ArrowLeft className="h-4 w-4" /> Retour
+        </button>
+      </div>
+
+      <div className="max-w-4xl mx-auto px-4 py-8 md:py-16">
         {/* Header */}
-        <div className="text-center mb-12">
-          <h1 className="text-4xl md:text-5xl font-light text-white mb-2">Achetez des crédits</h1>
-          <p className="text-gray-400 text-lg">Chaque crédit = 1 Sport Date. Connectez-vous avec d'autres passionnés de sport.</p>
+        <div className="text-center mb-10 md:mb-14">
+          <p className="text-xs text-[#D91CD2] uppercase tracking-[0.3em] mb-3">Crédits Sport Date</p>
+          <h1 className="text-3xl md:text-5xl font-light text-white tracking-tight mb-3">
+            Trouve ton match.<br />Bouge ensemble.
+          </h1>
+          <p className="text-white/40 text-sm max-w-md mx-auto">
+            Chaque crédit débloque un date sportif. Pas de discussion inutile, des rencontres réelles.
+          </p>
         </div>
 
-        {/* Package Selection Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          {CREDIT_PACKAGES.map((pkg) => (
-            <div
+        {/* Packages */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5 mb-12">
+          {PACKAGES.map((pkg) => (
+            <Card
               key={pkg.id}
-              onClick={() => setSelectedPackage(pkg)}
-              className={`relative cursor-pointer transition-all duration-300 transform hover:scale-105 ${
-                selectedPackage?.id === pkg.id ? 'scale-105' : ''
+              className={`relative overflow-hidden transition-all duration-300 cursor-pointer group ${
+                pkg.popular
+                  ? 'bg-[#1A1A1A] border-[#D91CD2]/40 shadow-lg shadow-[#D91CD2]/10 md:scale-105'
+                  : 'bg-[#111] border-white/5 hover:border-white/15'
               }`}
+              onClick={() => setSelectedId(pkg.id)}
             >
               {/* Badge */}
               {pkg.badge && (
-                <div className="absolute -top-3 left-4 z-10">
-                  <span className={`inline-block px-4 py-1 rounded-full text-xs font-bold text-white ${
-                    pkg.badge === 'Most Popular'
-                      ? 'bg-gradient-to-r from-[#D91CD2] to-[#E91E63] shadow-lg shadow-[#D91CD2]/50'
-                      : 'bg-gradient-to-r from-amber-500 to-orange-500 shadow-lg shadow-amber-500/50'
-                  }`}>
+                <div className="absolute -top-0 right-0">
+                  <span className={`inline-block px-3 py-1 text-[10px] font-bold text-white uppercase tracking-wider rounded-bl-xl bg-gradient-to-r ${pkg.color}`}>
                     {pkg.badge}
                   </span>
                 </div>
               )}
 
-              {/* Card */}
-              <Card className={`h-full transition-all duration-300 ${
-                selectedPackage?.id === pkg.id
-                  ? 'bg-zinc-900/80 border-[#D91CD2]/50 shadow-2xl shadow-[#D91CD2]/20'
-                  : 'bg-zinc-900/50 border-white/10 hover:border-white/20'
-              } backdrop-blur border`}>
-                <CardHeader className="text-center pb-3 pt-6">
-                  <div className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D91CD2] to-[#E91E63] mb-2">
-                    {pkg.dates}
-                  </div>
-                  <CardTitle className="text-xl text-gray-200">{pkg.description}</CardTitle>
-                </CardHeader>
-                <CardContent className="text-center space-y-4">
-                  <Separator className="bg-white/10" />
-                  <div>
-                    <p className="text-gray-400 text-sm mb-2">Prix</p>
-                    <p className="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-[#D91CD2] to-[#E91E63]">
-                      {pkg.price} CHF
-                    </p>
-                  </div>
-                  <Separator className="bg-white/10" />
-                  <div className="text-sm text-gray-400 space-y-1">
-                    <p>• Utilisation illimitée</p>
-                    <p>• Sans expiration</p>
-                    <p>• Annulation facile</p>
-                  </div>
-                  <Button
-                    variant={selectedPackage?.id === pkg.id ? 'default' : 'outline'}
-                    className={`w-full mt-4 transition-all ${
-                      selectedPackage?.id === pkg.id
-                        ? 'bg-gradient-to-r from-[#D91CD2] to-[#E91E63] text-white border-0'
-                        : 'border-white/10 text-gray-300 hover:text-white'
-                    }`}
-                  >
-                    {selectedPackage?.id === pkg.id ? '✓ Sélectionné' : 'Sélectionner'}
-                  </Button>
-                </CardContent>
-              </Card>
-            </div>
+              <CardContent className="p-6 md:p-7">
+                {/* Icon + Title */}
+                <div className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${pkg.color} flex items-center justify-center text-white mb-5`}>
+                  {pkg.icon}
+                </div>
+                <h3 className="text-lg font-medium text-white mb-0.5">{pkg.title}</h3>
+                <p className="text-xs text-white/30 mb-5">{pkg.subtitle}</p>
+
+                {/* Price */}
+                <div className="flex items-baseline gap-1 mb-5">
+                  <span className="text-4xl font-light text-white">{pkg.price}</span>
+                  <span className="text-sm text-white/40">CHF</span>
+                  {pkg.savings && (
+                    <span className="ml-2 text-xs text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full">
+                      -{pkg.savings}
+                    </span>
+                  )}
+                </div>
+
+                {/* Features */}
+                <div className="space-y-2.5 mb-6">
+                  {pkg.features.map((f, i) => (
+                    <div key={i} className="flex items-start gap-2 text-sm text-white/50">
+                      <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0 mt-0.5" />
+                      <span>{f}</span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* CTA */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); handlePayment(pkg); }}
+                  className={`w-full h-12 rounded-full font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
+                    pkg.popular
+                      ? `bg-gradient-to-r ${pkg.color} text-white shadow-lg shadow-[#D91CD2]/20`
+                      : 'bg-white/5 backdrop-blur-xl border border-white/10 text-white hover:bg-white/10'
+                  }`}
+                >
+                  {pkg.cta}
+                </button>
+              </CardContent>
+            </Card>
           ))}
         </div>
 
-        {/* Divider */}
-        {selectedPackage && <Separator className="bg-white/10 my-8" />}
-
-        {/* Payment Methods */}
-        {selectedPackage && (
-          <div className="mt-8">
-            <Card className="bg-zinc-900/50 border-white/10 backdrop-blur">
-              <CardHeader>
-                <CardTitle className="text-2xl text-white">Moyen de paiement</CardTitle>
-                <CardDescription>Choisissez comment vous souhaitez payer</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {/* Stripe Checkout — handles Card, TWINT, Apple Pay */}
-                <Button
-                  onClick={() => handlePayment()}
-                  disabled={loading}
-                  className="w-full justify-center h-16 text-base bg-gradient-to-r from-[#D91CD2] to-[#E91E63] text-white font-semibold hover:from-[#C91BC2] hover:to-[#D91D53] transition-all shadow-lg shadow-[#D91CD2]/30"
-                >
-                  {loading ? (
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                  ) : (
-                    <CreditCard className="mr-3 h-5 w-5" />
-                  )}
-                  {loading ? 'Redirection...' : `Payer ${selectedPackage.price} CHF`}
-                </Button>
-
-                <div className="flex items-center justify-center gap-4 text-xs text-gray-500 mt-2">
-                  <span className="flex items-center gap-1"><CreditCard className="h-3.5 w-3.5" /> Carte</span>
-                  <span className="flex items-center gap-1"><Smartphone className="h-3.5 w-3.5" /> TWINT</span>
-                  <span className="flex items-center gap-1"><Apple className="h-3.5 w-3.5" /> Apple Pay</span>
-                </div>
-
-                {/* Security Info */}
-                <div className="mt-6 p-4 bg-zinc-900/50 rounded-lg border border-white/10">
-                  <div className="flex items-start gap-3">
-                    <Lock className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm font-semibold text-green-400">Paiement 100% sécurisé</p>
-                      <p className="text-xs text-gray-400 mt-1">Vos informations de paiement sont chiffrées. Aucun stockage de données sensibles.</p>
-                      <p className="text-xs text-gray-500 mt-2">Certifié PCI DSS Level 1</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Terms */}
-                <p className="text-xs text-center text-gray-500 mt-6">
-                  En effectuant ce paiement, vous acceptez nos conditions de service et notre politique de confidentialité.
-                </p>
-              </CardContent>
-            </Card>
+        {/* Trust badges */}
+        <div className="text-center space-y-3 mb-12">
+          <div className="flex items-center justify-center gap-6 text-xs text-white/30">
+            <span className="flex items-center gap-1.5"><CreditCard className="h-3.5 w-3.5" /> Carte</span>
+            <span className="flex items-center gap-1.5"><Smartphone className="h-3.5 w-3.5" /> TWINT</span>
+            <span className="flex items-center gap-1.5"><Apple className="h-3.5 w-3.5" /> Apple Pay</span>
           </div>
-        )}
-
-        {/* Fallback message */}
-        {!selectedPackage && (
-          <div className="text-center py-12">
-            <p className="text-gray-400 text-lg">Sélectionnez un package pour continuer</p>
+          <div className="flex items-center justify-center gap-2 text-xs text-white/20">
+            <Lock className="h-3 w-3" />
+            <span>Paiement sécurisé par Stripe — Activation instantanée</span>
           </div>
-        )}
+        </div>
+
+        {/* Bonus section */}
+        <div className="max-w-md mx-auto">
+          <Card className="bg-[#D91CD2]/5 border-[#D91CD2]/15">
+            <CardContent className="p-5 flex items-center gap-4">
+              <Gift className="h-8 w-8 text-[#D91CD2] flex-shrink-0" />
+              <div>
+                <p className="text-sm text-white font-medium">Invite un ami = crédits offerts</p>
+                <p className="text-xs text-white/30">Partage ton lien de parrainage et gagne des crédits gratuits</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </div>
   );
