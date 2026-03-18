@@ -20,12 +20,13 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import Link from 'next/link';
 
-type Tab = 'cockpit' | 'users' | 'partners' | 'credits' | 'promos' | 'settings' | 'errors';
+type Tab = 'cockpit' | 'users' | 'partners' | 'credits' | 'promos' | 'settings' | 'tarifs' | 'errors';
 
 interface UserItem { uid: string; displayName: string; email: string; role: string; city: string; isPremium: boolean; credits: number; isVisible?: boolean; createdAt: any; }
 interface PartnerItem { partnerId: string; name: string; city: string; isActive: boolean; isApproved: boolean; totalBookings: number; totalRevenue: number; }
 interface TxItem { transactionId: string; userId: string; amount: number; status: string; package: string; paymentMethod: string; createdAt: any; }
 interface ErrorItem { logId: string; message: string; source: string; level: string; resolved: boolean; createdAt: any; }
+interface PricingItem { id: string; label: string; price: number; credits: number; type: string; interval?: string; isActive: boolean; }
 
 export default function AdminManagePage() {
   const { user } = useAuth();
@@ -37,6 +38,8 @@ export default function AdminManagePage() {
   const [transactions, setTransactions] = useState<TxItem[]>([]);
   const [errors, setErrors] = useState<ErrorItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [pricing, setPricing] = useState<PricingItem[]>([]);
+  const [pricingSaving, setPricingSaving] = useState(false);
   // Promo form
   const [promoCode, setPromoCode] = useState('');
   const [promoCredits, setPromoCredits] = useState('1');
@@ -56,16 +59,33 @@ export default function AdminManagePage() {
   const loadAll = async () => {
     if (!db) return;
     try {
-      const [uSnap, pSnap, tSnap, eSnap] = await Promise.all([
+      const [uSnap, pSnap, tSnap, eSnap, prSnap] = await Promise.all([
         getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(200))),
         getDocs(query(collection(db, 'partners'), orderBy('createdAt', 'desc'))),
         getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(100))),
         getDocs(query(collection(db, 'errorLogs'), where('resolved', '==', false), orderBy('createdAt', 'desc'), limit(50))),
+        getDocs(collection(db, 'pricing')),
       ]);
       setUsers(uSnap.docs.map(d => ({ ...d.data(), uid: d.id } as UserItem)));
       setPartners(pSnap.docs.map(d => d.data() as PartnerItem));
       setTransactions(tSnap.docs.map(d => d.data() as TxItem));
       setErrors(eSnap.docs.map(d => d.data() as ErrorItem));
+      // Load pricing or set defaults
+      if (prSnap.empty) {
+        const defaults: PricingItem[] = [
+          { id: '1_date', label: 'Starter', price: 10, credits: 1, type: 'one_time', isActive: true },
+          { id: '3_dates', label: 'Populaire', price: 25, credits: 3, type: 'one_time', isActive: true },
+          { id: '10_dates', label: 'Premium', price: 60, credits: 10, type: 'one_time', isActive: true },
+          { id: 'premium_monthly', label: 'Premium Mensuel', price: 19.90, credits: 5, type: 'subscription', interval: 'month', isActive: true },
+          { id: 'premium_yearly', label: 'Premium Annuel', price: 149, credits: 60, type: 'subscription', interval: 'year', isActive: true },
+          { id: 'partner_monthly', label: 'Partenaire', price: 49, credits: 0, type: 'subscription', interval: 'month', isActive: true },
+        ];
+        setPricing(defaults);
+        // Save defaults to Firestore
+        for (const p of defaults) { await setDoc(doc(db, 'pricing', p.id), p); }
+      } else {
+        setPricing(prSnap.docs.map(d => ({ ...d.data(), id: d.id } as PricingItem)));
+      }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -156,6 +176,30 @@ export default function AdminManagePage() {
     toast({ title: `Notification envoyée à ${Math.min(users.length, 500)} utilisateurs` });
     setNotifTitle(''); setNotifBody('');
   };
+  const updatePricing = async (id: string, field: string, value: number | boolean) => {
+    if (!db) return;
+    const updated = pricing.map(p => p.id === id ? { ...p, [field]: value } : p);
+    setPricing(updated);
+  };
+  const savePricing = async () => {
+    if (!db) return;
+    setPricingSaving(true);
+    try {
+      for (const p of pricing) {
+        await setDoc(doc(db, 'pricing', p.id), p);
+      }
+      // Also update the checkout API config via a settings doc
+      await setDoc(doc(db, 'settings', 'pricing'), {
+        packages: pricing.reduce((acc, p) => ({
+          ...acc,
+          [p.id]: { price: Math.round(p.price * 100), credits: p.credits, label: p.label, type: p.type, interval: p.interval, isActive: p.isActive }
+        }), {}),
+        updatedAt: serverTimestamp(),
+      });
+      toast({ title: 'Tarifs sauvegardés !' });
+    } catch (err) { toast({ variant: 'destructive', title: 'Erreur', description: String(err) }); }
+    finally { setPricingSaving(false); }
+  };
   const resolveError = async (logId: string) => {
     if (!db) return;
     await updateDoc(doc(db, 'errorLogs', logId), { resolved: true, resolvedAt: serverTimestamp() });
@@ -169,6 +213,7 @@ export default function AdminManagePage() {
     { id: 'partners', label: 'Partenaires', icon: <Building2 className="h-4 w-4" />, count: partners.length },
     { id: 'credits', label: 'Crédits', icon: <CreditCard className="h-4 w-4" /> },
     { id: 'promos', label: 'Promos', icon: <Gift className="h-4 w-4" /> },
+    { id: 'tarifs', label: 'Tarifs', icon: <Wallet className="h-4 w-4" /> },
     { id: 'settings', label: 'Notifs', icon: <Bell className="h-4 w-4" /> },
     { id: 'errors', label: 'Erreurs', icon: <Bug className="h-4 w-4" />, count: errors.length },
   ];
@@ -346,6 +391,78 @@ export default function AdminManagePage() {
               <Button onClick={createPromo} disabled={!promoCode} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-11"><Gift className="h-4 w-4 mr-2" /> Créer le code promo</Button>
             </CardContent>
           </Card>
+        )}
+
+        {/* ===== TARIFS ===== */}
+        {tab === 'tarifs' && (
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm text-white/50">Modifier les prix et crédits</h3>
+              <Button onClick={savePricing} disabled={pricingSaving} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-10 text-xs">
+                {pricingSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Settings className="h-4 w-4 mr-1" />}
+                Sauvegarder les tarifs
+              </Button>
+            </div>
+
+            {/* Credits packages */}
+            <p className="text-xs text-[#D91CD2] uppercase tracking-wider mt-2">Crédits (paiement unique)</p>
+            {pricing.filter(p => p.type === 'one_time').map(p => (
+              <Card key={p.id} className={`bg-[#1A1A1A] border-white/5 ${!p.isActive ? 'opacity-40' : ''}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <span className="text-sm text-white font-medium">{p.label}</span>
+                    <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[10px] text-white/30 block mb-1">Prix (CHF)</label>
+                      <Input type="number" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/10 h-10 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-white/30 block mb-1">Crédits</label>
+                      <Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/10 h-10 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-white/30 block mb-1">Nom affiché</label>
+                      <Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/10 h-10 text-sm" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+
+            {/* Subscriptions */}
+            <p className="text-xs text-[#D91CD2] uppercase tracking-wider mt-4">Abonnements</p>
+            {pricing.filter(p => p.type === 'subscription').map(p => (
+              <Card key={p.id} className={`bg-[#1A1A1A] border-white/5 ${!p.isActive ? 'opacity-40' : ''}`}>
+                <CardContent className="p-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-white font-medium">{p.label}</span>
+                      <Badge className="text-[9px] bg-white/5 text-white/30">{p.interval === 'month' ? 'Mensuel' : p.interval === 'year' ? 'Annuel' : p.interval}</Badge>
+                    </div>
+                    <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
+                  </div>
+                  <div className="grid grid-cols-3 gap-3">
+                    <div>
+                      <label className="text-[10px] text-white/30 block mb-1">Prix (CHF)</label>
+                      <Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/10 h-10 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-white/30 block mb-1">Crédits inclus</label>
+                      <Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/10 h-10 text-sm" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-white/30 block mb-1">Nom affiché</label>
+                      <Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/10 h-10 text-sm" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+
+            <p className="text-[10px] text-white/15 text-center mt-4">Les changements prennent effet au prochain paiement Stripe.</p>
+          </div>
         )}
 
         {/* ===== NOTIFICATIONS ===== */}

@@ -9,50 +9,66 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// All packages (amounts in CHF centimes)
-const PACKAGES: Record<string, {
+// Default packages (amounts in CHF centimes) — can be overridden by Firestore settings/pricing
+const DEFAULT_PACKAGES: Record<string, {
   price: number;
   credits: number;
   label: string;
   description: string;
   type: 'one_time' | 'subscription';
   interval?: 'month' | 'year';
-  features?: string[];
+  isActive?: boolean;
 }> = {
-  // Test package (remove before production)
   'test_1chf': { price: 100, credits: 1, label: 'Test 1 CHF', description: 'Package de test — 1 CHF', type: 'one_time' },
-
-  // Credit packages (one-time)
-  '1_date':   { price: 1000,  credits: 1,  label: '1 Sport Date',  description: '1 crédit Sport Date', type: 'one_time' },
-  '3_dates':  { price: 2500,  credits: 3,  label: '3 Sport Dates', description: '3 crédits Sport Date — le plus populaire', type: 'one_time' },
-  '10_dates': { price: 6000,  credits: 10, label: '10 Sport Dates', description: '10 crédits Sport Date — meilleur rapport', type: 'one_time' },
-
-  // Premium user subscriptions
-  'premium_monthly': {
-    price: 1990, credits: 5, label: 'Spordate Premium',
-    description: 'Abonnement Premium mensuel — Matching illimité + 5 crédits/mois',
-    type: 'subscription', interval: 'month',
-    features: ['Matching illimité', '5 crédits/mois', 'Profil mis en avant', 'Chat illimité', 'Pas de pub'],
-  },
-  'premium_yearly': {
-    price: 14900, credits: 60, label: 'Spordate Premium Annuel',
-    description: 'Abonnement Premium annuel — Économisez 37% + 60 crédits',
-    type: 'subscription', interval: 'year',
-    features: ['Matching illimité', '60 crédits/an', 'Profil mis en avant', 'Chat illimité', 'Pas de pub', 'Badge exclusif'],
-  },
-
-  // Partner subscription
-  'partner_monthly': {
-    price: 4900, credits: 0, label: 'Partenaire Pro',
-    description: 'Abonnement partenaire mensuel',
-    type: 'subscription', interval: 'month',
-  },
+  '1_date':   { price: 1000,  credits: 1,  label: 'Starter',  description: '1 crédit Sport Date', type: 'one_time' },
+  '3_dates':  { price: 2500,  credits: 3,  label: 'Populaire', description: '3 crédits Sport Date', type: 'one_time' },
+  '10_dates': { price: 6000,  credits: 10, label: 'Premium', description: '10 crédits Sport Date', type: 'one_time' },
+  'premium_monthly': { price: 1990, credits: 5, label: 'Premium Mensuel', description: 'Abonnement Premium mensuel', type: 'subscription', interval: 'month' },
+  'premium_yearly': { price: 14900, credits: 60, label: 'Premium Annuel', description: 'Abonnement Premium annuel', type: 'subscription', interval: 'year' },
+  'partner_monthly': { price: 4900, credits: 0, label: 'Partenaire Pro', description: 'Abonnement partenaire mensuel', type: 'subscription', interval: 'month' },
 };
+
+/** Load packages from Firestore settings (admin-editable) or fall back to defaults */
+async function loadPackages(): Promise<typeof DEFAULT_PACKAGES> {
+  try {
+    const { initializeApp, getApps } = await import('firebase-admin/app');
+    const { getFirestore } = await import('firebase-admin/firestore');
+    if (!getApps().length) {
+      if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+        const { cert } = await import('firebase-admin/app');
+        initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+      } else {
+        initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'spordateur-claude' });
+      }
+    }
+    const db = getFirestore();
+    const snap = await db.collection('settings').doc('pricing').get();
+    if (snap.exists) {
+      const data = snap.data();
+      if (data?.packages) {
+        // Merge admin pricing into defaults
+        const merged = { ...DEFAULT_PACKAGES };
+        for (const [id, pkg] of Object.entries(data.packages as Record<string, any>)) {
+          if (merged[id]) {
+            merged[id] = { ...merged[id], ...pkg, description: merged[id].description };
+            if (pkg.isActive === false) delete merged[id]; // Remove disabled packages
+          }
+        }
+        return merged;
+      }
+    }
+  } catch (err) {
+    console.warn('[Checkout] Could not load Firestore pricing, using defaults:', err);
+  }
+  return DEFAULT_PACKAGES;
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { packageId, userId, matchId, referralCode } = body;
+
+    const PACKAGES = await loadPackages();
 
     if (!packageId || !PACKAGES[packageId]) {
       return NextResponse.json({ error: 'Package invalide' }, { status: 400 });
@@ -151,6 +167,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function GET() {
+  const PACKAGES = await loadPackages();
   return NextResponse.json({
     status: 'ok',
     packages: Object.entries(PACKAGES).map(([id, pkg]) => ({
