@@ -9,6 +9,8 @@ import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
+import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 
 interface CreditPackage {
   id: string;
@@ -26,63 +28,33 @@ interface CreditPackage {
   popular?: boolean;
 }
 
-const PACKAGES: CreditPackage[] = [
-  {
-    id: '1_date',
-    credits: 1,
-    price: 10,
-    pricePerCredit: 10,
-    title: 'Starter',
+// Visual config per package (colors, icons, features — not editable by admin)
+const VISUAL_CONFIG: Record<string, Omit<CreditPackage, 'id' | 'credits' | 'price' | 'pricePerCredit' | 'title'>> = {
+  '1_date': {
     subtitle: 'Idéal pour tester',
     color: 'from-emerald-500 to-teal-500',
     icon: <Zap className="h-6 w-6" />,
-    features: [
-      '1 crédit = 1 date sportif',
-      'Accès à toutes les activités',
-      'Débloque la conversation',
-    ],
+    features: ['1 crédit = 1 date sportif', 'Accès à toutes les activités', 'Débloque la conversation'],
     cta: 'Commencer',
   },
-  {
-    id: '3_dates',
-    credits: 3,
-    price: 25,
-    pricePerCredit: 8.33,
-    savings: '15%',
-    badge: 'Populaire',
-    title: 'Populaire',
+  '3_dates': {
     subtitle: 'Multiplie les rencontres',
     color: 'from-[#D91CD2] to-[#E91E63]',
     icon: <Star className="h-6 w-6" />,
-    features: [
-      '3 crédits = 3 dates',
-      'Économise 15%',
-      'Accès prioritaire Afroboost & Zumba',
-      'Offre la plus choisie',
-    ],
+    badge: 'Populaire',
+    features: ['Économise sur le prix/crédit', 'Accès prioritaire Afroboost & Zumba', 'Offre la plus choisie'],
     cta: 'Choisir cette offre',
     popular: true,
   },
-  {
-    id: '10_dates',
-    credits: 10,
-    price: 60,
-    pricePerCredit: 6,
-    savings: '40%',
-    badge: 'Meilleur prix',
-    title: 'Premium',
+  '10_dates': {
     subtitle: 'Passe à l\'action',
     color: 'from-amber-500 to-orange-500',
     icon: <Rocket className="h-6 w-6" />,
-    features: [
-      '10 crédits = 10 dates',
-      'Économise jusqu\'à 40%',
-      'Accès prioritaire + suggestions',
-      'Expérience complète',
-    ],
+    badge: 'Meilleur prix',
+    features: ['Meilleur rapport qualité/prix', 'Accès prioritaire + suggestions', 'Expérience complète'],
     cta: 'Passer au Premium',
   },
-];
+};
 
 export default function PaymentPage() {
   const router = useRouter();
@@ -93,6 +65,52 @@ export default function PaymentPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [packages, setPackages] = useState<CreditPackage[]>([]);
+
+  // Load pricing from Firestore (admin-editable) then build display packages
+  useEffect(() => {
+    const loadPricing = async () => {
+      // Defaults
+      const defaults: Record<string, { price: number; credits: number; label: string; isActive: boolean }> = {
+        '1_date': { price: 10, credits: 1, label: 'Starter', isActive: true },
+        '3_dates': { price: 25, credits: 3, label: 'Populaire', isActive: true },
+        '10_dates': { price: 60, credits: 10, label: 'Premium', isActive: true },
+      };
+
+      // Try Firestore
+      if (db && isFirebaseConfigured) {
+        try {
+          const snap = await getDocs(collection(db, 'pricing'));
+          snap.forEach(d => {
+            const data = d.data();
+            if (data.type === 'one_time' && defaults[d.id]) {
+              defaults[d.id] = { price: data.price, credits: data.credits, label: data.label, isActive: data.isActive !== false };
+            }
+          });
+        } catch { /* use defaults */ }
+      }
+
+      // Build display packages
+      const pkgs: CreditPackage[] = Object.entries(defaults)
+        .filter(([, d]) => d.isActive)
+        .map(([id, d]) => {
+          const vis = VISUAL_CONFIG[id] || {};
+          const savings = d.credits > 1 ? `${Math.round((1 - (d.price / d.credits) / 10) * 100)}%` : undefined;
+          return {
+            id,
+            credits: d.credits,
+            price: d.price,
+            pricePerCredit: d.price / d.credits,
+            title: d.label,
+            savings: d.credits > 1 ? savings : undefined,
+            ...vis,
+          } as CreditPackage;
+        });
+
+      setPackages(pkgs);
+    };
+    loadPricing();
+  }, []);
 
   useEffect(() => {
     if (searchParams.get('status') === 'success') {
@@ -101,7 +119,7 @@ export default function PaymentPage() {
     }
   }, [searchParams]);
 
-  const selectedPkg = PACKAGES.find(p => p.id === selectedId);
+  const selectedPkg = packages.find(p => p.id === selectedId);
 
   const handlePayment = async (pkg: CreditPackage) => {
     if (!isLoggedIn || !user) {
@@ -188,7 +206,7 @@ export default function PaymentPage() {
 
         {/* Packages */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5 mb-12">
-          {PACKAGES.map((pkg) => (
+          {packages.map((pkg) => (
             <Card
               key={pkg.id}
               className={`relative overflow-hidden transition-all duration-300 cursor-pointer group ${

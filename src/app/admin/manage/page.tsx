@@ -227,7 +227,7 @@ export default function AdminManagePage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 space-y-5">
+      <div className="max-w-7xl mx-auto px-4 md:px-6 py-6 pb-32 space-y-5">
 
         {/* Header */}
         <div className="flex items-center justify-between">
