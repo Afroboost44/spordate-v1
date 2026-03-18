@@ -187,14 +187,18 @@ export default function AdminManagePage() {
     setPricingSaving(true);
     try {
       for (const p of pricing) {
-        await setDoc(doc(db, 'pricing', p.id), p);
+        // Remove undefined fields — Firestore rejects them
+        const clean: Record<string, any> = { id: p.id, label: p.label, price: p.price, credits: p.credits, type: p.type, isActive: p.isActive };
+        if (p.interval) clean.interval = p.interval;
+        await setDoc(doc(db, 'pricing', p.id), clean);
       }
       // Also update the checkout API config via a settings doc
       await setDoc(doc(db, 'settings', 'pricing'), {
-        packages: pricing.reduce((acc, p) => ({
-          ...acc,
-          [p.id]: { price: Math.round(p.price * 100), credits: p.credits, label: p.label, type: p.type, interval: p.interval, isActive: p.isActive }
-        }), {}),
+        packages: pricing.reduce((acc, p) => {
+          const pkg: Record<string, any> = { price: Math.round(p.price * 100), credits: p.credits, label: p.label, type: p.type, isActive: p.isActive };
+          if (p.interval) pkg.interval = p.interval;
+          return { ...acc, [p.id]: pkg };
+        }, {}),
         updatedAt: serverTimestamp(),
       });
       toast({ title: 'Tarifs sauvegardés !' });
@@ -409,10 +413,13 @@ export default function AdminManagePage() {
 
               <p className="text-xs text-[#D91CD2] uppercase tracking-wider">Crédits</p>
               {pricing.filter(p => p.type === 'one_time').map(p => (
-                <Card key={p.id} className={`bg-[#111] border-white/10 ${!p.isActive ? 'opacity-30' : ''}`}>
+                <Card key={p.id} className={`bg-[#111] border-white/10 ${!p.isActive ? 'border-red-500/20' : ''}`}>
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
-                      <span className="text-white text-sm font-medium">{p.label}</span>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-sm font-medium ${p.isActive ? 'text-white' : 'text-red-400/60'}`}>{p.label}</span>
+                        {!p.isActive && <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">OFF</Badge>}
+                      </div>
                       <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
                     </div>
                     <div className="grid grid-cols-3 gap-2">
@@ -426,12 +433,13 @@ export default function AdminManagePage() {
 
               <p className="text-xs text-[#D91CD2] uppercase tracking-wider mt-2">Abonnements</p>
               {pricing.filter(p => p.type === 'subscription').map(p => (
-                <Card key={p.id} className={`bg-[#111] border-white/10 ${!p.isActive ? 'opacity-30' : ''}`}>
+                <Card key={p.id} className={`bg-[#111] border-white/10 ${!p.isActive ? 'border-red-500/20' : ''}`}>
                   <CardContent className="p-4 space-y-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <span className="text-white text-sm font-medium">{p.label}</span>
+                        <span className={`text-sm font-medium ${p.isActive ? 'text-white' : 'text-red-400/60'}`}>{p.label}</span>
                         <Badge className="text-[10px] bg-white/5 text-white/40 border-white/10">{p.interval === 'month' ? '/mois' : '/an'}</Badge>
+                        {!p.isActive && <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">OFF</Badge>}
                       </div>
                       <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
                     </div>
