@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
   Crown, Zap, MessageCircle, Star, Shield, Eye,
-  CheckCircle, Sparkles, ArrowRight, Loader2
+  CheckCircle, Sparkles, ArrowRight, Loader2, ArrowLeft
 } from "lucide-react";
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
@@ -160,6 +160,13 @@ export default function PremiumPage() {
 
   return (
     <div className="min-h-screen bg-black">
+      {/* Back button — visible on mobile AND desktop */}
+      <div className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 h-12 flex items-center">
+        <button onClick={() => router.back()} className="flex items-center gap-2 text-white/40 hover:text-white/70 text-sm transition">
+          <ArrowLeft className="h-4 w-4" /> Retour
+        </button>
+      </div>
+
       {/* Hero */}
       <div className="relative overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-b from-[#D91CD2]/10 via-transparent to-transparent" />

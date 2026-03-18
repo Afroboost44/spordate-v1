@@ -83,8 +83,8 @@ export async function POST(request: NextRequest) {
       ? `${baseUrl}/premium?status=cancel`
       : `${baseUrl}/payment?status=cancel`;
 
-    // TWINT + Card natively supported for CHF
-    const paymentMethodTypes: ('card' | 'twint')[] = ['card', 'twint'];
+    // TWINT only works with one-time payments, not subscriptions
+    const paymentMethodTypes: ('card' | 'twint')[] = isSubscription ? ['card'] : ['card', 'twint'];
 
     const sessionParams: Record<string, unknown> = {
       payment_method_types: paymentMethodTypes,

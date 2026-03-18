@@ -168,8 +168,8 @@ export default function PaymentPage() {
   return (
     <div className="min-h-screen bg-black pb-20 md:pb-0">
       {/* Back button */}
-      <div className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 h-12 flex items-center md:hidden">
-        <button onClick={() => router.back()} className="flex items-center gap-2 text-white/50 text-sm">
+      <div className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 h-12 flex items-center">
+        <button onClick={() => router.back()} className="flex items-center gap-2 text-white/40 hover:text-white/70 text-sm transition">
           <ArrowLeft className="h-4 w-4" /> Retour
         </button>
       </div>
