@@ -11,6 +11,8 @@ import { Dumbbell, Eye, EyeOff } from 'lucide-react';
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { useSearchParams } from 'next/navigation';
+import { getUser } from "@/services/firestore";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -25,12 +27,38 @@ export default function LoginPage() {
     password: '',
   });
 
-  // Redirect if already logged in
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect');
+
+  // Redirect if already logged in — check role for admin
   useEffect(() => {
     if (!authLoading && isLoggedIn) {
-      router.replace('/discovery');
+      // If there's a redirect param, use it
+      if (redirectTo) {
+        router.replace(redirectTo);
+        return;
+      }
+
+      // Check Firestore user role for admin redirect
+      const checkRole = async () => {
+        try {
+          const { user: authUser } = await import('firebase/auth').then(m => ({ user: m.getAuth().currentUser }));
+          if (authUser) {
+            const profile = await getUser(authUser.uid);
+            if (profile?.role === 'admin') {
+              router.replace('/admin/revenue');
+              return;
+            }
+          }
+        } catch {
+          // Ignore errors, default to discovery
+        }
+        router.replace('/discovery');
+      };
+
+      checkRole();
     }
-  }, [isLoggedIn, authLoading, router]);
+  }, [isLoggedIn, authLoading, router, redirectTo]);
 
   // Show Firebase errors as toasts
   useEffect(() => {
@@ -254,6 +282,11 @@ export default function LoginPage() {
                 Pas de compte ?{" "}
                 <Link href="/signup" className="underline text-accent/80 hover:text-accent">
                   Créer un profil
+                </Link>
+              </div>
+              <div className="mt-6 text-center">
+                <Link href="/admin/revenue" className="text-[10px] text-white/10 hover:text-white/30 transition">
+                  Administration
                 </Link>
               </div>
             </CardContent>
