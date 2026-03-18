@@ -141,6 +141,7 @@ export default function DiscoveryPage() {
   // New states for social features
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
+  const [showLocationsSheet, setShowLocationsSheet] = useState(false);
   const [selectedMeetingPlace, setSelectedMeetingPlace] = useState<string>('');
   const [showTicketSuccess, setShowTicketSuccess] = useState(false);
   const [lastBooking, setLastBooking] = useState<{profile: string, partner: string, partnerAddress?: string, isDuo: boolean, amount: number} | null>(null);
@@ -842,49 +843,49 @@ END:VCALENDAR`;
                 {currentProfile.bio}
               </p>
 
-              {/* CTA Button — Glassmorphism */}
-              <div className="pt-2 flex items-center gap-3">
+              {/* CTA Row — Réserver (80%) + Lieux (20%) */}
+              <div className="pt-2 flex items-center gap-3 px-0">
                 {!hasTicket ? (
                   <button
                     onClick={handleBookSession}
-                    className="flex-1 h-14 rounded-full bg-white/5 backdrop-blur-xl border border-[#D91CD2] text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 hover:bg-[#D91CD2]/10 transition-all active:scale-[0.98]"
+                    className="flex-[4] h-14 rounded-full bg-white/5 backdrop-blur-xl border border-[#D91CD2] text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 hover:bg-[#D91CD2]/10 transition-all active:scale-[0.98]"
                   >
                     <Zap className="h-4 w-4 text-[#D91CD2]" />
-                    {currentProfile.price === 0 ? 'Séance d\'essai gratuite' : `Réserver · ${currentProfile.price} CHF`}
+                    {currentProfile.price === 0 ? 'Essai gratuit' : `Réserver · ${currentProfile.price} CHF`}
                   </button>
                 ) : (
                   <button
                     disabled
-                    className="flex-1 h-14 rounded-full bg-green-500/10 backdrop-blur-xl border border-green-500/30 text-green-400 font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 cursor-default"
+                    className="flex-[4] h-14 rounded-full bg-green-500/10 backdrop-blur-xl border border-green-500/30 text-green-400 font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 cursor-default"
                   >
                     <Check className="h-4 w-4" />
-                    Séance Réservée
+                    Réservé
                   </button>
                 )}
+                {/* Bouton Lieux — ouvre le bottom sheet */}
                 <button
-                  onClick={handleShareProfile}
-                  className="w-12 h-12 rounded-full bg-white/5 backdrop-blur-xl border border-white/10 flex items-center justify-center text-white/40 hover:text-white/70 transition-all"
+                  onClick={() => setShowLocationsSheet(true)}
+                  className="flex-[1] h-14 rounded-full bg-white/5 backdrop-blur-xl border border-white/15 flex items-center justify-center text-white/50 hover:text-white/80 hover:border-[#D91CD2]/40 transition-all active:scale-95"
                 >
-                  <Share2 className="h-4 w-4" />
+                  <MapPin className="h-5 w-5" />
                 </button>
               </div>
             </div>
           </div>
 
-          {/* Où pratiquer ? — Mobile: above photo (order-first), Desktop: left sidebar */}
-          <div className="px-4 py-4 md:py-0 md:px-0 md:w-80 md:flex-shrink-0 order-1 md:order-2">
+          {/* Desktop sidebar — Où pratiquer (hidden on mobile, visible on desktop) */}
+          <div className="hidden md:block md:w-80 md:flex-shrink-0 order-1 md:order-2">
             <div className="md:sticky md:top-20">
               <div className="flex items-center gap-2 mb-4">
                 <Building2 className="h-5 w-5 text-[#D91CD2]" />
                 <h3 className="text-lg font-semibold text-white">Où pratiquer ?</h3>
-                <span className="ml-auto text-xs text-[#D91CD2]/70 border border-[#D91CD2]/30 rounded-full px-2.5 py-0.5">Partenaires</span>
               </div>
-              <div className="flex md:flex-col gap-2 overflow-x-auto md:overflow-x-visible pb-2 md:pb-0">
+              <div className="space-y-2">
                 {partners.slice(0, 3).map((partner) => (
                   <div
                     key={partner.id}
                     onClick={() => handlePartnerSelect(partner)}
-                    className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 min-w-[220px] md:min-w-0
+                    className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200
                       ${selectedMeetingPlace === partner.id
                         ? 'bg-[#D91CD2]/15 border border-[#D91CD2]/40'
                         : 'bg-white/5 border border-transparent hover:bg-white/8 hover:border-white/10'}
@@ -896,8 +897,7 @@ END:VCALENDAR`;
                     <div className="flex-1 min-w-0">
                       <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
                       <p className="text-xs text-white/40 flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />
-                        {partner.city}
+                        <MapPin className="h-3 w-3" />{partner.city}
                       </p>
                     </div>
                     {selectedMeetingPlace === partner.id ? (
@@ -1345,6 +1345,79 @@ END:VCALENDAR`;
           </div>
         </DialogContent>
       </Dialog>
+      {/* ===== BOTTOM SHEET — Lieux / Partenaires (mobile only) ===== */}
+      {showLocationsSheet && (
+        <>
+          {/* Backdrop */}
+          <div
+            className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowLocationsSheet(false)}
+          />
+          {/* Sheet */}
+          <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-3xl max-h-[70vh] overflow-y-auto animate-in slide-in-from-bottom duration-300 safe-area-bottom">
+            {/* Handle */}
+            <div className="flex justify-center pt-3 pb-1">
+              <div className="w-10 h-1 rounded-full bg-white/20" />
+            </div>
+
+            <div className="px-5 pb-6 pt-2">
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-5 w-5 text-[#D91CD2]" />
+                  <h3 className="text-lg font-semibold text-white">Où pratiquer ?</h3>
+                </div>
+                <button
+                  onClick={() => setShowLocationsSheet(false)}
+                  className="text-xs text-white/30 hover:text-white/60 transition"
+                >
+                  Fermer
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                {partners.map((partner) => (
+                  <div
+                    key={partner.id}
+                    onClick={() => {
+                      handlePartnerSelect(partner);
+                      setShowLocationsSheet(false);
+                    }}
+                    className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all duration-200 min-h-[56px]
+                      ${selectedMeetingPlace === partner.id
+                        ? 'bg-[#D91CD2]/15 border border-[#D91CD2]/40'
+                        : 'bg-white/5 border border-transparent active:bg-white/10'}
+                    `}
+                  >
+                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                      {partner.name.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
+                      <p className="text-xs text-white/40 flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />{partner.city}
+                        {partner.address && <span className="ml-1 text-white/20">— {partner.address}</span>}
+                      </p>
+                    </div>
+                    {selectedMeetingPlace === partner.id ? (
+                      <CheckCircle className="h-5 w-5 text-[#D91CD2] flex-shrink-0" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-white/20 flex-shrink-0" />
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              {selectedMeetingPlace && (
+                <div className="mt-4 p-3 bg-[#D91CD2]/5 border border-[#D91CD2]/15 rounded-xl">
+                  <p className="text-xs text-[#D91CD2]">
+                    Lieu sélectionné pour votre prochaine réservation
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
