@@ -181,9 +181,14 @@ export default function RevenueDashboardPage() {
             </h1>
             <p className="text-sm text-white/40 mt-1">Analytics temps réel — {totalTransactions} transactions</p>
           </div>
-          <Button onClick={exportCSV} variant="outline" className="border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10 h-10">
-            <Download className="h-4 w-4 mr-2" /> Export CSV
-          </Button>
+          <div className="flex gap-2">
+            <a href="/admin/manage">
+              <Button variant="outline" className="border-white/10 text-white/50 hover:text-white h-10">Gestion site</Button>
+            </a>
+            <Button onClick={exportCSV} variant="outline" className="border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10 h-10">
+              <Download className="h-4 w-4 mr-2" /> Export CSV
+            </Button>
+          </div>
         </div>
 
         {/* Filters */}
