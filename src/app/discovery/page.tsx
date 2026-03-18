@@ -1354,7 +1354,7 @@ END:VCALENDAR`;
             onClick={() => setShowLocationsSheet(false)}
           />
           {/* Sheet */}
-          <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-3xl max-h-[70vh] overflow-y-auto animate-in slide-in-from-bottom duration-300 safe-area-bottom">
+          <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-3xl max-h-[70vh] overflow-y-auto animate-in slide-in-from-bottom duration-300 pb-24">
             {/* Handle */}
             <div className="flex justify-center pt-3 pb-1">
               <div className="w-10 h-1 rounded-full bg-white/20" />
