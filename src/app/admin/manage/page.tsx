@@ -59,33 +59,34 @@ export default function AdminManagePage() {
   const loadAll = async () => {
     if (!db) return;
     try {
-      const [uSnap, pSnap, tSnap, eSnap, prSnap] = await Promise.all([
+      // Always set default pricing first
+      const defaults: PricingItem[] = [
+        { id: '1_date', label: 'Starter', price: 10, credits: 1, type: 'one_time', isActive: true },
+        { id: '3_dates', label: 'Populaire', price: 25, credits: 3, type: 'one_time', isActive: true },
+        { id: '10_dates', label: 'Premium', price: 60, credits: 10, type: 'one_time', isActive: true },
+        { id: 'premium_monthly', label: 'Premium Mensuel', price: 19.90, credits: 5, type: 'subscription', interval: 'month', isActive: true },
+        { id: 'premium_yearly', label: 'Premium Annuel', price: 149, credits: 60, type: 'subscription', interval: 'year', isActive: true },
+        { id: 'partner_monthly', label: 'Partenaire', price: 49, credits: 0, type: 'subscription', interval: 'month', isActive: true },
+      ];
+      setPricing(defaults);
+
+      const [uSnap, pSnap, tSnap, eSnap] = await Promise.all([
         getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(200))),
         getDocs(query(collection(db, 'partners'), orderBy('createdAt', 'desc'))),
         getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(100))),
         getDocs(query(collection(db, 'errorLogs'), where('resolved', '==', false), orderBy('createdAt', 'desc'), limit(50))),
-        getDocs(collection(db, 'pricing')),
       ]);
       setUsers(uSnap.docs.map(d => ({ ...d.data(), uid: d.id } as UserItem)));
       setPartners(pSnap.docs.map(d => d.data() as PartnerItem));
       setTransactions(tSnap.docs.map(d => d.data() as TxItem));
       setErrors(eSnap.docs.map(d => d.data() as ErrorItem));
-      // Load pricing or set defaults
-      if (prSnap.empty) {
-        const defaults: PricingItem[] = [
-          { id: '1_date', label: 'Starter', price: 10, credits: 1, type: 'one_time', isActive: true },
-          { id: '3_dates', label: 'Populaire', price: 25, credits: 3, type: 'one_time', isActive: true },
-          { id: '10_dates', label: 'Premium', price: 60, credits: 10, type: 'one_time', isActive: true },
-          { id: 'premium_monthly', label: 'Premium Mensuel', price: 19.90, credits: 5, type: 'subscription', interval: 'month', isActive: true },
-          { id: 'premium_yearly', label: 'Premium Annuel', price: 149, credits: 60, type: 'subscription', interval: 'year', isActive: true },
-          { id: 'partner_monthly', label: 'Partenaire', price: 49, credits: 0, type: 'subscription', interval: 'month', isActive: true },
-        ];
-        setPricing(defaults);
-        // Save defaults to Firestore
-        for (const p of defaults) { await setDoc(doc(db, 'pricing', p.id), p); }
-      } else {
-        setPricing(prSnap.docs.map(d => ({ ...d.data(), id: d.id } as PricingItem)));
-      }
+      // Try to load saved pricing from Firestore
+      try {
+        const prSnap = await getDocs(collection(db, 'pricing'));
+        if (!prSnap.empty) {
+          setPricing(prSnap.docs.map(d => ({ ...d.data(), id: d.id } as PricingItem)));
+        }
+      } catch { /* Firestore rules may block — use defaults */ }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -395,73 +396,98 @@ export default function AdminManagePage() {
 
         {/* ===== TARIFS ===== */}
         {tab === 'tarifs' && (
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm text-white/50">Modifier les prix et crédits</h3>
-              <Button onClick={savePricing} disabled={pricingSaving} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-10 text-xs">
-                {pricingSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Settings className="h-4 w-4 mr-1" />}
-                Sauvegarder les tarifs
-              </Button>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* LEFT — Éditeur */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-base text-white font-medium">Modifier les tarifs</h3>
+                <Button onClick={savePricing} disabled={pricingSaving} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-10 text-xs">
+                  {pricingSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Settings className="h-4 w-4 mr-1" />}
+                  Sauvegarder
+                </Button>
+              </div>
+
+              <p className="text-xs text-[#D91CD2] uppercase tracking-wider">Crédits</p>
+              {pricing.filter(p => p.type === 'one_time').map(p => (
+                <Card key={p.id} className={`bg-[#111] border-white/10 ${!p.isActive ? 'opacity-30' : ''}`}>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="text-white text-sm font-medium">{p.label}</span>
+                      <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div><label className="text-[11px] text-white/40 block mb-1">Prix CHF</label><Input type="number" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1">Crédits</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1">Nom</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              <p className="text-xs text-[#D91CD2] uppercase tracking-wider mt-2">Abonnements</p>
+              {pricing.filter(p => p.type === 'subscription').map(p => (
+                <Card key={p.id} className={`bg-[#111] border-white/10 ${!p.isActive ? 'opacity-30' : ''}`}>
+                  <CardContent className="p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="text-white text-sm font-medium">{p.label}</span>
+                        <Badge className="text-[10px] bg-white/5 text-white/40 border-white/10">{p.interval === 'month' ? '/mois' : '/an'}</Badge>
+                      </div>
+                      <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
+                    </div>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div><label className="text-[11px] text-white/40 block mb-1">Prix CHF</label><Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1">Crédits</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1">Nom</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
 
-            {/* Credits packages */}
-            <p className="text-xs text-[#D91CD2] uppercase tracking-wider mt-2">Crédits (paiement unique)</p>
-            {pricing.filter(p => p.type === 'one_time').map(p => (
-              <Card key={p.id} className={`bg-[#1A1A1A] border-white/5 ${!p.isActive ? 'opacity-40' : ''}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-sm text-white font-medium">{p.label}</span>
-                    <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-[10px] text-white/30 block mb-1">Prix (CHF)</label>
-                      <Input type="number" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/10 h-10 text-sm" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-white/30 block mb-1">Crédits</label>
-                      <Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/10 h-10 text-sm" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-white/30 block mb-1">Nom affiché</label>
-                      <Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/10 h-10 text-sm" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+            {/* RIGHT — Aperçu en direct */}
+            <div className="space-y-4">
+              <h3 className="text-base text-white font-medium flex items-center gap-2"><Eye className="h-4 w-4 text-[#D91CD2]" /> Aperçu en direct</h3>
 
-            {/* Subscriptions */}
-            <p className="text-xs text-[#D91CD2] uppercase tracking-wider mt-4">Abonnements</p>
-            {pricing.filter(p => p.type === 'subscription').map(p => (
-              <Card key={p.id} className={`bg-[#1A1A1A] border-white/5 ${!p.isActive ? 'opacity-40' : ''}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-white font-medium">{p.label}</span>
-                      <Badge className="text-[9px] bg-white/5 text-white/30">{p.interval === 'month' ? 'Mensuel' : p.interval === 'year' ? 'Annuel' : p.interval}</Badge>
-                    </div>
-                    <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
-                  </div>
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="text-[10px] text-white/30 block mb-1">Prix (CHF)</label>
-                      <Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/10 h-10 text-sm" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-white/30 block mb-1">Crédits inclus</label>
-                      <Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/10 h-10 text-sm" />
-                    </div>
-                    <div>
-                      <label className="text-[10px] text-white/30 block mb-1">Nom affiché</label>
-                      <Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/10 h-10 text-sm" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+              <p className="text-xs text-white/30 uppercase tracking-wider">Page Crédits</p>
+              <div className="space-y-3">
+                {pricing.filter(p => p.type === 'one_time' && p.isActive).map(p => (
+                  <Card key={p.id} className="bg-[#111] border-white/10 overflow-hidden">
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-white font-medium text-sm">{p.label}</p>
+                        <p className="text-white/30 text-xs">{p.credits} crédit{p.credits > 1 ? 's' : ''}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-light text-white">{p.price} <span className="text-sm text-white/40">CHF</span></p>
+                        {p.credits > 1 && <p className="text-[10px] text-[#D91CD2]">{(p.price / p.credits).toFixed(2)} CHF/crédit</p>}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
 
-            <p className="text-[10px] text-white/15 text-center mt-4">Les changements prennent effet au prochain paiement Stripe.</p>
+              <p className="text-xs text-white/30 uppercase tracking-wider mt-2">Page Premium</p>
+              <div className="space-y-3">
+                {pricing.filter(p => p.type === 'subscription' && p.isActive).map(p => (
+                  <Card key={p.id} className="bg-[#111] border-[#D91CD2]/20 overflow-hidden">
+                    <CardContent className="p-4 flex items-center justify-between">
+                      <div>
+                        <p className="text-white font-medium text-sm">{p.label}</p>
+                        <p className="text-white/30 text-xs">{p.credits} crédits · {p.interval === 'month' ? 'par mois' : 'par an'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-2xl font-light text-[#D91CD2]">{p.price} <span className="text-sm text-white/40">CHF</span></p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              <p className="text-[11px] text-white/20 text-center mt-4 border-t border-white/5 pt-4">
+                Cet aperçu se met à jour en temps réel. Cliquez "Sauvegarder" pour appliquer les changements sur le site.
+              </p>
+            </div>
           </div>
         )}
 
