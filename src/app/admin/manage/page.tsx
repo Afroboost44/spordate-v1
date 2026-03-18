@@ -31,6 +31,14 @@ interface SiteConfig {
   step3Title: string; step3Desc: string; step3Image: string;
   sectionTitle: string; sectionSubtitle: string;
   ctaFinalTitle: string; ctaFinalSubtitle: string; ctaFinalButton: string;
+  testimonialsTitle: string;
+  testimonial1Name: string; testimonial1City: string; testimonial1Text: string; testimonial1Sport: string;
+  testimonial2Name: string; testimonial2City: string; testimonial2Text: string; testimonial2Sport: string;
+  testimonial3Name: string; testimonial3City: string; testimonial3Text: string; testimonial3Sport: string;
+  testimonial4Name: string; testimonial4City: string; testimonial4Text: string; testimonial4Sport: string;
+  swissTitle: string; swissSubtitle: string; swissImage: string;
+  swissCities: string;
+  partnerTitle: string; partnerSubtitle: string; partnerCta1: string; partnerCta2: string;
   [key: string]: string;
 }
 const DEFAULT_SITE: SiteConfig = {
@@ -43,6 +51,14 @@ const DEFAULT_SITE: SiteConfig = {
   step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'experience commence ici.", step3Image: "https://picsum.photos/seed/step3/800/600",
   sectionTitle: "Trouve ton move.", sectionSubtitle: "Sport ou danse, debutant ou avance. Chaque activite est une opportunite de rencontre.",
   ctaFinalTitle: "Pret a bouger ?", ctaFinalSubtitle: "Rejoins la communaute. Trouve ton partenaire.", ctaFinalButton: "Creer mon profil",
+  testimonialsTitle: "Ils bougent deja ensemble.",
+  testimonial1Name: "Amina K.", testimonial1City: "Geneve", testimonial1Text: "J'ai trouve ma partenaire d'Afroboost. On se motive chaque semaine.", testimonial1Sport: "Afroboost",
+  testimonial2Name: "Karim D.", testimonial2City: "Zurich", testimonial2Text: "Fan de salsa depuis 3 ans, j'ai enfin trouve une partenaire a mon niveau.", testimonial2Sport: "Salsa",
+  testimonial3Name: "Lea M.", testimonial3City: "Lausanne", testimonial3Text: "J'ai decouvert le Dance Fitness via l'app. Ambiance incroyable.", testimonial3Sport: "Dance Fitness",
+  testimonial4Name: "David N.", testimonial4City: "Bern", testimonial4Text: "Bachata en duo, c'est 100x mieux. On danse, on rigole.", testimonial4Sport: "Bachata",
+  swissTitle: "Actif dans toute la Suisse.", swissSubtitle: "Studios partenaires, salles de danse et espaces fitness.", swissImage: "https://picsum.photos/seed/swiss/800/1000",
+  swissCities: "Geneve,Zurich,Lausanne,Bern,Bale,Lucerne,Neuchatel,Fribourg",
+  partnerTitle: "Studio de danse ou salle de sport ?", partnerSubtitle: "Rejoins le reseau Spordateur. Remplis tes cours, gagne en visibilite.", partnerCta1: "Devenir partenaire", partnerCta2: "Nous contacter",
 };
 
 interface UserItem { uid: string; displayName: string; email: string; role: string; city: string; isPremium: boolean; credits: number; isVisible?: boolean; createdAt: any; }
@@ -65,6 +81,8 @@ export default function AdminManagePage() {
   const [pricingSaving, setPricingSaving] = useState(false);
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(DEFAULT_SITE);
   const [siteSaving, setSiteSaving] = useState(false);
+  const [openSection, setOpenSection] = useState<string | null>(null);
+  const toggleSection = (id: string) => setOpenSection(openSection === id ? null : id);
   // Promo form
   const [promoCode, setPromoCode] = useState('');
   const [promoCredits, setPromoCredits] = useState('1');
@@ -655,6 +673,56 @@ export default function AdminManagePage() {
                 <div><label className="text-[11px] text-white/40 block mb-1">Titre</label><Input value={siteConfig.ctaFinalTitle} onChange={e => updateSite('ctaFinalTitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
                 <div><label className="text-[11px] text-white/40 block mb-1">Sous-titre</label><Input value={siteConfig.ctaFinalSubtitle} onChange={e => updateSite('ctaFinalSubtitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
                 <div><label className="text-[11px] text-white/40 block mb-1">Texte bouton</label><Input value={siteConfig.ctaFinalButton} onChange={e => updateSite('ctaFinalButton', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+              </CardContent>
+            </Card>
+
+            {/* Témoignages */}
+            <Card className="bg-[#111] border-white/10">
+              <CardContent className="p-4 space-y-3">
+                <span className="text-sm text-white font-medium">Témoignages</span>
+                <div><label className="text-[11px] text-white/40 block mb-1">Titre section</label><Input value={siteConfig.testimonialsTitle} onChange={e => updateSite('testimonialsTitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                {[1, 2, 3, 4].map(i => (
+                  <div key={i} className="border-t border-white/5 pt-3 space-y-2">
+                    <span className="text-[10px] text-white/20 font-mono">Témoignage {i}</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input value={siteConfig[`testimonial${i}Name`]} onChange={e => updateSite(`testimonial${i}Name` as keyof SiteConfig, e.target.value)} placeholder="Nom" className="bg-black border-white/15 h-10 text-white text-sm" />
+                      <Input value={siteConfig[`testimonial${i}City`]} onChange={e => updateSite(`testimonial${i}City` as keyof SiteConfig, e.target.value)} placeholder="Ville" className="bg-black border-white/15 h-10 text-white text-sm" />
+                    </div>
+                    <Input value={siteConfig[`testimonial${i}Text`]} onChange={e => updateSite(`testimonial${i}Text` as keyof SiteConfig, e.target.value)} placeholder="Témoignage..." className="bg-black border-white/15 h-10 text-white text-sm" />
+                    <Input value={siteConfig[`testimonial${i}Sport`]} onChange={e => updateSite(`testimonial${i}Sport` as keyof SiteConfig, e.target.value)} placeholder="Sport" className="bg-black border-white/15 h-10 text-white text-sm w-40" />
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Section Suisse */}
+            <Card className="bg-[#111] border-white/10">
+              <CardContent className="p-4 space-y-3">
+                <span className="text-sm text-white font-medium">Section Suisse</span>
+                <div><label className="text-[11px] text-white/40 block mb-1">Titre</label><Input value={siteConfig.swissTitle} onChange={e => updateSite('swissTitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div><label className="text-[11px] text-white/40 block mb-1">Sous-titre</label><Input value={siteConfig.swissSubtitle} onChange={e => updateSite('swissSubtitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div>
+                  <label className="text-[11px] text-white/40 block mb-1">Villes (séparées par virgule)</label>
+                  <Input value={siteConfig.swissCities} onChange={e => updateSite('swissCities', e.target.value)} placeholder="Geneve,Zurich,Lausanne..." className="bg-black border-white/15 h-11 text-white text-sm" />
+                </div>
+                <div>
+                  <label className="text-[11px] text-white/40 block mb-1">Image (URL)</label>
+                  <Input value={siteConfig.swissImage} onChange={e => updateSite('swissImage', e.target.value)} placeholder="https://..." className="bg-black border-white/15 h-11 text-white text-xs" />
+                  {siteConfig.swissImage && <img src={siteConfig.swissImage} alt="swiss" className="mt-1 h-16 w-32 object-cover rounded" />}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Section Partenaires */}
+            <Card className="bg-[#111] border-white/10">
+              <CardContent className="p-4 space-y-3">
+                <span className="text-sm text-white font-medium">Section Partenaires</span>
+                <div><label className="text-[11px] text-white/40 block mb-1">Titre</label><Input value={siteConfig.partnerTitle} onChange={e => updateSite('partnerTitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div><label className="text-[11px] text-white/40 block mb-1">Sous-titre</label><Input value={siteConfig.partnerSubtitle} onChange={e => updateSite('partnerSubtitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div><label className="text-[11px] text-white/40 block mb-1">Bouton 1</label><Input value={siteConfig.partnerCta1} onChange={e => updateSite('partnerCta1', e.target.value)} className="bg-black border-white/15 h-10 text-white text-sm" /></div>
+                  <div><label className="text-[11px] text-white/40 block mb-1">Bouton 2</label><Input value={siteConfig.partnerCta2} onChange={e => updateSite('partnerCta2', e.target.value)} className="bg-black border-white/15 h-10 text-white text-sm" /></div>
+                </div>
               </CardContent>
             </Card>
 

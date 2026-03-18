@@ -86,7 +86,15 @@ export default function LandingPage() {
     step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'experience commence ici.", step3Image: "https://picsum.photos/seed/step3/800/600",
     sectionTitle: "Trouve ton move.", sectionSubtitle: "Sport ou danse, debutant ou avance. Chaque activite est une opportunite de rencontre.",
     ctaFinalTitle: "Pret a bouger ?", ctaFinalSubtitle: "Rejoins la communaute. Trouve ton partenaire.", ctaFinalButton: "Creer mon profil",
-  });
+    testimonialsTitle: "Ils bougent deja ensemble.",
+    testimonial1Name: "Amina K.", testimonial1City: "Geneve", testimonial1Text: "J'ai trouve ma partenaire d'Afroboost. On se motive chaque semaine.", testimonial1Sport: "Afroboost",
+    testimonial2Name: "Karim D.", testimonial2City: "Zurich", testimonial2Text: "Fan de salsa depuis 3 ans, j'ai enfin trouve une partenaire a mon niveau.", testimonial2Sport: "Salsa",
+    testimonial3Name: "Lea M.", testimonial3City: "Lausanne", testimonial3Text: "J'ai decouvert le Dance Fitness via l'app. Ambiance incroyable.", testimonial3Sport: "Dance Fitness",
+    testimonial4Name: "David N.", testimonial4City: "Bern", testimonial4Text: "Bachata en duo, c'est 100x mieux. On danse, on rigole.", testimonial4Sport: "Bachata",
+    swissTitle: "Actif dans toute la Suisse.", swissSubtitle: "Studios partenaires, salles de danse et espaces fitness.", swissImage: "https://picsum.photos/seed/swiss/800/1000",
+    swissCities: "Geneve,Zurich,Lausanne,Bern,Bale,Lucerne,Neuchatel,Fribourg",
+    partnerTitle: "Studio de danse ou salle de sport ?", partnerSubtitle: "Rejoins le reseau Spordateur. Remplis tes cours, gagne en visibilite.", partnerCta1: "Devenir partenaire", partnerCta2: "Nous contacter",
+  } as Record<string, string>);
 
   // Load site config from Firestore (admin-editable)
   useEffect(() => {
@@ -292,12 +300,12 @@ export default function LandingPage() {
           <div className="max-w-xl mb-20">
             <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-4">Temoignages</p>
             <h2 className="text-4xl md:text-6xl font-extralight tracking-tight">
-              Ils bougent deja ensemble.
+              {site.testimonialsTitle}
             </h2>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/5">
-            {TESTIMONIALS.map((t, idx) => (
+            {[1,2,3,4].map((i) => ({ name: site[`testimonial${i}Name`], location: site[`testimonial${i}City`], text: site[`testimonial${i}Text`], activity: site[`testimonial${i}Sport`] })).filter(t => t.name && t.text).map((t, idx) => (
               <div key={idx} className="bg-black p-10 md:p-14 group">
                 <p className="text-lg font-light text-white/70 leading-relaxed mb-10 italic">
                   &ldquo;{t.text}&rdquo;
@@ -332,23 +340,23 @@ export default function LandingPage() {
             <div>
               <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-4">Couverture</p>
               <h2 className="text-4xl md:text-5xl font-extralight tracking-tight mb-8">
-                Actif dans toute la Suisse.
+                {site.swissTitle}
               </h2>
               <p className="text-sm font-light text-white/40 leading-relaxed mb-10">
-                Studios partenaires, salles de danse et espaces fitness. Trouve un spot pres de chez toi.
+                {site.swissSubtitle}
               </p>
               <div className="grid grid-cols-2 gap-4">
-                {SWISS_CITIES.map((city) => (
+                {(site.swissCities || '').split(',').filter(Boolean).map((city) => (
                   <div key={city} className="flex items-center gap-3 py-2 border-b border-white/5">
-                    <div className="h-1.5 w-1.5 bg-[#D91CD2]" />
-                    <span className="text-sm font-light text-white/60">{city}</span>
+                    <div className="h-1.5 w-1.5" style={{ backgroundColor: site.primaryColor }} />
+                    <span className="text-sm font-light text-white/60">{city.trim()}</span>
                   </div>
                 ))}
               </div>
             </div>
             <div className="relative h-96 md:h-[500px] overflow-hidden">
               <img
-                src="https://picsum.photos/seed/swiss/800/1000"
+                src={site.swissImage}
                 alt="Switzerland"
                 style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
                 className="absolute inset-0 w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
@@ -364,17 +372,17 @@ export default function LandingPage() {
         <div className="container mx-auto px-6 text-center max-w-3xl">
           <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-6">Partenaires</p>
           <h2 className="text-3xl md:text-5xl font-extralight tracking-tight mb-8">
-            Studio de danse ou salle de sport ?
+            {site.partnerTitle}
           </h2>
           <p className="text-sm font-light text-white/40 leading-relaxed mb-12 max-w-lg mx-auto">
-            Rejoins le reseau Spordateur. Remplis tes cours, gagne en visibilite et connecte-toi avec des sportifs motives.
+            {site.partnerSubtitle}
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-normal text-sm tracking-wide uppercase px-10 h-14 rounded-none neon-glow">
-              <Link href="/partners">Devenir partenaire</Link>
+            <Button asChild className="text-white font-normal text-sm tracking-wide uppercase px-10 h-14 rounded-none neon-glow" style={{ backgroundColor: site.primaryColor }}>
+              <Link href="/partners">{site.partnerCta1}</Link>
             </Button>
             <Button variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-10 h-14 rounded-none">
-              Nous contacter
+              {site.partnerCta2}
             </Button>
           </div>
         </div>
