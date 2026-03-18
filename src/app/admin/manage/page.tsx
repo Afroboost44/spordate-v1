@@ -23,26 +23,26 @@ import Link from 'next/link';
 type Tab = 'cockpit' | 'users' | 'partners' | 'credits' | 'promos' | 'tarifs' | 'site' | 'settings' | 'errors';
 
 interface SiteConfig {
-  heroTitle1: string;
-  heroTitle2: string;
-  heroTitle3: string;
-  heroSubtitle: string;
-  ctaText: string;
-  primaryColor: string;
-  step1Title: string; step1Desc: string;
-  step2Title: string; step2Desc: string;
-  step3Title: string; step3Desc: string;
+  heroTitle1: string; heroTitle2: string; heroTitle3: string;
+  heroSubtitle: string; ctaText: string; primaryColor: string;
+  heroImage: string;
+  step1Title: string; step1Desc: string; step1Image: string;
+  step2Title: string; step2Desc: string; step2Image: string;
+  step3Title: string; step3Desc: string; step3Image: string;
+  sectionTitle: string; sectionSubtitle: string;
+  ctaFinalTitle: string; ctaFinalSubtitle: string; ctaFinalButton: string;
+  [key: string]: string;
 }
 const DEFAULT_SITE: SiteConfig = {
-  heroTitle1: "Rencontre quelqu'un",
-  heroTitle2: "en partageant une",
-  heroTitle3: "activité sportive.",
+  heroTitle1: "Rencontre quelqu'un", heroTitle2: "en partageant une", heroTitle3: "activité sportive.",
   heroSubtitle: "Danse, fitness, running... Choisis ton sport, matche, et vis une vraie rencontre.",
-  ctaText: "Commencer",
-  primaryColor: "#D91CD2",
-  step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... Selectionne tes activites et ton niveau.",
-  step2Title: "Matche & discute", step2Desc: "On te propose des partenaires pres de toi. Connecte-toi, organise ta session.",
-  step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'experience commence ici.",
+  ctaText: "Commencer", primaryColor: "#D91CD2",
+  heroImage: "https://picsum.photos/seed/hero-dance/1920/1080",
+  step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... Selectionne tes activites et ton niveau.", step1Image: "https://picsum.photos/seed/step1/800/600",
+  step2Title: "Matche & discute", step2Desc: "On te propose des partenaires pres de toi. Connecte-toi, organise ta session.", step2Image: "https://picsum.photos/seed/step2/800/600",
+  step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'experience commence ici.", step3Image: "https://picsum.photos/seed/step3/800/600",
+  sectionTitle: "Trouve ton move.", sectionSubtitle: "Sport ou danse, debutant ou avance. Chaque activite est une opportunite de rencontre.",
+  ctaFinalTitle: "Pret a bouger ?", ctaFinalSubtitle: "Rejoins la communaute. Trouve ton partenaire.", ctaFinalButton: "Creer mon profil",
 };
 
 interface UserItem { uid: string; displayName: string; email: string; role: string; city: string; isPremium: boolean; credits: number; isVisible?: boolean; createdAt: any; }
@@ -572,100 +572,107 @@ export default function AdminManagePage() {
           </div>
         )}
 
-        {/* ===== SITE CONFIG ===== */}
+        {/* ===== SITE CONFIG — TOUT MODIFIABLE ===== */}
         {tab === 'site' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* LEFT — Éditeur */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-base text-white font-medium">Page d'accueil</h3>
-                <Button onClick={saveSiteConfig} disabled={siteSaving} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-10 text-xs">
-                  {siteSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Settings className="h-4 w-4 mr-1" />}
-                  Sauvegarder
-                </Button>
-              </div>
-
-              {/* Couleur principale */}
-              <Card className="bg-[#111] border-white/10">
-                <CardContent className="p-4 space-y-3">
-                  <span className="text-sm text-white font-medium">Couleur principale</span>
-                  <div className="flex items-center gap-3">
-                    <input type="color" value={siteConfig.primaryColor} onChange={e => updateSite('primaryColor', e.target.value)} className="w-12 h-12 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
-                    <Input value={siteConfig.primaryColor} onChange={e => updateSite('primaryColor', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base font-mono w-32" />
-                    <div className="flex gap-2">
-                      {['#D91CD2', '#E91E63', '#7B1FA2', '#FF6B35', '#00BCD4', '#4CAF50'].map(c => (
-                        <button key={c} onClick={() => updateSite('primaryColor', c)} className="w-8 h-8 rounded-lg border border-white/10 hover:scale-110 transition" style={{ backgroundColor: c }} />
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-
-              {/* Hero textes */}
-              <Card className="bg-[#111] border-white/10">
-                <CardContent className="p-4 space-y-3">
-                  <span className="text-sm text-white font-medium">Texte Hero</span>
-                  <div><label className="text-[11px] text-white/40 block mb-1">Ligne 1</label><Input value={siteConfig.heroTitle1} onChange={e => updateSite('heroTitle1', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
-                  <div><label className="text-[11px] text-white/40 block mb-1">Ligne 2</label><Input value={siteConfig.heroTitle2} onChange={e => updateSite('heroTitle2', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
-                  <div><label className="text-[11px] text-white/40 block mb-1">Ligne 3 (colorée)</label><Input value={siteConfig.heroTitle3} onChange={e => updateSite('heroTitle3', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
-                  <div><label className="text-[11px] text-white/40 block mb-1">Sous-titre</label><Input value={siteConfig.heroSubtitle} onChange={e => updateSite('heroSubtitle', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
-                  <div><label className="text-[11px] text-white/40 block mb-1">Texte du bouton</label><Input value={siteConfig.ctaText} onChange={e => updateSite('ctaText', e.target.value)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
-                </CardContent>
-              </Card>
-
-              {/* Steps */}
-              <Card className="bg-[#111] border-white/10">
-                <CardContent className="p-4 space-y-3">
-                  <span className="text-sm text-white font-medium">3 Étapes</span>
-                  {[
-                    { title: 'step1Title', desc: 'step1Desc', num: '01' },
-                    { title: 'step2Title', desc: 'step2Desc', num: '02' },
-                    { title: 'step3Title', desc: 'step3Desc', num: '03' },
-                  ].map(s => (
-                    <div key={s.num} className="border-t border-white/5 pt-3">
-                      <span className="text-[10px] text-white/20">{s.num}</span>
-                      <Input value={(siteConfig as any)[s.title]} onChange={e => updateSite(s.title as keyof SiteConfig, e.target.value)} placeholder="Titre" className="bg-black border-white/15 h-10 text-white text-sm mt-1" />
-                      <Input value={(siteConfig as any)[s.desc]} onChange={e => updateSite(s.desc as keyof SiteConfig, e.target.value)} placeholder="Description" className="bg-black border-white/15 h-10 text-white text-sm mt-1" />
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between sticky top-0 z-10 bg-black py-2">
+              <h3 className="text-base text-white font-medium">Page d'accueil — Tout modifier</h3>
+              <Button onClick={saveSiteConfig} disabled={siteSaving} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-10 text-xs">
+                {siteSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Settings className="h-4 w-4 mr-1" />}
+                Sauvegarder tout
+              </Button>
             </div>
 
-            {/* RIGHT — Aperçu */}
-            <div className="space-y-4">
-              <h3 className="text-base text-white font-medium flex items-center gap-2"><Eye className="h-4 w-4" style={{ color: siteConfig.primaryColor }} /> Aperçu</h3>
-              <Card className="bg-[#0A0A0A] border-white/10 overflow-hidden">
-                <CardContent className="p-6 space-y-6">
-                  {/* Mini hero preview */}
-                  <div className="space-y-3">
-                    <p className="text-[10px] uppercase tracking-[0.2em]" style={{ color: siteConfig.primaryColor }}>Sport · Danse · Rencontres</p>
-                    <h2 className="text-2xl font-light text-white leading-tight">
-                      {siteConfig.heroTitle1}<br />{siteConfig.heroTitle2}<br />
-                      <span style={{ color: siteConfig.primaryColor }}>{siteConfig.heroTitle3}</span>
-                    </h2>
-                    <p className="text-xs text-white/40">{siteConfig.heroSubtitle}</p>
-                    <button className="px-6 py-2 rounded-full text-white text-xs font-medium" style={{ backgroundColor: siteConfig.primaryColor }}>
-                      {siteConfig.ctaText}
-                    </button>
-                  </div>
-                  {/* Mini steps preview */}
-                  <div className="grid grid-cols-3 gap-2 border-t border-white/5 pt-4">
-                    {[
-                      { title: siteConfig.step1Title, num: '01' },
-                      { title: siteConfig.step2Title, num: '02' },
-                      { title: siteConfig.step3Title, num: '03' },
-                    ].map(s => (
-                      <div key={s.num}>
-                        <span className="text-xl font-light text-white/10">{s.num}</span>
-                        <p className="text-[10px] text-white/60 mt-1">{s.title}</p>
-                      </div>
+            {/* Couleur */}
+            <Card className="bg-[#111] border-white/10">
+              <CardContent className="p-4 space-y-3">
+                <span className="text-sm text-white font-medium">Couleur principale</span>
+                <div className="flex items-center gap-3 flex-wrap">
+                  <input type="color" value={siteConfig.primaryColor} onChange={e => updateSite('primaryColor', e.target.value)} className="w-12 h-12 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
+                  <Input value={siteConfig.primaryColor} onChange={e => updateSite('primaryColor', e.target.value)} className="bg-black border-white/15 h-11 text-white font-mono w-32" />
+                  <div className="flex gap-2">
+                    {['#D91CD2', '#E91E63', '#7B1FA2', '#FF6B35', '#00BCD4', '#4CAF50'].map(c => (
+                      <button key={c} onClick={() => updateSite('primaryColor', c)} className="w-8 h-8 rounded-lg border border-white/10 hover:scale-110 transition" style={{ backgroundColor: c }} />
                     ))}
                   </div>
-                </CardContent>
-              </Card>
-              <p className="text-[11px] text-white/20 text-center">Cliquez "Sauvegarder" pour appliquer sur le site.</p>
-            </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Hero */}
+            <Card className="bg-[#111] border-white/10">
+              <CardContent className="p-4 space-y-3">
+                <span className="text-sm text-white font-medium">Section Hero (haut de page)</span>
+                <div><label className="text-[11px] text-white/40 block mb-1">Ligne 1</label><Input value={siteConfig.heroTitle1} onChange={e => updateSite('heroTitle1', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div><label className="text-[11px] text-white/40 block mb-1">Ligne 2</label><Input value={siteConfig.heroTitle2} onChange={e => updateSite('heroTitle2', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div><label className="text-[11px] text-white/40 block mb-1">Ligne 3 (colorée)</label><Input value={siteConfig.heroTitle3} onChange={e => updateSite('heroTitle3', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div><label className="text-[11px] text-white/40 block mb-1">Sous-titre</label><Input value={siteConfig.heroSubtitle} onChange={e => updateSite('heroSubtitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div><label className="text-[11px] text-white/40 block mb-1">Texte bouton</label><Input value={siteConfig.ctaText} onChange={e => updateSite('ctaText', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div>
+                  <label className="text-[11px] text-white/40 block mb-1">Image de fond Hero (URL)</label>
+                  <Input value={siteConfig.heroImage} onChange={e => updateSite('heroImage', e.target.value)} placeholder="https://..." className="bg-black border-white/15 h-11 text-white text-xs" />
+                  {siteConfig.heroImage && <img src={siteConfig.heroImage} alt="hero" className="mt-2 h-20 w-full object-cover rounded-lg opacity-60" />}
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* 3 Étapes */}
+            <Card className="bg-[#111] border-white/10">
+              <CardContent className="p-4 space-y-3">
+                <span className="text-sm text-white font-medium">3 Étapes</span>
+                {[
+                  { title: 'step1Title', desc: 'step1Desc', img: 'step1Image', num: '01' },
+                  { title: 'step2Title', desc: 'step2Desc', img: 'step2Image', num: '02' },
+                  { title: 'step3Title', desc: 'step3Desc', img: 'step3Image', num: '03' },
+                ].map(s => (
+                  <div key={s.num} className="border-t border-white/5 pt-3 space-y-2">
+                    <span className="text-[10px] text-white/20 font-mono">{s.num}</span>
+                    <Input value={siteConfig[s.title]} onChange={e => updateSite(s.title as keyof SiteConfig, e.target.value)} placeholder="Titre" className="bg-black border-white/15 h-10 text-white text-sm" />
+                    <Input value={siteConfig[s.desc]} onChange={e => updateSite(s.desc as keyof SiteConfig, e.target.value)} placeholder="Description" className="bg-black border-white/15 h-10 text-white text-sm" />
+                    <div>
+                      <label className="text-[10px] text-white/30 block mb-1">Image (URL)</label>
+                      <Input value={siteConfig[s.img]} onChange={e => updateSite(s.img as keyof SiteConfig, e.target.value)} placeholder="https://..." className="bg-black border-white/15 h-10 text-white text-xs" />
+                      {siteConfig[s.img] && <img src={siteConfig[s.img]} alt={s.num} className="mt-1 h-16 w-32 object-cover rounded" />}
+                    </div>
+                  </div>
+                ))}
+              </CardContent>
+            </Card>
+
+            {/* Section Activités */}
+            <Card className="bg-[#111] border-white/10">
+              <CardContent className="p-4 space-y-3">
+                <span className="text-sm text-white font-medium">Section Activités</span>
+                <div><label className="text-[11px] text-white/40 block mb-1">Titre section</label><Input value={siteConfig.sectionTitle} onChange={e => updateSite('sectionTitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div><label className="text-[11px] text-white/40 block mb-1">Sous-titre</label><Input value={siteConfig.sectionSubtitle} onChange={e => updateSite('sectionSubtitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+              </CardContent>
+            </Card>
+
+            {/* CTA Final */}
+            <Card className="bg-[#111] border-white/10">
+              <CardContent className="p-4 space-y-3">
+                <span className="text-sm text-white font-medium">Section finale (bas de page)</span>
+                <div><label className="text-[11px] text-white/40 block mb-1">Titre</label><Input value={siteConfig.ctaFinalTitle} onChange={e => updateSite('ctaFinalTitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div><label className="text-[11px] text-white/40 block mb-1">Sous-titre</label><Input value={siteConfig.ctaFinalSubtitle} onChange={e => updateSite('ctaFinalSubtitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div><label className="text-[11px] text-white/40 block mb-1">Texte bouton</label><Input value={siteConfig.ctaFinalButton} onChange={e => updateSite('ctaFinalButton', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+              </CardContent>
+            </Card>
+
+            {/* Aperçu rapide */}
+            <Card className="bg-[#0A0A0A] border-white/10">
+              <CardContent className="p-5 space-y-4">
+                <span className="text-xs text-white/30 uppercase tracking-wider">Aperçu hero</span>
+                <div className="relative h-32 rounded-xl overflow-hidden">
+                  <img src={siteConfig.heroImage} alt="hero" className="absolute inset-0 w-full h-full object-cover opacity-30" />
+                  <div className="relative z-10 p-4">
+                    <p className="text-lg font-light text-white">{siteConfig.heroTitle1} {siteConfig.heroTitle2} <span style={{ color: siteConfig.primaryColor }}>{siteConfig.heroTitle3}</span></p>
+                    <button className="mt-2 px-4 py-1 rounded-full text-white text-xs" style={{ backgroundColor: siteConfig.primaryColor }}>{siteConfig.ctaText}</button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            <p className="text-[11px] text-white/20 text-center pb-8">Cliquez "Sauvegarder tout" pour appliquer les changements sur le site.</p>
           </div>
         )}
 

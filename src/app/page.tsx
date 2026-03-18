@@ -76,16 +76,16 @@ const SWISS_CITIES = ['Geneve', 'Zurich', 'Lausanne', 'Bern', 'Bale', 'Lucerne',
 
 export default function LandingPage() {
   const [hoveredActivity, setHoveredActivity] = useState<string | null>(null);
-  const [site, setSite] = useState({
-    heroTitle1: "Rencontre quelqu'un",
-    heroTitle2: "en partageant une",
-    heroTitle3: "activité sportive.",
+  const [site, setSite] = useState<Record<string, string>>({
+    heroTitle1: "Rencontre quelqu'un", heroTitle2: "en partageant une", heroTitle3: "activité sportive.",
     heroSubtitle: "Danse, fitness, running... Choisis ton sport, matche, et vis une vraie rencontre.",
-    ctaText: "Commencer",
-    primaryColor: "#D91CD2",
-    step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... Selectionne tes activites et ton niveau.",
-    step2Title: "Matche & discute", step2Desc: "On te propose des partenaires pres de toi. Connecte-toi, organise ta session.",
-    step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'experience commence ici.",
+    ctaText: "Commencer", primaryColor: "#D91CD2",
+    heroImage: "https://picsum.photos/seed/hero-dance/1920/1080",
+    step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... Selectionne tes activites et ton niveau.", step1Image: "https://picsum.photos/seed/step1/800/600",
+    step2Title: "Matche & discute", step2Desc: "On te propose des partenaires pres de toi. Connecte-toi, organise ta session.", step2Image: "https://picsum.photos/seed/step2/800/600",
+    step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'experience commence ici.", step3Image: "https://picsum.photos/seed/step3/800/600",
+    sectionTitle: "Trouve ton move.", sectionSubtitle: "Sport ou danse, debutant ou avance. Chaque activite est une opportunite de rencontre.",
+    ctaFinalTitle: "Pret a bouger ?", ctaFinalSubtitle: "Rejoins la communaute. Trouve ton partenaire.", ctaFinalButton: "Creer mon profil",
   });
 
   // Load site config from Firestore (admin-editable)
@@ -141,7 +141,7 @@ export default function LandingPage() {
         {/* Background image */}
         <div className="absolute inset-0 z-0">
           <img
-            src="https://picsum.photos/seed/hero-dance/1920/1080"
+            src={site.heroImage}
             alt="Dance"
             style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
             className="absolute inset-0 w-full h-full object-cover opacity-30"
@@ -193,9 +193,9 @@ export default function LandingPage() {
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5">
             {[
-              { num: '01', title: site.step1Title, desc: site.step1Desc, image: 'https://picsum.photos/seed/step1/800/600' },
-              { num: '02', title: site.step2Title, desc: site.step2Desc, image: 'https://picsum.photos/seed/step2/800/600' },
-              { num: '03', title: site.step3Title, desc: site.step3Desc, image: 'https://picsum.photos/seed/step3/800/600' },
+              { num: '01', title: site.step1Title, desc: site.step1Desc, image: site.step1Image },
+              { num: '02', title: site.step2Title, desc: site.step2Desc, image: site.step2Image },
+              { num: '03', title: site.step3Title, desc: site.step3Desc, image: site.step3Image },
             ].map((step) => (
               <div key={step.num} className="bg-black p-10 md:p-14 group">
                 <div className="relative h-64 mb-10 overflow-hidden">
@@ -223,7 +223,7 @@ export default function LandingPage() {
             <div>
               <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-4">Activites</p>
               <h2 className="text-4xl md:text-6xl font-extralight tracking-tight">
-                Trouve ton move.
+                {site.sectionTitle}
               </h2>
             </div>
             <p className="text-sm font-light text-white/40 max-w-sm leading-relaxed">
@@ -393,13 +393,13 @@ export default function LandingPage() {
         </div>
         <div className="relative z-10 container mx-auto px-6 text-center">
           <h2 className="text-4xl md:text-7xl font-extralight tracking-tight mb-8">
-            Pret a bouger ?
+            {site.ctaFinalTitle}
           </h2>
           <p className="text-lg font-light text-white/50 mb-12 max-w-md mx-auto">
-            Rejoins la communaute. Trouve ton partenaire.
+            {site.ctaFinalSubtitle}
           </p>
-          <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-normal text-sm tracking-widest uppercase px-14 h-16 rounded-none neon-glow">
-            <Link href="/signup">Creer mon profil</Link>
+          <Button asChild className="text-white font-normal text-sm tracking-widest uppercase px-14 h-16 rounded-none neon-glow" style={{ backgroundColor: site.primaryColor }}>
+            <Link href="/signup">{site.ctaFinalButton}</Link>
           </Button>
         </div>
       </section>
