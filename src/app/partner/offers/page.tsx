@@ -25,8 +25,10 @@ interface Activity {
   activityId: string;
   partnerId: string;
   name: string;
+  description: string;
   sport: string;
   price: number;
+  duration: number;
   city: string;
   address: string;
   schedule: string;
@@ -56,8 +58,10 @@ export default function PartnerOffersPage() {
   const [editing, setEditing] = useState<Activity | null>(null);
 
   const [formName, setFormName] = useState('');
+  const [formDesc, setFormDesc] = useState('');
   const [formSport, setFormSport] = useState('');
   const [formPrice, setFormPrice] = useState('');
+  const [formDuration, setFormDuration] = useState('60');
   const [formCity, setFormCity] = useState('');
   const [formAddress, setFormAddress] = useState('');
   const [formSchedule, setFormSchedule] = useState('');
@@ -80,17 +84,17 @@ export default function PartnerOffersPage() {
   };
 
   const resetForm = () => {
-    setFormName(''); setFormSport(''); setFormPrice(''); setFormCity('');
-    setFormAddress(''); setFormSchedule(''); setFormMax('10'); setFormImage('');
+    setFormName(''); setFormDesc(''); setFormSport(''); setFormPrice(''); setFormDuration('60');
+    setFormCity(''); setFormAddress(''); setFormSchedule(''); setFormMax('10'); setFormImage('');
   };
 
   const openCreate = () => { setEditing(null); resetForm(); setOpen(true); };
 
   const openEdit = (act: Activity) => {
-    setEditing(act); setFormName(act.name); setFormSport(act.sport);
-    setFormPrice(String(act.price)); setFormCity(act.city); setFormAddress(act.address || '');
-    setFormSchedule(act.schedule); setFormMax(String(act.maxParticipants)); setFormImage(act.imageUrl || '');
-    setOpen(true);
+    setEditing(act); setFormName(act.name); setFormDesc(act.description || ''); setFormSport(act.sport);
+    setFormPrice(String(act.price)); setFormDuration(String(act.duration || 60)); setFormCity(act.city);
+    setFormAddress(act.address || ''); setFormSchedule(act.schedule); setFormMax(String(act.maxParticipants));
+    setFormImage(act.imageUrl || ''); setOpen(true);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -99,7 +103,8 @@ export default function PartnerOffersPage() {
     setSaving(true);
     try {
       const data = {
-        name: formName, sport: formSport, price: parseInt(formPrice) || 0,
+        name: formName, description: formDesc, sport: formSport,
+        price: parseInt(formPrice) || 0, duration: parseInt(formDuration) || 60,
         city: formCity, address: formAddress, schedule: formSchedule,
         maxParticipants: parseInt(formMax) || 10, imageUrl: formImage,
         partnerId: user.uid, isActive: true, updatedAt: serverTimestamp(),
@@ -154,7 +159,13 @@ export default function PartnerOffersPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {activities.map((act) => (
-            <Card key={act.activityId} className={`bg-[#1A1A1A] border-white/5 transition-all ${!act.isActive ? 'opacity-50' : ''}`}>
+            <Card key={act.activityId} className={`bg-[#1A1A1A] border-white/5 transition-all overflow-hidden ${!act.isActive ? 'opacity-50' : ''}`}>
+              {act.imageUrl && (
+                <div className="relative h-36 w-full">
+                  <img src={act.imageUrl} alt={act.name} className="w-full h-full object-cover" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent" />
+                </div>
+              )}
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div>
@@ -165,8 +176,11 @@ export default function PartnerOffersPage() {
                   </div>
                   <Switch checked={act.isActive} onCheckedChange={() => handleToggleActive(act)} />
                 </div>
+                {act.description && (
+                  <p className="text-xs text-white/30 mb-3 line-clamp-2">{act.description}</p>
+                )}
                 <div className="space-y-2 text-sm text-white/50 mb-4">
-                  <p className="flex items-center gap-2"><span className="text-[#D91CD2]">{act.sport}</span> · <span className="text-white font-medium">{act.price} CHF</span></p>
+                  <p className="flex items-center gap-2"><span className="text-[#D91CD2]">{act.sport}</span> · <span className="text-white font-medium">{act.price} CHF</span> · <span>{act.duration || 60} min</span></p>
                   <p className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {act.city}{act.address ? ` — ${act.address}` : ''}</p>
                   <p className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> {act.schedule}</p>
                   <p className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {act.currentParticipants || 0}/{act.maxParticipants} participants</p>
@@ -188,10 +202,23 @@ export default function PartnerOffersPage() {
               <DialogTitle className="text-white text-xl font-light">{editing ? "Modifier l'activité" : "Nouvelle activité"}</DialogTitle>
               <DialogDescription>{editing ? "Mettez à jour les détails." : "Créez une activité pour recevoir des réservations."}</DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-6">
+            <div className="grid gap-4 py-6 max-h-[60vh] overflow-y-auto pr-2">
               <div className="grid gap-2">
-                <Label className="text-white/50">Nom *</Label>
+                <Label className="text-white/50">Nom de l&apos;activité *</Label>
                 <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Cours de Zumba" className="bg-[#1A1A1A] border-white/10 h-12" required />
+              </div>
+              <div className="grid gap-2">
+                <Label className="text-white/50">Description</Label>
+                <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Décrivez votre activité, l'ambiance, ce que les participants vont vivre..." className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[80px] resize-none focus:outline-none focus:ring-1 focus:ring-[#D91CD2]" />
+              </div>
+              <div className="grid gap-2">
+                <Label className="text-white/50">Image (URL)</Label>
+                <Input value={formImage} onChange={e => setFormImage(e.target.value)} placeholder="https://... ou laisser vide pour l'image par défaut" className="bg-[#1A1A1A] border-white/10 h-12" />
+                {formImage && (
+                  <div className="relative h-32 w-full rounded-lg overflow-hidden border border-white/10">
+                    <img src={formImage} alt="Aperçu" className="w-full h-full object-cover" />
+                  </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
@@ -205,6 +232,16 @@ export default function PartnerOffersPage() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
+                  <Label className="text-white/50">Durée (min) *</Label>
+                  <Input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" placeholder="60" className="bg-[#1A1A1A] border-white/10 h-12" required />
+                </div>
+                <div className="grid gap-2">
+                  <Label className="text-white/50">Places max</Label>
+                  <Input value={formMax} onChange={e => setFormMax(e.target.value)} type="number" placeholder="10" className="bg-[#1A1A1A] border-white/10 h-12" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
                   <Label className="text-white/50">Ville *</Label>
                   <Select value={formCity} onValueChange={setFormCity}><SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12"><SelectValue placeholder="Choisir" /></SelectTrigger><SelectContent>{CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select>
                 </div>
@@ -213,15 +250,9 @@ export default function PartnerOffersPage() {
                   <Input value={formAddress} onChange={e => setFormAddress(e.target.value)} placeholder="Rue du Sport 12" className="bg-[#1A1A1A] border-white/10 h-12" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label className="text-white/50">Horaires *</Label>
-                  <Input value={formSchedule} onChange={e => setFormSchedule(e.target.value)} placeholder="Lundi 18h00" className="bg-[#1A1A1A] border-white/10 h-12" required />
-                </div>
-                <div className="grid gap-2">
-                  <Label className="text-white/50">Places max</Label>
-                  <Input value={formMax} onChange={e => setFormMax(e.target.value)} type="number" placeholder="10" className="bg-[#1A1A1A] border-white/10 h-12" />
-                </div>
+              <div className="grid gap-2">
+                <Label className="text-white/50">Horaires *</Label>
+                <Input value={formSchedule} onChange={e => setFormSchedule(e.target.value)} placeholder="Mar 19h, Jeu 19h, Sam 10h" className="bg-[#1A1A1A] border-white/10 h-12" required />
               </div>
             </div>
             <DialogFooter className="gap-2">
