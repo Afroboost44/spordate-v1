@@ -8,11 +8,13 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
   Dumbbell, ArrowRight, CheckCircle, X, TrendingUp, Users, Wallet,
-  CalendarCheck, Star, Shield, Zap, Gift, MapPin, Phone, Mail, Building2,
-  ChevronRight, ArrowLeft
+  CalendarCheck, Star, Shield, Zap, Gift, Loader2, ArrowLeft
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const ACTIVITIES = ['Danse / Zumba', 'Afroboost', 'Fitness', 'Yoga', 'Running', 'Crossfit', 'Massage / Bien-être', 'Autre'];
 const CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Lucerne', 'Fribourg', 'Neuchâtel', 'Autre'];
@@ -22,12 +24,56 @@ export default function PartnersPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({ name: '', activity: '', city: '', phone: '', email: '' });
   const [submitted, setSubmitted] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // In production, save to Firestore
-    setSubmitted(true);
-    toast({ title: 'Demande envoyée !', description: 'Nous vous contacterons sous 24h.' });
+    setError('');
+    setIsLoading(true);
+
+    try {
+      if (!db || !isFirebaseConfigured) {
+        throw new Error("Service indisponible. Réessayez plus tard.");
+      }
+
+      // Save partner request to Firestore
+      const requestRef = doc(collection(db, 'partnerRequests'));
+      await setDoc(requestRef, {
+        requestId: requestRef.id,
+        name: formData.name,
+        email: formData.email,
+        phone: formData.phone,
+        activity: formData.activity,
+        city: formData.city,
+        status: 'pending', // pending → contacted → approved → rejected
+        notes: '',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Also create a notification for admin
+      const notifRef = doc(collection(db, 'notifications'));
+      await setDoc(notifRef, {
+        notificationId: notifRef.id,
+        userId: 'admin', // Will be picked up by admin dashboard
+        type: 'partner_request',
+        title: 'Nouvelle demande partenaire',
+        body: `${formData.name} (${formData.city}) souhaite rejoindre Spordateur.`,
+        data: { requestId: requestRef.id, partnerName: formData.name, email: formData.email },
+        isRead: false,
+        createdAt: serverTimestamp(),
+      });
+
+      setSubmitted(true);
+      toast({ title: 'Demande envoyée !', description: 'Nous vous contacterons sous 24h.' });
+
+    } catch (err: any) {
+      console.error('[Partner Request]', err);
+      setError(err.message || "Erreur lors de l'envoi. Réessayez.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -65,7 +111,7 @@ export default function PartnersPage() {
             </h1>
 
             <p className="text-lg font-light text-white/50 max-w-lg leading-relaxed">
-              Spordateur t'envoie des personnes prêtes à réserver et à payer pour vivre une expérience sportive à deux.
+              Spordateur t&apos;envoie des personnes prêtes à réserver et à payer pour vivre une expérience sportive à deux.
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4">
@@ -97,7 +143,7 @@ export default function PartnersPage() {
             <div className="bg-[#D91CD2]/5 border border-[#D91CD2]/20 rounded-3xl p-8 space-y-4">
               <Zap className="h-8 w-8 text-[#D91CD2]" />
               <h3 className="text-xl font-light text-white">La solution Spordateur</h3>
-              <p className="text-white/50 font-light leading-relaxed">Des clients motivés, envoyés directement dans tes cours. Ils ont déjà payé — tu n'as plus qu'à les accueillir.</p>
+              <p className="text-white/50 font-light leading-relaxed">Des clients motivés, envoyés directement dans tes cours. Ils ont déjà payé — tu n&apos;as plus qu&apos;à les accueillir.</p>
             </div>
           </div>
         </div>
@@ -108,7 +154,7 @@ export default function PartnersPage() {
         <div className="container mx-auto px-6">
           <div className="text-center mb-16">
             <p className="text-sm text-[#D91CD2] uppercase tracking-[0.3em] mb-4">Comment ça marche</p>
-            <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">3 étapes. C'est tout.</h2>
+            <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">3 étapes. C&apos;est tout.</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
             {[
@@ -206,7 +252,7 @@ export default function PartnersPage() {
       <section className="py-16 border-t border-white/5">
         <div className="container mx-auto px-6 max-w-2xl text-center space-y-4">
           <p className="text-lg text-white/60 font-light italic">
-            "Nous sélectionnons seulement quelques partenaires par ville pour garantir leur visibilité."
+            &ldquo;Nous sélectionnons seulement quelques partenaires par ville pour garantir leur visibilité.&rdquo;
           </p>
           <p className="text-[#D91CD2] font-medium">Ta ville est-elle encore disponible ?</p>
         </div>
@@ -219,22 +265,47 @@ export default function PartnersPage() {
             <div className="text-center space-y-6 py-12">
               <CheckCircle className="h-16 w-16 text-green-400 mx-auto" />
               <h2 className="text-3xl font-light text-white">Demande envoyée !</h2>
-              <p className="text-white/40">Nous vous contacterons sous 24h pour activer votre compte.</p>
-              <Button asChild variant="outline" className="border-white/20 text-white/60"><Link href="/">Retour à l'accueil</Link></Button>
+              <p className="text-white/40">
+                Votre demande a bien été enregistrée. Notre équipe vous contactera sous 24h pour finaliser votre inscription et activer votre compte partenaire.
+              </p>
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-left space-y-3">
+                <p className="text-xs text-white/30 uppercase tracking-wider mb-3">Prochaines étapes</p>
+                <div className="flex items-center gap-3">
+                  <span className="h-6 w-6 rounded-full bg-green-500/20 text-green-400 flex items-center justify-center text-xs">1</span>
+                  <span className="text-sm text-white/60">Demande enregistrée</span>
+                  <CheckCircle className="h-4 w-4 text-green-400 ml-auto" />
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="h-6 w-6 rounded-full bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs">2</span>
+                  <span className="text-sm text-white/60">Validation par l&apos;administrateur</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="h-6 w-6 rounded-full bg-white/10 text-white/30 flex items-center justify-center text-xs">3</span>
+                  <span className="text-sm text-white/40">Création du compte + paiement abonnement</span>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="h-6 w-6 rounded-full bg-white/10 text-white/30 flex items-center justify-center text-xs">4</span>
+                  <span className="text-sm text-white/40">Accès au portail partenaire</span>
+                </div>
+              </div>
+              <Button asChild variant="outline" className="border-white/20 text-white/60">
+                <Link href="/">Retour à l&apos;accueil</Link>
+              </Button>
             </div>
           ) : (
             <>
               <div className="text-center mb-10">
                 <h2 className="text-3xl md:text-4xl font-extralight tracking-tight mb-3">Rejoindre Spordateur</h2>
-                <p className="text-white/40 font-light">Remplis le formulaire et on s'occupe du reste.</p>
+                <p className="text-white/40 font-light">Remplis le formulaire et on s&apos;occupe du reste.</p>
               </div>
               <form onSubmit={handleSubmit} className="space-y-4">
+                {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                 <div>
-                  <label className="text-xs text-white/40 block mb-1.5">Nom de l'établissement *</label>
+                  <label className="text-xs text-white/40 block mb-1.5">Nom de l&apos;établissement *</label>
                   <Input value={formData.name} onChange={e => setFormData(p => ({ ...p, name: e.target.value }))} placeholder="Studio Zen, Afro Dance Club..." className="bg-[#1A1A1A] border-white/10 h-12 text-white" required />
                 </div>
                 <div>
-                  <label className="text-xs text-white/40 block mb-1.5">Type d'activité *</label>
+                  <label className="text-xs text-white/40 block mb-1.5">Type d&apos;activité *</label>
                   <Select value={formData.activity} onValueChange={v => setFormData(p => ({ ...p, activity: v }))}>
                     <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12 text-white"><SelectValue placeholder="Choisir" /></SelectTrigger>
                     <SelectContent>{ACTIVITIES.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
@@ -257,7 +328,8 @@ export default function PartnersPage() {
                     <Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="contact@..." className="bg-[#1A1A1A] border-white/10 h-12 text-white" required />
                   </div>
                 </div>
-                <Button type="submit" className="w-full h-14 bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold text-base rounded-full mt-4">
+                <Button type="submit" disabled={isLoading} className="w-full h-14 bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold text-base rounded-full mt-4">
+                  {isLoading ? <Loader2 className="animate-spin mr-2 h-5 w-5" /> : null}
                   Rejoindre Spordateur <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
                 <div className="flex items-center justify-center gap-4 text-[11px] text-white/20 mt-4">

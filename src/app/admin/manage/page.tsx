@@ -66,6 +66,7 @@ interface PartnerItem { partnerId: string; name: string; email: string; city: st
 interface TxItem { transactionId: string; userId: string; amount: number; status: string; package: string; paymentMethod: string; createdAt: any; }
 interface ErrorItem { logId: string; message: string; source: string; level: string; resolved: boolean; createdAt: any; }
 interface PricingItem { id: string; label: string; price: number; credits: number; type: string; interval?: string; isActive: boolean; }
+interface PartnerRequestItem { requestId: string; name: string; email: string; phone: string; activity: string; city: string; status: string; notes: string; createdAt: any; updatedAt: any; }
 
 export default function AdminManagePage() {
   const { user } = useAuth();
@@ -74,6 +75,7 @@ export default function AdminManagePage() {
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [partners, setPartners] = useState<PartnerItem[]>([]);
+  const [partnerRequests, setPartnerRequests] = useState<PartnerRequestItem[]>([]);
   const [transactions, setTransactions] = useState<TxItem[]>([]);
   const [errors, setErrors] = useState<ErrorItem[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -113,16 +115,18 @@ export default function AdminManagePage() {
       ];
       setPricing(defaults);
 
-      const [uSnap, pSnap, tSnap, eSnap] = await Promise.all([
+      const [uSnap, pSnap, tSnap, eSnap, prSnap] = await Promise.all([
         getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(200))),
         getDocs(query(collection(db, 'partners'), orderBy('createdAt', 'desc'))),
         getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(100))),
         getDocs(query(collection(db, 'errorLogs'), where('resolved', '==', false), orderBy('createdAt', 'desc'), limit(50))),
+        getDocs(query(collection(db, 'partnerRequests'), orderBy('createdAt', 'desc'), limit(50))),
       ]);
       setUsers(uSnap.docs.map(d => ({ ...d.data(), uid: d.id } as UserItem)));
       setPartners(pSnap.docs.map(d => d.data() as PartnerItem));
       setTransactions(tSnap.docs.map(d => d.data() as TxItem));
       setErrors(eSnap.docs.map(d => d.data() as ErrorItem));
+      setPartnerRequests(prSnap.docs.map(d => ({ ...d.data(), requestId: d.id } as PartnerRequestItem)));
       // Load saved pricing from settings/pricing (single source of truth)
       try {
         const { getDoc: getDocFn } = await import('firebase/firestore');
@@ -164,6 +168,7 @@ export default function AdminManagePage() {
   const premiumUsers = users.filter(u => u.isPremium).length;
   const activePartners = partners.filter(p => p.isActive).length;
   const pendingPartners = partners.filter(p => !p.isApproved && p.subscriptionStatus === 'active');
+  const pendingRequests = partnerRequests.filter(r => r.status === 'pending');
   const todayTx = transactions.filter(t => {
     if (!t.createdAt?.toDate) return false;
     const d = t.createdAt.toDate();
@@ -296,6 +301,13 @@ export default function AdminManagePage() {
   const updateSite = (field: keyof SiteConfig, value: string) => {
     setSiteConfig(prev => ({ ...prev, [field]: value }));
   };
+  const updatePartnerRequest = async (requestId: string, newStatus: string, name: string) => {
+    if (!db) return;
+    await updateDoc(doc(db, 'partnerRequests', requestId), { status: newStatus, updatedAt: serverTimestamp() });
+    setPartnerRequests(partnerRequests.map(r => r.requestId === requestId ? { ...r, status: newStatus } : r));
+    const labels: Record<string, string> = { contacted: 'Contacté', approved: 'Approuvé', rejected: 'Refusé' };
+    toast({ title: `${name} — ${labels[newStatus] || newStatus}` });
+  };
   const resolveError = async (logId: string) => {
     if (!db) return;
     await updateDoc(doc(db, 'errorLogs', logId), { resolved: true, resolvedAt: serverTimestamp() });
@@ -306,7 +318,7 @@ export default function AdminManagePage() {
   const TABS: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'cockpit', label: 'Cockpit', icon: <BarChart3 className="h-4 w-4" /> },
     { id: 'users', label: 'Utilisateurs', icon: <Users className="h-4 w-4" />, count: totalUsers },
-    { id: 'partners', label: 'Partenaires', icon: <Building2 className="h-4 w-4" />, count: pendingPartners.length > 0 ? pendingPartners.length : partners.length },
+    { id: 'partners', label: 'Partenaires', icon: <Building2 className="h-4 w-4" />, count: (pendingRequests.length + pendingPartners.length) > 0 ? (pendingRequests.length + pendingPartners.length) : partners.length },
     { id: 'credits', label: 'Crédits', icon: <CreditCard className="h-4 w-4" /> },
     { id: 'promos', label: 'Promos', icon: <Gift className="h-4 w-4" /> },
     { id: 'tarifs', label: 'Tarifs', icon: <Wallet className="h-4 w-4" /> },
@@ -356,13 +368,25 @@ export default function AdminManagePage() {
         {tab === 'cockpit' && (
           <div className="space-y-4">
             {/* Pending partner alert */}
+            {pendingRequests.length > 0 && (
+              <Card className="bg-[#D91CD2]/5 border-[#D91CD2]/20 cursor-pointer hover:bg-[#D91CD2]/10 transition" onClick={() => setTab('partners')}>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full bg-[#D91CD2] animate-pulse" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-[#D91CD2]">{pendingRequests.length} nouvelle(s) demande(s) de partenariat</p>
+                    <p className="text-xs text-white/40">Formulaire de contact — cliquez pour traiter</p>
+                  </div>
+                  <Building2 className="h-5 w-5 text-[#D91CD2]" />
+                </CardContent>
+              </Card>
+            )}
             {pendingPartners.length > 0 && (
               <Card className="bg-amber-500/5 border-amber-500/20 cursor-pointer hover:bg-amber-500/10 transition" onClick={() => setTab('partners')}>
                 <CardContent className="p-4 flex items-center gap-3">
                   <div className="h-3 w-3 rounded-full bg-amber-400 animate-pulse" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-amber-400">{pendingPartners.length} demande(s) partenaire en attente</p>
-                    <p className="text-xs text-white/40">Cliquez pour voir et valider les demandes</p>
+                    <p className="text-sm font-medium text-amber-400">{pendingPartners.length} partenaire(s) payé(s) en attente d&apos;approbation</p>
+                    <p className="text-xs text-white/40">Cliquez pour voir et valider</p>
                   </div>
                   <Building2 className="h-5 w-5 text-amber-400" />
                 </CardContent>
@@ -435,6 +459,86 @@ export default function AdminManagePage() {
         {/* ===== PARTNERS ===== */}
         {tab === 'partners' && (
           <div className="space-y-6">
+            {/* New partner requests from /partners form */}
+            {pendingRequests.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-[#D91CD2] animate-pulse" />
+                  <h3 className="text-sm font-medium text-[#D91CD2] uppercase tracking-wider">
+                    Nouvelles demandes ({pendingRequests.length})
+                  </h3>
+                </div>
+                {pendingRequests.map(r => (
+                  <Card key={r.requestId} className="bg-[#D91CD2]/5 border-[#D91CD2]/20">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-medium text-white">{r.name}</span>
+                            <Badge className="text-[10px] bg-[#D91CD2]/10 text-[#D91CD2] border-[#D91CD2]/20">{r.activity}</Badge>
+                          </div>
+                          <p className="text-xs text-white/40">{r.email} {r.phone ? `· ${r.phone}` : ''}</p>
+                          <p className="text-xs text-white/30 flex items-center gap-1"><MapPin className="h-3 w-3" /> {r.city}</p>
+                          {r.createdAt?.toDate && (
+                            <p className="text-[10px] text-white/20">Demande le {r.createdAt.toDate().toLocaleDateString('fr-CH')}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-green-500/20 border border-green-500/30 text-green-400 hover:bg-green-500/30 text-xs h-9 px-4"
+                            onClick={() => updatePartnerRequest(r.requestId, 'contacted', r.name)}
+                          >
+                            Contacter
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs h-9 px-3"
+                            onClick={() => {
+                              if (confirm(`Refuser la demande de ${r.name} ?`)) {
+                                updatePartnerRequest(r.requestId, 'rejected', r.name);
+                              }
+                            }}
+                          >
+                            Refuser
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* Already contacted / processed requests */}
+            {partnerRequests.filter(r => r.status === 'contacted').length > 0 && (
+              <div className="space-y-3">
+                <h3 className="text-xs text-white/30 uppercase tracking-wider">Demandes contactées ({partnerRequests.filter(r => r.status === 'contacted').length})</h3>
+                {partnerRequests.filter(r => r.status === 'contacted').map(r => (
+                  <Card key={r.requestId} className="bg-[#1A1A1A] border-white/5">
+                    <CardContent className="p-3 flex items-center gap-3">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-white">{r.name}</span>
+                          <Badge className="text-[9px] bg-blue-500/10 text-blue-400 border-blue-500/20">Contacté</Badge>
+                          <Badge className="text-[9px] bg-white/5 text-white/40 border-white/10">{r.activity}</Badge>
+                        </div>
+                        <p className="text-[11px] text-white/25">{r.email} · {r.city}</p>
+                      </div>
+                      <Button
+                        size="sm"
+                        className="bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 text-xs h-8 px-3"
+                        onClick={() => updatePartnerRequest(r.requestId, 'approved', r.name)}
+                      >
+                        Approuvé (inscrit)
+                      </Button>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
             {/* Pending approval requests (paid but not yet approved) */}
             {pendingPartners.length > 0 && (
               <div className="space-y-3">
