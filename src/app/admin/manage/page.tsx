@@ -62,7 +62,7 @@ const DEFAULT_SITE: SiteConfig = {
 };
 
 interface UserItem { uid: string; displayName: string; email: string; role: string; city: string; isPremium: boolean; credits: number; isVisible?: boolean; createdAt: any; }
-interface PartnerItem { partnerId: string; name: string; city: string; isActive: boolean; isApproved: boolean; totalBookings: number; totalRevenue: number; }
+interface PartnerItem { partnerId: string; name: string; email: string; city: string; phone: string; type: string; isActive: boolean; isApproved: boolean; subscriptionStatus: string; totalBookings: number; totalRevenue: number; createdAt: any; }
 interface TxItem { transactionId: string; userId: string; amount: number; status: string; package: string; paymentMethod: string; createdAt: any; }
 interface ErrorItem { logId: string; message: string; source: string; level: string; resolved: boolean; createdAt: any; }
 interface PricingItem { id: string; label: string; price: number; credits: number; type: string; interval?: string; isActive: boolean; }
@@ -163,6 +163,7 @@ export default function AdminManagePage() {
   const totalUsers = users.length;
   const premiumUsers = users.filter(u => u.isPremium).length;
   const activePartners = partners.filter(p => p.isActive).length;
+  const pendingPartners = partners.filter(p => !p.isApproved && p.subscriptionStatus === 'active');
   const todayTx = transactions.filter(t => {
     if (!t.createdAt?.toDate) return false;
     const d = t.createdAt.toDate();
@@ -305,7 +306,7 @@ export default function AdminManagePage() {
   const TABS: { id: Tab; label: string; icon: React.ReactNode; count?: number }[] = [
     { id: 'cockpit', label: 'Cockpit', icon: <BarChart3 className="h-4 w-4" /> },
     { id: 'users', label: 'Utilisateurs', icon: <Users className="h-4 w-4" />, count: totalUsers },
-    { id: 'partners', label: 'Partenaires', icon: <Building2 className="h-4 w-4" />, count: partners.length },
+    { id: 'partners', label: 'Partenaires', icon: <Building2 className="h-4 w-4" />, count: pendingPartners.length > 0 ? pendingPartners.length : partners.length },
     { id: 'credits', label: 'Crédits', icon: <CreditCard className="h-4 w-4" /> },
     { id: 'promos', label: 'Promos', icon: <Gift className="h-4 w-4" /> },
     { id: 'tarifs', label: 'Tarifs', icon: <Wallet className="h-4 w-4" /> },
@@ -354,6 +355,19 @@ export default function AdminManagePage() {
         {/* ===== COCKPIT ===== */}
         {tab === 'cockpit' && (
           <div className="space-y-4">
+            {/* Pending partner alert */}
+            {pendingPartners.length > 0 && (
+              <Card className="bg-amber-500/5 border-amber-500/20 cursor-pointer hover:bg-amber-500/10 transition" onClick={() => setTab('partners')}>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="h-3 w-3 rounded-full bg-amber-400 animate-pulse" />
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-amber-400">{pendingPartners.length} demande(s) partenaire en attente</p>
+                    <p className="text-xs text-white/40">Cliquez pour voir et valider les demandes</p>
+                  </div>
+                  <Building2 className="h-5 w-5 text-amber-400" />
+                </CardContent>
+              </Card>
+            )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
                 { label: 'Revenus total', value: `${totalRevenue.toFixed(0)} CHF`, icon: <Wallet className="h-4 w-4 text-[#D91CD2]" /> },
@@ -420,22 +434,88 @@ export default function AdminManagePage() {
 
         {/* ===== PARTNERS ===== */}
         {tab === 'partners' && (
-          <div className="space-y-2">
-            {filteredPartners.length === 0 && <p className="text-white/30 text-center py-8">Aucun partenaire</p>}
-            {filteredPartners.map(p => (
-              <Card key={p.partnerId} className="bg-[#1A1A1A] border-white/5">
-                <CardContent className="p-3 flex items-center gap-3">
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm text-white">{p.name}</span>
-                    <p className="text-[11px] text-white/25">{p.city} · {p.totalBookings || 0} réservations · {(p.totalRevenue || 0).toFixed(0)} CHF</p>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">Visible</span><Switch checked={p.isActive} onCheckedChange={() => togglePartner(p.partnerId, 'isActive', p.isActive)} /></div>
-                    <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">Approuvé</span><Switch checked={p.isApproved} onCheckedChange={() => togglePartner(p.partnerId, 'isApproved', p.isApproved)} /></div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
+          <div className="space-y-6">
+            {/* Pending approval requests (paid but not yet approved) */}
+            {pendingPartners.length > 0 && (
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-2 w-2 rounded-full bg-amber-400 animate-pulse" />
+                  <h3 className="text-sm font-medium text-amber-400 uppercase tracking-wider">
+                    Demandes en attente ({pendingPartners.length})
+                  </h3>
+                </div>
+                {pendingPartners.map(p => (
+                  <Card key={p.partnerId} className="bg-amber-500/5 border-amber-500/20">
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0 space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-base font-medium text-white">{p.name}</span>
+                            <Badge className="text-[10px] bg-green-500/10 text-green-400 border-green-500/20">Payé</Badge>
+                          </div>
+                          <p className="text-xs text-white/40">{p.email} · {p.phone || 'N/A'}</p>
+                          <p className="text-xs text-white/30">{p.city} · {p.type || 'studio'}</p>
+                          {p.createdAt?.toDate && (
+                            <p className="text-[10px] text-white/20">Inscrit le {p.createdAt.toDate().toLocaleDateString('fr-CH')}</p>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            className="bg-green-500/20 border border-green-500/30 text-green-400 hover:bg-green-500/30 text-xs h-9 px-4"
+                            onClick={() => {
+                              togglePartner(p.partnerId, 'isApproved', false);
+                              togglePartner(p.partnerId, 'isActive', false);
+                              toast({ title: `${p.name} approuvé !`, description: 'Le partenaire a maintenant accès au portail.' });
+                            }}
+                          >
+                            Approuver
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="border-red-500/30 text-red-400 hover:bg-red-500/10 text-xs h-9 px-3"
+                            onClick={() => {
+                              if (confirm(`Refuser ${p.name} ?`)) {
+                                toast({ title: `${p.name} refusé`, variant: 'destructive' });
+                              }
+                            }}
+                          >
+                            Refuser
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+
+            {/* All partners list */}
+            <div className="space-y-2">
+              <h3 className="text-xs text-white/30 uppercase tracking-wider">Tous les partenaires ({filteredPartners.length})</h3>
+              {filteredPartners.length === 0 && <p className="text-white/30 text-center py-8">Aucun partenaire</p>}
+              {filteredPartners.map(p => (
+                <Card key={p.partnerId} className="bg-[#1A1A1A] border-white/5">
+                  <CardContent className="p-3 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm text-white">{p.name}</span>
+                        {p.subscriptionStatus === 'active' && <Badge className="text-[9px] bg-green-500/10 text-green-400 border-green-500/20">Abo actif</Badge>}
+                        {p.subscriptionStatus === 'trial' && <Badge className="text-[9px] bg-yellow-500/10 text-yellow-400 border-yellow-500/20">Non payé</Badge>}
+                        {p.subscriptionStatus === 'cancelled' && <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">Annulé</Badge>}
+                        {!p.isApproved && p.subscriptionStatus === 'active' && <Badge className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20">En attente</Badge>}
+                      </div>
+                      <p className="text-[11px] text-white/25">{p.email} · {p.city} · {p.totalBookings || 0} réservations · {(p.totalRevenue || 0).toFixed(0)} CHF</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">Visible</span><Switch checked={p.isActive} onCheckedChange={() => togglePartner(p.partnerId, 'isActive', p.isActive)} /></div>
+                      <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">Approuvé</span><Switch checked={p.isApproved} onCheckedChange={() => togglePartner(p.partnerId, 'isApproved', p.isApproved)} /></div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
           </div>
         )}
 

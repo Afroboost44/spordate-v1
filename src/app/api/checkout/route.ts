@@ -67,7 +67,7 @@ async function loadPackages(): Promise<typeof DEFAULT_PACKAGES> {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { packageId, userId, matchId, referralCode } = body;
+    const { packageId, userId, matchId, referralCode, partnerId } = body;
 
     const PACKAGES = await loadPackages();
 
@@ -93,12 +93,17 @@ export async function POST(request: NextRequest) {
     const isPremium = packageId.startsWith('premium_');
 
     // Determine success/cancel URLs based on package type
-    const successUrl = isPremium
-      ? `${baseUrl}/premium?status=success&session_id={CHECKOUT_SESSION_ID}`
-      : `${baseUrl}/payment?status=success&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = isPremium
-      ? `${baseUrl}/premium?status=cancel`
-      : `${baseUrl}/payment?status=cancel`;
+    const isPartner = packageId === 'partner_monthly';
+    const successUrl = isPartner
+      ? `${baseUrl}/partner/login?status=success&session_id={CHECKOUT_SESSION_ID}`
+      : isPremium
+        ? `${baseUrl}/premium?status=success&session_id={CHECKOUT_SESSION_ID}`
+        : `${baseUrl}/payment?status=success&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = isPartner
+      ? `${baseUrl}/partner/login?status=cancel`
+      : isPremium
+        ? `${baseUrl}/premium?status=cancel`
+        : `${baseUrl}/payment?status=cancel`;
 
     // TWINT only works with one-time payments, not subscriptions
     const paymentMethodTypes: ('card' | 'twint')[] = isSubscription ? ['card'] : ['card', 'twint'];
@@ -115,6 +120,7 @@ export async function POST(request: NextRequest) {
         matchId: matchId || '',
         referralCode: referralCode || '',
         isPremium: isPremium ? 'true' : 'false',
+        partnerId: partnerId || '',
       },
     };
 
@@ -137,6 +143,7 @@ export async function POST(request: NextRequest) {
           userId,
           packageId,
           isPremium: isPremium ? 'true' : 'false',
+          partnerId: partnerId || '',
         },
       };
     } else {

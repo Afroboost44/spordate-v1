@@ -181,6 +181,35 @@ async function handlePaymentSuccess(session: Record<string, unknown>, stripe: In
     });
   }
 
+  // 5b. Activate Partner subscription if applicable
+  const partnerId = meta.partnerId;
+  if (packageId === 'partner_monthly' && partnerId) {
+    const partnerRef = db.collection('partners').doc(partnerId);
+    const partnerSnap = await partnerRef.get();
+    if (partnerSnap.exists) {
+      batch.update(partnerRef, {
+        subscriptionStatus: 'active',
+        subscriptionEnd: null, // Managed by Stripe recurring
+        updatedAt: FV.serverTimestamp(),
+      });
+    }
+  } else if (packageId === 'partner_monthly' && !partnerId) {
+    // Try to find partner by userId (email match)
+    const userDoc = await db.collection('users').doc(userId).get();
+    if (userDoc.exists) {
+      const userEmail = userDoc.data()?.email;
+      if (userEmail) {
+        const pSnap = await db.collection('partners').where('email', '==', userEmail).limit(1).get();
+        if (!pSnap.empty) {
+          batch.update(pSnap.docs[0].ref, {
+            subscriptionStatus: 'active',
+            updatedAt: FV.serverTimestamp(),
+          });
+        }
+      }
+    }
+  }
+
   // 6. Notification
   const nRef = db.collection('notifications').doc();
   const notifBody = isPremium
@@ -303,7 +332,27 @@ async function handleSubCancelled(sub: Record<string, unknown>) {
   // Handle partner subscription cancellation
   const pid = meta.partnerId;
   if (pid) {
-    await db.collection('partners').doc(pid).update({ subscriptionStatus: 'cancelled', updatedAt: FV.serverTimestamp() });
+    await db.collection('partners').doc(pid).update({
+      subscriptionStatus: 'cancelled',
+      isActive: false,
+      updatedAt: FV.serverTimestamp(),
+    });
+  } else if (meta.packageId === 'partner_monthly' && meta.userId) {
+    // Find partner by user email
+    const userDoc = await db.collection('users').doc(meta.userId).get();
+    if (userDoc.exists) {
+      const email = userDoc.data()?.email;
+      if (email) {
+        const pSnap = await db.collection('partners').where('email', '==', email).limit(1).get();
+        if (!pSnap.empty) {
+          await pSnap.docs[0].ref.update({
+            subscriptionStatus: 'cancelled',
+            isActive: false,
+            updatedAt: FV.serverTimestamp(),
+          });
+        }
+      }
+    }
   }
 
   // Handle user premium cancellation
