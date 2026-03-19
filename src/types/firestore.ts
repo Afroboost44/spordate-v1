@@ -219,6 +219,7 @@ export interface Creator {
 
 // ===================== PARTNERS =====================
 export type PartnerType = 'gym' | 'studio' | 'outdoor' | 'pool';
+export type PartnerStatus = 'pending_payment' | 'paid' | 'pending_validation' | 'active' | 'refused' | 'suspended' | 'cancelled';
 export type SubscriptionStatus = 'active' | 'trial' | 'expired' | 'cancelled';
 
 export interface Partner {
@@ -234,7 +235,8 @@ export interface Partner {
   description: string;
   logo: string;
   images: string[];
-  subscriptionStatus: SubscriptionStatus;
+  status: PartnerStatus;           // NEW: main partner lifecycle status
+  subscriptionStatus: SubscriptionStatus; // kept for backward compat
   subscriptionEnd: Timestamp;
   monthlyFee: number;
   promoCode: string;
@@ -246,6 +248,13 @@ export interface Partner {
   rating: number;
   reviewCount: number;
   createdAt: Timestamp;
+  updatedAt: Timestamp;
+}
+
+// ===================== COMMISSION SETTINGS =====================
+export interface CommissionSettings {
+  enabled: boolean;
+  defaultRate: number;  // e.g. 0.20 = 20%
   updatedAt: Timestamp;
 }
 

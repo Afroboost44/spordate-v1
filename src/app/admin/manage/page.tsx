@@ -95,6 +95,10 @@ export default function AdminManagePage() {
   // Notification
   const [notifTitle, setNotifTitle] = useState('');
   const [notifBody, setNotifBody] = useState('');
+  // Commission
+  const [commissionEnabled, setCommissionEnabled] = useState(false);
+  const [commissionRate, setCommissionRate] = useState('20');
+  const [commissionSaving, setCommissionSaving] = useState(false);
 
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
@@ -158,6 +162,16 @@ export default function AdminManagePage() {
           setSiteConfig({ ...DEFAULT_SITE, ...siteSnap.data() as Partial<SiteConfig> });
         }
       } catch { /* use defaults */ }
+      // Load commission settings
+      try {
+        const { getDoc: getDocFn3 } = await import('firebase/firestore');
+        const commSnap = await getDocFn3(doc(db, 'settings', 'commission'));
+        if (commSnap.exists()) {
+          const cData = commSnap.data();
+          setCommissionEnabled(cData?.enabled ?? false);
+          setCommissionRate(String(Math.round((cData?.defaultRate ?? 0.20) * 100)));
+        }
+      } catch { /* defaults */ }
     } catch (err) { console.error(err); }
     finally { setLoading(false); }
   };
@@ -300,6 +314,20 @@ export default function AdminManagePage() {
   };
   const updateSite = (field: keyof SiteConfig, value: string) => {
     setSiteConfig(prev => ({ ...prev, [field]: value }));
+  };
+  const saveCommission = async () => {
+    if (!db) return;
+    setCommissionSaving(true);
+    try {
+      await setDoc(doc(db, 'settings', 'commission'), {
+        enabled: commissionEnabled,
+        defaultRate: parseFloat(commissionRate) / 100,
+        updatedAt: serverTimestamp(),
+      });
+      toast({ title: 'Commission sauvegardée', description: `${commissionEnabled ? commissionRate + '%' : 'Désactivée'}` });
+    } catch (err) {
+      toast({ variant: 'destructive', title: 'Erreur', description: String(err) });
+    } finally { setCommissionSaving(false); }
   };
   const updatePartnerRequest = async (requestId: string, newStatus: string, name: string) => {
     if (!db) return;
@@ -620,6 +648,35 @@ export default function AdminManagePage() {
                 </Card>
               ))}
             </div>
+
+            {/* Commission Settings */}
+            <Card className="bg-[#1A1A1A] border-white/5">
+              <CardContent className="p-5 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm text-white/50">Commission sur les réservations</h3>
+                  <Switch checked={commissionEnabled} onCheckedChange={v => setCommissionEnabled(v)} />
+                </div>
+                {commissionEnabled && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-white/30 block mb-1">Taux de commission (%)</label>
+                      <div className="flex items-center gap-3">
+                        <Input type="number" min="0" max="100" value={commissionRate} onChange={e => setCommissionRate(e.target.value)} className="bg-black border-white/10 h-11 w-24" />
+                        <span className="text-white/30 text-sm">%</span>
+                        <div className="flex-1 text-right">
+                          <p className="text-xs text-white/20">Ex: activité 20 CHF → admin {((20 * parseFloat(commissionRate || '0')) / 100).toFixed(2)} CHF · partenaire {(20 - (20 * parseFloat(commissionRate || '0')) / 100).toFixed(2)} CHF</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {!commissionEnabled && <p className="text-xs text-white/20">Désactivé — 100% des revenus vont au partenaire</p>}
+                <Button onClick={saveCommission} disabled={commissionSaving} size="sm" className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-xs h-9">
+                  {commissionSaving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
+                  Sauvegarder commission
+                </Button>
+              </CardContent>
+            </Card>
           </div>
         )}
 
