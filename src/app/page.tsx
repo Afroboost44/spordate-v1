@@ -367,23 +367,49 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ── PARTNER CTA ── */}
+      {/* ── PARTENAIRE AFROBOOST ── */}
       <section className="py-32 md:py-48 border-t border-white/5">
-        <div className="container mx-auto px-6 text-center max-w-3xl">
-          <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-6">Partenaires</p>
-          <h2 className="text-3xl md:text-5xl font-extralight tracking-tight mb-8">
-            {site.partnerTitle}
-          </h2>
-          <p className="text-sm font-light text-white/40 leading-relaxed mb-12 max-w-lg mx-auto">
-            {site.partnerSubtitle}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild className="text-white font-normal text-sm tracking-wide uppercase px-10 h-14 rounded-none neon-glow" style={{ backgroundColor: site.primaryColor }}>
-              <Link href="/partners">{site.partnerCta1}</Link>
-            </Button>
-            <Button variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-10 h-14 rounded-none">
-              {site.partnerCta2}
-            </Button>
+        <div className="container mx-auto px-6">
+          <div className="text-center mb-16">
+            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-6">Notre partenaire</p>
+            <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">
+              Afroboost Genève
+            </h2>
+            <p className="text-sm font-light text-white/40 leading-relaxed mt-4 max-w-lg mx-auto">
+              Le premier studio partenaire Spordateur. Cours d&apos;Afroboost, Afro Dance, Zumba et Dance Fitness dans une ambiance unique.
+            </p>
+          </div>
+
+          {/* Activités Afroboost */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-px bg-white/5 mb-16">
+            {[
+              { name: 'Afroboost', schedule: 'Mar · Jeu · Sam', price: '25 CHF', emoji: '🔥' },
+              { name: 'Afro Dance', schedule: 'Mer · Sam', price: '25 CHF', emoji: '🥁' },
+              { name: 'Dance Fitness', schedule: 'Lun · Ven', price: '20 CHF', emoji: '⚡' },
+              { name: 'Zumba Afro', schedule: 'Mar · Sam', price: '20 CHF', emoji: '💃' },
+            ].map((act) => (
+              <div key={act.name} className="bg-black p-8 group hover:bg-[#D91CD2]/5 transition-colors duration-300">
+                <span className="text-3xl mb-4 block">{act.emoji}</span>
+                <h3 className="text-lg font-normal text-white mb-2">{act.name}</h3>
+                <p className="text-xs font-light text-white/30 mb-4">{act.schedule}</p>
+                <p className="text-sm font-light text-[#D91CD2]">{act.price} / session</p>
+              </div>
+            ))}
+          </div>
+
+          {/* CTA Partenaire */}
+          <div className="text-center space-y-6">
+            <p className="text-sm font-light text-white/30">
+              Studio de danse ou salle de sport ? Rejoins le réseau Spordateur.
+            </p>
+            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+              <Button asChild className="text-white font-normal text-sm tracking-wide uppercase px-10 h-14 rounded-none neon-glow" style={{ backgroundColor: site.primaryColor }}>
+                <Link href="/partners">Devenir partenaire</Link>
+              </Button>
+              <Button variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-10 h-14 rounded-none">
+                Nous contacter
+              </Button>
+            </div>
           </div>
         </div>
       </section>
