@@ -13,8 +13,7 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { db, isFirebaseConfigured } from '@/lib/firebase';
-import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+// Partner requests are sent via API route (bypasses Firestore rules)
 
 const ACTIVITIES = ['Danse / Zumba', 'Afroboost', 'Fitness', 'Yoga', 'Running', 'Crossfit', 'Massage / Bien-être', 'Autre'];
 const CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Lucerne', 'Fribourg', 'Neuchâtel', 'Autre'];
@@ -33,37 +32,20 @@ export default function PartnersPage() {
     setIsLoading(true);
 
     try {
-      if (!db || !isFirebaseConfigured) {
-        throw new Error("Service indisponible. Réessayez plus tard.");
-      }
-
-      // Save partner request to Firestore
-      const requestRef = doc(collection(db, 'partnerRequests'));
-      await setDoc(requestRef, {
-        requestId: requestRef.id,
-        name: formData.name,
-        email: formData.email,
-        phone: formData.phone,
-        activity: formData.activity,
-        city: formData.city,
-        status: 'pending', // pending → contacted → approved → rejected
-        notes: '',
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+      // Send via API route (server-side Firebase Admin — bypasses Firestore rules)
+      const res = await fetch('/api/partner-request', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          phone: formData.phone,
+          activity: formData.activity,
+          city: formData.city,
+        }),
       });
-
-      // Also create a notification for admin
-      const notifRef = doc(collection(db, 'notifications'));
-      await setDoc(notifRef, {
-        notificationId: notifRef.id,
-        userId: 'admin', // Will be picked up by admin dashboard
-        type: 'partner_request',
-        title: 'Nouvelle demande partenaire',
-        body: `${formData.name} (${formData.city}) souhaite rejoindre Spordateur.`,
-        data: { requestId: requestRef.id, partnerName: formData.name, email: formData.email },
-        isRead: false,
-        createdAt: serverTimestamp(),
-      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Erreur lors de l'envoi.");
 
       setSubmitted(true);
       toast({ title: 'Demande envoyée !', description: 'Nous vous contacterons sous 24h.' });

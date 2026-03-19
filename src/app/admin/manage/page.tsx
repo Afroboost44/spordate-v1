@@ -119,18 +119,33 @@ export default function AdminManagePage() {
       ];
       setPricing(defaults);
 
-      const [uSnap, pSnap, tSnap, eSnap, prSnap] = await Promise.all([
+      // Use allSettled so one failing query doesn't block the rest
+      const [uRes, pRes, tRes, eRes, prRes] = await Promise.allSettled([
         getDocs(query(collection(db, 'users'), orderBy('createdAt', 'desc'), limit(200))),
         getDocs(query(collection(db, 'partners'), orderBy('createdAt', 'desc'))),
         getDocs(query(collection(db, 'transactions'), orderBy('createdAt', 'desc'), limit(100))),
-        getDocs(query(collection(db, 'errorLogs'), where('resolved', '==', false), orderBy('createdAt', 'desc'), limit(50))),
-        getDocs(query(collection(db, 'partnerRequests'), orderBy('createdAt', 'desc'), limit(50))),
+        getDocs(query(collection(db, 'errorLogs'), limit(50))),
+        getDocs(collection(db, 'partnerRequests')),
       ]);
-      setUsers(uSnap.docs.map(d => ({ ...d.data(), uid: d.id } as UserItem)));
-      setPartners(pSnap.docs.map(d => d.data() as PartnerItem));
-      setTransactions(tSnap.docs.map(d => d.data() as TxItem));
-      setErrors(eSnap.docs.map(d => d.data() as ErrorItem));
-      setPartnerRequests(prSnap.docs.map(d => ({ ...d.data(), requestId: d.id } as PartnerRequestItem)));
+      if (uRes.status === 'fulfilled') setUsers(uRes.value.docs.map(d => ({ ...d.data(), uid: d.id } as UserItem)));
+      else console.warn('[Admin] users query failed:', uRes.reason);
+      if (pRes.status === 'fulfilled') setPartners(pRes.value.docs.map(d => d.data() as PartnerItem));
+      else console.warn('[Admin] partners query failed:', pRes.reason);
+      if (tRes.status === 'fulfilled') setTransactions(tRes.value.docs.map(d => d.data() as TxItem));
+      else console.warn('[Admin] transactions query failed:', tRes.reason);
+      if (eRes.status === 'fulfilled') setErrors(eRes.value.docs.map(d => d.data() as ErrorItem));
+      else console.warn('[Admin] errorLogs query failed:', eRes.reason);
+      if (prRes.status === 'fulfilled') setPartnerRequests(prRes.value.docs.map(d => ({ ...d.data(), requestId: d.id } as PartnerRequestItem)));
+      else {
+        console.warn('[Admin] partnerRequests client query failed, trying API fallback:', prRes.reason);
+        try {
+          const apiRes = await fetch('/api/partner-request');
+          if (apiRes.ok) {
+            const apiData = await apiRes.json();
+            if (apiData.requests) setPartnerRequests(apiData.requests as PartnerRequestItem[]);
+          }
+        } catch (apiFallbackErr) { console.warn('[Admin] API fallback also failed:', apiFallbackErr); }
+      }
       // Load saved pricing from settings/pricing (single source of truth)
       try {
         const { getDoc: getDocFn } = await import('firebase/firestore');
