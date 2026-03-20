@@ -17,7 +17,7 @@ import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const ACTIVITIES = ['Danse / Zumba', 'Afroboost', 'Fitness', 'Yoga', 'Running', 'Crossfit', 'Massage / Bien-être', 'Autre'];
-const CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Lucerne', 'Fribourg', 'Neuchâtel', 'Autre'];
+const CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Lucerne', 'Fribourg', 'Neuchâtel', 'International', 'Autre'];
 
 export default function PartnersPage() {
   const { toast } = useToast();
