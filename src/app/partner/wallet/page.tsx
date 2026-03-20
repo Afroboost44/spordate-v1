@@ -7,7 +7,7 @@ import {
   Building, ArrowUpRight, TrendingUp, Clock, Loader2, ExternalLink
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from '@/hooks/useAuth';
+import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 
