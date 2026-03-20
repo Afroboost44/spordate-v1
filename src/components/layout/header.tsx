@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Dumbbell, Bell, Languages, LogOut, Crown } from 'lucide-react';
+import { Menu, Dumbbell, Bell, Languages, LogOut, Crown, Shield } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   DropdownMenu,
@@ -15,7 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 
 export default function Header() {
   const { t, setLanguage } = useLanguage();
-  const { isLoggedIn, loading, logout, user } = useAuth();
+  const { isLoggedIn, loading, logout, user, userProfile } = useAuth();
 
   const navLinks = [
     { href: "/discovery", label: t('nav_discovery') || "Découvrir" },
@@ -103,6 +103,14 @@ export default function Header() {
                             <span className="sr-only">Notifications</span>
                         </Link>
                     </Button>
+                    {userProfile?.role === 'admin' && (
+                      <Button variant="ghost" asChild className="flex items-center gap-2 text-[#D91CD2] hover:text-[#D91CD2]/80">
+                        <Link href="/admin/manage">
+                          <Shield className="h-4 w-4" />
+                          Tableau de bord
+                        </Link>
+                      </Button>
+                    )}
                     <Button variant="ghost" onClick={handleLogout} className="flex items-center gap-2">
                       <LogOut className="h-4 w-4" />
                       {t('nav_logout') || "Déconnexion"}
@@ -143,6 +151,12 @@ export default function Header() {
                     {link.label}
                   </Link>
                 ))}
+                {isLoggedIn && userProfile?.role === 'admin' && (
+                  <Link href="/admin/manage" className="px-4 py-2 rounded-md hover:bg-accent/10 text-[#D91CD2] flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Tableau de bord
+                  </Link>
+                )}
               </nav>
               <div className="absolute bottom-8 left-4 right-4 flex flex-col space-y-2">
                  {!loading && isLoggedIn ? (

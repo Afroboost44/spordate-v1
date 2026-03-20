@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   Dumbbell, LayoutDashboard, Building, LogOut, Wallet, Loader2,
-  ShieldAlert, Rocket, Menu, X
+  ShieldAlert, Rocket, Menu, X, Compass, Home
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
@@ -130,10 +130,20 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
             ))}
           </div>
 
-          <button onClick={() => { logout(); router.push('/'); }} className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light">
-            <LogOut className="h-4 w-4" />
-            <span className="hidden md:inline">Quitter</span>
-          </button>
+          <div className="flex items-center gap-2">
+            <Link href="/discovery" className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
+              <Compass className="h-4 w-4" />
+              <span className="hidden md:inline">Découvrir</span>
+            </Link>
+            <Link href="/" className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
+              <Home className="h-4 w-4" />
+              <span className="hidden md:inline">Accueil</span>
+            </Link>
+            <button onClick={() => { logout(); router.push('/'); }} className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
+              <LogOut className="h-4 w-4" />
+              <span className="hidden md:inline">Quitter</span>
+            </button>
+          </div>
         </div>
       </nav>
 
@@ -152,6 +162,18 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
                 <span>{link.label}</span>
               </Link>
             ))}
+            <div className="border-t border-white/10 pt-4 mt-4 space-y-2">
+              <Link href="/discovery" onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-5 py-4 rounded-2xl text-base font-light text-white/50 hover:bg-white/5 transition">
+                <Compass className="h-5 w-5" />
+                <span>Découvrir le site</span>
+              </Link>
+              <Link href="/" onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-3 px-5 py-4 rounded-2xl text-base font-light text-white/50 hover:bg-white/5 transition">
+                <Home className="h-5 w-5" />
+                <span>Accueil</span>
+              </Link>
+            </div>
           </div>
         </div>
       )}
