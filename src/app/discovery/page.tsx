@@ -41,6 +41,7 @@ import { DANCE_ACTIVITIES } from '@/types/firestore';
 import { createMatch } from '@/services/firestore';
 import { useCredits } from '@/hooks/useCredits';
 import BackButton from '@/components/BackButton';
+import ProfileActions from '@/components/ProfileActions';
 
 // Revenue storage key for admin sync (kept for backward compatibility)
 const TICKETS_STORAGE_KEY = 'spordate_tickets';
