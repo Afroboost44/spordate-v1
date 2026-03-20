@@ -1,9 +1,10 @@
 "use client";
 
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Dumbbell, Bell, Languages, LogOut, Crown, Shield } from 'lucide-react';
+import { Menu, Dumbbell, Bell, Languages, LogOut, Crown, Shield, Building } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   DropdownMenu,
@@ -12,10 +13,32 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { useAuth } from '@/context/AuthContext';
+import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 
 export default function Header() {
   const { t, setLanguage } = useLanguage();
   const { isLoggedIn, loading, logout, user, userProfile } = useAuth();
+  const [isPartner, setIsPartner] = useState(false);
+
+  // Check if current user is an active partner
+  useEffect(() => {
+    if (!isLoggedIn || !user?.email || !db || !isFirebaseConfigured) {
+      setIsPartner(false);
+      return;
+    }
+    const checkPartner = async () => {
+      try {
+        const q = query(collection(db, 'partners'), where('email', '==', user.email), limit(1));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const data = snap.docs[0].data();
+          setIsPartner(data.isApproved === true && data.subscriptionStatus === 'active');
+        }
+      } catch { /* silently fail */ }
+    };
+    checkPartner();
+  }, [isLoggedIn, user?.email]);
 
   const navLinks = [
     { href: "/discovery", label: t('nav_discovery') || "Découvrir" },
@@ -103,6 +126,14 @@ export default function Header() {
                             <span className="sr-only">Notifications</span>
                         </Link>
                     </Button>
+                    {isPartner && (
+                      <Button variant="ghost" asChild className="flex items-center gap-2 text-[#D91CD2] hover:text-[#D91CD2]/80">
+                        <Link href="/partner/offers">
+                          <Building className="h-4 w-4" />
+                          Espace Partenaire
+                        </Link>
+                      </Button>
+                    )}
                     {userProfile?.role === 'admin' && (
                       <Button variant="ghost" asChild className="flex items-center gap-2 text-[#D91CD2] hover:text-[#D91CD2]/80">
                         <Link href="/admin/manage">
@@ -151,6 +182,12 @@ export default function Header() {
                     {link.label}
                   </Link>
                 ))}
+                {isLoggedIn && isPartner && (
+                  <Link href="/partner/offers" className="px-4 py-2 rounded-md hover:bg-accent/10 text-[#D91CD2] flex items-center gap-2">
+                    <Building className="h-5 w-5" />
+                    Espace Partenaire
+                  </Link>
+                )}
                 {isLoggedIn && userProfile?.role === 'admin' && (
                   <Link href="/admin/manage" className="px-4 py-2 rounded-md hover:bg-accent/10 text-[#D91CD2] flex items-center gap-2">
                     <Shield className="h-5 w-5" />
