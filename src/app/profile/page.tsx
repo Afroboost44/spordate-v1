@@ -17,6 +17,7 @@ import { updateUser, getUser } from "@/services/firestore";
 import type { UserProfile, SportEntry } from "@/types/firestore";
 import { DANCE_ACTIVITIES, DANCE_LEVELS } from "@/types/firestore";
 import type { DanceCategory, DanceLevel } from "@/types/firestore";
+import BackButton from '@/components/BackButton';
 
 // Sports disponibles
 const AVAILABLE_SPORTS = [
@@ -271,6 +272,7 @@ export default function ProfilePage() {
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
+        <BackButton fallbackUrl="/discovery" />
         <Loader2 className="animate-spin mr-2" /> Chargement du profil...
       </div>
     );
