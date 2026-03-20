@@ -40,31 +40,31 @@ const FEATURED_ACTIVITIES: ActivityItem[] = [
 ];
 
 const TESTIMONIALS = [
-  { name: 'Amina K.', location: 'Gen\u00e8ve', image: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop&crop=face', text: "J'ai trouv\u00e9 ma partenaire d'Afroboost. On se motive chaque semaine, c'est devenu notre rituel.", activity: 'Afroboost' },
-  { name: 'Karim D.', location: 'Zurich', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face', text: "Fan de salsa depuis 3 ans, j'ai enfin trouv\u00e9 une partenaire \u00e0 mon niveau.", activity: 'Salsa' },
-  { name: 'L\u00e9a M.', location: 'Lausanne', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face', text: "J'ai d\u00e9couvert le Dance Fitness via l'app. Ambiance incroyable, z\u00e9ro pression.", activity: 'Dance Fitness' },
+  { name: 'Amina K.', location: 'Genève', image: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop&crop=face', text: "J'ai trouvé ma partenaire d'Afroboost. On se motive chaque semaine, c'est devenu notre rituel.", activity: 'Afroboost' },
+  { name: 'Karim D.', location: 'Zurich', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face', text: "Fan de salsa depuis 3 ans, j'ai enfin trouvé une partenaire à mon niveau.", activity: 'Salsa' },
+  { name: 'Léa M.', location: 'Lausanne', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face', text: "J'ai découvert le Dance Fitness via l'app. Ambiance incroyable, zéro pression.", activity: 'Dance Fitness' },
   { name: 'David N.', location: 'Bern', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face', text: "Bachata en duo, c'est 100x mieux. On danse, on rigole, c'est tout.", activity: 'Bachata' },
 ];
 
-const SWISS_CITIES = ['Gen\u00e8ve', 'Zurich', 'Lausanne', 'Bern', 'B\u00e2le', 'Lucerne', 'Neuch\u00e2tel', 'Fribourg'];
+const SWISS_CITIES = ['Genève', 'Zurich', 'Lausanne', 'Bern', 'Bâle', 'Lucerne', 'Neuchâtel', 'Fribourg'];
 
 // ─── COMPONENT ──────────────────────────────────────────
 
 export default function LandingPage() {
   const [hoveredActivity, setHoveredActivity] = useState<string | null>(null);
   const [site, setSite] = useState<Record<string, string>>({
-    heroTitle1: "Rencontre quelqu'un", heroTitle2: "en partageant une", heroTitle3: "activit\u00e9 sportive.",
+    heroTitle1: "Rencontre quelqu'un", heroTitle2: "en partageant une", heroTitle3: "activité sportive.",
     heroSubtitle: "Danse, fitness, running... Choisis ton sport, matche, et vis une vraie rencontre.",
     ctaText: "Commencer", primaryColor: "#D91CD2",
     heroImage: "https://images.unsplash.com/photo-1524594152303-9fd13543fe6e?w=1920&h=1080&fit=crop",
-    step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... S\u00e9lectionne tes activit\u00e9s et ton niveau.", step1Image: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&h=600&fit=crop",
-    step2Title: "Matche & discute", step2Desc: "On te propose des partenaires pr\u00e8s de toi. Connecte-toi, organise ta session.", step2Image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop",
-    step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'exp\u00e9rience commence ici.", step3Image: "https://images.unsplash.com/photo-1529516548873-9ce57c8f155e?w=800&h=600&fit=crop",
-    sectionTitle: "Trouve ton move.", sectionSubtitle: "Sport ou danse, d\u00e9butant ou avanc\u00e9. Chaque activit\u00e9 est une opportunit\u00e9 de rencontre.",
-    ctaFinalTitle: "Pr\u00eat \u00e0 bouger ?", ctaFinalSubtitle: "Rejoins la communaut\u00e9. Trouve ton partenaire.", ctaFinalButton: "Cr\u00e9er mon profil",
-    testimonialsTitle: "Ils bougent d\u00e9j\u00e0 ensemble.",
+    step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... Sélectionne tes activités et ton niveau.", step1Image: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&h=600&fit=crop",
+    step2Title: "Matche & discute", step2Desc: "On te propose des partenaires près de toi. Connecte-toi, organise ta session.", step2Image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop",
+    step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'expérience commence ici.", step3Image: "https://images.unsplash.com/photo-1529516548873-9ce57c8f155e?w=800&h=600&fit=crop",
+    sectionTitle: "Trouve ton move.", sectionSubtitle: "Sport ou danse, débutant ou avancé. Chaque activité est une opportunité de rencontre.",
+    ctaFinalTitle: "Prêt à bouger ?", ctaFinalSubtitle: "Rejoins la communauté. Trouve ton partenaire.", ctaFinalButton: "Créer mon profil",
+    testimonialsTitle: "Ils bougent déjà ensemble.",
     swissTitle: "Actif dans toute la Suisse.", swissSubtitle: "Studios partenaires, salles de danse et espaces fitness.", swissImage: "https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?w=800&h=1000&fit=crop",
-    partnerTitle: "Studio de danse ou salle de sport ?", partnerSubtitle: "Rejoins le r\u00e9seau Spordate. Remplis tes cours, gagne en visibilit\u00e9.", partnerCta1: "Devenir partenaire", partnerCta2: "Nous contacter",
+    partnerTitle: "Studio de danse ou salle de sport ?", partnerSubtitle: "Rejoins le réseau Spordate. Remplis tes cours, gagne en visibilité.", partnerCta1: "Devenir partenaire", partnerCta2: "Nous contacter",
   } as Record<string, string>);
 
   useEffect(() => {
@@ -99,9 +99,9 @@ export default function LandingPage() {
             <span className="text-lg font-light tracking-widest uppercase text-white">Spordate</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
-            <a href="#method" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">M\u00e9thode</a>
-            <a href="#activities" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Activit\u00e9s</a>
-            <a href="#stories" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">T\u00e9moignages</a>
+            <a href="#method" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Méthode</a>
+            <a href="#activities" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Activités</a>
+            <a href="#stories" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Témoignages</a>
             <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-sm font-normal tracking-wide uppercase px-6 h-10 rounded-none">
               <Link href="/signup">Rejoindre</Link>
             </Button>
@@ -133,7 +133,7 @@ export default function LandingPage() {
                 <Link href="/signup">{site.ctaText}</Link>
               </Button>
               <Button asChild variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-8 h-14 rounded-full">
-                <Link href="#method">Comment \u00e7a marche <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                <Link href="#method">Comment ça marche <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
             </div>
           </div>
@@ -144,8 +144,8 @@ export default function LandingPage() {
       <section id="method" className="py-16 md:py-24">
         <div className="container mx-auto px-4 md:px-6">
           <div className="max-w-xl mb-12">
-            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">M\u00e9thode</p>
-            <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">Trois \u00e9tapes.<br />C&apos;est tout.</h2>
+            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">Méthode</p>
+            <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">Trois étapes.<br />C&apos;est tout.</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5">
             {[
@@ -172,10 +172,10 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-12 gap-4">
             <div>
-              <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">Activit\u00e9s</p>
+              <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">Activités</p>
               <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">{site.sectionTitle}</h2>
             </div>
-            <p className="text-sm font-light text-white/40 max-w-sm leading-relaxed">Sport ou danse, d\u00e9butant ou avanc\u00e9. Chaque activit\u00e9 est une opportunit\u00e9 de rencontre.</p>
+            <p className="text-sm font-light text-white/40 max-w-sm leading-relaxed">Sport ou danse, débutant ou avancé. Chaque activité est une opportunité de rencontre.</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/5">
             {FEATURED_ACTIVITIES.map((activity) => (
@@ -198,10 +198,10 @@ export default function LandingPage() {
           <div className="mt-12 border border-white/5 p-6 md:p-10 flex flex-col md:flex-row items-center gap-8">
             <div className="flex-1">
               <h3 className="text-xl font-light tracking-wide mb-3">Matching par niveau</h3>
-              <p className="text-sm font-light text-white/40 leading-relaxed max-w-md">D\u00e9butant, interm\u00e9diaire ou avanc\u00e9. On te matche avec des partenaires de ton niveau pour une exp\u00e9rience optimale.</p>
+              <p className="text-sm font-light text-white/40 leading-relaxed max-w-md">Débutant, intermédiaire ou avancé. On te matche avec des partenaires de ton niveau pour une expérience optimale.</p>
             </div>
             <div className="flex gap-6">
-              {['D\u00e9butant', 'Interm\u00e9diaire', 'Avanc\u00e9'].map((level) => (
+              {['Débutant', 'Intermédiaire', 'Avancé'].map((level) => (
                 <div key={level} className="text-center group cursor-pointer">
                   <div className="h-14 w-14 border border-white/10 group-hover:border-[#D91CD2] transition-colors duration-300 flex items-center justify-center mb-2">
                     <span className="text-xs font-light text-white/30 group-hover:text-[#D91CD2] transition-colors uppercase">{level.charAt(0)}</span>
