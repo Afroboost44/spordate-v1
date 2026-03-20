@@ -15,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
+import BackButton from '@/components/BackButton';
 
 const ACTIVITIES = ['Danse / Zumba', 'Afroboost', 'Fitness', 'Yoga', 'Running', 'Crossfit', 'Massage / Bien-être', 'Autre'];
 const SWISS_CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Lucerne', 'Fribourg', 'Neuchâtel'];
@@ -115,6 +116,7 @@ export default function PartnersPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
+        <BackButton fallbackUrl="/discovery" />
 
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/90">
