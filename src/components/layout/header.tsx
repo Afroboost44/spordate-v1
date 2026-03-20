@@ -82,7 +82,7 @@ export default function Header() {
                 href={link.href}
                 className={
                   (link as { isPremium?: boolean }).isPremium
-                    ? "transition-colors hover:text-[#D91CD2] text-[#D91CD2]/70 flex items-center gap-1"
+                    ? "transition-colors hover:text-[#A855F7] text-[#A855F7]/70 flex items-center gap-1"
                     : "transition-colors hover:text-foreground/80 text-foreground/60"
                 }
               >
@@ -139,7 +139,7 @@ export default function Header() {
                         </Link>
                     </Button>
                     {isPartner && (
-                      <Button variant="ghost" asChild className="flex items-center gap-2 text-[#D91CD2] hover:text-[#D91CD2]/80">
+                      <Button variant="ghost" asChild className="flex items-center gap-2 text-[#A855F7] hover:text-[#A855F7]/80">
                         <Link href="/partner/offers">
                           <Building className="h-4 w-4" />
                           Espace Partenaire
@@ -147,7 +147,7 @@ export default function Header() {
                       </Button>
                     )}
                     {userProfile?.role === 'admin' && (
-                      <Button variant="ghost" asChild className="flex items-center gap-2 text-[#D91CD2] hover:text-[#D91CD2]/80">
+                      <Button variant="ghost" asChild className="flex items-center gap-2 text-[#A855F7] hover:text-[#A855F7]/80">
                         <Link href="/admin/manage">
                           <Shield className="h-4 w-4" />
                           Tableau de bord
@@ -164,7 +164,7 @@ export default function Header() {
                     <Button variant="ghost" asChild>
                         <Link href="/login">{t('nav_login') || "Connexion"}</Link>
                     </Button>
-                    <Button asChild className="bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] text-white font-semibold">
+                    <Button asChild className="bg-gradient-to-r from-[#9333EA] to-[#C026D3] text-white font-semibold">
                         <Link href="/signup">{t('nav_signup') || "Inscription"}</Link>
                     </Button>
                 </>
@@ -195,13 +195,13 @@ export default function Header() {
                   </Link>
                 ))}
                 {isLoggedIn && isPartner && (
-                  <Link href="/partner/offers" className="px-4 py-2 rounded-md hover:bg-accent/10 text-[#D91CD2] flex items-center gap-2">
+                  <Link href="/partner/offers" className="px-4 py-2 rounded-md hover:bg-accent/10 text-[#A855F7] flex items-center gap-2">
                     <Building className="h-5 w-5" />
                     Espace Partenaire
                   </Link>
                 )}
                 {isLoggedIn && userProfile?.role === 'admin' && (
-                  <Link href="/admin/manage" className="px-4 py-2 rounded-md hover:bg-accent/10 text-[#D91CD2] flex items-center gap-2">
+                  <Link href="/admin/manage" className="px-4 py-2 rounded-md hover:bg-accent/10 text-[#A855F7] flex items-center gap-2">
                     <Shield className="h-5 w-5" />
                     Tableau de bord
                   </Link>
@@ -218,7 +218,7 @@ export default function Header() {
                         <Button variant="outline" asChild className="w-full">
                            <Link href="/login">{t('nav_login') || "Connexion"}</Link>
                         </Button>
-                        <Button asChild className="w-full bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] text-white font-semibold">
+                        <Button asChild className="w-full bg-gradient-to-r from-[#9333EA] to-[#C026D3] text-white font-semibold">
                           <Link href="/signup">{t('nav_signup') || "Inscription"}</Link>
                         </Button>
                     </>
