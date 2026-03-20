@@ -1,165 +1,75 @@
 /**
- * Verify Payment API — Belt-and-suspenders credit granting
- * Called by payment success page to ensure credits are granted
- * even if the Stripe webhook hasn't fired yet.
- * Idempotent: checks transactions collection before granting.
+ * Verify Payment API - Stripe-only verification
+ * Returns verified payment info so the CLIENT can grant credits via Firestore client SDK.
+ * This avoids the need for Firebase Admin SDK credentials on the server.
  */
 import { NextRequest, NextResponse } from 'next/server';
+import Stripe from 'stripe';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-let _db: FirebaseFirestore.Firestore | null = null;
-let _FV: typeof import('firebase-admin/firestore').FieldValue | null = null;
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-04-10' });
 
-async function initAdmin() {
-  if (_db) return { db: _db, FV: _FV! };
-  const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-  const { getFirestore, FieldValue } = await import('firebase-admin/firestore');
-  if (!getApps().length) {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
-    } else {
-      initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'spordateur-claude' });
-    }
-  }
-  _db = getFirestore();
-  _FV = FieldValue;
-  return { db: _db, FV: _FV };
-}
+const PACKAGE_CREDITS: Record<string, number> = {
+  test_1chf: 1,
+  '1_date': 1,
+  '3_dates': 3,
+  '10_dates': 10,
+  premium_monthly: 5,
+  premium_yearly: 60,
+  partner_monthly: 0,
+};
 
-export async function POST(request: NextRequest) {
+export async function POST(req: NextRequest) {
   try {
-    const { sessionId, userId } = await request.json();
+    const { sessionId, userId } = await req.json();
 
     if (!sessionId || !userId) {
-      return NextResponse.json({ error: 'sessionId and userId required' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing sessionId or userId' }, { status: 400 });
     }
 
-    const apiKey = process.env.STRIPE_SECRET_KEY;
-    if (!apiKey) {
-      return NextResponse.json({ error: 'Stripe not configured' }, { status: 503 });
-    }
+    console.log('[VerifyPayment] Verifying session:', sessionId, 'for user:', userId);
 
-    // 1. Retrieve the Stripe session
-    const Stripe = (await import('stripe')).default;
-    const stripe = new Stripe(apiKey);
+    // Retrieve the Stripe checkout session
     const session = await stripe.checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status !== 'paid') {
-      return NextResponse.json({ error: 'Payment not completed', status: session.payment_status }, { status: 402 });
+      console.log('[VerifyPayment] Payment not completed:', session.payment_status);
+      return NextResponse.json({ error: 'Payment not completed' }, { status: 400 });
     }
 
-    // Verify the userId matches
-    const meta = session.metadata || {};
-    if (meta.userId !== userId) {
+    // Extract package info from metadata
+    const packageId = session.metadata?.packageId || session.metadata?.package_id || '';
+    const metaCredits = parseInt(session.metadata?.credits || '0', 10);
+    const metaUserId = session.metadata?.userId || session.metadata?.user_id || '';
+
+    // Verify the user matches
+    if (metaUserId && metaUserId !== userId) {
+      console.log('[VerifyPayment] User mismatch:', metaUserId, '!=', userId);
       return NextResponse.json({ error: 'User mismatch' }, { status: 403 });
     }
 
-    const { db, FV } = await initAdmin();
-    const creditsToGrant = parseInt(meta.creditsToGrant || '0');
-    const packageId = meta.packageId || '';
+    // Determine credits to grant
+    const credits = metaCredits || PACKAGE_CREDITS[packageId] || 0;
 
-    // 2. Idempotency check — has the webhook already processed this?
-    const existing = await db.collection('transactions')
-      .where('stripeSessionId', '==', sessionId)
-      .limit(1)
-      .get();
-
-    if (!existing.empty) {
-      // Already processed — just return current credits
-      const userDoc = await db.collection('users').doc(userId).get();
-      const credits = userDoc.exists ? (userDoc.data()?.credits || 0) : 0;
-      return NextResponse.json({
-        success: true,
-        alreadyProcessed: true,
-        credits,
-        creditsGranted: creditsToGrant,
-      });
+    if (credits <= 0) {
+      console.log('[VerifyPayment] No credits for package:', packageId);
+      return NextResponse.json({ error: 'No credits to grant' }, { status: 400 });
     }
 
-    // 3. Webhook hasn't fired yet — grant credits ourselves
-    const batch = db.batch();
+    console.log('[VerifyPayment] Verified! Credits:', credits, 'Package:', packageId);
 
-    // Transaction record
-    const txRef = db.collection('transactions').doc();
-    batch.set(txRef, {
-      transactionId: txRef.id,
-      stripeSessionId: sessionId,
-      stripePaymentIntentId: session.payment_intent || '',
-      userId,
-      type: 'credit_purchase',
-      amount: session.amount_total || 0,
-      currency: 'CHF',
-      paymentMethod: 'card',
-      status: 'succeeded',
-      metadata: meta,
-      package: packageId,
-      creditsGranted: creditsToGrant,
-      source: 'verify-payment-fallback',
-      createdAt: FV.serverTimestamp(),
-      completedAt: FV.serverTimestamp(),
-    });
-
-    // Grant credits
-    if (creditsToGrant > 0) {
-      const userRef = db.collection('users').doc(userId);
-      batch.update(userRef, {
-        credits: FV.increment(creditsToGrant),
-        updatedAt: FV.serverTimestamp(),
-      });
-
-      const creditRef = db.collection('credits').doc();
-      batch.set(creditRef, {
-        creditId: creditRef.id,
-        userId,
-        type: 'purchase',
-        amount: creditsToGrant,
-        balance: 0,
-        description: `Achat ${creditsToGrant} date(s) — verify-fallback`,
-        relatedId: txRef.id,
-        createdAt: FV.serverTimestamp(),
-      });
-    }
-
-    // Premium activation
-    if (meta.isPremium === 'true') {
-      batch.update(db.collection('users').doc(userId), {
-        isPremium: true,
-        premiumPackage: packageId,
-        premiumStartedAt: FV.serverTimestamp(),
-        updatedAt: FV.serverTimestamp(),
-      });
-    }
-
-    // Notification
-    const nRef = db.collection('notifications').doc();
-    batch.set(nRef, {
-      notificationId: nRef.id,
-      userId,
-      type: 'payment',
-      title: 'Paiement confirmé',
-      body: `${creditsToGrant} crédit(s) ajouté(s) à votre compte`,
-      data: { transactionId: txRef.id, packageId },
-      isRead: false,
-      createdAt: FV.serverTimestamp(),
-    });
-
-    await batch.commit();
-
-    // Return updated credits
-    const userDoc = await db.collection('users').doc(userId).get();
-    const credits = userDoc.exists ? (userDoc.data()?.credits || 0) : 0;
-
+    // Return verified payment info - CLIENT will write to Firestore
     return NextResponse.json({
-      success: true,
-      alreadyProcessed: false,
+      verified: true,
       credits,
-      creditsGranted: creditsToGrant,
+      packageId,
+      sessionId: session.id,
+      paymentIntent: typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id || null,
     });
-  } catch (error: unknown) {
-    console.error('[VerifyPayment] Error:', error);
-    const message = error instanceof Error ? error.message : 'Server error';
-    return NextResponse.json({ error: message }, { status: 500 });
+  } catch (err: any) {
+    console.error('[VerifyPayment] Error:', err?.message || err);
+    return NextResponse.json({ error: 'Verification failed' }, { status: 500 });
   }
 }
