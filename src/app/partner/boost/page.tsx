@@ -2,16 +2,36 @@
 
 import { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Rocket, Zap, MapPin, Clock, TrendingUp, Eye, Users, Loader2 } from 'lucide-react';
+import { Rocket, Zap, MapPin, Clock, TrendingUp, Eye, Users, Loader2, Globe, ChevronLeft } from 'lucide-react';
 
-const CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Fribourg', 'Neuchâtel', 'Toute la Suisse'];
+const SWISS_CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Fribourg', 'Neuchâtel', 'Toute la Suisse'];
+
+const INTERNATIONAL_COUNTRIES: Record<string, string[]> = {
+  'France': ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Nice', 'Bordeaux', 'Lille', 'Strasbourg', 'Autre'],
+  'Belgique': ['Bruxelles', 'Anvers', 'Liège', 'Gand', 'Charleroi', 'Autre'],
+  'Canada': ['Montréal', 'Toronto', 'Vancouver', 'Ottawa', 'Québec', 'Autre'],
+  'Côte d\'Ivoire': ['Abidjan', 'Yamoussoukro', 'Bouaké', 'Autre'],
+  'Sénégal': ['Dakar', 'Saint-Louis', 'Thiès', 'Autre'],
+  'Cameroun': ['Douala', 'Yaoundé', 'Bafoussam', 'Autre'],
+  'RD Congo': ['Kinshasa', 'Lubumbashi', 'Goma', 'Autre'],
+  'Maroc': ['Casablanca', 'Rabat', 'Marrakech', 'Tanger', 'Fès', 'Autre'],
+  'Guinée': ['Conakry', 'Nzérékoré', 'Autre'],
+  'Mali': ['Bamako', 'Sikasso', 'Autre'],
+  'Burkina Faso': ['Ouagadougou', 'Bobo-Dioulasso', 'Autre'],
+  'Autre pays': ['Autre ville'],
+};
+
 const DURATIONS = [
   { value: '24h', label: '24 heures', price: 15 },
   { value: '3d', label: '3 jours', price: 35 },
   { value: '7d', label: '1 semaine', price: 50 },
 ];
 
+type LocationMode = 'choose' | 'swiss' | 'international-country' | 'international-city';
+
 export default function PartnerBoostPage() {
+  const [locationMode, setLocationMode] = useState<LocationMode>('choose');
+  const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedDuration, setSelectedDuration] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -22,6 +42,16 @@ export default function PartnerBoostPage() {
     setIsLoading(true);
     setTimeout(() => setIsLoading(false), 2000);
   };
+
+  const resetLocation = () => {
+    setLocationMode('choose');
+    setSelectedCountry('');
+    setSelectedCity('');
+  };
+
+  const locationLabel = selectedCity
+    ? (selectedCountry ? `${selectedCity}, ${selectedCountry}` : selectedCity)
+    : '';
 
   return (
     <div className="space-y-8">
@@ -49,26 +79,119 @@ export default function PartnerBoostPage() {
               Configurer votre Boost
             </h3>
 
-            {/* City selection */}
+            {/* Location selection */}
             <div className="space-y-3">
               <label className="text-xs text-white/30 uppercase tracking-wider font-light flex items-center gap-1.5">
                 <MapPin className="h-3 w-3" /> Ville ciblée
               </label>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                {CITIES.map(city => (
+
+              {/* Show selected location badge if city is chosen */}
+              {selectedCity && (
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#D91CD2]/10 text-[#D91CD2] border border-[#D91CD2]/30 text-sm font-light">
+                    <MapPin className="h-3 w-3" />
+                    {locationLabel}
+                  </span>
                   <button
-                    key={city}
-                    onClick={() => setSelectedCity(city)}
-                    className={`px-4 py-2.5 rounded-full text-sm font-light transition border ${
-                      selectedCity === city
-                        ? 'bg-[#D91CD2]/10 text-[#D91CD2] border-[#D91CD2]/30'
-                        : 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10 hover:text-white/60'
-                    }`}
+                    onClick={resetLocation}
+                    className="text-xs text-white/30 hover:text-white/60 underline font-light transition"
                   >
-                    {city}
+                    Changer
                   </button>
-                ))}
-              </div>
+                </div>
+              )}
+
+              {/* Step 1: Choose Swiss or International */}
+              {locationMode === 'choose' && !selectedCity && (
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    onClick={() => setLocationMode('swiss')}
+                    className="flex items-center justify-center gap-2 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white/70 transition"
+                  >
+                    <span className="text-lg">🇨🇭</span>
+                    <span className="text-sm font-light">Suisse</span>
+                  </button>
+                  <button
+                    onClick={() => setLocationMode('international-country')}
+                    className="flex items-center justify-center gap-2 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white/70 transition"
+                  >
+                    <Globe className="h-5 w-5" />
+                    <span className="text-sm font-light">International</span>
+                  </button>
+                </div>
+              )}
+
+              {/* Step 2a: Swiss cities */}
+              {locationMode === 'swiss' && !selectedCity && (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setLocationMode('choose')}
+                    className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 font-light transition"
+                  >
+                    <ChevronLeft className="h-3 w-3" /> Retour
+                  </button>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                    {SWISS_CITIES.map(city => (
+                      <button
+                        key={city}
+                        onClick={() => setSelectedCity(city)}
+                        className="px-4 py-2.5 rounded-full text-sm font-light transition border bg-white/5 text-white/40 border-white/5 hover:bg-white/10 hover:text-white/60"
+                      >
+                        {city}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 2b: International — pick country */}
+              {locationMode === 'international-country' && !selectedCity && (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => setLocationMode('choose')}
+                    className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 font-light transition"
+                  >
+                    <ChevronLeft className="h-3 w-3" /> Retour
+                  </button>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {Object.keys(INTERNATIONAL_COUNTRIES).map(country => (
+                      <button
+                        key={country}
+                        onClick={() => {
+                          setSelectedCountry(country);
+                          setLocationMode('international-city');
+                        }}
+                        className="px-4 py-2.5 rounded-full text-sm font-light transition border bg-white/5 text-white/40 border-white/5 hover:bg-white/10 hover:text-white/60"
+                      >
+                        {country}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Step 3: International — pick city */}
+              {locationMode === 'international-city' && selectedCountry && !selectedCity && (
+                <div className="space-y-2">
+                  <button
+                    onClick={() => { setSelectedCountry(''); setLocationMode('international-country'); }}
+                    className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 font-light transition"
+                  >
+                    <ChevronLeft className="h-3 w-3" /> {selectedCountry}
+                  </button>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {(INTERNATIONAL_COUNTRIES[selectedCountry] || []).map(city => (
+                      <button
+                        key={city}
+                        onClick={() => setSelectedCity(city)}
+                        className="px-4 py-2.5 rounded-full text-sm font-light transition border bg-white/5 text-white/40 border-white/5 hover:bg-white/10 hover:text-white/60"
+                      >
+                        {city}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Duration selection */}
