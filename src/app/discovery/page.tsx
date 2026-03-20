@@ -135,6 +135,7 @@ export default function DiscoveryPage() {
   const [loadingProfiles, setLoadingProfiles] = useState(true);
   const [boostedPartnerIds, setBoostedPartnerIds] = useState<Set<string>>(new Set());
   const [boostedActivities_db, setBoostedActivities_db] = useState<any[]>([]);
+  const [realActivities, setRealActivities] = useState<any[]>([]);
 
   // New states for social features
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
@@ -253,7 +254,26 @@ export default function DiscoveryPage() {
       }
     };
 
+    // Load real activities from Firestore
+    const loadRealActivities = async () => {
+      try {
+        let snap;
+        try {
+          const q = query(collection(db, 'activities'), where('isActive', '==', true), orderBy('createdAt', 'desc'));
+          snap = await getDocs(q);
+        } catch {
+          const q = query(collection(db, 'activities'), where('isActive', '==', true));
+          snap = await getDocs(q);
+        }
+        const acts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setRealActivities(acts);
+      } catch (err) {
+        console.warn('[Discovery] Erreur chargement activités:', err);
+      }
+    };
+
     loadActiveBoosts();
+    loadRealActivities();
   }, []);
 
   // Load confirmed tickets and partners
@@ -1072,26 +1092,7 @@ END:VCALENDAR`;
               </Select>
             </div>
 
-            {/* Stripe Checkout Notice */}
-            <div className="bg-gradient-to-r from-[#D91CD2]/20 to-[#E91E63]/20 rounded-xl p-4 border border-[#D91CD2]/20">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-lg bg-white flex items-center justify-center">
-                  <CreditCard className="h-5 w-5 text-violet-600" />
-                </div>
-                <div>
-                  <p className="text-sm font-medium text-white">Paiement sécurisé Stripe</p>
-                  <p className="text-xs text-gray-400">TWINT • Carte bancaire • Apple Pay</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Security Notice */}
-            <div className="flex items-center gap-2 text-xs text-gray-500 bg-zinc-900/50 rounded-lg p-3">
-              <Lock className="h-4 w-4" />
-              <span>Vos données sont chiffrées. Vous serez redirigé vers Stripe Checkout.</span>
-            </div>
-
-            {/* Pay Button - with loader and disabled state */}
+            {/* Pay Button - FIRST */}
             <Button
               data-testid="pay-button"
               onClick={handlePayment}
@@ -1111,13 +1112,26 @@ END:VCALENDAR`;
                 </div>
               )}
             </Button>
+
+            {/* Stripe Checkout Notice - after pay button */}
+            <div className="bg-gradient-to-r from-[#D91CD2]/10 to-[#E91E63]/10 rounded-xl p-3 border border-white/5">
+              <div className="flex items-center gap-3">
+                <CreditCard className="h-5 w-5 text-[#D91CD2]" />
+                <div>
+                  <p className="text-xs font-medium text-white/60">Paiement sécurisé Stripe</p>
+                  <p className="text-[11px] text-white/30">TWINT • Carte bancaire • Apple Pay</p>
+                </div>
+                <Lock className="h-3.5 w-3.5 text-white/20 ml-auto" />
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
 
       {/* Match Modal — Flow: Match → Choix activité → Blocage chat → Paiement */}
       <Dialog open={isMatch} onOpenChange={setIsMatch}>
-        <DialogContent className="max-w-md w-full bg-black border-[#D91CD2]/20 text-white p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-md w-full bg-black border-[#D91CD2]/20 text-white p-0 overflow-hidden max-h-[85vh] flex flex-col">
+          <div className="overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
 
           {/* Match Header */}
           <div className="relative px-6 pt-8 pb-4 text-center bg-gradient-to-b from-[#D91CD2]/15 to-transparent">
@@ -1148,84 +1162,69 @@ END:VCALENDAR`;
             </div>
           </div>
 
-          {/* Boosted partner activities — shown first if any active boosts */}
-          {boostedActivities_db.length > 0 && (
-            <div className="px-6 pb-2">
-              <p className="text-xs text-[#D91CD2]/60 uppercase tracking-wider mb-3 font-medium flex items-center gap-1">
-                <Zap className="h-3 w-3" /> Lieux recommandés
-              </p>
-              <div className="space-y-2">
-                {boostedActivities_db.slice(0, 3).map((boost) => {
-                  const matchedPartner = partners.find(p => p.id === boost.partnerId);
-                  if (!matchedPartner) return null;
-                  return (
-                    <button
-                      key={boost.id}
-                      onClick={() => {
-                        handlePartnerSelect(matchedPartner);
-                        setIsMatch(false);
-                        handleBookSession();
-                      }}
-                      className="w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98] min-h-[48px] bg-[#D91CD2]/10 border border-[#D91CD2]/30 hover:bg-[#D91CD2]/20"
-                    >
-                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
-                        {matchedPartner.name.charAt(0)}
-                      </div>
-                      <div className="flex-1 text-left">
-                        <span className="text-sm font-medium text-white">{matchedPartner.name}</span>
-                        <p className="text-[11px] text-white/40 flex items-center gap-1">
-                          <MapPin className="h-2.5 w-2.5" />{boost.city || matchedPartner.city}
-                        </p>
-                      </div>
-                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] flex items-center gap-0.5">
-                        <Zap className="h-2.5 w-2.5" />Boost
-                      </span>
-                      <ChevronRight className="h-4 w-4 text-white/20" />
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Choix d'activité — Danse en TOP */}
+          {/* Activités disponibles — vraies activités Firestore + boostées */}
           <div className="px-6 pb-2">
-            <p className="text-xs text-white/40 uppercase tracking-wider mb-3 font-medium">Propose un date sportif</p>
+            <p className="text-xs text-white/40 uppercase tracking-wider mb-3 font-medium">Choisis une activité</p>
             <div className="space-y-2">
-              {[
-                { icon: '🔥', name: 'Danse / Zumba', tag: 'Populaire', highlight: true },
-                { icon: '💃', name: 'Afroboost', tag: 'Tendance', highlight: true },
-                { icon: '🏋️', name: 'Fitness', tag: '', highlight: false },
-                { icon: '🏃', name: 'Running', tag: '', highlight: false },
-                { icon: '🧘', name: 'Yoga', tag: '', highlight: false },
-                { icon: '🚶', name: 'Marche', tag: 'Gratuit', highlight: false },
-              ].map((activity) => (
-                <button
-                  key={activity.name}
-                  onClick={() => {
-                    setIsMatch(false);
-                    handleBookSession();
-                  }}
-                  className={`w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98] min-h-[48px] ${
-                    activity.highlight
-                      ? 'bg-[#D91CD2]/10 border border-[#D91CD2]/30 hover:bg-[#D91CD2]/20'
-                      : 'bg-white/5 border border-transparent hover:bg-white/10'
-                  }`}
-                >
-                  <span className="text-xl">{activity.icon}</span>
-                  <span className="flex-1 text-left text-sm font-medium text-white">{activity.name}</span>
-                  {activity.tag && (
-                    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                      activity.tag === 'Populaire' ? 'bg-[#D91CD2]/20 text-[#D91CD2]' :
-                      activity.tag === 'Tendance' ? 'bg-orange-500/20 text-orange-400' :
-                      'bg-green-500/20 text-green-400'
-                    }`}>
-                      {activity.tag}
-                    </span>
-                  )}
-                  <ChevronRight className="h-4 w-4 text-white/20" />
-                </button>
-              ))}
+              {/* Real activities from Firestore — boosted ones first */}
+              {realActivities.length > 0 ? (
+                <>
+                  {/* Sort: boosted first */}
+                  {[...realActivities]
+                    .sort((a, b) => {
+                      const aBoosted = boostedPartnerIds.has(a.partnerId);
+                      const bBoosted = boostedPartnerIds.has(b.partnerId);
+                      if (aBoosted && !bBoosted) return -1;
+                      if (!aBoosted && bBoosted) return 1;
+                      return 0;
+                    })
+                    .map((act) => {
+                      const isBoosted = boostedPartnerIds.has(act.partnerId);
+                      const imgUrl = act.images?.[0] || act.imageUrl || '';
+                      return (
+                        <button
+                          key={act.id}
+                          onClick={() => {
+                            setIsMatch(false);
+                            handleBookSession();
+                          }}
+                          className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all active:scale-[0.98] ${
+                            isBoosted
+                              ? 'bg-[#D91CD2]/10 border border-[#D91CD2]/30 hover:bg-[#D91CD2]/20'
+                              : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                          }`}
+                        >
+                          {imgUrl ? (
+                            <img src={imgUrl} alt={act.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                          ) : (
+                            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                              {act.sport?.charAt(0) || '?'}
+                            </div>
+                          )}
+                          <div className="flex-1 text-left min-w-0">
+                            <p className="text-sm font-medium text-white truncate">{act.name}</p>
+                            <p className="text-[11px] text-white/40 flex items-center gap-1">
+                              <span>{act.sport}</span> · <span>{act.price} CHF</span> · <MapPin className="h-2.5 w-2.5 inline" /> {act.city}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {isBoosted && (
+                              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] flex items-center gap-0.5">
+                                <Zap className="h-2.5 w-2.5" />Boost
+                              </span>
+                            )}
+                            <ChevronRight className="h-4 w-4 text-white/20" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                </>
+              ) : (
+                /* Fallback: no real activities yet */
+                <div className="text-center py-4">
+                  <p className="text-sm text-white/30">Aucune activité disponible pour le moment</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1243,6 +1242,7 @@ END:VCALENDAR`;
               Passer pour cette fois
             </button>
           </div>
+          </div>{/* end scroll wrapper */}
         </DialogContent>
       </Dialog>
 
