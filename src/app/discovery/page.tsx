@@ -216,7 +216,9 @@ export default function DiscoveryPage() {
   const loadPartnersData = async () => {
     try {
       const loadedPartners = await getPartners();
-      setPartners(loadedPartners.filter(p => p.active));
+      const activePartners = loadedPartners.filter(p => p.active);
+      // Keep defaults if no active partners found (avoids empty sidebar flash)
+      setPartners(activePartners.length > 0 ? activePartners : DEFAULT_PARTNERS);
     } catch (e) {
       setPartners(DEFAULT_PARTNERS);
     }
