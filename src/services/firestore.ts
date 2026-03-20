@@ -179,14 +179,39 @@ export async function getMatch(matchId: string): Promise<Match | null> {
 }
 
 export async function getUserMatches(uid: string, status?: string): Promise<Match[]> {
-  let q: Query;
-  if (status) {
-    q = query(getCollection('matches'), where('userIds', 'array-contains', uid), where('status', '==', status), orderBy('createdAt', 'desc'));
-  } else {
-    q = query(getCollection('matches'), where('userIds', 'array-contains', uid), orderBy('createdAt', 'desc'));
+  try {
+    let q: Query;
+    if (status) {
+      q = query(getCollection('matches'), where('userIds', 'array-contains', uid), where('status', '==', status), orderBy('createdAt', 'desc'));
+    } else {
+      q = query(getCollection('matches'), where('userIds', 'array-contains', uid), orderBy('createdAt', 'desc'));
+    }
+    const snap = await getDocs(q);
+    return snap.docs.map(d => d.data() as Match);
+  } catch (err) {
+    // Fallback: index might not be ready yet, try without orderBy
+    console.warn('[getUserMatches] Index not ready, fetching without orderBy:', err);
+    try {
+      let q: Query;
+      if (status) {
+        q = query(getCollection('matches'), where('userIds', 'array-contains', uid), where('status', '==', status));
+      } else {
+        q = query(getCollection('matches'), where('userIds', 'array-contains', uid));
+      }
+      const snap = await getDocs(q);
+      const matches = snap.docs.map(d => d.data() as Match);
+      // Sort client-side
+      matches.sort((a, b) => {
+        const dateA = a.createdAt?.toDate?.()?.getTime?.() || 0;
+        const dateB = b.createdAt?.toDate?.()?.getTime?.() || 0;
+        return dateB - dateA;
+      });
+      return matches;
+    } catch (err2) {
+      console.error('[getUserMatches] Fallback also failed:', err2);
+      return [];
+    }
   }
-  const snap = await getDocs(q);
-  return snap.docs.map(d => d.data() as Match);
 }
 
 export async function updateMatch(matchId: string, data: Partial<Match>): Promise<void> {
