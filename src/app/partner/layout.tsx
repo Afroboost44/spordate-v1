@@ -37,10 +37,9 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
     { href: "/partner/boost", label: "Boost", icon: <Rocket className="h-5 w-5" /> },
   ];
 
-  // Auth pages don't need access control
-  if (isAuthPage) return <div className="min-h-screen bg-black">{children}</div>;
-
+  // useEffect MUST be called before any early return (React hooks rules)
   useEffect(() => {
+    if (isAuthPage) { setChecking(false); return; }
     if (authLoading) return;
     if (!user) { router.push('/partner/login'); return; }
     if (!db || !isFirebaseConfigured) { setChecking(false); return; }
@@ -63,7 +62,10 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
     };
 
     checkPartnerAccess();
-  }, [user, authLoading, router]);
+  }, [user, authLoading, router, isAuthPage]);
+
+  // Auth pages don't need access control
+  if (isAuthPage) return <div className="min-h-screen bg-black">{children}</div>;
 
   if (authLoading || checking) {
     return (
