@@ -260,8 +260,8 @@ export default function PartnerRegisterPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label className="text-white/40 text-xs font-light">Numéro IDE</Label>
-                  <Input placeholder="CHE-123.456.789" required value={formData.ide} onChange={e => setFormData({...formData, ide: e.target.value})}
+                  <Label className="text-white/40 text-xs font-light">Numéro IDE <span className="text-white/20">(optionnel)</span></Label>
+                  <Input placeholder="CHE-123.456.789" value={formData.ide} onChange={e => setFormData({...formData, ide: e.target.value})}
                     className="bg-black/50 text-white border-white/10 focus:border-[#D91CD2]/50 mt-1.5 h-12 rounded-xl" />
                 </div>
                 <div>

@@ -1,102 +1,175 @@
 "use client";
 
 import { useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Wallet, CreditCard, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
+import {
+  Wallet, CreditCard, CheckCircle, AlertCircle,
+  Building, ArrowUpRight, TrendingUp, Clock, Loader2
+} from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 
 export default function PartnerWalletPage() {
-    // CORRECTION POINT 1 : État pour simuler la connexion
-    const [isConnected, setIsConnected] = useState(false);
-    const [isLoading, setIsLoading] = useState(false);
-    const { toast } = useToast();
+  const [isConnected, setIsConnected] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const { toast } = useToast();
 
-    const handleConnectStripe = () => {
-        setIsLoading(true);
-        // Simulation d'appel API
-        setTimeout(() => {
-            setIsConnected(true);
-            setIsLoading(false);
-            toast({
-                title: "Compte Bancaire Connecté ✅",
-                description: "Vous pouvez maintenant recevoir des paiements.",
-                className: "bg-green-600 text-white"
-            });
-        }, 1500);
-    };
+  const handleConnectStripe = () => {
+    setIsLoading(true);
+    setTimeout(() => {
+      setIsConnected(true);
+      setIsLoading(false);
+      toast({
+        title: "Compte bancaire connecté",
+        description: "Vous pouvez maintenant recevoir des paiements.",
+      });
+    }, 1500);
+  };
 
-    return (
-        <div className="p-6 space-y-8 min-h-screen bg-[#05090e]">
-            <div>
-                <h1 className="text-3xl font-bold text-white mb-2">Mon Portefeuille</h1>
-                <p className="text-gray-400">Gérez vos revenus et vos coordonnées bancaires.</p>
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl md:text-3xl font-extralight tracking-tight">
+          Mon Portefeuille
+        </h1>
+        <p className="text-white/40 font-light mt-1">
+          Gérez vos revenus et coordonnées bancaires.
+        </p>
+      </div>
+
+      {/* Stats cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center">
+              <Wallet className="h-5 w-5 text-[#D91CD2]" />
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* CARTE SOLDE */}
-                <Card className="bg-gradient-to-br from-gray-900 to-black border-gray-800">
-                    <CardHeader>
-                        <CardTitle className="text-gray-400 font-medium text-sm">Solde disponible</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="text-4xl font-bold text-white mb-4">375.00 CHF</div>
-                        <p className="text-sm text-gray-500 mb-6">Prochain virement automatique le 01/08/2026.</p>
-                        <Button 
-                            disabled={!isConnected} 
-                            className={`w-full ${isConnected ? 'bg-cyan-600 hover:bg-cyan-500' : 'bg-gray-700 cursor-not-allowed'}`}
-                        >
-                            {isConnected ? 'Demander un virement anticipé' : 'Connectez votre banque pour retirer'}
-                        </Button>
-                    </CardContent>
-                </Card>
-
-                {/* CARTE CONNEXION BANCAIRE (CORRIGÉE) */}
-                <Card className={`border ${isConnected ? 'bg-green-950/10 border-green-900/30' : 'bg-[#0a111a] border-gray-800'}`}>
-                    <CardHeader>
-                        <CardTitle className="flex items-center gap-2 text-white">
-                            <CreditCard className="h-5 w-5 text-cyan-500"/> Compte Bancaire
-                        </CardTitle>
-                        <CardDescription>
-                            Connecté via Stripe Secure.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        {isConnected ? (
-                            // ÉTAT CONNECTÉ
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-3 p-4 bg-green-900/20 border border-green-900/50 rounded-lg">
-                                    <CheckCircle className="h-8 w-8 text-green-500" />
-                                    <div>
-                                        <h4 className="font-bold text-green-400">Compte Actif</h4>
-                                        <p className="text-sm text-gray-400">IBAN: CH53 **** **** 9088</p>
-                                    </div>
-                                </div>
-                                <Button variant="outline" onClick={() => setIsConnected(false)} className="w-full text-red-400 border-red-900/30 hover:bg-red-900/10">
-                                    Déconnecter le compte
-                                </Button>
-                            </div>
-                        ) : (
-                            // ÉTAT NON CONNECTÉ
-                            <div className="space-y-4">
-                                <div className="flex items-center gap-2 text-yellow-500 bg-yellow-900/10 p-3 rounded border border-yellow-900/30 text-sm">
-                                    <AlertCircle className="h-4 w-4"/> Action requise pour recevoir l'argent.
-                                </div>
-                                <Button 
-                                    onClick={handleConnectStripe} 
-                                    disabled={isLoading}
-                                    className="w-full bg-[#635BFF] hover:bg-[#534be0] text-white font-bold h-12"
-                                >
-                                    {isLoading ? 'Connexion sécurisée en cours...' : 'Connecter mon compte (via Stripe)'}
-                                </Button>
-                                <p className="text-xs text-center text-gray-500">
-                                    Vous serez redirigé vers Stripe pour une connexion sécurisée.
-                                </p>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
-            </div>
+            <span className="text-xs text-white/30 uppercase tracking-wider font-light">Solde disponible</span>
+          </div>
+          <p className="text-3xl font-extralight text-white">0.00 <span className="text-base text-white/30">CHF</span></p>
         </div>
-    );
+
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
+              <TrendingUp className="h-5 w-5 text-green-400" />
+            </div>
+            <span className="text-xs text-white/30 uppercase tracking-wider font-light">Revenus totaux</span>
+          </div>
+          <p className="text-3xl font-extralight text-white">0.00 <span className="text-base text-white/30">CHF</span></p>
+        </div>
+
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+              <ArrowUpRight className="h-5 w-5 text-purple-400" />
+            </div>
+            <span className="text-xs text-white/30 uppercase tracking-wider font-light">Virements effectués</span>
+          </div>
+          <p className="text-3xl font-extralight text-white">0</p>
+        </div>
+      </div>
+
+      {/* Main content grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+        {/* Bank connection card */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center">
+              <CreditCard className="h-5 w-5 text-[#D91CD2]" />
+            </div>
+            <div>
+              <h3 className="text-base font-light text-white">Compte bancaire</h3>
+              <p className="text-xs text-white/30 font-light">Connexion sécurisée via Stripe</p>
+            </div>
+          </div>
+
+          {isConnected ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-4 bg-green-500/5 border border-green-500/10 rounded-xl">
+                <CheckCircle className="h-6 w-6 text-green-400 flex-shrink-0" />
+                <div>
+                  <p className="text-sm text-green-400 font-light">Compte actif</p>
+                  <p className="text-xs text-white/30 font-light">IBAN: CH53 •••• •••• 9088</p>
+                </div>
+              </div>
+              <Button
+                onClick={() => setIsConnected(false)}
+                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 font-light rounded-full h-11 text-sm"
+              >
+                Déconnecter le compte
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2 p-3 bg-yellow-500/5 border border-yellow-500/10 rounded-xl">
+                <AlertCircle className="h-4 w-4 text-yellow-400 flex-shrink-0" />
+                <p className="text-sm text-yellow-400/80 font-light">
+                  Connectez votre banque pour recevoir vos revenus.
+                </p>
+              </div>
+              <Button
+                onClick={handleConnectStripe}
+                disabled={isLoading}
+                className="w-full bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold rounded-full h-12"
+              >
+                {isLoading ? (
+                  <><Loader2 className="animate-spin mr-2 h-4 w-4" /> Connexion en cours...</>
+                ) : (
+                  <><Building className="mr-2 h-4 w-4" /> Connecter mon compte bancaire</>
+                )}
+              </Button>
+              <p className="text-xs text-center text-white/20 font-light">
+                Redirection sécurisée vers Stripe Connect
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Withdrawal card */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-6">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
+              <ArrowUpRight className="h-5 w-5 text-purple-400" />
+            </div>
+            <div>
+              <h3 className="text-base font-light text-white">Demander un virement</h3>
+              <p className="text-xs text-white/30 font-light">Transférer votre solde vers votre banque</p>
+            </div>
+          </div>
+
+          <div className="bg-white/5 border border-white/5 rounded-xl p-5 text-center space-y-3">
+            <p className="text-4xl font-extralight text-white">0.00 <span className="text-lg text-white/30">CHF</span></p>
+            <p className="text-xs text-white/20 font-light">Solde disponible pour retrait</p>
+          </div>
+
+          <Button
+            disabled={!isConnected}
+            className={`w-full rounded-full h-12 font-light ${
+              isConnected
+                ? 'bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white'
+                : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
+            }`}
+          >
+            {isConnected ? 'Demander un virement' : 'Connectez votre banque d\'abord'}
+          </Button>
+        </div>
+      </div>
+
+      {/* Recent transactions */}
+      <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+        <h3 className="text-base font-light text-white mb-4">Historique des transactions</h3>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="w-14 h-14 rounded-full bg-white/5 border border-white/5 flex items-center justify-center mb-4">
+            <Clock className="h-6 w-6 text-white/20" />
+          </div>
+          <p className="text-white/30 font-light text-sm">Aucune transaction pour le moment</p>
+          <p className="text-white/15 font-light text-xs mt-1">
+            Les transactions apparaîtront ici quand vous recevrez des paiements.
+          </p>
+        </div>
+      </div>
+    </div>
+  );
 }

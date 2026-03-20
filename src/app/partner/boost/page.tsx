@@ -1,83 +1,197 @@
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+"use client";
+
+import { useState } from 'react';
 import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
-import { Rocket, Zap } from 'lucide-react';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Rocket, Zap, MapPin, Clock, TrendingUp, Eye, Users, Loader2 } from 'lucide-react';
+
+const CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Fribourg', 'Neuchâtel', 'Toute la Suisse'];
+const DURATIONS = [
+  { value: '24h', label: '24 heures', price: 15 },
+  { value: '3d', label: '3 jours', price: 35 },
+  { value: '7d', label: '1 semaine', price: 50 },
+];
 
 export default function PartnerBoostPage() {
-    return (
-        <div>
-            <header className="mb-10">
-                <h1 className="text-4xl font-bold text-gray-100 flex items-center gap-3">
-                    <Rocket className="h-8 w-8 text-cyan-400" />
-                    Booster ma visibilité
-                </h1>
-                <p className="text-gray-500">Mettez vos offres en avant auprès des utilisateurs qui matchent.</p>
-            </header>
+  const [selectedCity, setSelectedCity] = useState('');
+  const [selectedDuration, setSelectedDuration] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-10 max-w-5xl mx-auto">
-                <Card className="bg-[#0a111a] border-cyan-900/50 shadow-lg shadow-cyan-900/20">
-                    <CardHeader>
-                        <CardTitle className="text-2xl text-cyan-300">Configurer votre Boost</CardTitle>
-                        <CardDescription className="text-gray-500">Ciblez les bonnes personnes, au bon moment.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
-                        <div className="grid gap-2">
-                            <Label className="text-gray-400">Villes ciblées</Label>
-                            <Select>
-                                <SelectTrigger className="bg-black border-gray-700 h-12">
-                                    <SelectValue placeholder="Choisir les villes" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-[#0a111a] border-cyan-900/50 text-white">
-                                    <SelectItem value="lausanne">Lausanne</SelectItem>
-                                    <SelectItem value="geneve">Genève</SelectItem>
-                                    <SelectItem value="fribourg">Fribourg</SelectItem>
-                                    <SelectItem value="partout">Toute la Suisse Romande</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        <div className="grid gap-2">
-                            <Label className="text-gray-400">Durée du boost</Label>
-                            <Select>
-                                <SelectTrigger className="bg-black border-gray-700 h-12">
-                                    <SelectValue placeholder="Choisir la durée" />
-                                </SelectTrigger>
-                                <SelectContent className="bg-[#0a111a] border-cyan-900/50 text-white">
-                                    <SelectItem value="24h">24 heures</SelectItem>
-                                    <SelectItem value="3d">3 jours</SelectItem>
-                                    <SelectItem value="7d">1 semaine</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-                        
-                        <div className="border-t border-cyan-900/50 pt-6 mt-4">
-                            <div className="flex justify-between items-baseline">
-                                <span className="text-lg text-gray-300">Prix du boost :</span>
-                                <span className="text-4xl font-bold text-cyan-400">50 CHF</span>
-                            </div>
-                        </div>
+  const currentPrice = DURATIONS.find(d => d.value === selectedDuration)?.price || 0;
 
-                        <Button className="w-full bg-cyan-600 hover:bg-cyan-500 text-black font-bold text-lg h-14 mt-4">
-                            <Zap className="mr-2"/> Payer et Activer
-                        </Button>
-                    </CardContent>
-                </Card>
+  const handleBoost = () => {
+    setIsLoading(true);
+    setTimeout(() => setIsLoading(false), 2000);
+  };
 
-                <div className="text-gray-400 space-y-6 p-4 rounded-lg bg-cyan-900/10">
-                    <h3 className="text-xl font-bold text-cyan-400 border-b border-cyan-800 pb-2">Comment ça marche ?</h3>
-                    <p>
-                        Un "Boost" place votre activité directement dans la fenêtre "IT'S A MATCH" des utilisateurs qui correspondent aux critères de votre offre.
-                    </p>
-                    <p>
-                        C'est le meilleur moyen de transformer un match en réservation ferme, en présentant votre lieu comme la solution idéale pour leur premier rendez-vous sportif.
-                    </p>
-                    <ul className="list-disc list-inside space-y-2 pl-2 text-gray-500">
-                       <li>Augmente la visibilité jusqu'à <span className="font-bold text-cyan-500">10x</span>.</li>
-                       <li>Ciblage précis par ville.</li>
-                       <li>Apparaît comme une offre "recommandée".</li>
-                    </ul>
-                </div>
-            </div>
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <div className="flex items-center gap-3 mb-2">
+          <div className="w-10 h-10 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center">
+            <Rocket className="h-5 w-5 text-[#D91CD2]" />
+          </div>
+          <h1 className="text-2xl md:text-3xl font-extralight tracking-tight">
+            Booster ma visibilité
+          </h1>
         </div>
-    );
+        <p className="text-white/40 font-light mt-1">
+          Mettez vos offres en avant auprès des utilisateurs qui matchent.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
+
+        {/* Configuration — left column */}
+        <div className="md:col-span-3 space-y-6">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-6">
+            <h3 className="text-sm text-[#D91CD2] uppercase tracking-[0.2em] font-light">
+              Configurer votre Boost
+            </h3>
+
+            {/* City selection */}
+            <div className="space-y-3">
+              <label className="text-xs text-white/30 uppercase tracking-wider font-light flex items-center gap-1.5">
+                <MapPin className="h-3 w-3" /> Ville ciblée
+              </label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {CITIES.map(city => (
+                  <button
+                    key={city}
+                    onClick={() => setSelectedCity(city)}
+                    className={`px-4 py-2.5 rounded-full text-sm font-light transition border ${
+                      selectedCity === city
+                        ? 'bg-[#D91CD2]/10 text-[#D91CD2] border-[#D91CD2]/30'
+                        : 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10 hover:text-white/60'
+                    }`}
+                  >
+                    {city}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Duration selection */}
+            <div className="space-y-3">
+              <label className="text-xs text-white/30 uppercase tracking-wider font-light flex items-center gap-1.5">
+                <Clock className="h-3 w-3" /> Durée du boost
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {DURATIONS.map(d => (
+                  <button
+                    key={d.value}
+                    onClick={() => setSelectedDuration(d.value)}
+                    className={`p-4 rounded-xl text-center transition border ${
+                      selectedDuration === d.value
+                        ? 'bg-[#D91CD2]/10 border-[#D91CD2]/30'
+                        : 'bg-white/5 border-white/5 hover:bg-white/10'
+                    }`}
+                  >
+                    <p className={`text-sm font-light ${selectedDuration === d.value ? 'text-[#D91CD2]' : 'text-white/50'}`}>
+                      {d.label}
+                    </p>
+                    <p className={`text-2xl font-extralight mt-1 ${selectedDuration === d.value ? 'text-white' : 'text-white/30'}`}>
+                      {d.price} <span className="text-xs">CHF</span>
+                    </p>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Price + CTA */}
+            <div className="border-t border-white/5 pt-6 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-white/40 font-light">Prix du boost</span>
+                <span className="text-3xl font-extralight text-white">
+                  {currentPrice} <span className="text-sm text-white/30">CHF</span>
+                </span>
+              </div>
+
+              <Button
+                onClick={handleBoost}
+                disabled={!selectedCity || !selectedDuration || isLoading}
+                className={`w-full rounded-full h-14 text-base font-semibold ${
+                  selectedCity && selectedDuration
+                    ? 'bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white'
+                    : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
+                }`}
+              >
+                {isLoading ? (
+                  <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Traitement...</>
+                ) : (
+                  <><Zap className="mr-2 h-5 w-5" /> Payer et activer</>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Info — right column */}
+        <div className="md:col-span-2 space-y-6">
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
+            <h3 className="text-sm text-[#D91CD2] uppercase tracking-[0.2em] font-light">
+              Comment ça marche ?
+            </h3>
+            <p className="text-white/40 font-light text-sm leading-relaxed">
+              Un Boost place votre activité dans la fenêtre &quot;IT&apos;S A MATCH&quot; des utilisateurs
+              qui correspondent à votre offre. C&apos;est le meilleur moyen de transformer un match en réservation.
+            </p>
+
+            <div className="space-y-4 pt-2">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Eye className="h-4 w-4 text-[#D91CD2]" />
+                </div>
+                <div>
+                  <p className="text-sm text-white/70 font-light">Visibilité x10</p>
+                  <p className="text-xs text-white/30 font-light">Apparaissez en priorité dans les résultats</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <MapPin className="h-4 w-4 text-[#D91CD2]" />
+                </div>
+                <div>
+                  <p className="text-sm text-white/70 font-light">Ciblage précis</p>
+                  <p className="text-xs text-white/30 font-light">Touchez les utilisateurs de votre ville</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Users className="h-4 w-4 text-[#D91CD2]" />
+                </div>
+                <div>
+                  <p className="text-sm text-white/70 font-light">Badge &quot;Recommandé&quot;</p>
+                  <p className="text-xs text-white/30 font-light">Votre offre se démarque visuellement</p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <TrendingUp className="h-4 w-4 text-[#D91CD2]" />
+                </div>
+                <div>
+                  <p className="text-sm text-white/70 font-light">Plus de réservations</p>
+                  <p className="text-xs text-white/30 font-light">Convertissez les matchs en clients</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Active boosts */}
+          <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
+            <h3 className="text-sm text-white/30 uppercase tracking-wider font-light mb-4">Boosts actifs</h3>
+            <div className="flex flex-col items-center py-6 text-center">
+              <div className="w-12 h-12 rounded-full bg-white/5 border border-white/5 flex items-center justify-center mb-3">
+                <Rocket className="h-5 w-5 text-white/15" />
+              </div>
+              <p className="text-white/25 font-light text-sm">Aucun boost actif</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 }
