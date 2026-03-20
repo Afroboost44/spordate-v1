@@ -12,7 +12,7 @@ import {
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { auth, isFirebaseConfigured, db } from '@/lib/firebase';
-import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { collection, query, where, getDocs, limit, doc, setDoc, serverTimestamp, GeoPoint } from 'firebase/firestore';
 
 type PartnerStatus = 'loading' | 'no_partner' | 'needs_payment' | 'pending_approval' | 'active' | 'cancelled' | 'refused';
@@ -35,15 +35,77 @@ export default function PartnerLoginPage() {
     setIsLoading(true);
 
     try {
-      if (!auth || !isFirebaseConfigured) throw new Error("Firebase non configuré.");
-      await signInWithEmailAndPassword(auth, email, password);
-      await checkPartnerAndRedirect(email);
+      if (!auth || !isFirebaseConfigured || !db) throw new Error("Firebase non configuré.");
+
+      let userCred;
+      try {
+        // Try sign in first
+        userCred = await signInWithEmailAndPassword(auth, email, password);
+      } catch (signInErr: any) {
+        if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential') {
+          // Account doesn't exist — create it automatically
+          try {
+            userCred = await createUserWithEmailAndPassword(auth, email, password);
+            await updateProfile(userCred.user, { displayName: email.split('@')[0] });
+          } catch (createErr: any) {
+            if (createErr.code === 'auth/email-already-in-use') {
+              setError("Mot de passe incorrect. Essayez 'Mot de passe oublié ?' pour le réinitialiser.");
+            } else if (createErr.code === 'auth/weak-password') {
+              setError("Mot de passe trop court (min. 6 caractères).");
+            } else {
+              setError(createErr.message || "Erreur de connexion.");
+            }
+            setIsLoading(false);
+            return;
+          }
+        } else if (signInErr.code === 'auth/wrong-password') {
+          setError("Mot de passe incorrect.");
+          setIsLoading(false);
+          return;
+        } else if (signInErr.code === 'auth/too-many-requests') {
+          setError("Trop de tentatives. Réessayez plus tard.");
+          setIsLoading(false);
+          return;
+        } else {
+          throw signInErr;
+        }
+      }
+
+      // Check if partner doc exists, auto-create if not
+      const userEmail = userCred!.user.email || email;
+      const partnerQ = query(collection(db, 'partners'), where('email', '==', userEmail), limit(1));
+      const partnerSnap = await getDocs(partnerQ);
+
+      if (partnerSnap.empty) {
+        // Auto-create partner doc
+        const partnerId = `partner-${userCred!.user.uid}`;
+        await setDoc(doc(db, 'partners', partnerId), {
+          partnerId,
+          name: userCred!.user.displayName || userEmail.split('@')[0],
+          email: userEmail,
+          phone: '', address: '', city: '', canton: '',
+          geoPoint: new GeoPoint(0, 0),
+          type: 'studio', description: '', logo: '', images: [],
+          subscriptionStatus: 'active', subscriptionEnd: null,
+          monthlyFee: 0, promoCode: '', referralId: '',
+          isApproved: true, isActive: true,
+          totalBookings: 0, totalRevenue: 0, rating: 0, reviewCount: 0,
+          createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+        });
+        await setDoc(doc(db, 'users', userCred!.user.uid), {
+          uid: userCred!.user.uid,
+          displayName: userCred!.user.displayName || '',
+          email: userEmail, role: 'partner', city: '',
+          isPremium: false, credits: 0, createdAt: serverTimestamp(),
+        }, { merge: true });
+        router.push('/partner/dashboard');
+        return;
+      }
+
+      await checkPartnerAndRedirect(userEmail);
     } catch (err: any) {
       console.error('[Partner Login]', err);
-      if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') setError("Email ou mot de passe incorrect.");
-      else if (err.code === 'auth/wrong-password') setError("Mot de passe incorrect.");
-      else if (err.code === 'auth/too-many-requests') setError("Trop de tentatives. Réessayez plus tard.");
-      else setError(err.message || "Une erreur est survenue.");
+      setError(err.message || "Une erreur est survenue.");
       setIsLoading(false);
     }
   };
