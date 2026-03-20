@@ -110,9 +110,14 @@ export default function PartnersPage() {
               <span className="text-lg font-light tracking-widest uppercase">Spordateur</span>
             </Link>
           </div>
-          <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-xs font-normal uppercase tracking-wide px-6 h-10 rounded-full">
-            <a href="#formulaire">Devenir partenaire</a>
-          </Button>
+          <div className="flex items-center gap-3">
+            <Link href="/partner/login" className="text-xs text-white/50 hover:text-white/80 transition hidden sm:inline">
+              Espace partenaire
+            </Link>
+            <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-xs font-normal uppercase tracking-wide px-6 h-10 rounded-full">
+              <a href="#formulaire">Devenir partenaire</a>
+            </Button>
+          </div>
         </div>
       </nav>
 
@@ -358,6 +363,12 @@ export default function PartnersPage() {
                   <span className="flex items-center gap-1"><CheckCircle className="h-3 w-3" /> Support disponible</span>
                   <span className="flex items-center gap-1"><Zap className="h-3 w-3" /> Mise en ligne rapide</span>
                 </div>
+                <p className="text-center text-sm text-white/40 mt-6">
+                  Déjà partenaire ?{' '}
+                  <Link href="/partner/login" className="text-[#D91CD2] hover:underline">
+                    Se connecter à mon espace
+                  </Link>
+                </p>
               </form>
             </>
           )}
