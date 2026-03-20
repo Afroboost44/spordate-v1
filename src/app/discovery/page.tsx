@@ -334,17 +334,9 @@ export default function DiscoveryPage() {
   };
 
   const handleLike = async () => {
-    // Check credits before allowing a match
-    const credits = userProfile?.credits ?? 0;
-    if (credits <= 0) {
-      toast({
-        variant: "destructive",
-        title: "Pas de crédits",
-        description: "Achetez des crédits pour matcher et réserver une activité.",
-      });
-      router.push('/payment');
-      return;
-    }
+    // Use credit via hook (real-time check + toast + redirect)
+    const creditUsed = await useCredit();
+    if (!creditUsed) return;
 
     // Create a real match in Firestore
     if (user && currentProfile && (currentProfile as any).firestoreUid) {
@@ -370,8 +362,7 @@ export default function DiscoveryPage() {
           expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
         });
         setCurrentMatchId(matchId);
-          // Decrement credit after successful like
-          await useCredit();
+          // Credit already deducted at start of handleLike
         console.log('[Discovery] Match créé:', matchId);
       } catch (err) {
         console.error('[Discovery] Erreur création match:', err);
