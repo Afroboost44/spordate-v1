@@ -584,13 +584,13 @@ export default function ProfilePage() {
         </Card>
 
         {/* ACTIONS */}
-        <div className="fixed bottom-20 md:bottom-0 left-0 right-0 p-4 bg-black/80 backdrop-blur border-t border-gray-800 md:relative md:bg-transparent md:border-0 md:p-0 flex justify-end">
+        <div className="flex justify-center md:justify-end mt-4">
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="w-full md:w-auto bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-bold h-12 px-8"
+            className="w-auto bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-medium h-11 px-8 rounded-full text-sm"
           >
-            {isSaving ? <Loader2 className="animate-spin mr-2" /> : <Save className="mr-2 h-4 w-4" />}
+            {isSaving ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
             Sauvegarder mon profil
           </Button>
         </div>
