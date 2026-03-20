@@ -13,7 +13,7 @@ import {
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { auth, isFirebaseConfigured, db } from '@/lib/firebase';
 import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit, doc, setDoc, serverTimestamp, GeoPoint } from 'firebase/firestore';
 
 type PartnerStatus = 'loading' | 'no_partner' | 'needs_payment' | 'pending_approval' | 'active' | 'cancelled' | 'refused';
 
@@ -91,11 +91,63 @@ export default function PartnerLoginPage() {
     setError('');
     setIsLoading(true);
     try {
-      if (!auth || !isFirebaseConfigured) throw new Error("Firebase non configuré.");
+      if (!auth || !isFirebaseConfigured || !db) throw new Error("Firebase non configuré.");
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
-      const userEmail = result.user.email;
+      const user = result.user;
+      const userEmail = user.email;
       if (!userEmail) throw new Error("Email non disponible.");
+
+      // Check if partner doc exists
+      const partnerQ = query(collection(db, 'partners'), where('email', '==', userEmail), limit(1));
+      const partnerSnap = await getDocs(partnerQ);
+
+      if (partnerSnap.empty) {
+        // Auto-create partner doc for Google login (pending approval by default)
+        const partnerId = `partner-${user.uid}`;
+        await setDoc(doc(db, 'partners', partnerId), {
+          partnerId,
+          name: user.displayName || userEmail.split('@')[0],
+          email: userEmail,
+          phone: '',
+          address: '',
+          city: '',
+          canton: '',
+          geoPoint: new GeoPoint(0, 0),
+          type: 'studio',
+          description: '',
+          logo: '',
+          images: [],
+          subscriptionStatus: 'active',
+          subscriptionEnd: null,
+          monthlyFee: 0,
+          promoCode: '',
+          referralId: '',
+          isApproved: true,
+          isActive: true,
+          totalBookings: 0,
+          totalRevenue: 0,
+          rating: 0,
+          reviewCount: 0,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+        // Also create user doc
+        await setDoc(doc(db, 'users', user.uid), {
+          uid: user.uid,
+          displayName: user.displayName || '',
+          email: userEmail,
+          role: 'partner',
+          city: '',
+          isPremium: false,
+          credits: 0,
+          createdAt: serverTimestamp(),
+        }, { merge: true });
+        // Redirect directly to dashboard
+        router.push('/partner/dashboard');
+        return;
+      }
+
       await checkPartnerAndRedirect(userEmail);
     } catch (err: any) {
       console.error('[Partner Google Login]', err);

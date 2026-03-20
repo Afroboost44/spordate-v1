@@ -17,7 +17,21 @@ import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const ACTIVITIES = ['Danse / Zumba', 'Afroboost', 'Fitness', 'Yoga', 'Running', 'Crossfit', 'Massage / Bien-être', 'Autre'];
-const CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Lucerne', 'Fribourg', 'Neuchâtel', 'International', 'Autre'];
+const SWISS_CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Lucerne', 'Fribourg', 'Neuchâtel'];
+const COUNTRIES: Record<string, string[]> = {
+  'France': ['Paris', 'Lyon', 'Marseille', 'Toulouse', 'Nice', 'Bordeaux', 'Lille', 'Strasbourg', 'Autre'],
+  'Belgique': ['Bruxelles', 'Anvers', 'Liège', 'Gand', 'Charleroi', 'Autre'],
+  'Canada': ['Montréal', 'Toronto', 'Vancouver', 'Ottawa', 'Québec', 'Autre'],
+  'Côte d\'Ivoire': ['Abidjan', 'Yamoussoukro', 'Bouaké', 'Autre'],
+  'Sénégal': ['Dakar', 'Thiès', 'Saint-Louis', 'Autre'],
+  'Cameroun': ['Douala', 'Yaoundé', 'Bafoussam', 'Autre'],
+  'RD Congo': ['Kinshasa', 'Lubumbashi', 'Goma', 'Autre'],
+  'Maroc': ['Casablanca', 'Rabat', 'Marrakech', 'Tanger', 'Autre'],
+  'Guinée': ['Conakry', 'Nzérékoré', 'Kankan', 'Autre'],
+  'Mali': ['Bamako', 'Sikasso', 'Autre'],
+  'Burkina Faso': ['Ouagadougou', 'Bobo-Dioulasso', 'Autre'],
+  'Autre pays': [],
+};
 
 export default function PartnersPage() {
   const { toast } = useToast();
@@ -26,6 +40,8 @@ export default function PartnersPage() {
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [locationMode, setLocationMode] = useState<'swiss' | 'international'>('swiss');
+  const [selectedCountry, setSelectedCountry] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -338,11 +354,42 @@ export default function PartnersPage() {
                   </Select>
                 </div>
                 <div>
-                  <label className="text-xs text-white/40 block mb-1.5">Ville *</label>
-                  <Select value={formData.city} onValueChange={v => setFormData(p => ({ ...p, city: v }))}>
-                    <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12 text-white"><SelectValue placeholder="Choisir" /></SelectTrigger>
-                    <SelectContent>{CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
-                  </Select>
+                  <label className="text-xs text-white/40 block mb-1.5">Localisation *</label>
+                  {/* Swiss / International toggle */}
+                  <div className="flex gap-2 mb-3">
+                    <button type="button" onClick={() => { setLocationMode('swiss'); setSelectedCountry(''); setFormData(p => ({ ...p, city: '' })); }}
+                      className={`flex-1 h-10 rounded-full text-sm font-light transition ${locationMode === 'swiss' ? 'bg-[#D91CD2]/20 text-[#D91CD2] border border-[#D91CD2]/30' : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'}`}>
+                      Suisse
+                    </button>
+                    <button type="button" onClick={() => { setLocationMode('international'); setFormData(p => ({ ...p, city: '' })); }}
+                      className={`flex-1 h-10 rounded-full text-sm font-light transition ${locationMode === 'international' ? 'bg-[#D91CD2]/20 text-[#D91CD2] border border-[#D91CD2]/30' : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'}`}>
+                      International
+                    </button>
+                  </div>
+
+                  {locationMode === 'swiss' ? (
+                    <Select value={formData.city} onValueChange={v => setFormData(p => ({ ...p, city: v }))}>
+                      <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12 text-white"><SelectValue placeholder="Sélectionnez votre ville" /></SelectTrigger>
+                      <SelectContent>{SWISS_CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="space-y-3">
+                      <Select value={selectedCountry} onValueChange={v => { setSelectedCountry(v); setFormData(p => ({ ...p, city: '' })); }}>
+                        <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12 text-white"><SelectValue placeholder="Choisir un pays" /></SelectTrigger>
+                        <SelectContent>{Object.keys(COUNTRIES).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                      </Select>
+                      {selectedCountry && COUNTRIES[selectedCountry]?.length > 0 && (
+                        <Select value={formData.city} onValueChange={v => setFormData(p => ({ ...p, city: `${v}, ${selectedCountry}` }))}>
+                          <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12 text-white"><SelectValue placeholder="Choisir une ville" /></SelectTrigger>
+                          <SelectContent>{COUNTRIES[selectedCountry].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                        </Select>
+                      )}
+                      {selectedCountry === 'Autre pays' && (
+                        <Input placeholder="Votre ville et pays" value={formData.city} onChange={e => setFormData(p => ({ ...p, city: e.target.value }))}
+                          className="bg-[#1A1A1A] border-white/10 h-12 text-white" />
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
