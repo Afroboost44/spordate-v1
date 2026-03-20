@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Spordate - Hors ligne</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #000;
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+    .container { padding: 2rem; max-width: 400px; }
+    .logo {
+      width: 80px; height: 80px;
+      background: linear-gradient(135deg, #7B1FA2, #D91CD2);
+      border-radius: 20px;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 2rem;
+      box-shadow: 0 0 40px rgba(217, 28, 210, 0.3);
+    }
+    .logo svg { width: 48px; height: 48px; }
+    h1 { font-size: 1.5rem; font-weight: 300; margin-bottom: 1rem; }
+    p { font-size: 0.875rem; font-weight: 300; color: rgba(255,255,255,0.5); line-height: 1.6; margin-bottom: 2rem; }
+    button {
+      background: linear-gradient(135deg, #7B1FA2, #D91CD2);
+      color: #fff; border: none; padding: 14px 32px;
+      font-size: 0.875rem; font-weight: 400; letter-spacing: 0.1em;
+      text-transform: uppercase; cursor: pointer;
+      border-radius: 999px;
+      box-shadow: 0 0 20px rgba(217, 28, 210, 0.3);
+    }
+    button:hover { opacity: 0.9; }
+    .pulse { animation: pulse 2s ease-in-out infinite; }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 20px rgba(217, 28, 210, 0.3); }
+      50% { box-shadow: 0 0 40px rgba(217, 28, 210, 0.6); }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="logo pulse">
+      <svg viewBox="0 0 32 32" fill="none">
+        <path d="M20.5 8C20.5 8 22.5 8 22.5 10.5C22.5 13 18 13.5 16 14.5C14 15.5 9.5 16 9.5 19.5C9.5 23 13 24 13 24" stroke="white" stroke-width="3" stroke-linecap="round" fill="none"/>
+        <circle cx="16" cy="7.5" r="2" fill="white" opacity="0.6"/>
+        <circle cx="16" cy="24.5" r="2" fill="white" opacity="0.6"/>
+      </svg>
+    </div>
+    <h1>Hors ligne</h1>
+    <p>Tu sembles ne pas avoir de connexion internet. Reconnecte-toi pour retrouver tes matchs et activit\u00e9s.</p>
+    <button onclick="location.reload()">R\u00e9essayer</button>
+  </div>
+</body>
+</html>
