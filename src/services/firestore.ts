@@ -195,19 +195,23 @@ export async function updateMatch(matchId: string, data: Partial<Match>): Promis
 
 export async function unlockChat(matchId: string): Promise<void> {
   if (!db) throw new Error('Firestore non initialisé');
-  const batch = writeBatch(db);
-  batch.update(getDocRef('matches', matchId), { chatUnlocked: true });
-  // Message système dans le chat
-  const msgRef = doc(collection(db, 'chats', matchId, 'messages'));
-  batch.set(msgRef, {
-    messageId: msgRef.id,
-    senderId: 'system',
-    text: 'Le chat est débloqué ! Planifiez votre Sport Date 🎾',
-    type: 'system',
-    readBy: [],
-    createdAt: serverTimestamp(),
-  });
-  await batch.commit();
+  // Step 1: Unlock the match (update chatUnlocked to true)
+  await updateDoc(getDocRef('matches', matchId), { chatUnlocked: true });
+  // Step 2: Add system message (now that chatUnlocked is true, the rule allows it)
+  try {
+    const msgRef = doc(collection(db, 'chats', matchId, 'messages'));
+    await setDoc(msgRef, {
+      messageId: msgRef.id,
+      senderId: 'system',
+      text: 'Le chat est débloqué ! Planifiez votre Sport Date 🎾',
+      type: 'system',
+      readBy: [],
+      createdAt: serverTimestamp(),
+    });
+  } catch (err) {
+    // Non-critical: webhook may also create this message
+    console.warn('[unlockChat] System message creation failed (webhook may handle it):', err);
+  }
 }
 
 // ===================== ACTIVITIES =====================

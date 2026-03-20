@@ -94,16 +94,21 @@ export async function POST(request: NextRequest) {
 
     // Determine success/cancel URLs based on package type
     const isPartner = packageId === 'partner_monthly';
+    const hasMatch = matchId && matchId.length > 0;
     const successUrl = isPartner
       ? `${baseUrl}/partner/login?status=success&session_id={CHECKOUT_SESSION_ID}`
       : isPremium
         ? `${baseUrl}/premium?status=success&session_id={CHECKOUT_SESSION_ID}`
-        : `${baseUrl}/payment?status=success&session_id={CHECKOUT_SESSION_ID}`;
+        : hasMatch
+          ? `${baseUrl}/chat?payment=success&match=${matchId}&session_id={CHECKOUT_SESSION_ID}`
+          : `${baseUrl}/payment?status=success&session_id={CHECKOUT_SESSION_ID}`;
     const cancelUrl = isPartner
       ? `${baseUrl}/partner/login?status=cancel`
       : isPremium
         ? `${baseUrl}/premium?status=cancel`
-        : `${baseUrl}/payment?status=cancel`;
+        : hasMatch
+          ? `${baseUrl}/discovery?payment=cancelled`
+          : `${baseUrl}/payment?status=cancel`;
 
     // TWINT only works with one-time payments, not subscriptions
     const paymentMethodTypes: ('card' | 'twint')[] = isSubscription ? ['card'] : ['card', 'twint'];

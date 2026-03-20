@@ -38,6 +38,7 @@ import { useAuth } from "@/context/AuthContext";
 import { collection, query, where, getDocs, limit as firestoreLimit, orderBy, Timestamp } from 'firebase/firestore';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
+import { createMatch } from '@/services/firestore';
 
 // Revenue storage key for admin sync (kept for backward compatibility)
 const TICKETS_STORAGE_KEY = 'spordate_tickets';
@@ -147,6 +148,8 @@ export default function DiscoveryPage() {
 
   // Duo option state
   const [isDuoTicket, setIsDuoTicket] = useState(false);
+  // Current match ID (created on like)
+  const [currentMatchId, setCurrentMatchId] = useState<string | null>(null);
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -329,7 +332,36 @@ export default function DiscoveryPage() {
     setCurrentIndex(prev => prev + 1);
   };
 
-  const handleLike = () => {
+  const handleLike = async () => {
+    // Create a real match in Firestore
+    if (user && currentProfile && (currentProfile as any).firestoreUid) {
+      try {
+        const otherUid = (currentProfile as any).firestoreUid;
+        const matchId = await createMatch({
+          userIds: [user.uid, otherUid],
+          user1: {
+            uid: user.uid,
+            displayName: userProfile?.displayName || user.displayName || 'Utilisateur',
+            photoURL: userProfile?.photoURL || user.photoURL || '',
+          },
+          user2: {
+            uid: otherUid,
+            displayName: currentProfile.name.split(',')[0],
+            photoURL: (currentProfile as any).photoURL || '',
+          },
+          status: 'accepted',
+          activityId: '',
+          sport: currentProfile.sports?.[0] || 'Sport',
+          chatUnlocked: false,
+          initiatedBy: user.uid,
+          expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+        });
+        setCurrentMatchId(matchId);
+        console.log('[Discovery] Match créé:', matchId);
+      } catch (err) {
+        console.error('[Discovery] Erreur création match:', err);
+      }
+    }
     setIsMatch(true);
   };
   
@@ -340,6 +372,7 @@ export default function DiscoveryPage() {
 
   const closeMatchModal = () => {
     setIsMatch(false);
+    setCurrentMatchId(null);
     handleNextProfile();
   }
 
@@ -569,7 +602,7 @@ export default function DiscoveryPage() {
     const meetingPartner = partners.find(p => p.id === selectedMeetingPlace);
     
     try {
-      // Save pending booking info
+      // Save pending booking info (including matchId for post-payment redirect)
       const pendingBooking = {
         profileId: currentProfile.id,
         profileName: currentProfile.name.split(',')[0],
@@ -578,38 +611,35 @@ export default function DiscoveryPage() {
         partnerAddress: meetingPartner ? `${meetingPartner.address}, ${meetingPartner.city}` : null,
         isDuo: isDuoTicket,
         amount: finalPrice,
+        matchId: currentMatchId || '',
       };
       localStorage.setItem('pending_booking', JSON.stringify(pendingBooking));
 
       // If price is 0, skip Stripe and confirm booking directly
       if (finalPrice === 0) {
-        // Free booking - no payment needed
-        const booking = {
-          id: `free_${Date.now()}`,
-          profile: pendingBooking.profileName,
-          partner: pendingBooking.partnerName || 'Non spécifié',
-          partnerAddress: pendingBooking.partnerAddress || '',
-          date: new Date().toISOString(),
-          isDuo: isDuoTicket,
-          amount: 0,
-        };
-        
-        // Save to bookings history
-        const existingBookings = JSON.parse(localStorage.getItem('bookings') || '[]');
-        existingBookings.push(booking);
-        localStorage.setItem('bookings', JSON.stringify(existingBookings));
-        
-        // Show success
-        setLastBooking(booking);
+        // Free booking - unlock chat and redirect to chat
+        if (currentMatchId) {
+          try {
+            const { unlockChat } = await import('@/services/firestore');
+            await unlockChat(currentMatchId);
+          } catch (err) {
+            console.warn('[Discovery] Erreur unlockChat:', err);
+          }
+        }
+
         setShowPaymentModal(false);
-        setShowTicketSuccess(true);
         setIsProcessing(false);
         localStorage.removeItem('pending_booking');
-        
+
         toast({
           title: "Réservation confirmée ! 🎉",
-          description: "Votre séance d'essai a été réservée avec succès.",
+          description: "Le chat est débloqué, commencez à discuter !",
         });
+
+        // Redirect to chat
+        if (currentMatchId) {
+          router.push(`/chat?payment=success&match=${currentMatchId}`);
+        }
         return;
       }
 
@@ -623,7 +653,7 @@ export default function DiscoveryPage() {
         body: JSON.stringify({
           packageId: '1_date',
           userId: userId,
-          matchId: '',
+          matchId: currentMatchId || '',
           referralCode: '',
         }),
       });

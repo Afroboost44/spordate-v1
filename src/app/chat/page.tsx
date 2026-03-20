@@ -6,18 +6,20 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Send, ArrowLeft, Lock, MessageCircle,
-  Loader2, CreditCard, CheckCheck, Check
+  Loader2, CreditCard, CheckCheck, Check, PartyPopper
 } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from '@/lib/utils';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { useAuth } from '@/context/AuthContext';
+import { useToast } from "@/hooks/use-toast";
 import {
   getUserMatches,
   sendMessage,
   subscribeToMessages,
   markMessagesRead,
   getUser,
+  unlockChat,
 } from '@/services/firestore';
 import type { Match, ChatMessage, UserProfile } from '@/types/firestore';
 import { Timestamp } from 'firebase/firestore';
@@ -398,12 +400,44 @@ function EmptyChat() {
 // ——— Main Chat Page ———
 function ChatPageContent() {
   const { user } = useAuth();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const { toast } = useToast();
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileCache, setProfileCache] = useState<Record<string, UserProfile | null>>({});
+  const [paymentHandled, setPaymentHandled] = useState(false);
+  // Mobile: show list or chat
+  const [showMobileChat, setShowMobileChat] = useState(false);
 
   const currentUserId = user?.uid || '';
+
+  // Handle post-payment redirect: auto-select the match and unlock chat
+  useEffect(() => {
+    if (paymentHandled) return;
+    const paymentStatus = searchParams.get('payment');
+    const matchIdParam = searchParams.get('match');
+
+    if (paymentStatus === 'success' && matchIdParam) {
+      setPaymentHandled(true);
+      setSelectedMatchId(matchIdParam);
+      setShowMobileChat(true);
+
+      // Unlock chat from client side as a safety measure (webhook also does this)
+      unlockChat(matchIdParam).catch((err) => {
+        console.warn('[Chat] unlockChat client-side error (webhook may handle it):', err);
+      });
+
+      toast({
+        title: "Paiement confirmé ! 🎉",
+        description: "Le chat est débloqué, commencez à discuter !",
+      });
+
+      // Clean the URL
+      router.replace('/chat');
+    }
+  }, [searchParams, paymentHandled]);
 
   // Load matches and build conversation list
   const loadConversations = useCallback(async () => {
@@ -469,9 +503,6 @@ function ChatPageContent() {
   }, [currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const selectedConvo = conversations.find((c) => c.match.matchId === selectedMatchId);
-
-  // Mobile: show list or chat
-  const [showMobileChat, setShowMobileChat] = useState(false);
 
   const handleSelectConversation = (matchId: string) => {
     setSelectedMatchId(matchId);
