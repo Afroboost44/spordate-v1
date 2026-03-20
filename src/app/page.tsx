@@ -53,7 +53,7 @@ export default function LandingPage() {
   const [site, setSite] = useState<Record<string, string>>({
     heroTitle1: "Rencontre quelqu'un", heroTitle2: "en partageant une", heroTitle3: "activité sportive.",
     heroSubtitle: "Danse, fitness, running... Choisis ton sport, matche, et vis une vraie rencontre.",
-    ctaText: "Commencer", primaryColor: "#D91CD2",
+    ctaText: "Commencer", primaryColor: "#A855F7",
     heroImage: "https://images.unsplash.com/photo-1524594152303-9fd13543fe6e?w=1920&h=1080&fit=crop",
     step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... Sélectionne tes activités et ton niveau.", step1Image: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&h=600&fit=crop",
     step2Title: "Matche & discute", step2Desc: "On te propose des partenaires près de toi. Connecte-toi, organise ta session.", step2Image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop",
@@ -100,12 +100,12 @@ export default function LandingPage() {
             <a href="#method" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Méthode</a>
             <a href="#activities" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Activités</a>
             <a href="#stories" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Témoignages</a>
-            <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-sm font-normal tracking-wide uppercase px-6 h-10 rounded-none">
+            <Button asChild className="bg-[#A855F7] hover:bg-[#A855F7]/80 text-white text-sm font-normal tracking-wide uppercase px-6 h-10 rounded-none">
               <Link href="/signup">Rejoindre</Link>
             </Button>
           </div>
           <div className="md:hidden">
-            <Button asChild size="sm" className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-xs font-normal tracking-wide uppercase rounded-none">
+            <Button asChild size="sm" className="bg-[#A855F7] hover:bg-[#A855F7]/80 text-white text-xs font-normal tracking-wide uppercase rounded-none">
               <Link href="/signup">Rejoindre</Link>
             </Button>
           </div>
@@ -120,7 +120,7 @@ export default function LandingPage() {
         </div>
         <div className="relative z-10 container mx-auto px-4 md:px-6 py-16 md:py-24">
           <div className="max-w-3xl space-y-8">
-            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2]">Sport &middot; Danse &middot; Rencontres</p>
+            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#A855F7]">Sport &middot; Danse &middot; Rencontres</p>
             <h1 className="text-4xl md:text-7xl font-extralight leading-[0.95] tracking-tight text-white">
               {site.heroTitle1}<br />{site.heroTitle2}<br />
               <span style={{ color: site.primaryColor }} className="neon-text">{site.heroTitle3}</span>
@@ -142,7 +142,7 @@ export default function LandingPage() {
       <section id="method" className="py-16 md:py-24">
         <div className="container mx-auto px-4 md:px-6">
           <div className="max-w-xl mb-12">
-            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">Méthode</p>
+            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#A855F7] mb-3">Méthode</p>
             <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">Trois étapes.<br />C&apos;est tout.</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5">
@@ -170,7 +170,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-12 gap-4">
             <div>
-              <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">Activités</p>
+              <p className="text-sm font-light tracking-[0.3em] uppercase text-[#A855F7] mb-3">Activités</p>
               <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">{site.sectionTitle}</h2>
             </div>
             <p className="text-sm font-light text-white/40 max-w-sm leading-relaxed">Sport ou danse, débutant ou avancé. Chaque activité est une opportunité de rencontre.</p>
@@ -185,10 +185,10 @@ export default function LandingPage() {
                 <div className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs md:text-sm font-normal tracking-wide uppercase text-white">{activity.name}</h3>
-                    <span className={`text-[10px] tracking-widest uppercase font-light ${activity.type === 'dance' ? 'text-[#D91CD2]' : 'text-white/30'}`}>{activity.type === 'dance' ? 'Danse' : 'Sport'}</span>
+                    <span className={`text-[10px] tracking-widest uppercase font-light ${activity.type === 'dance' ? 'text-[#A855F7]' : 'text-white/30'}`}>{activity.type === 'dance' ? 'Danse' : 'Sport'}</span>
                   </div>
                 </div>
-                <div className={`absolute inset-0 border transition-all duration-500 pointer-events-none ${hoveredActivity === activity.id ? 'border-[#D91CD2]/50' : 'border-transparent'}`} />
+                <div className={`absolute inset-0 border transition-all duration-500 pointer-events-none ${hoveredActivity === activity.id ? 'border-[#A855F7]/50' : 'border-transparent'}`} />
               </div>
             ))}
           </div>
@@ -201,8 +201,8 @@ export default function LandingPage() {
             <div className="flex gap-6">
               {['Débutant', 'Intermédiaire', 'Avancé'].map((level) => (
                 <div key={level} className="text-center group cursor-pointer">
-                  <div className="h-14 w-14 border border-white/10 group-hover:border-[#D91CD2] transition-colors duration-300 flex items-center justify-center mb-2">
-                    <span className="text-xs font-light text-white/30 group-hover:text-[#D91CD2] transition-colors uppercase">{level.charAt(0)}</span>
+                  <div className="h-14 w-14 border border-white/10 group-hover:border-[#A855F7] transition-colors duration-300 flex items-center justify-center mb-2">
+                    <span className="text-xs font-light text-white/30 group-hover:text-[#A855F7] transition-colors uppercase">{level.charAt(0)}</span>
                   </div>
                   <span className="text-[10px] font-light text-white/30 tracking-wide uppercase">{level}</span>
                 </div>
@@ -216,7 +216,7 @@ export default function LandingPage() {
       <section id="stories" className="py-16 md:py-24 border-t border-white/5">
         <div className="container mx-auto px-4 md:px-6">
           <div className="max-w-xl mb-12">
-            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">Témoignages</p>
+            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#A855F7] mb-3">Témoignages</p>
             <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">{site.testimonialsTitle}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/5">
@@ -243,7 +243,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 md:px-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <div>
-              <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">Couverture</p>
+              <p className="text-sm font-light tracking-[0.3em] uppercase text-[#A855F7] mb-3">Couverture</p>
               <h2 className="text-3xl md:text-4xl font-extralight tracking-tight mb-6">{site.swissTitle}</h2>
               <p className="text-sm font-light text-white/40 leading-relaxed mb-8">{site.swissSubtitle}</p>
               <div className="grid grid-cols-2 gap-3">
@@ -266,7 +266,7 @@ export default function LandingPage() {
       {/* ── PARTNER CTA ── */}
       <section className="py-16 md:py-24 border-t border-white/5">
         <div className="container mx-auto px-4 md:px-6 text-center max-w-3xl">
-          <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-4">Partenaires</p>
+          <p className="text-sm font-light tracking-[0.3em] uppercase text-[#A855F7] mb-4">Partenaires</p>
           <h2 className="text-2xl md:text-4xl font-extralight tracking-tight mb-6">{site.partnerTitle}</h2>
           <p className="text-sm font-light text-white/40 leading-relaxed mb-10 max-w-lg mx-auto">{site.partnerSubtitle}</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
