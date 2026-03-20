@@ -1,29 +1,113 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Button } from "@/components/ui/button";
 import {
   Wallet, CreditCard, CheckCircle, AlertCircle,
-  Building, ArrowUpRight, TrendingUp, Clock, Loader2
+  Building, ArrowUpRight, TrendingUp, Clock, Loader2, ExternalLink
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/hooks/useAuth';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 
 export default function PartnerWalletPage() {
-  const [isConnected, setIsConnected] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const { user } = useAuth();
   const { toast } = useToast();
+  const [isLoading, setIsLoading] = useState(false);
+  const [partnerData, setPartnerData] = useState<any>(null);
+  const [loadingData, setLoadingData] = useState(true);
 
-  const handleConnectStripe = () => {
+  const isConnected = !!partnerData?.stripeAccountId && partnerData?.stripeDetailsSubmitted;
+
+  // Load partner data from Firestore
+  useEffect(() => {
+    if (!user?.uid || !db) { setLoadingData(false); return; }
+
+    const loadPartner = async () => {
+      try {
+        // Try direct doc by uid
+        const docSnap = await getDoc(doc(db, 'partners', user.uid));
+        if (docSnap.exists()) {
+          setPartnerData({ id: docSnap.id, ...docSnap.data() });
+          setLoadingData(false);
+          return;
+        }
+        // Fallback: query by email
+        const q = query(collection(db, 'partners'), where('email', '==', user.email), limit(1));
+        const snap = await getDocs(q);
+        if (!snap.empty) {
+          const d = snap.docs[0];
+          setPartnerData({ id: d.id, ...d.data() });
+        }
+      } catch (err) {
+        console.error('[Wallet] Error loading partner:', err);
+      }
+      setLoadingData(false);
+    };
+
+    loadPartner();
+  }, [user]);
+
+  const handleConnectStripe = async () => {
+    if (!user?.email || !partnerData?.id) {
+      toast({ title: "Erreur", description: "Données partenaire introuvables.", variant: "destructive" });
+      return;
+    }
+
     setIsLoading(true);
-    setTimeout(() => {
-      setIsConnected(true);
-      setIsLoading(false);
-      toast({
-        title: "Compte bancaire connecté",
-        description: "Vous pouvez maintenant recevoir des paiements.",
+    try {
+      const res = await fetch('/api/stripe-connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          partnerId: partnerData.id,
+          email: user.email,
+          name: partnerData.name || user.displayName || '',
+        }),
       });
-    }, 1500);
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // Redirect to Stripe onboarding
+      window.location.href = data.onboardingUrl;
+    } catch (err: any) {
+      console.error('[Stripe Connect]', err);
+      toast({
+        title: "Erreur de connexion",
+        description: err.message || "Impossible de lancer la connexion bancaire.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
   };
+
+  const handleOpenDashboard = async () => {
+    if (!partnerData?.stripeAccountId) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/stripe-connect?accountId=${partnerData.stripeAccountId}&action=dashboard`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+      window.open(data.dashboardUrl, '_blank');
+    } catch (err: any) {
+      toast({
+        title: "Erreur",
+        description: err.message || "Impossible d'ouvrir le tableau de bord Stripe.",
+        variant: "destructive",
+      });
+    }
+    setIsLoading(false);
+  };
+
+  if (loadingData) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-8 w-8 text-[#D91CD2] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -91,14 +175,20 @@ export default function PartnerWalletPage() {
                 <CheckCircle className="h-6 w-6 text-green-400 flex-shrink-0" />
                 <div>
                   <p className="text-sm text-green-400 font-light">Compte actif</p>
-                  <p className="text-xs text-white/30 font-light">IBAN: CH53 •••• •••• 9088</p>
+                  <p className="text-xs text-white/30 font-light">
+                    {partnerData.stripePayoutsEnabled
+                      ? 'Virements activés — vous pouvez recevoir des paiements'
+                      : 'En cours de vérification par Stripe'}
+                  </p>
                 </div>
               </div>
               <Button
-                onClick={() => setIsConnected(false)}
-                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/50 font-light rounded-full h-11 text-sm"
+                onClick={handleOpenDashboard}
+                disabled={isLoading}
+                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 font-light rounded-full h-11 text-sm"
               >
-                Déconnecter le compte
+                {isLoading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <ExternalLink className="mr-2 h-4 w-4" />}
+                Ouvrir mon tableau de bord Stripe
               </Button>
             </div>
           ) : (
@@ -121,7 +211,7 @@ export default function PartnerWalletPage() {
                 )}
               </Button>
               <p className="text-xs text-center text-white/20 font-light">
-                Redirection sécurisée vers Stripe Connect
+                Vous serez redirigé vers Stripe pour une inscription sécurisée.
               </p>
             </div>
           )}
