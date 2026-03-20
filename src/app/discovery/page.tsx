@@ -39,6 +39,8 @@ import { collection, query, where, getDocs, limit as firestoreLimit, orderBy, Ti
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
 import { createMatch } from '@/services/firestore';
+import { useCredits } from '@/hooks/useCredits';
+import BackButton from '@/components/BackButton';
 
 // Revenue storage key for admin sync (kept for backward compatibility)
 const TICKETS_STORAGE_KEY = 'spordate_tickets';
@@ -152,6 +154,7 @@ export default function DiscoveryPage() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
+  const { credits: creditCount, hasCredits, useCredit, canLike, canSuperMatch, canSkip, requireCreditsForChat } = useCredits();
 
   // Load REAL profiles from Firestore with matching
   useEffect(() => {
@@ -366,6 +369,8 @@ export default function DiscoveryPage() {
           expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
         });
         setCurrentMatchId(matchId);
+          // Decrement credit after successful like
+          await useCredit();
         console.log('[Discovery] Match créé:', matchId);
       } catch (err) {
         console.error('[Discovery] Erreur création match:', err);
