@@ -76,8 +76,16 @@ export default function PartnerOffersPage() {
   const loadActivities = async () => {
     if (!db || !user) return;
     try {
-      const q = query(collection(db, 'activities'), where('partnerId', '==', user.uid), orderBy('createdAt', 'desc'));
-      const snap = await getDocs(q);
+      let snap;
+      try {
+        const q = query(collection(db, 'activities'), where('partnerId', '==', user.uid), orderBy('createdAt', 'desc'));
+        snap = await getDocs(q);
+      } catch {
+        // Index might not be ready, retry without orderBy
+        console.warn('[Partner] Index not ready, fetching without orderBy');
+        const q = query(collection(db, 'activities'), where('partnerId', '==', user.uid));
+        snap = await getDocs(q);
+      }
       setActivities(snap.docs.map(d => ({ ...d.data(), activityId: d.id } as Activity)));
     } catch (err) { console.error('Erreur chargement activités:', err); }
     finally { setLoading(false); }

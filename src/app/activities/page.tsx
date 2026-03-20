@@ -54,12 +54,24 @@ export default function ActivitiesPage() {
         return;
       }
       try {
-        const q = query(
-          collection(db, 'activities'),
-          where('isActive', '==', true),
-          orderBy('createdAt', 'desc')
-        );
-        const snap = await getDocs(q);
+        // Try with orderBy first, fallback without if index not ready
+        let snap;
+        try {
+          const q = query(
+            collection(db, 'activities'),
+            where('isActive', '==', true),
+            orderBy('createdAt', 'desc')
+          );
+          snap = await getDocs(q);
+        } catch {
+          // Index might not be ready, retry without orderBy
+          console.warn('[Activities] Index not ready, fetching without orderBy');
+          const q = query(
+            collection(db, 'activities'),
+            where('isActive', '==', true)
+          );
+          snap = await getDocs(q);
+        }
         const data = snap.docs.map(d => {
           const raw = d.data();
           return {
@@ -81,7 +93,8 @@ export default function ActivitiesPage() {
           } as ActivityCard;
         });
         setActivities(data.length > 0 ? data : AFROBOOST_FALLBACK);
-      } catch {
+      } catch (err) {
+        console.error('[Activities] Error loading:', err);
         setActivities(AFROBOOST_FALLBACK);
       }
       setLoading(false);
