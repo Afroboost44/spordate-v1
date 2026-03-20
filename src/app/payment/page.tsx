@@ -66,6 +66,9 @@ export default function PaymentPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [verifyingPayment, setVerifyingPayment] = useState(false);
+  const [creditsVerified, setCreditsVerified] = useState(false);
+  const [grantedCredits, setGrantedCredits] = useState(0);
   const [packages, setPackages] = useState<CreditPackage[]>([]);
 
   // Load pricing from Firestore (admin-editable) then build display packages
@@ -122,11 +125,31 @@ export default function PaymentPage() {
   }, []);
 
   useEffect(() => {
-    if (searchParams.get('status') === 'success') {
+    const status = searchParams.get('status');
+    const sessionId = searchParams.get('session_id');
+    if (status === 'success') {
       setPaymentSuccess(true);
       setShowConfetti(true);
+      // Verify payment and grant credits (fallback for webhook)
+      if (sessionId && user?.uid) {
+        setVerifyingPayment(true);
+        fetch('/api/verify-payment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId, userId: user.uid }),
+        })
+          .then(res => res.json())
+          .then(data => {
+            if (data.success) {
+              setCreditsVerified(true);
+              setGrantedCredits(data.creditsGranted || 0);
+            }
+          })
+          .catch(err => console.error('Verify payment error:', err))
+          .finally(() => setVerifyingPayment(false));
+      }
     }
-  }, [searchParams]);
+  }, [searchParams, user])
 
   const selectedPkg = packages.find(p => p.id === selectedId);
 
@@ -165,17 +188,43 @@ export default function PaymentPage() {
             <div className="absolute inset-0 bg-green-500/20 rounded-full blur-2xl animate-pulse" />
             <CheckCircle className="h-20 w-20 text-green-400 relative z-10" />
           </div>
+
           <h1 className="text-3xl font-light text-white">Paiement confirmé !</h1>
-          <p className="text-white/40">Vos crédits ont été ajoutés à votre compte.</p>
-          <Button
-            onClick={() => router.push(`/share?sport=Sport+Date`)}
-            className="w-full h-14 bg-gradient-to-r from-[#D91CD2] to-[#E91E63] text-white rounded-full"
-          >
-            Partager mon Sport Date
-          </Button>
-          <Link href="/discovery" className="block text-sm text-white/30 hover:text-white/50">
-            Retour aux profils
-          </Link>
+
+          {verifyingPayment ? (
+            <div className="flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 text-[#D91CD2] animate-spin" />
+              <p className="text-white/40 text-sm">Activation de vos crédits...</p>
+            </div>
+          ) : creditsVerified ? (
+            <p className="text-green-400 text-sm">{grantedCredits} crédit(s) ajouté(s) à votre compte</p>
+          ) : (
+            <p className="text-white/40 text-sm">Vos crédits ont été ajoutés à votre compte.</p>
+          )}
+
+          <div className="space-y-3 pt-2">
+            <Button
+              onClick={() => router.push('/discovery')}
+              className="w-full h-14 bg-gradient-to-r from-[#D91CD2] to-[#E91E63] text-white rounded-full text-base"
+            >
+              Découvrir des profils
+            </Button>
+
+            <Button
+              onClick={() => router.push('/chat')}
+              variant="outline"
+              className="w-full h-12 border-white/10 text-white/70 hover:text-white hover:bg-white/5 rounded-full"
+            >
+              Mes conversations
+            </Button>
+
+            <button
+              onClick={() => router.push(`/share?sport=Sport+Date`)}
+              className="block w-full text-sm text-white/30 hover:text-white/50 pt-1"
+            >
+              Partager mon Sport Date
+            </button>
+          </div>
         </div>
       </div>
     );
