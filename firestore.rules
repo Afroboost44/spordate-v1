@@ -127,6 +127,14 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // === BOOSTS (public read for discovery, authenticated create) ===
+    match /boosts/{boostId} {
+      allow read: if true;
+      allow create: if isAuth();
+      allow update: if isAuth() && (resource.data.partnerId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+    }
+
     // === PARTNER REQUESTS (public create, admin read/update) ===
     match /partnerRequests/{requestId} {
       allow create: if true;

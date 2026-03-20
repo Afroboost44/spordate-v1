@@ -35,7 +35,7 @@ import { sendPartnerNotification } from "@/lib/notifications";
 import { isFirebaseConfigured, getMissingConfig, db } from "@/lib/firebase";
 import { ConfigErrorScreen } from "@/components/ConfigErrorScreen";
 import { useAuth } from "@/context/AuthContext";
-import { collection, query, where, getDocs, limit as firestoreLimit, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, limit as firestoreLimit, orderBy, Timestamp } from 'firebase/firestore';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
 
@@ -64,11 +64,7 @@ const fallbackProfiles = [
   { id: 3, name: 'Sophie, 25', location: 'Zurich', sports: ['Afroboost', 'Fitness'], bio: 'Coach Afroboost, je partage ma passion avec énergie !', imageId: 'discovery-3', price: 35 },
 ];
 
-const boostedActivities = [
-    { title: 'Neon Crossfit', location: 'Lausanne', time: '18:00', price: '25 CHF', imageId: 'activity-gym' },
-    { title: 'City Tennis', location: 'Genève', time: '20:00', price: '40 CHF', imageId: 'activity-tennis' },
-    { title: 'Zen Yoga', location: 'Fribourg', time: '19:00', price: '30 CHF', imageId: 'activity-yoga' },
-];
+// boostedActivities mock removed — now loaded from Firestore 'boosts' collection
 
 /** Convert a Firestore UserProfile to the local profile format used by the card UI */
 function firestoreProfileToCard(user: UserProfile, index: number) {
@@ -137,6 +133,8 @@ export default function DiscoveryPage() {
   const [confirmedTickets, setConfirmedTickets] = useState<number[]>([]);
   const [partners, setPartners] = useState<Partner[]>(DEFAULT_PARTNERS);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
+  const [boostedPartnerIds, setBoostedPartnerIds] = useState<Set<string>>(new Set());
+  const [boostedActivities_db, setBoostedActivities_db] = useState<any[]>([]);
 
   // New states for social features
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
@@ -223,6 +221,40 @@ export default function DiscoveryPage() {
       setPartners(DEFAULT_PARTNERS);
     }
   };
+
+  // Load active boosts from Firestore
+  useEffect(() => {
+    if (!db || !isFirebaseConfigured) return;
+
+    const loadActiveBoosts = async () => {
+      try {
+        const now = Timestamp.now();
+        const boostsRef = collection(db, 'boosts');
+        const q = query(
+          boostsRef,
+          where('active', '==', true),
+          where('expiresAt', '>', now)
+        );
+        const snapshot = await getDocs(q);
+        const ids = new Set<string>();
+        const boostDocs: any[] = [];
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          if (data.partnerId) {
+            ids.add(data.partnerId);
+          }
+          boostDocs.push({ id: doc.id, ...data });
+        });
+        setBoostedPartnerIds(ids);
+        setBoostedActivities_db(boostDocs);
+        console.log(`[Discovery] ${ids.size} partenaires boostés chargés`);
+      } catch (err) {
+        console.warn('[Discovery] Erreur chargement boosts:', err);
+      }
+    };
+
+    loadActiveBoosts();
+  }, []);
 
   // Load confirmed tickets and partners
   useEffect(() => {
@@ -883,21 +915,44 @@ END:VCALENDAR`;
                 <h3 className="text-lg font-semibold text-white">Où pratiquer ?</h3>
               </div>
               <div className="space-y-2">
-                {partners.slice(0, 3).map((partner) => (
+                {[...partners]
+                  .sort((a, b) => {
+                    const aBoost = a.id ? boostedPartnerIds.has(a.id) : false;
+                    const bBoost = b.id ? boostedPartnerIds.has(b.id) : false;
+                    if (aBoost && !bBoost) return -1;
+                    if (!aBoost && bBoost) return 1;
+                    return 0;
+                  })
+                  .slice(0, 5).map((partner) => {
+                  const isBoosted = partner.id ? boostedPartnerIds.has(partner.id) : false;
+                  return (
                   <div
                     key={partner.id}
                     onClick={() => handlePartnerSelect(partner)}
-                    className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200
+                    className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 relative
                       ${selectedMeetingPlace === partner.id
                         ? 'bg-[#D91CD2]/15 border border-[#D91CD2]/40'
-                        : 'bg-white/5 border border-transparent hover:bg-white/8 hover:border-white/10'}
+                        : isBoosted
+                          ? 'bg-[#D91CD2]/5 border border-[#D91CD2]/20 hover:bg-[#D91CD2]/10'
+                          : 'bg-white/5 border border-transparent hover:bg-white/8 hover:border-white/10'}
                     `}
                   >
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
+                      isBoosted
+                        ? 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63] ring-2 ring-[#D91CD2]/40'
+                        : 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63]'
+                    }`}>
                       {partner.name.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
+                        {isBoosted && (
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] whitespace-nowrap flex items-center gap-0.5">
+                            <Zap className="h-2.5 w-2.5" />Recommandé
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-white/40 flex items-center gap-1">
                         <MapPin className="h-3 w-3" />{partner.city}
                       </p>
@@ -908,7 +963,8 @@ END:VCALENDAR`;
                       <ChevronRight className="h-4 w-4 text-white/20" />
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -1091,6 +1147,46 @@ END:VCALENDAR`;
               </div>
             </div>
           </div>
+
+          {/* Boosted partner activities — shown first if any active boosts */}
+          {boostedActivities_db.length > 0 && (
+            <div className="px-6 pb-2">
+              <p className="text-xs text-[#D91CD2]/60 uppercase tracking-wider mb-3 font-medium flex items-center gap-1">
+                <Zap className="h-3 w-3" /> Lieux recommandés
+              </p>
+              <div className="space-y-2">
+                {boostedActivities_db.slice(0, 3).map((boost) => {
+                  const matchedPartner = partners.find(p => p.id === boost.partnerId);
+                  if (!matchedPartner) return null;
+                  return (
+                    <button
+                      key={boost.id}
+                      onClick={() => {
+                        handlePartnerSelect(matchedPartner);
+                        setIsMatch(false);
+                        handleBookSession();
+                      }}
+                      className="w-full flex items-center gap-3 p-3.5 rounded-xl transition-all active:scale-[0.98] min-h-[48px] bg-[#D91CD2]/10 border border-[#D91CD2]/30 hover:bg-[#D91CD2]/20"
+                    >
+                      <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-xs flex-shrink-0">
+                        {matchedPartner.name.charAt(0)}
+                      </div>
+                      <div className="flex-1 text-left">
+                        <span className="text-sm font-medium text-white">{matchedPartner.name}</span>
+                        <p className="text-[11px] text-white/40 flex items-center gap-1">
+                          <MapPin className="h-2.5 w-2.5" />{boost.city || matchedPartner.city}
+                        </p>
+                      </div>
+                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] flex items-center gap-0.5">
+                        <Zap className="h-2.5 w-2.5" />Boost
+                      </span>
+                      <ChevronRight className="h-4 w-4 text-white/20" />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Choix d'activité — Danse en TOP */}
           <div className="px-6 pb-2">
@@ -1377,7 +1473,17 @@ END:VCALENDAR`;
               </div>
 
               <div className="space-y-2">
-                {partners.map((partner) => (
+                {[...partners]
+                  .sort((a, b) => {
+                    const aBoost = a.id ? boostedPartnerIds.has(a.id) : false;
+                    const bBoost = b.id ? boostedPartnerIds.has(b.id) : false;
+                    if (aBoost && !bBoost) return -1;
+                    if (!aBoost && bBoost) return 1;
+                    return 0;
+                  })
+                  .map((partner) => {
+                  const isBoosted = partner.id ? boostedPartnerIds.has(partner.id) : false;
+                  return (
                   <div
                     key={partner.id}
                     onClick={() => {
@@ -1387,14 +1493,27 @@ END:VCALENDAR`;
                     className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all duration-200 min-h-[56px]
                       ${selectedMeetingPlace === partner.id
                         ? 'bg-[#D91CD2]/15 border border-[#D91CD2]/40'
-                        : 'bg-white/5 border border-transparent active:bg-white/10'}
+                        : isBoosted
+                          ? 'bg-[#D91CD2]/5 border border-[#D91CD2]/20 active:bg-[#D91CD2]/10'
+                          : 'bg-white/5 border border-transparent active:bg-white/10'}
                     `}
                   >
-                    <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
+                      isBoosted
+                        ? 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63] ring-2 ring-[#D91CD2]/40'
+                        : 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63]'
+                    }`}>
                       {partner.name.charAt(0)}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
+                      <div className="flex items-center gap-1.5">
+                        <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
+                        {isBoosted && (
+                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] whitespace-nowrap flex items-center gap-0.5">
+                            <Zap className="h-2.5 w-2.5" />Recommandé
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-white/40 flex items-center gap-1">
                         <MapPin className="h-3 w-3" />{partner.city}
                         {partner.address && <span className="ml-1 text-white/20">— {partner.address}</span>}
@@ -1406,7 +1525,8 @@ END:VCALENDAR`;
                       <ChevronRight className="h-4 w-4 text-white/20 flex-shrink-0" />
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
 
               {selectedMeetingPlace && (
