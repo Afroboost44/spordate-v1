@@ -1167,48 +1167,60 @@ END:VCALENDAR`;
         </DialogContent>
       </Dialog>
 
-      {/* Match Modal — Flow: Match → Choix activité → Blocage chat → Paiement */}
+      {/* Match Modal — Improved UX/UI for conversion */}
       <Dialog open={isMatch} onOpenChange={setIsMatch}>
-        <DialogContent className="max-w-md w-full bg-black border-[#D91CD2]/20 text-white p-0 overflow-hidden max-h-[85vh] flex flex-col">
+        <DialogContent className="max-w-md w-full bg-black border-[#D91CD2]/20 text-white p-0 overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in-0 zoom-in-95 duration-300">
           <div className="overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
 
-          {/* Match Header */}
-          <div className="relative px-6 pt-8 pb-4 text-center bg-gradient-to-b from-[#D91CD2]/15 to-transparent">
-            <div className="flex justify-center mb-4">
-              <div className="relative">
-                <div className="absolute inset-0 bg-[#D91CD2]/30 rounded-full blur-2xl animate-pulse" />
-                <Heart className="h-16 w-16 text-[#D91CD2] relative z-10" fill="currentColor" />
+          {/* Match Header — Emotional & Personal */}
+          <div className="relative px-6 pt-8 pb-5 text-center bg-gradient-to-b from-[#D91CD2]/20 via-[#D91CD2]/5 to-transparent">
+            {/* Animated glow */}
+            <div className="absolute inset-0 bg-[#D91CD2]/5 animate-pulse" />
+            
+            <div className="relative z-10">
+              {/* Dual avatars */}
+              <div className="flex justify-center items-center gap-3 mb-5">
+                <div className="relative">
+                  <Avatar className="h-16 w-16 ring-2 ring-[#D91CD2]/50">
+                    <AvatarImage src={userProfile?.photoURL || ''} className="object-cover" />
+                    <AvatarFallback className="bg-zinc-800 text-white text-lg">
+                      {(userProfile?.displayName || 'T').charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                <div className="relative">
+                  <div className="absolute inset-0 bg-[#D91CD2]/40 rounded-full blur-xl animate-pulse" />
+                  <Heart className="h-8 w-8 text-[#D91CD2] relative z-10" fill="currentColor" />
+                </div>
+                <div className="relative">
+                  <Avatar className="h-16 w-16 ring-2 ring-[#D91CD2]/50">
+                    <AvatarImage src={(currentProfile as any)?.photoURL || ''} className="object-cover" />
+                    <AvatarFallback className="bg-zinc-800 text-white text-lg">
+                      {(currentProfile?.name || '?').charAt(0)}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
               </div>
+
+              <DialogHeader className="items-center">
+                <DialogTitle className="text-2xl font-bold tracking-tight text-white leading-tight">
+                  Tu veux rencontrer {currentProfile?.name.split(',')[0]} ?
+                </DialogTitle>
+                <DialogDescription className="text-sm text-white/50 mt-2 max-w-[280px] mx-auto leading-relaxed">
+                  Passe du virtuel au réel. Réserve ton activité et rencontre{' '}
+                  <span className="text-[#D91CD2] font-medium">{currentProfile?.name.split(',')[0]}</span>{' '}
+                  dans la vraie vie.
+                </DialogDescription>
+              </DialogHeader>
             </div>
-            <DialogHeader className="items-center">
-              <DialogTitle className="text-3xl font-bold tracking-tight text-white">
-                C'est un Match !
-              </DialogTitle>
-              <DialogDescription className="text-base text-white/60 mt-2">
-                Toi et <span className="text-[#D91CD2] font-semibold">{currentProfile?.name.split(',')[0]}</span> avez matché
-              </DialogDescription>
-            </DialogHeader>
           </div>
 
-          {/* Blocage intelligent */}
-          <div className="px-6 py-4">
-            <div className="bg-white/5 border border-white/10 rounded-2xl p-4 flex items-center gap-3">
-              <Lock className="h-5 w-5 text-white/40 flex-shrink-0" />
-              <div>
-                <p className="text-sm font-medium text-white">Chat verrouillé</p>
-                <p className="text-xs text-white/40">Choisis une activité pour débloquer la conversation</p>
-              </div>
-            </div>
-          </div>
-
-          {/* Activités disponibles — vraies activités Firestore + boostées */}
-          <div className="px-6 pb-2">
-            <p className="text-xs text-white/40 uppercase tracking-wider mb-3 font-medium">Choisis une activité</p>
-            <div className="space-y-2">
-              {/* Real activities from Firestore — boosted ones first */}
+          {/* Activity Cards — Premium Design */}
+          <div className="px-5 pb-2 pt-1">
+            <p className="text-[11px] text-white/30 uppercase tracking-widest mb-3 font-semibold">Choisis une activité</p>
+            <div className="space-y-2.5">
               {realActivities.length > 0 ? (
                 <>
-                  {/* Sort: boosted first */}
                   {[...realActivities]
                     .sort((a, b) => {
                       const aBoosted = boostedPartnerIds.has(a.partnerId);
@@ -1217,9 +1229,10 @@ END:VCALENDAR`;
                       if (!aBoosted && bBoosted) return 1;
                       return 0;
                     })
-                    .map((act) => {
+                    .map((act, idx) => {
                       const isBoosted = boostedPartnerIds.has(act.partnerId);
                       const imgUrl = act.images?.[0] || act.imageUrl || '';
+                      const isFirst = idx === 0;
                       return (
                         <button
                           key={act.id}
@@ -1227,58 +1240,94 @@ END:VCALENDAR`;
                             setIsMatch(false);
                             handleBookSession();
                           }}
-                          className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all active:scale-[0.98] ${
-                            isBoosted
-                              ? 'bg-[#D91CD2]/10 border border-[#D91CD2]/30 hover:bg-[#D91CD2]/20'
-                              : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                          className={`w-full rounded-2xl transition-all duration-200 active:scale-[0.97] hover:scale-[1.01] ${
+                            isFirst
+                              ? 'bg-gradient-to-r from-[#D91CD2]/15 to-[#7B1FA2]/15 border-2 border-[#D91CD2]/40 p-0.5'
+                              : 'bg-white/5 border border-white/10 hover:bg-white/8'
                           }`}
                         >
-                          {imgUrl ? (
-                            <img src={imgUrl} alt={act.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
-                          ) : (
-                            <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
-                              {act.sport?.charAt(0) || '?'}
-                            </div>
-                          )}
-                          <div className="flex-1 text-left min-w-0">
-                            <p className="text-sm font-medium text-white truncate">{act.name}</p>
-                            <p className="text-[11px] text-white/40 flex items-center gap-1">
-                              <span>{act.sport}</span> · <span>{act.price} CHF</span> · <MapPin className="h-2.5 w-2.5 inline" /> {act.city}
-                            </p>
-                          </div>
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            {isBoosted && (
-                              <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] flex items-center gap-0.5">
-                                <Zap className="h-2.5 w-2.5" />Boost
-                              </span>
+                          <div className={`flex items-center gap-3.5 p-3.5 ${isFirst ? 'bg-black/60 rounded-[14px]' : ''}`}>
+                            {imgUrl ? (
+                              <img src={imgUrl} alt={act.name} className={`${isFirst ? 'w-16 h-16' : 'w-12 h-12'} rounded-xl object-cover flex-shrink-0`} />
+                            ) : (
+                              <div className={`${isFirst ? 'w-16 h-16' : 'w-12 h-12'} rounded-xl bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold flex-shrink-0`}>
+                                {act.sport?.charAt(0) || '?'}
+                              </div>
                             )}
-                            <ChevronRight className="h-4 w-4 text-white/20" />
+                            <div className="flex-1 text-left min-w-0">
+                              <div className="flex items-center gap-2 mb-0.5">
+                                <p className={`${isFirst ? 'text-base' : 'text-sm'} font-semibold text-white truncate`}>{act.name}</p>
+                              </div>
+                              {isFirst && (
+                                <p className="text-[11px] text-[#D91CD2]/70 font-medium mb-1">Fun • Énergie • Connexion immédiate</p>
+                              )}
+                              <p className="text-[11px] text-white/40 flex items-center gap-1.5">
+                                <span>{act.sport}</span>
+                                <span className="text-white/20">·</span>
+                                <span className="font-medium text-white/60">{act.price} CHF</span>
+                                <span className="text-white/20">·</span>
+                                <MapPin className="h-2.5 w-2.5 inline" />
+                                <span>{act.city}</span>
+                              </p>
+                            </div>
+                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
+                              {(isBoosted || isFirst) && (
+                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] flex items-center gap-0.5 whitespace-nowrap">
+                                  <Zap className="h-2.5 w-2.5" />{isBoosted ? 'Boost' : 'Recommandé'}
+                                </span>
+                              )}
+                              <ChevronRight className="h-4 w-4 text-white/20" />
+                            </div>
                           </div>
                         </button>
                       );
                     })}
                 </>
               ) : (
-                /* Fallback: no real activities yet */
-                <div className="text-center py-4">
-                  <p className="text-sm text-white/30">Aucune activité disponible pour le moment</p>
+                <div className="text-center py-6">
+                  <p className="text-sm text-white/30 mb-1">Aucune activité disponible</p>
+                  <p className="text-xs text-white/20">De nouvelles activités arrivent bientôt</p>
                 </div>
               )}
             </div>
           </div>
 
-          {/* Info */}
-          <div className="px-6 py-3">
-            <div className="flex items-center justify-center gap-4 text-[11px] text-white/30">
-              <span className="flex items-center gap-1"><CheckCircle size={12} className="text-green-500"/> Chat débloqué après réservation</span>
-              <span className="flex items-center gap-1"><RefreshCcw size={12} className="text-blue-400"/> Annulation gratuite</span>
+          {/* Reassurance badges */}
+          <div className="px-5 py-4">
+            <div className="grid grid-cols-1 gap-2">
+              <div className="flex items-center gap-2.5 bg-white/[0.03] rounded-xl px-3.5 py-2.5">
+                <CheckCircle size={14} className="text-green-400 flex-shrink-0" />
+                <span className="text-xs text-white/50">Chat débloqué après réservation</span>
+              </div>
+              <div className="flex items-center gap-2.5 bg-white/[0.03] rounded-xl px-3.5 py-2.5">
+                <RefreshCcw size={14} className="text-blue-400 flex-shrink-0" />
+                <span className="text-xs text-white/50">Annulation gratuite</span>
+              </div>
+              <div className="flex items-center gap-2.5 bg-white/[0.03] rounded-xl px-3.5 py-2.5">
+                <Users size={14} className="text-[#D91CD2] flex-shrink-0" />
+                <span className="text-xs text-white/50">Rencontre garantie (groupe si besoin)</span>
+              </div>
             </div>
           </div>
 
-          {/* Skip */}
-          <div className="px-6 pb-6">
-            <button onClick={closeMatchModal} className="w-full text-center text-sm text-white/30 hover:text-white/50 transition py-2">
-              Passer pour cette fois
+          {/* Primary CTA */}
+          <div className="px-5 pb-2">
+            <button
+              onClick={() => {
+                setIsMatch(false);
+                handleBookSession();
+              }}
+              className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white font-semibold text-base tracking-wide flex items-center justify-center gap-2.5 hover:opacity-90 hover:scale-[1.01] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[#D91CD2]/20"
+            >
+              <Zap className="h-5 w-5" />
+              Réserver mon date maintenant
+            </button>
+          </div>
+
+          {/* Secondary CTA — subtle */}
+          <div className="px-5 pb-6 pt-1">
+            <button onClick={closeMatchModal} className="w-full text-center text-xs text-white/20 hover:text-white/40 transition-colors py-2 font-light">
+              Je réfléchirai plus tard
             </button>
           </div>
           </div>{/* end scroll wrapper */}
