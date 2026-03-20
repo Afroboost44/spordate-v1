@@ -3,6 +3,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
+import PWARegister from "@/components/PWARegister";
 
 export const metadata: Metadata = {
   title: "Spordate",
@@ -42,6 +43,7 @@ export default function RootLayout({
           <LanguageProvider>
             {children}
             <Toaster />
+            <PWARegister />
           </LanguageProvider>
         </AuthProvider>
       </body>
