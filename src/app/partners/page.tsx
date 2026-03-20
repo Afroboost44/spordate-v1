@@ -13,7 +13,8 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { useRouter } from 'next/navigation';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-// Partner requests are sent via API route (bypasses Firestore rules)
+import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 const ACTIVITIES = ['Danse / Zumba', 'Afroboost', 'Fitness', 'Yoga', 'Running', 'Crossfit', 'Massage / Bien-être', 'Autre'];
 const CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Lucerne', 'Fribourg', 'Neuchâtel', 'Autre'];
@@ -32,27 +33,65 @@ export default function PartnersPage() {
     setIsLoading(true);
 
     try {
-      // Send via API route (server-side Firebase Admin — bypasses Firestore rules)
-      const res = await fetch('/api/partner-request', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: formData.name,
-          email: formData.email,
-          phone: formData.phone,
-          activity: formData.activity,
-          city: formData.city,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Erreur lors de l'envoi.");
+      let saved = false;
+
+      // Try client-side Firestore first
+      if (db && isFirebaseConfigured) {
+        try {
+          const requestRef = doc(collection(db, 'partnerRequests'));
+          await setDoc(requestRef, {
+            requestId: requestRef.id,
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            activity: formData.activity,
+            city: formData.city,
+            status: 'pending',
+            notes: '',
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+          });
+          // Also create notification
+          const notifRef = doc(collection(db, 'notifications'));
+          await setDoc(notifRef, {
+            notificationId: notifRef.id,
+            userId: 'admin',
+            type: 'partner_request',
+            title: 'Nouvelle demande partenaire',
+            body: `${formData.name} (${formData.city}) souhaite rejoindre Spordateur.`,
+            data: { requestId: requestRef.id, partnerName: formData.name, email: formData.email },
+            isRead: false,
+            createdAt: serverTimestamp(),
+          });
+          saved = true;
+        } catch (clientErr) {
+          console.warn('[Partner Request] Client-side write failed, trying API:', clientErr);
+        }
+      }
+
+      // Fallback: API route (needs FIREBASE_SERVICE_ACCOUNT_KEY on server)
+      if (!saved) {
+        const res = await fetch('/api/partner-request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            activity: formData.activity,
+            city: formData.city,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Erreur lors de l'envoi.");
+      }
 
       setSubmitted(true);
       toast({ title: 'Demande envoyée !', description: 'Nous vous contacterons sous 24h.' });
 
     } catch (err: any) {
       console.error('[Partner Request]', err);
-      setError(err.message || "Erreur lors de l'envoi. Réessayez.");
+      setError("Erreur lors de l'envoi de votre demande. Veuillez réessayer ou nous contacter directement.");
     } finally {
       setIsLoading(false);
     }
