@@ -1,5 +1,5 @@
-// Spordate Service Worker v1.0
-const CACHE_NAME = 'spordate-v1';
+// Spordate Service Worker v2.0
+const CACHE_NAME = 'spordate-v2';
 const OFFLINE_URL = '/offline.html';
 
 // Assets to pre-cache
@@ -7,6 +7,9 @@ const PRECACHE_ASSETS = [
   '/',
   '/manifest.json',
   '/icons/icon.svg',
+  '/icons/icon-192.png',
+  '/icons/icon-512.png',
+  '/icons/apple-touch-icon.png',
   '/offline.html',
 ];
 
