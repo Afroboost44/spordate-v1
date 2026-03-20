@@ -11,6 +11,7 @@ import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
+import BackButton from '@/components/BackButton';
 
 interface CreditPackage {
   id: string;
@@ -157,6 +158,7 @@ export default function PaymentPage() {
   if (paymentSuccess) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
+        <BackButton fallbackUrl="/discovery" />
         {showConfetti && <Confetti width={width} height={height} />}
         <div className="max-w-sm w-full text-center space-y-6">
           <div className="relative inline-block">
