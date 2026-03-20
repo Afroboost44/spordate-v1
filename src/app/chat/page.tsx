@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Send, ArrowLeft, Lock, MessageCircle,
-  Loader2, CreditCard, CheckCheck, Check, PartyPopper
+  Loader2, CreditCard, CheckCheck, Check, PartyPopper, User, ChevronRight
 } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from '@/lib/utils';
@@ -55,6 +55,31 @@ function formatTime(ts: Timestamp | Date | null | undefined): string {
 
 function getInitials(name: string): string {
   return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
+}
+
+function formatDateSeparator(ts: Timestamp | Date | null | undefined): string {
+  if (!ts) return '';
+  const date = ts instanceof Timestamp ? ts.toDate() : ts;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today.getTime() - 86400000);
+  const msgDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+  if (msgDay.getTime() === today.getTime()) return "Aujourd'hui";
+  if (msgDay.getTime() === yesterday.getTime()) return 'Hier';
+  return date.toLocaleDateString('fr-CH', { weekday: 'long', day: 'numeric', month: 'long' });
+}
+
+function formatMessageTime(ts: Timestamp | Date | null | undefined): string {
+  if (!ts) return '';
+  const date = ts instanceof Timestamp ? ts.toDate() : ts;
+  return date.toLocaleTimeString('fr-CH', { hour: '2-digit', minute: '2-digit' });
+}
+
+function getDateKey(ts: Timestamp | Date | null | undefined): string {
+  if (!ts) return '';
+  const date = ts instanceof Timestamp ? ts.toDate() : ts;
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
 }
 
 // ——— Conversation List ———
@@ -238,18 +263,24 @@ function ChatWindow({
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <Avatar className="h-9 w-9">
-          <AvatarImage src={otherUser.photoURL} />
-          <AvatarFallback className="bg-zinc-800 text-gray-400 text-sm">
-            {getInitials(otherUser.displayName)}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm text-white font-normal truncate">{otherUser.displayName}</p>
-          <p className="text-xs text-gray-500 font-light">
-            {match.sport || 'Sport Date'}
-          </p>
-        </div>
+        <button
+          onClick={() => router.push(`/profile/${otherUser.uid}`)}
+          className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+        >
+          <Avatar className="h-9 w-9">
+            <AvatarImage src={otherUser.photoURL} />
+            <AvatarFallback className="bg-zinc-800 text-gray-400 text-sm">
+              {getInitials(otherUser.displayName)}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0 text-left">
+            <p className="text-sm text-white font-normal truncate">{otherUser.displayName}</p>
+            <p className="text-xs text-gray-500 font-light">
+              {match.sport || 'Sport Date'}
+            </p>
+          </div>
+          <ChevronRight className="h-4 w-4 text-gray-600 flex-shrink-0" />
+        </button>
       </div>
 
       {/* Locked State */}
@@ -287,61 +318,80 @@ function ChatWindow({
                 </p>
               </div>
             ) : (
-              messages.map((msg) => {
+              messages.map((msg, index) => {
                 const isMe = msg.senderId === currentUserId;
                 const isRead = msg.readBy?.includes(otherUser.uid);
-                const time = msg.createdAt ? formatTime(msg.createdAt) : '';
+                const time = msg.createdAt ? formatMessageTime(msg.createdAt) : '';
 
-                if (msg.type === 'system') {
-                  return (
-                    <div key={msg.messageId} className="flex justify-center my-2">
-                      <span className="text-xs text-gray-600 font-light bg-zinc-900/50 px-3 py-1 rounded-full">
-                        {msg.text}
-                      </span>
-                    </div>
-                  );
-                }
+                // Date separator: show if first message or different day from previous
+                const currentDateKey = getDateKey(msg.createdAt);
+                const prevDateKey = index > 0 ? getDateKey(messages[index - 1].createdAt) : '';
+                const showDateSeparator = index === 0 || currentDateKey !== prevDateKey;
 
                 return (
-                  <div
-                    key={msg.messageId}
-                    className={cn(
-                      "flex items-end gap-2",
-                      isMe ? "justify-end" : "justify-start"
+                  <React.Fragment key={msg.messageId}>
+                    {showDateSeparator && msg.createdAt && (
+                      <div className="flex items-center justify-center my-4">
+                        <div className="h-px bg-zinc-800 flex-1" />
+                        <span className="text-[11px] text-gray-500 font-light px-3 whitespace-nowrap">
+                          {formatDateSeparator(msg.createdAt)}
+                        </span>
+                        <div className="h-px bg-zinc-800 flex-1" />
+                      </div>
                     )}
-                  >
-                    {!isMe && (
-                      <Avatar className="h-7 w-7 flex-shrink-0">
-                        <AvatarImage src={otherUser.photoURL} />
-                        <AvatarFallback className="bg-zinc-800 text-gray-500 text-xs">
-                          {getInitials(otherUser.displayName)}
-                        </AvatarFallback>
-                      </Avatar>
-                    )}
-                    <div className={cn("max-w-[75%]")}>
+
+                    {msg.type === 'system' ? (
+                      <div className="flex justify-center my-2">
+                        <span className="text-xs text-gray-600 font-light bg-zinc-900/50 px-3 py-1 rounded-full">
+                          {msg.text}
+                        </span>
+                      </div>
+                    ) : (
                       <div
                         className={cn(
-                          "rounded-2xl px-3.5 py-2.5",
-                          isMe
-                            ? "bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white rounded-br-md"
-                            : "bg-zinc-800 text-gray-200 rounded-bl-md"
+                          "flex items-end gap-2",
+                          isMe ? "justify-end" : "justify-start"
                         )}
                       >
-                        <p className="text-sm font-light leading-relaxed">{msg.text}</p>
-                      </div>
-                      <div className={cn(
-                        "flex items-center gap-1 mt-0.5 px-1",
-                        isMe ? "justify-end" : "justify-start"
-                      )}>
-                        <span className="text-[11px] text-gray-600 font-light">{time}</span>
-                        {isMe && (
-                          isRead
-                            ? <CheckCheck className="h-3 w-3 text-[#D91CD2]" />
-                            : <Check className="h-3 w-3 text-gray-600" />
+                        {!isMe && (
+                          <button
+                            onClick={() => router.push(`/profile/${otherUser.uid}`)}
+                            className="flex-shrink-0 hover:opacity-80 transition-opacity"
+                          >
+                            <Avatar className="h-7 w-7">
+                              <AvatarImage src={otherUser.photoURL} />
+                              <AvatarFallback className="bg-zinc-800 text-gray-500 text-xs">
+                                {getInitials(otherUser.displayName)}
+                              </AvatarFallback>
+                            </Avatar>
+                          </button>
                         )}
+                        <div className={cn("max-w-[75%]")}>
+                          <div
+                            className={cn(
+                              "rounded-2xl px-3.5 py-2.5",
+                              isMe
+                                ? "bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white rounded-br-md"
+                                : "bg-zinc-800 text-gray-200 rounded-bl-md"
+                            )}
+                          >
+                            <p className="text-sm font-light leading-relaxed">{msg.text}</p>
+                          </div>
+                          <div className={cn(
+                            "flex items-center gap-1 mt-0.5 px-1",
+                            isMe ? "justify-end" : "justify-start"
+                          )}>
+                            <span className="text-[11px] text-gray-600 font-light">{time}</span>
+                            {isMe && (
+                              isRead
+                                ? <CheckCheck className="h-3 w-3 text-[#D91CD2]" />
+                                : <Check className="h-3 w-3 text-gray-600" />
+                            )}
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
+                    )}
+                  </React.Fragment>
                 );
               })
             )}
