@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, MapPin } from "lucide-react";
+import { Loader2, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
@@ -41,6 +41,70 @@ const AFROBOOST_FALLBACK: ActivityCard[] = [
     partnerId: 'afroboost',
   },
 ];
+
+function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
+  const [imgIndex, setImgIndex] = useState(0);
+  const allImages = activity.images && activity.images.length > 0
+    ? activity.images
+    : [activity.imageUrl || `https://picsum.photos/seed/${activity.sport}/800/600`];
+  const hasMultiple = allImages.length > 1;
+
+  return (
+    <Card className="overflow-hidden bg-card border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20 transition-all duration-300 transform hover:-translate-y-2">
+      <div className="relative h-56 w-full group">
+        <img
+          src={allImages[imgIndex]}
+          alt={activity.title}
+          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
+        />
+        <div className="absolute inset-0 bg-black/40" />
+        <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
+          {activity.duration || 60} min
+        </div>
+        {hasMultiple && (
+          <>
+            <button
+              onClick={(e) => { e.stopPropagation(); setImgIndex(i => i === 0 ? allImages.length - 1 : i - 1); }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); setImgIndex(i => i === allImages.length - 1 ? 0 : i + 1); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
+              {allImages.map((_, i) => (
+                <button
+                  key={i}
+                  onClick={(e) => { e.stopPropagation(); setImgIndex(i); }}
+                  className={`w-1.5 h-1.5 rounded-full transition-all ${i === imgIndex ? 'bg-white w-3' : 'bg-white/50'}`}
+                />
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+      <CardContent className="p-5">
+        <h3 className="text-lg font-bold mb-1">{activity.title}</h3>
+        {activity.description && (
+          <p className="text-foreground/50 text-sm mb-2 line-clamp-2">{activity.description}</p>
+        )}
+        <p className="text-xs text-foreground/30 mb-4">{activity.schedule}</p>
+        <div className="flex justify-between items-center">
+          <p className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-rose-400">
+            {activity.price} CHF
+          </p>
+          <Button asChild className="font-semibold bg-primary hover:bg-primary/90 text-sm px-4">
+            <Link href="/payment">Réserver</Link>
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 export default function ActivitiesPage() {
   const [activities, setActivities] = useState<ActivityCard[]>([]);
@@ -87,6 +151,7 @@ export default function ActivitiesPage() {
                   : raw.schedule)
               : '',
             imageUrl: raw.images?.[0] || raw.imageUrl || '',
+            images: raw.images || (raw.imageUrl ? [raw.imageUrl] : []),
             city: raw.city || '',
             partnerName: raw.partnerName || '',
             partnerId: raw.partnerId || '',
@@ -154,37 +219,7 @@ export default function ActivitiesPage() {
                 {/* Activities grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {partnerActivities.map((activity) => (
-                    <Card
-                      key={activity.activityId}
-                      className="overflow-hidden bg-card border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20 transition-all duration-300 transform hover:-translate-y-2"
-                    >
-                      <div className="relative h-56 w-full">
-                        <img
-                          src={activity.imageUrl || `https://picsum.photos/seed/${activity.sport}/800/600`}
-                          alt={activity.title}
-                          className="absolute inset-0 w-full h-full object-cover"
-                        />
-                        <div className="absolute inset-0 bg-black/40" />
-                        <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
-                          {activity.duration || 60} min
-                        </div>
-                      </div>
-                      <CardContent className="p-5">
-                        <h3 className="text-lg font-bold mb-1">{activity.title}</h3>
-                        {activity.description && (
-                          <p className="text-foreground/50 text-sm mb-2 line-clamp-2">{activity.description}</p>
-                        )}
-                        <p className="text-xs text-foreground/30 mb-4">{activity.schedule}</p>
-                        <div className="flex justify-between items-center">
-                          <p className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-rose-400">
-                            {activity.price} CHF
-                          </p>
-                          <Button asChild className="font-semibold bg-primary hover:bg-primary/90 text-sm px-4">
-                            <Link href="/payment">Réserver</Link>
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
+                    <ActivityCardComponent key={activity.activityId} activity={activity} />
                   ))}
                 </div>
               </section>

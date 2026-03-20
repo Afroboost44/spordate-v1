@@ -4,7 +4,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PlusCircle, Edit, Trash2, Loader2, Clock, MapPin, Users } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, Clock, MapPin, Users, ImagePlus, X } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter, DialogClose,
@@ -36,6 +36,7 @@ interface Activity {
   currentParticipants: number;
   isActive: boolean;
   imageUrl: string;
+  images?: string[];
 }
 
 const SPORTS = [
@@ -66,7 +67,7 @@ export default function PartnerOffersPage() {
   const [formAddress, setFormAddress] = useState('');
   const [formSchedule, setFormSchedule] = useState('');
   const [formMax, setFormMax] = useState('10');
-  const [formImage, setFormImage] = useState('');
+  const [formImages, setFormImages] = useState<string[]>(['', '', '']);
 
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
@@ -93,7 +94,7 @@ export default function PartnerOffersPage() {
 
   const resetForm = () => {
     setFormName(''); setFormDesc(''); setFormSport(''); setFormPrice(''); setFormDuration('60');
-    setFormCity(''); setFormAddress(''); setFormSchedule(''); setFormMax('10'); setFormImage('');
+    setFormCity(''); setFormAddress(''); setFormSchedule(''); setFormMax('10'); setFormImages(['', '', '']);
   };
 
   const openCreate = () => { setEditing(null); resetForm(); setOpen(true); };
@@ -102,7 +103,12 @@ export default function PartnerOffersPage() {
     setEditing(act); setFormName(act.name); setFormDesc(act.description || ''); setFormSport(act.sport);
     setFormPrice(String(act.price)); setFormDuration(String(act.duration || 60)); setFormCity(act.city);
     setFormAddress(act.address || ''); setFormSchedule(act.schedule); setFormMax(String(act.maxParticipants));
-    setFormImage(act.imageUrl || ''); setOpen(true);
+    // Load images: use images array if available, fallback to single imageUrl
+    const imgs = act.images && act.images.length > 0
+      ? [...act.images, '', '', ''].slice(0, 3)
+      : [act.imageUrl || '', '', ''];
+    setFormImages(imgs);
+    setOpen(true);
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -110,11 +116,14 @@ export default function PartnerOffersPage() {
     if (!db || !user) return;
     setSaving(true);
     try {
+      const filteredImages = formImages.filter(url => url.trim() !== '');
       const data = {
         name: formName, description: formDesc, sport: formSport,
         price: parseInt(formPrice) || 0, duration: parseInt(formDuration) || 60,
         city: formCity, address: formAddress, schedule: formSchedule,
-        maxParticipants: parseInt(formMax) || 10, imageUrl: formImage,
+        maxParticipants: parseInt(formMax) || 10,
+        images: filteredImages,
+        imageUrl: filteredImages[0] || '',
         partnerId: user.uid, isActive: true, updatedAt: serverTimestamp(),
       };
       if (editing) {
@@ -168,10 +177,26 @@ export default function PartnerOffersPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {activities.map((act) => (
             <Card key={act.activityId} className={`bg-[#1A1A1A] border-white/5 transition-all overflow-hidden ${!act.isActive ? 'opacity-50' : ''}`}>
-              {act.imageUrl && (
+              {((act.images && act.images.length > 0) || act.imageUrl) && (
                 <div className="relative h-36 w-full">
-                  <img src={act.imageUrl} alt={act.name} className="w-full h-full object-cover" />
+                  {act.images && act.images.length > 1 ? (
+                    <div className="flex h-full">
+                      <img src={act.images[0]} alt={act.name} className="w-1/2 h-full object-cover" />
+                      <div className="w-1/2 flex flex-col">
+                        {act.images.slice(1, 3).map((img, i) => (
+                          <img key={i} src={img} alt={`${act.name} ${i + 2}`} className={`w-full ${act.images!.length > 2 ? 'h-1/2' : 'h-full'} object-cover`} />
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <img src={act.images?.[0] || act.imageUrl} alt={act.name} className="w-full h-full object-cover" />
+                  )}
                   <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent" />
+                  {act.images && act.images.length > 1 && (
+                    <span className="absolute top-2 right-2 bg-black/60 text-white/70 text-[10px] px-2 py-0.5 rounded-full">
+                      {act.images.length} photos
+                    </span>
+                  )}
                 </div>
               )}
               <CardContent className="p-5">
@@ -220,13 +245,55 @@ export default function PartnerOffersPage() {
                 <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Décrivez votre activité, l'ambiance, ce que les participants vont vivre..." className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[80px] resize-none focus:outline-none focus:ring-1 focus:ring-[#D91CD2]" />
               </div>
               <div className="grid gap-2">
-                <Label className="text-white/50">Image (URL)</Label>
-                <Input value={formImage} onChange={e => setFormImage(e.target.value)} placeholder="https://... ou laisser vide pour l'image par défaut" className="bg-[#1A1A1A] border-white/10 h-12" />
-                {formImage && (
-                  <div className="relative h-32 w-full rounded-lg overflow-hidden border border-white/10">
-                    <img src={formImage} alt="Aperçu" className="w-full h-full object-cover" />
-                  </div>
-                )}
+                <Label className="text-white/50 flex items-center gap-2">
+                  <ImagePlus className="h-4 w-4" /> Images (jusqu&apos;à 3 URLs)
+                </Label>
+                <div className="grid grid-cols-3 gap-3">
+                  {formImages.map((img, i) => (
+                    <div key={i} className="space-y-2">
+                      <div className="relative">
+                        <Input
+                          value={img}
+                          onChange={e => {
+                            const updated = [...formImages];
+                            updated[i] = e.target.value;
+                            setFormImages(updated);
+                          }}
+                          placeholder={`Image ${i + 1}`}
+                          className="bg-[#1A1A1A] border-white/10 h-10 text-xs pr-8"
+                        />
+                        {img && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = [...formImages];
+                              updated[i] = '';
+                              setFormImages(updated);
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      {img ? (
+                        <div className="relative h-20 w-full rounded-lg overflow-hidden border border-white/10">
+                          <img src={img} alt={`Image ${i + 1}`} className="w-full h-full object-cover" />
+                          {i === 0 && (
+                            <span className="absolute top-1 left-1 bg-[#D91CD2]/80 text-white text-[10px] px-1.5 py-0.5 rounded-full">
+                              Principale
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="h-20 w-full rounded-lg border border-dashed border-white/10 flex items-center justify-center">
+                          <ImagePlus className="h-5 w-5 text-white/15" />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <p className="text-[10px] text-white/20">La première image sera utilisée comme image principale</p>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
