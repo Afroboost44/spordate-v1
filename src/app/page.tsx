@@ -2,14 +2,22 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-// Using img tags for external images reliability
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import {
-  ArrowRight,
-  ChevronRight,
-  Dumbbell,
-} from 'lucide-react';
+import { ArrowRight, ChevronRight } from 'lucide-react';
+
+// ─── S LOGO COMPONENT ────────────────────────────────────
+function SLogo({ className = "h-8 w-8" }: { className?: string }) {
+  return (
+    <div className={`${className} bg-gradient-to-br from-[#7B1FA2] to-[#D91CD2] rounded-xl flex items-center justify-center`}>
+      <svg viewBox="0 0 32 32" fill="none" className="w-[60%] h-[60%]">
+        <path d="M20.5 8C20.5 8 22.5 8 22.5 10.5C22.5 13 18 13.5 16 14.5C14 15.5 9.5 16 9.5 19.5C9.5 23 13 24 13 24" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none"/>
+        <circle cx="16" cy="7.5" r="2" fill="white" opacity="0.6"/>
+        <circle cx="16" cy="24.5" r="2" fill="white" opacity="0.6"/>
+      </svg>
+    </div>
+  );
+}
 
 // ─── DATA ───────────────────────────────────────────────
 
@@ -21,82 +29,44 @@ interface ActivityItem {
 }
 
 const FEATURED_ACTIVITIES: ActivityItem[] = [
-  { id: 'afroboost',     name: 'Afroboost',      type: 'dance', image: 'https://picsum.photos/seed/afroboost/600/400' },
-  { id: 'zumba',         name: 'Zumba',           type: 'dance', image: 'https://picsum.photos/seed/zumba/600/400' },
-  { id: 'salsa',         name: 'Salsa',           type: 'dance', image: 'https://picsum.photos/seed/salsa/600/400' },
-  { id: 'hiphop',        name: 'Hip-Hop',         type: 'dance', image: 'https://picsum.photos/seed/hiphop/600/400' },
-  { id: 'tennis',        name: 'Tennis',          type: 'sport', image: 'https://picsum.photos/seed/tennis/600/400' },
-  { id: 'yoga',          name: 'Yoga',            type: 'sport', image: 'https://picsum.photos/seed/yogasport/600/400' },
-  { id: 'fitness',       name: 'Fitness',         type: 'sport', image: 'https://picsum.photos/seed/fitness/600/400' },
-  { id: 'dance_fitness', name: 'Dance Fitness',   type: 'dance', image: 'https://picsum.photos/seed/dancefitness/600/400' },
+  { id: 'afroboost',     name: 'Afroboost',      type: 'dance', image: 'https://images.unsplash.com/photo-1524594152303-9fd13543fe6e?w=600&h=400&fit=crop' },
+  { id: 'zumba',         name: 'Zumba',           type: 'dance', image: 'https://images.unsplash.com/photo-1518611012118-696072aa579a?w=600&h=400&fit=crop' },
+  { id: 'salsa',         name: 'Salsa',           type: 'dance', image: 'https://images.unsplash.com/photo-1545959570-a94084071b5d?w=600&h=400&fit=crop' },
+  { id: 'hiphop',        name: 'Hip-Hop',         type: 'dance', image: 'https://images.unsplash.com/photo-1547153760-18fc86324498?w=600&h=400&fit=crop' },
+  { id: 'tennis',        name: 'Tennis',          type: 'sport', image: 'https://images.unsplash.com/photo-1554068865-24cecd4e34b8?w=600&h=400&fit=crop' },
+  { id: 'yoga',          name: 'Yoga',            type: 'sport', image: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=600&h=400&fit=crop' },
+  { id: 'fitness',       name: 'Fitness',         type: 'sport', image: 'https://images.unsplash.com/photo-1534438327276-14e5300c3a48?w=600&h=400&fit=crop' },
+  { id: 'dance_fitness', name: 'Dance Fitness',   type: 'dance', image: 'https://images.unsplash.com/photo-1504609773096-104ff2c73ba4?w=600&h=400&fit=crop' },
 ];
 
-interface Testimonial {
-  name: string;
-  location: string;
-  image: string;
-  text: string;
-  activity: string;
-}
-
-const TESTIMONIALS: Testimonial[] = [
-  {
-    name: 'Amina K.',
-    location: 'Geneve',
-    image: 'https://picsum.photos/seed/amina/200/200',
-    text: 'J\'ai trouve ma partenaire d\'Afroboost. On se motive chaque semaine, c\'est devenu notre rituel.',
-    activity: 'Afroboost',
-  },
-  {
-    name: 'Karim D.',
-    location: 'Zurich',
-    image: 'https://picsum.photos/seed/karim/200/200',
-    text: 'Fan de salsa depuis 3 ans, j\'ai enfin trouve une partenaire a mon niveau. Le premier pas devient facile.',
-    activity: 'Salsa',
-  },
-  {
-    name: 'Lea M.',
-    location: 'Lausanne',
-    image: 'https://picsum.photos/seed/leam/200/200',
-    text: 'J\'ai decouvert le Dance Fitness via l\'app. Ambiance incroyable, zero pression.',
-    activity: 'Dance Fitness',
-  },
-  {
-    name: 'David N.',
-    location: 'Bern',
-    image: 'https://picsum.photos/seed/davidn/200/200',
-    text: 'Bachata en duo, c\'est 100x mieux. On danse, on rigole, c\'est tout.',
-    activity: 'Bachata',
-  },
+const TESTIMONIALS = [
+  { name: 'Amina K.', location: 'Gen\u00e8ve', image: 'https://images.unsplash.com/photo-1531746020798-e6953c6e8e04?w=200&h=200&fit=crop&crop=face', text: "J'ai trouv\u00e9 ma partenaire d'Afroboost. On se motive chaque semaine, c'est devenu notre rituel.", activity: 'Afroboost' },
+  { name: 'Karim D.', location: 'Zurich', image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop&crop=face', text: "Fan de salsa depuis 3 ans, j'ai enfin trouv\u00e9 une partenaire \u00e0 mon niveau.", activity: 'Salsa' },
+  { name: 'L\u00e9a M.', location: 'Lausanne', image: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop&crop=face', text: "J'ai d\u00e9couvert le Dance Fitness via l'app. Ambiance incroyable, z\u00e9ro pression.", activity: 'Dance Fitness' },
+  { name: 'David N.', location: 'Bern', image: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=200&h=200&fit=crop&crop=face', text: "Bachata en duo, c'est 100x mieux. On danse, on rigole, c'est tout.", activity: 'Bachata' },
 ];
 
-const SWISS_CITIES = ['Geneve', 'Zurich', 'Lausanne', 'Bern', 'Bale', 'Lucerne', 'Neuchatel', 'Fribourg'];
+const SWISS_CITIES = ['Gen\u00e8ve', 'Zurich', 'Lausanne', 'Bern', 'B\u00e2le', 'Lucerne', 'Neuch\u00e2tel', 'Fribourg'];
 
 // ─── COMPONENT ──────────────────────────────────────────
 
 export default function LandingPage() {
   const [hoveredActivity, setHoveredActivity] = useState<string | null>(null);
   const [site, setSite] = useState<Record<string, string>>({
-    heroTitle1: "Rencontre quelqu'un", heroTitle2: "en partageant une", heroTitle3: "activité sportive.",
+    heroTitle1: "Rencontre quelqu'un", heroTitle2: "en partageant une", heroTitle3: "activit\u00e9 sportive.",
     heroSubtitle: "Danse, fitness, running... Choisis ton sport, matche, et vis une vraie rencontre.",
     ctaText: "Commencer", primaryColor: "#D91CD2",
-    heroImage: "https://picsum.photos/seed/hero-dance/1920/1080",
-    step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... Selectionne tes activites et ton niveau.", step1Image: "https://picsum.photos/seed/step1/800/600",
-    step2Title: "Matche & discute", step2Desc: "On te propose des partenaires pres de toi. Connecte-toi, organise ta session.", step2Image: "https://picsum.photos/seed/step2/800/600",
-    step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'experience commence ici.", step3Image: "https://picsum.photos/seed/step3/800/600",
-    sectionTitle: "Trouve ton move.", sectionSubtitle: "Sport ou danse, debutant ou avance. Chaque activite est une opportunite de rencontre.",
-    ctaFinalTitle: "Pret a bouger ?", ctaFinalSubtitle: "Rejoins la communaute. Trouve ton partenaire.", ctaFinalButton: "Creer mon profil",
-    testimonialsTitle: "Ils bougent deja ensemble.",
-    testimonial1Name: "Amina K.", testimonial1City: "Geneve", testimonial1Text: "J'ai trouve ma partenaire d'Afroboost. On se motive chaque semaine.", testimonial1Sport: "Afroboost",
-    testimonial2Name: "Karim D.", testimonial2City: "Zurich", testimonial2Text: "Fan de salsa depuis 3 ans, j'ai enfin trouve une partenaire a mon niveau.", testimonial2Sport: "Salsa",
-    testimonial3Name: "Lea M.", testimonial3City: "Lausanne", testimonial3Text: "J'ai decouvert le Dance Fitness via l'app. Ambiance incroyable.", testimonial3Sport: "Dance Fitness",
-    testimonial4Name: "David N.", testimonial4City: "Bern", testimonial4Text: "Bachata en duo, c'est 100x mieux. On danse, on rigole.", testimonial4Sport: "Bachata",
-    swissTitle: "Actif dans toute la Suisse.", swissSubtitle: "Studios partenaires, salles de danse et espaces fitness.", swissImage: "https://picsum.photos/seed/swiss/800/1000",
-    swissCities: "Geneve,Zurich,Lausanne,Bern,Bale,Lucerne,Neuchatel,Fribourg",
-    partnerTitle: "Studio de danse ou salle de sport ?", partnerSubtitle: "Rejoins le reseau Spordateur. Remplis tes cours, gagne en visibilite.", partnerCta1: "Devenir partenaire", partnerCta2: "Nous contacter",
+    heroImage: "https://images.unsplash.com/photo-1524594152303-9fd13543fe6e?w=1920&h=1080&fit=crop",
+    step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... S\u00e9lectionne tes activit\u00e9s et ton niveau.", step1Image: "https://images.unsplash.com/photo-1571019614242-c5c5dee9f50b?w=800&h=600&fit=crop",
+    step2Title: "Matche & discute", step2Desc: "On te propose des partenaires pr\u00e8s de toi. Connecte-toi, organise ta session.", step2Image: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=800&h=600&fit=crop",
+    step3Title: "Bouge & kiffe", step3Desc: "Retrouve ton match dans un studio partenaire. L'exp\u00e9rience commence ici.", step3Image: "https://images.unsplash.com/photo-1529516548873-9ce57c8f155e?w=800&h=600&fit=crop",
+    sectionTitle: "Trouve ton move.", sectionSubtitle: "Sport ou danse, d\u00e9butant ou avanc\u00e9. Chaque activit\u00e9 est une opportunit\u00e9 de rencontre.",
+    ctaFinalTitle: "Pr\u00eat \u00e0 bouger ?", ctaFinalSubtitle: "Rejoins la communaut\u00e9. Trouve ton partenaire.", ctaFinalButton: "Cr\u00e9er mon profil",
+    testimonialsTitle: "Ils bougent d\u00e9j\u00e0 ensemble.",
+    swissTitle: "Actif dans toute la Suisse.", swissSubtitle: "Studios partenaires, salles de danse et espaces fitness.", swissImage: "https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?w=800&h=1000&fit=crop",
+    partnerTitle: "Studio de danse ou salle de sport ?", partnerSubtitle: "Rejoins le r\u00e9seau Spordate. Remplis tes cours, gagne en visibilit\u00e9.", partnerCta1: "Devenir partenaire", partnerCta2: "Nous contacter",
   } as Record<string, string>);
 
-  // Load site config from Firestore (admin-editable)
   useEffect(() => {
     const load = async () => {
       try {
@@ -123,15 +93,15 @@ export default function LandingPage() {
 
       {/* ── NAV ── */}
       <nav className="sticky top-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/90">
-        <div className="container mx-auto px-6 h-20 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-3">
-            <Dumbbell className="h-8 w-8 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] rounded-md p-1 text-white" />
-            <span className="text-xl font-light tracking-widest uppercase text-white">Spordateur</span>
+        <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
+          <Link href="/" className="flex items-center gap-2.5">
+            <SLogo className="h-8 w-8" />
+            <span className="text-lg font-light tracking-widest uppercase text-white">Spordate</span>
           </Link>
-          <div className="hidden md:flex items-center gap-10">
-            <a href="#method" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Methode</a>
-            <a href="#activities" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Activites</a>
-            <a href="#stories" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Temoignages</a>
+          <div className="hidden md:flex items-center gap-8">
+            <a href="#method" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">M\u00e9thode</a>
+            <a href="#activities" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Activit\u00e9s</a>
+            <a href="#stories" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">T\u00e9moignages</a>
             <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-sm font-normal tracking-wide uppercase px-6 h-10 rounded-none">
               <Link href="/signup">Rejoindre</Link>
             </Button>
@@ -145,78 +115,51 @@ export default function LandingPage() {
       </nav>
 
       {/* ── HERO ── */}
-      <section className="relative min-h-[90vh] flex items-center">
-        {/* Background image */}
+      <section className="relative min-h-[80vh] flex items-center">
         <div className="absolute inset-0 z-0">
-          <img
-            src={site.heroImage}
-            alt="Dance"
-            style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
-            className="absolute inset-0 w-full h-full object-cover opacity-30"
-          />
+          <img src={site.heroImage} alt="Dance" style={{position:"absolute",inset:0,width:"100%",height:"100%"}} className="absolute inset-0 w-full h-full object-cover opacity-30" />
           <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-black/40 to-black" />
         </div>
-
-        <div className="relative z-10 container mx-auto px-6 py-32 md:py-48">
-          <div className="max-w-3xl space-y-10">
-            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2]">
-              Sport &middot; Danse &middot; Rencontres
-            </p>
-
-            <h1 className="text-5xl md:text-8xl font-extralight leading-[0.95] tracking-tight text-white">
-              {site.heroTitle1}
-              <br />
-              {site.heroTitle2}
-              <br />
+        <div className="relative z-10 container mx-auto px-4 md:px-6 py-16 md:py-24">
+          <div className="max-w-3xl space-y-8">
+            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2]">Sport &middot; Danse &middot; Rencontres</p>
+            <h1 className="text-4xl md:text-7xl font-extralight leading-[0.95] tracking-tight text-white">
+              {site.heroTitle1}<br />{site.heroTitle2}<br />
               <span style={{ color: site.primaryColor }} className="neon-text">{site.heroTitle3}</span>
             </h1>
-
-            <p className="text-lg md:text-xl font-light text-white/60 max-w-lg leading-relaxed">
-              {site.heroSubtitle}
-            </p>
-
-            <div className="flex flex-col sm:flex-row gap-4 pt-4">
-              <Button asChild className="text-white font-semibold text-base tracking-wide px-12 h-16 rounded-full neon-glow" style={{ backgroundColor: site.primaryColor }}>
+            <p className="text-base md:text-lg font-light text-white/60 max-w-lg leading-relaxed">{site.heroSubtitle}</p>
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Button asChild className="text-white font-semibold text-base tracking-wide px-10 h-14 rounded-full neon-glow" style={{ backgroundColor: site.primaryColor }}>
                 <Link href="/signup">{site.ctaText}</Link>
               </Button>
-              <Button asChild variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-10 h-16 rounded-full">
-                <Link href="#method">
-                  Comment ça marche <ArrowRight className="ml-3 h-4 w-4" />
-                </Link>
+              <Button asChild variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-8 h-14 rounded-full">
+                <Link href="#method">Comment \u00e7a marche <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
             </div>
           </div>
         </div>
       </section>
 
-      {/* ── METHOD (How it works) ── */}
-      <section id="method" className="py-32 md:py-48">
-        <div className="container mx-auto px-6">
-          <div className="max-w-xl mb-20">
-            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-4">Methode</p>
-            <h2 className="text-4xl md:text-6xl font-extralight tracking-tight">
-              Trois etapes.<br />C&apos;est tout.
-            </h2>
+      {/* ── METHOD ── */}
+      <section id="method" className="py-16 md:py-24">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="max-w-xl mb-12">
+            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">M\u00e9thode</p>
+            <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">Trois \u00e9tapes.<br />C&apos;est tout.</h2>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5">
             {[
               { num: '01', title: site.step1Title, desc: site.step1Desc, image: site.step1Image },
               { num: '02', title: site.step2Title, desc: site.step2Desc, image: site.step2Image },
               { num: '03', title: site.step3Title, desc: site.step3Desc, image: site.step3Image },
             ].map((step) => (
-              <div key={step.num} className="bg-black p-10 md:p-14 group">
-                <div className="relative h-64 mb-10 overflow-hidden">
-                  <img
-                    src={step.image}
-                    alt={step.title}
-                    style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
-                    className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700"
-                  />
+              <div key={step.num} className="bg-black p-6 md:p-10 group">
+                <div className="relative h-48 md:h-56 mb-6 overflow-hidden">
+                  <img src={step.image} alt={step.title} style={{position:"absolute",inset:0,width:"100%",height:"100%"}} className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" />
                   <div className="absolute inset-0 bg-black/30 group-hover:bg-transparent transition-all duration-700" />
                 </div>
-                <span className="text-5xl font-extralight text-white/10 block mb-6">{step.num}</span>
-                <h3 className="text-xl font-normal tracking-wide text-white mb-4">{step.title}</h3>
+                <span className="text-4xl font-extralight text-white/10 block mb-4">{step.num}</span>
+                <h3 className="text-lg font-normal tracking-wide text-white mb-3">{step.title}</h3>
                 <p className="text-sm font-light text-white/40 leading-relaxed">{step.desc}</p>
               </div>
             ))}
@@ -225,65 +168,42 @@ export default function LandingPage() {
       </section>
 
       {/* ── ACTIVITIES GRID ── */}
-      <section id="activities" className="py-32 md:py-48">
-        <div className="container mx-auto px-6">
-          <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-20 gap-6">
+      <section id="activities" className="py-16 md:py-24">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-12 gap-4">
             <div>
-              <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-4">Activites</p>
-              <h2 className="text-4xl md:text-6xl font-extralight tracking-tight">
-                {site.sectionTitle}
-              </h2>
+              <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">Activit\u00e9s</p>
+              <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">{site.sectionTitle}</h2>
             </div>
-            <p className="text-sm font-light text-white/40 max-w-sm leading-relaxed">
-              Sport ou danse, debutant ou avance. Chaque activite est une opportunite de rencontre.
-            </p>
+            <p className="text-sm font-light text-white/40 max-w-sm leading-relaxed">Sport ou danse, d\u00e9butant ou avanc\u00e9. Chaque activit\u00e9 est une opportunit\u00e9 de rencontre.</p>
           </div>
-
           <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/5">
             {FEATURED_ACTIVITIES.map((activity) => (
-              <div
-                key={activity.id}
-                className="relative bg-[#0A0A0A] group cursor-pointer overflow-hidden"
-                onMouseEnter={() => setHoveredActivity(activity.id)}
-                onMouseLeave={() => setHoveredActivity(null)}
-              >
-                <div className="relative h-52 md:h-72 overflow-hidden">
-                  <img
-                    src={activity.image}
-                    alt={activity.name}
-                    style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
-                    className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700"
-                  />
+              <div key={activity.id} className="relative bg-[#0A0A0A] group cursor-pointer overflow-hidden" onMouseEnter={() => setHoveredActivity(activity.id)} onMouseLeave={() => setHoveredActivity(null)}>
+                <div className="relative h-44 md:h-64 overflow-hidden">
+                  <img src={activity.image} alt={activity.name} style={{position:"absolute",inset:0,width:"100%",height:"100%"}} className="absolute inset-0 w-full h-full object-cover grayscale group-hover:grayscale-0 group-hover:scale-105 transition-all duration-700" />
                   <div className="absolute inset-0 bg-black/50 group-hover:bg-black/20 transition-all duration-500" />
                 </div>
-                <div className="p-6">
+                <div className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-normal tracking-wide uppercase text-white">{activity.name}</h3>
-                    <span className={`text-[10px] tracking-widest uppercase font-light ${activity.type === 'dance' ? 'text-[#D91CD2]' : 'text-white/30'}`}>
-                      {activity.type === 'dance' ? 'Danse' : 'Sport'}
-                    </span>
+                    <h3 className="text-xs md:text-sm font-normal tracking-wide uppercase text-white">{activity.name}</h3>
+                    <span className={`text-[10px] tracking-widest uppercase font-light ${activity.type === 'dance' ? 'text-[#D91CD2]' : 'text-white/30'}`}>{activity.type === 'dance' ? 'Danse' : 'Sport'}</span>
                   </div>
                 </div>
-                {/* Neon border on hover */}
-                <div className={`absolute inset-0 border transition-all duration-500 pointer-events-none ${
-                  hoveredActivity === activity.id ? 'border-[#D91CD2]/50' : 'border-transparent'
-                }`} />
+                <div className={`absolute inset-0 border transition-all duration-500 pointer-events-none ${hoveredActivity === activity.id ? 'border-[#D91CD2]/50' : 'border-transparent'}`} />
               </div>
             ))}
           </div>
-
           {/* Level matching */}
-          <div className="mt-20 border border-white/5 p-10 md:p-14 flex flex-col md:flex-row items-center gap-10">
+          <div className="mt-12 border border-white/5 p-6 md:p-10 flex flex-col md:flex-row items-center gap-8">
             <div className="flex-1">
-              <h3 className="text-2xl font-light tracking-wide mb-4">Matching par niveau</h3>
-              <p className="text-sm font-light text-white/40 leading-relaxed max-w-md">
-                Debutant, intermediaire ou avance. On te matche avec des partenaires de ton niveau pour une experience optimale des le premier pas.
-              </p>
+              <h3 className="text-xl font-light tracking-wide mb-3">Matching par niveau</h3>
+              <p className="text-sm font-light text-white/40 leading-relaxed max-w-md">D\u00e9butant, interm\u00e9diaire ou avanc\u00e9. On te matche avec des partenaires de ton niveau pour une exp\u00e9rience optimale.</p>
             </div>
             <div className="flex gap-6">
-              {['Debutant', 'Intermediaire', 'Avance'].map((level) => (
+              {['D\u00e9butant', 'Interm\u00e9diaire', 'Avanc\u00e9'].map((level) => (
                 <div key={level} className="text-center group cursor-pointer">
-                  <div className="h-16 w-16 border border-white/10 group-hover:border-[#D91CD2] transition-colors duration-300 flex items-center justify-center mb-3">
+                  <div className="h-14 w-14 border border-white/10 group-hover:border-[#D91CD2] transition-colors duration-300 flex items-center justify-center mb-2">
                     <span className="text-xs font-light text-white/30 group-hover:text-[#D91CD2] transition-colors uppercase">{level.charAt(0)}</span>
                   </div>
                   <span className="text-[10px] font-light text-white/30 tracking-wide uppercase">{level}</span>
@@ -295,36 +215,23 @@ export default function LandingPage() {
       </section>
 
       {/* ── TESTIMONIALS ── */}
-      <section id="stories" className="py-32 md:py-48 border-t border-white/5">
-        <div className="container mx-auto px-6">
-          <div className="max-w-xl mb-20">
-            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-4">Temoignages</p>
-            <h2 className="text-4xl md:text-6xl font-extralight tracking-tight">
-              {site.testimonialsTitle}
-            </h2>
+      <section id="stories" className="py-16 md:py-24 border-t border-white/5">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="max-w-xl mb-12">
+            <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">Témoignages</p>
+            <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">{site.testimonialsTitle}</h2>
           </div>
-
           <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/5">
-            {[1,2,3,4].map((i) => ({ name: site[`testimonial${i}Name`], location: site[`testimonial${i}City`], text: site[`testimonial${i}Text`], activity: site[`testimonial${i}Sport`] })).filter(t => t.name && t.text).map((t, idx) => (
-              <div key={idx} className="bg-black p-10 md:p-14 group">
-                <p className="text-lg font-light text-white/70 leading-relaxed mb-10 italic">
-                  &ldquo;{t.text}&rdquo;
-                </p>
+            {TESTIMONIALS.map((t, idx) => (
+              <div key={idx} className="bg-black p-6 md:p-10 group">
+                <p className="text-base font-light text-white/70 leading-relaxed mb-8 italic">&ldquo;{t.text}&rdquo;</p>
                 <div className="flex items-center gap-4">
-                  <div className="h-12 w-12 overflow-hidden grayscale group-hover:grayscale-0 transition-all duration-500">
-                    <img
-                      src={t.image}
-                      alt={t.name}
-                      
-                      
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="h-11 w-11 rounded-full overflow-hidden grayscale group-hover:grayscale-0 transition-all duration-500">
+                    <img src={t.image} alt={t.name} className="w-full h-full object-cover" />
                   </div>
                   <div>
                     <p className="text-sm font-normal text-white">{t.name}</p>
-                    <p className="text-xs font-light text-white/30">
-                      {t.location} &middot; {t.activity}
-                    </p>
+                    <p className="text-xs font-light text-white/30">{t.location} &middot; {t.activity}</p>
                   </div>
                 </div>
               </div>
@@ -334,33 +241,24 @@ export default function LandingPage() {
       </section>
 
       {/* ── SWISS COVERAGE ── */}
-      <section className="py-32 md:py-48">
-        <div className="container mx-auto px-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-20 items-center">
+      <section className="py-16 md:py-24">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <div>
-              <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-4">Couverture</p>
-              <h2 className="text-4xl md:text-5xl font-extralight tracking-tight mb-8">
-                {site.swissTitle}
-              </h2>
-              <p className="text-sm font-light text-white/40 leading-relaxed mb-10">
-                {site.swissSubtitle}
-              </p>
-              <div className="grid grid-cols-2 gap-4">
-                {(site.swissCities || '').split(',').filter(Boolean).map((city) => (
+              <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-3">Couverture</p>
+              <h2 className="text-3xl md:text-4xl font-extralight tracking-tight mb-6">{site.swissTitle}</h2>
+              <p className="text-sm font-light text-white/40 leading-relaxed mb-8">{site.swissSubtitle}</p>
+              <div className="grid grid-cols-2 gap-3">
+                {SWISS_CITIES.map((city) => (
                   <div key={city} className="flex items-center gap-3 py-2 border-b border-white/5">
                     <div className="h-1.5 w-1.5" style={{ backgroundColor: site.primaryColor }} />
-                    <span className="text-sm font-light text-white/60">{city.trim()}</span>
+                    <span className="text-sm font-light text-white/60">{city}</span>
                   </div>
                 ))}
               </div>
             </div>
-            <div className="relative h-96 md:h-[500px] overflow-hidden">
-              <img
-                src={site.swissImage}
-                alt="Switzerland"
-                style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
-                className="absolute inset-0 w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700"
-              />
+            <div className="relative h-72 md:h-[420px] overflow-hidden">
+              <img src={site.swissImage} alt="Switzerland" style={{position:"absolute",inset:0,width:"100%",height:"100%"}} className="absolute inset-0 w-full h-full object-cover grayscale hover:grayscale-0 transition-all duration-700" />
               <div className="absolute inset-0 bg-gradient-to-t from-black via-transparent to-transparent" />
             </div>
           </div>
@@ -368,20 +266,16 @@ export default function LandingPage() {
       </section>
 
       {/* ── PARTNER CTA ── */}
-      <section className="py-32 md:py-48 border-t border-white/5">
-        <div className="container mx-auto px-6 text-center max-w-3xl">
-          <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-6">Partenaires</p>
-          <h2 className="text-3xl md:text-5xl font-extralight tracking-tight mb-8">
-            {site.partnerTitle}
-          </h2>
-          <p className="text-sm font-light text-white/40 leading-relaxed mb-12 max-w-lg mx-auto">
-            {site.partnerSubtitle}
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Button asChild className="text-white font-normal text-sm tracking-wide uppercase px-10 h-14 rounded-none neon-glow" style={{ backgroundColor: site.primaryColor }}>
+      <section className="py-16 md:py-24 border-t border-white/5">
+        <div className="container mx-auto px-4 md:px-6 text-center max-w-3xl">
+          <p className="text-sm font-light tracking-[0.3em] uppercase text-[#D91CD2] mb-4">Partenaires</p>
+          <h2 className="text-2xl md:text-4xl font-extralight tracking-tight mb-6">{site.partnerTitle}</h2>
+          <p className="text-sm font-light text-white/40 leading-relaxed mb-10 max-w-lg mx-auto">{site.partnerSubtitle}</p>
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Button asChild className="text-white font-normal text-sm tracking-wide uppercase px-8 h-12 rounded-none neon-glow" style={{ backgroundColor: site.primaryColor }}>
               <Link href="/partners">{site.partnerCta1}</Link>
             </Button>
-            <Button variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-10 h-14 rounded-none">
+            <Button variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-8 h-12 rounded-none">
               {site.partnerCta2}
             </Button>
           </div>
@@ -389,45 +283,34 @@ export default function LandingPage() {
       </section>
 
       {/* ── FINAL CTA ── */}
-      <section className="relative py-32 md:py-48 overflow-hidden">
+      <section className="relative py-16 md:py-24 overflow-hidden">
         <div className="absolute inset-0">
-          <img
-            src="https://picsum.photos/seed/finalcta/1920/800"
-            alt="Dance"
-            style={{position:"absolute",inset:0,width:"100%",height:"100%"}}
-            className="absolute inset-0 w-full h-full object-cover opacity-15"
-          />
+          <img src="https://images.unsplash.com/photo-1524594152303-9fd13543fe6e?w=1920&h=800&fit=crop" alt="Dance" style={{position:"absolute",inset:0,width:"100%",height:"100%"}} className="absolute inset-0 w-full h-full object-cover opacity-15" />
           <div className="absolute inset-0 bg-gradient-to-r from-black via-black/80 to-black" />
         </div>
-        <div className="relative z-10 container mx-auto px-6 text-center">
-          <h2 className="text-4xl md:text-7xl font-extralight tracking-tight mb-8">
-            {site.ctaFinalTitle}
-          </h2>
-          <p className="text-lg font-light text-white/50 mb-12 max-w-md mx-auto">
-            {site.ctaFinalSubtitle}
-          </p>
-          <Button asChild className="text-white font-normal text-sm tracking-widest uppercase px-14 h-16 rounded-none neon-glow" style={{ backgroundColor: site.primaryColor }}>
+        <div className="relative z-10 container mx-auto px-4 md:px-6 text-center">
+          <h2 className="text-3xl md:text-6xl font-extralight tracking-tight mb-6">{site.ctaFinalTitle}</h2>
+          <p className="text-base font-light text-white/50 mb-10 max-w-md mx-auto">{site.ctaFinalSubtitle}</p>
+          <Button asChild className="text-white font-normal text-sm tracking-widest uppercase px-12 h-14 rounded-none neon-glow" style={{ backgroundColor: site.primaryColor }}>
             <Link href="/signup">{site.ctaFinalButton}</Link>
           </Button>
         </div>
       </section>
 
       {/* ── FOOTER ── */}
-      <footer className="border-t border-white/5 py-20">
-        <div className="container mx-auto px-6">
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-12 mb-16">
-            <div className="space-y-4">
-              <div className="flex items-center gap-3">
-                <Dumbbell className="h-7 w-7 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] rounded-md p-1 text-white" />
-                <span className="text-lg font-light tracking-widest uppercase text-white">Spordateur</span>
+      <footer className="border-t border-white/5 py-12">
+        <div className="container mx-auto px-4 md:px-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 mb-10">
+            <div className="col-span-2 md:col-span-1 space-y-3">
+              <div className="flex items-center gap-2.5">
+                <SLogo className="h-7 w-7" />
+                <span className="text-base font-light tracking-widest uppercase text-white">Spordate</span>
               </div>
-              <p className="text-xs font-light text-white/30 leading-relaxed">
-                La plateforme suisse de rencontres par le sport et la danse.
-              </p>
+              <p className="text-xs font-light text-white/30 leading-relaxed">La plateforme suisse de rencontres par le sport et la danse.</p>
             </div>
             <div>
-              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-6">Danses</h4>
-              <ul className="space-y-3 text-xs font-light text-white/30">
+              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-4">Danses</h4>
+              <ul className="space-y-2 text-xs font-light text-white/30">
                 <li><a href="#" className="hover:text-white transition">Afroboost</a></li>
                 <li><a href="#" className="hover:text-white transition">Zumba</a></li>
                 <li><a href="#" className="hover:text-white transition">Salsa &amp; Bachata</a></li>
@@ -435,27 +318,27 @@ export default function LandingPage() {
               </ul>
             </div>
             <div>
-              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-6">Entreprise</h4>
-              <ul className="space-y-3 text-xs font-light text-white/30">
-                <li><a href="#" className="hover:text-white transition">A propos</a></li>
+              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-4">Entreprise</h4>
+              <ul className="space-y-2 text-xs font-light text-white/30">
+                <li><a href="#" className="hover:text-white transition">À propos</a></li>
                 <li><a href="#" className="hover:text-white transition">Studios partenaires</a></li>
                 <li><a href="#" className="hover:text-white transition">Blog</a></li>
                 <li><a href="#" className="hover:text-white transition">Presse</a></li>
               </ul>
             </div>
             <div>
-              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-6">Legal</h4>
-              <ul className="space-y-3 text-xs font-light text-white/30">
-                <li><a href="#" className="hover:text-white transition">Confidentialite</a></li>
+              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-4">Légal</h4>
+              <ul className="space-y-2 text-xs font-light text-white/30">
+                <li><a href="#" className="hover:text-white transition">Confidentialité</a></li>
                 <li><a href="#" className="hover:text-white transition">Conditions</a></li>
                 <li><a href="#" className="hover:text-white transition">Cookies</a></li>
                 <li><a href="#" className="hover:text-white transition">Contact</a></li>
               </ul>
             </div>
           </div>
-          <div className="border-t border-white/5 pt-10 flex flex-col md:flex-row justify-between items-center text-xs font-light text-white/20">
-            <Link href="/login" className="hover:text-white/40 transition">2026 Spordateur. Tous droits reserves.</Link>
-            <div className="flex gap-8 mt-4 md:mt-0">
+          <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center text-xs font-light text-white/20">
+            <Link href="/login" className="hover:text-white/40 transition">© 2026 Spordate. Tous droits réservés.</Link>
+            <div className="flex gap-6 mt-3 md:mt-0">
               <a href="#" className="hover:text-white/60 transition tracking-wide uppercase">Instagram</a>
               <a href="#" className="hover:text-white/60 transition tracking-wide uppercase">TikTok</a>
               <a href="#" className="hover:text-white/60 transition tracking-wide uppercase">YouTube</a>
