@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Dumbbell, Bell, Languages, LogOut, Crown, Shield, Building } from 'lucide-react';
+import { Menu, Bell, Languages, LogOut, Crown, Shield, Building } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   DropdownMenu,
@@ -15,6 +15,20 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+
+
+// ─── S LOGO COMPONENT ────────────────────────────────────
+function SLogo({ className = "h-6 w-6" }: { className?: string }) {
+  return (
+    <div className={`${className} bg-gradient-to-br from-[#7B1FA2] to-[#D91CD2] rounded-xl flex items-center justify-center`}>
+      <svg viewBox="0 0 32 32" fill="none" className="w-[60%] h-[60%]">
+        <path d="M20.5 8C20.5 8 22.5 8 22.5 10.5C22.5 13 18 13.5 16 14.5C14 15.5 9.5 16 9.5 19.5C9.5 23 13 24 13 24" stroke="white" strokeWidth="3" strokeLinecap="round" fill="none"/>
+        <circle cx="16" cy="7.5" r="2" fill="white" opacity="0.6"/>
+        <circle cx="16" cy="24.5" r="2" fill="white" opacity="0.6"/>
+      </svg>
+    </div>
+  );
+}
 
 export default function Header() {
   const { t, setLanguage } = useLanguage();
@@ -60,7 +74,7 @@ export default function Header() {
       <div className="container flex h-14 items-center">
         <div className="flex items-center md:flex-1">
           <Link href="/" className="mr-6 flex items-center space-x-2">
-            <Dumbbell className="h-6 w-6 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] rounded-md p-1 text-white" />
+            <SLogo className="h-7 w-7" />
             <span className="font-bold">Spordate</span>
           </Link>
           <nav className="hidden items-center space-x-6 text-sm font-medium md:flex">
