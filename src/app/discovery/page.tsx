@@ -59,11 +59,8 @@ const mockSessions = [
 ];
 
 // Fallback profiles (used when Firestore has no users yet)
-const fallbackProfiles = [
-  { id: 1, name: 'Julie, 28', location: 'Genève', sports: ['Afroboost', 'Danse'], bio: 'Passionnée d\'Afroboost, je cherche un partenaire pour danser !', imageId: 'discovery-1', price: 25 },
-  { id: 2, name: 'Marc, 32', location: 'Lausanne', sports: ['Danse', 'Fitness'], bio: 'Danseur confirmé, fan de rythmes africains.', imageId: 'discovery-2', price: 30 },
-  { id: 3, name: 'Sophie, 25', location: 'Zurich', sports: ['Afroboost', 'Fitness'], bio: 'Coach Afroboost, je partage ma passion avec énergie !', imageId: 'discovery-3', price: 35 },
-];
+// No more fallback profiles — only real Firestore users are shown
+const fallbackProfiles: any[] = [];
 
 // boostedActivities mock removed — now loaded from Firestore 'boosts' collection
 
@@ -201,11 +198,11 @@ export default function DiscoveryPage() {
         } else {
           // No real users yet → keep fallback profiles
           console.log('[Discovery] Aucun profil Firestore, utilisation des profils démo');
-          setProfiles(fallbackProfiles);
+          setProfiles([]);
         }
       } catch (err) {
         console.warn('[Discovery] Erreur chargement Firestore, fallback aux profils démo:', err);
-        setProfiles(fallbackProfiles);
+        setProfiles([]);
       } finally {
         setLoadingProfiles(false);
       }
@@ -333,6 +330,18 @@ export default function DiscoveryPage() {
   };
 
   const handleLike = async () => {
+    // Check credits before allowing a match
+    const credits = userProfile?.credits ?? 0;
+    if (credits <= 0) {
+      toast({
+        variant: "destructive",
+        title: "Pas de crédits",
+        description: "Achetez des crédits pour matcher et réserver une activité.",
+      });
+      router.push('/payment');
+      return;
+    }
+
     // Create a real match in Firestore
     if (user && currentProfile && (currentProfile as any).firestoreUid) {
       try {
