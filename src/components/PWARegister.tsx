@@ -122,7 +122,7 @@ export default function PWARegister() {
             Installer Spordate
           </p>
           <p style={{ color: '#aaa', margin: '4px 0 0', fontSize: 13 }}>
-            Acc\u00e8s rapide depuis ton \u00e9cran d&apos;accueil
+            Accès rapide depuis ton écran d'accueil
           </p>
         </div>
         <button
