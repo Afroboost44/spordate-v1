@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
 
     // Extract package info from metadata
     const packageId = session.metadata?.packageId || session.metadata?.package_id || '';
-    const metaCredits = parseInt(session.metadata?.credits || '0', 10);
+    const metaCredits = parseInt(session.metadata?.credits || session.metadata?.creditsToGrant || '0', 10);
     const metaUserId = session.metadata?.userId || session.metadata?.user_id || '';
 
     // Verify the user matches
