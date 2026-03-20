@@ -10,7 +10,7 @@ import { useWindowSize } from 'react-use';
 import { useAuth } from '@/context/AuthContext';
 import Link from 'next/link';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
-import { collection, getDocs } from 'firebase/firestore';
+import { collection, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
 import BackButton from '@/components/BackButton';
 
 interface CreditPackage {
@@ -139,10 +139,20 @@ export default function PaymentPage() {
           body: JSON.stringify({ sessionId, userId: user.uid }),
         })
           .then(res => res.json())
-          .then(data => {
-            if (data.success) {
-              setCreditsVerified(true);
-              setGrantedCredits(data.creditsGranted || 0);
+          .then(async (data) => {
+            if (data.verified && data.credits > 0 && user?.uid) {
+              try {
+                const userRef = doc(db, 'users', user.uid);
+                await updateDoc(userRef, {
+                  credits: increment(data.credits),
+                  lastPaymentId: data.paymentIntent || data.sessionId,
+                  lastPaymentAt: new Date().toISOString(),
+                });
+                setCreditsVerified(true);
+                setGrantedCredits(data.credits);
+              } catch (err) {
+                console.error('[Payment] Failed to write credits:', err);
+              }
             }
           })
           .catch(err => console.error('Verify payment error:', err))
