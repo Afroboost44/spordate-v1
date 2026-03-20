@@ -1,8 +1,13 @@
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Rocket, Zap, MapPin, Clock, TrendingUp, Eye, Users, Loader2, Globe, ChevronLeft } from 'lucide-react';
+import { Rocket, Zap, MapPin, Clock, TrendingUp, Eye, Users, Loader2, Globe, ChevronLeft, CheckCircle, XCircle } from 'lucide-react';
+import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/context/AuthContext';
+import { db } from '@/lib/firebase';
+import { doc, getDoc, collection, query, where, getDocs, limit, addDoc, serverTimestamp } from 'firebase/firestore';
 
 const SWISS_CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Fribourg', 'Neuchâtel', 'Toute la Suisse'];
 
@@ -30,17 +35,121 @@ const DURATIONS = [
 type LocationMode = 'choose' | 'swiss' | 'international-country' | 'international-city';
 
 export default function PartnerBoostPage() {
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const { toast } = useToast();
   const [locationMode, setLocationMode] = useState<LocationMode>('choose');
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
   const [selectedDuration, setSelectedDuration] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [partnerId, setPartnerId] = useState('');
+  const [activeBoosts, setActiveBoosts] = useState<any[]>([]);
+  const [paymentStatus, setPaymentStatus] = useState<'success' | 'cancel' | null>(null);
 
   const currentPrice = DURATIONS.find(d => d.value === selectedDuration)?.price || 0;
 
-  const handleBoost = () => {
+  // Load partner ID and active boosts
+  useEffect(() => {
+    if (!user?.uid || !db) return;
+
+    const load = async () => {
+      try {
+        // Get partner ID
+        const docSnap = await getDoc(doc(db, 'partners', user.uid));
+        if (docSnap.exists()) {
+          setPartnerId(docSnap.id);
+        } else {
+          const q = query(collection(db, 'partners'), where('email', '==', user.email), limit(1));
+          const snap = await getDocs(q);
+          if (!snap.empty) setPartnerId(snap.docs[0].id);
+        }
+
+        // Load active boosts
+        const boostQ = query(
+          collection(db, 'boosts'),
+          where('partnerId', '==', user.uid),
+          where('active', '==', true),
+          limit(10)
+        );
+        const boostSnap = await getDocs(boostQ);
+        const boosts = boostSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setActiveBoosts(boosts);
+      } catch (err) {
+        console.error('[Boost] Load error:', err);
+      }
+    };
+
+    load();
+  }, [user]);
+
+  // Handle payment return
+  useEffect(() => {
+    const status = searchParams.get('status');
+    const sessionId = searchParams.get('session_id');
+    const duration = searchParams.get('duration');
+    const city = searchParams.get('city');
+
+    if (status === 'success' && sessionId) {
+      setPaymentStatus('success');
+
+      // Save boost to Firestore
+      if (db && (partnerId || user?.uid)) {
+        const durationHours: Record<string, number> = { '24h': 24, '3d': 72, '7d': 168 };
+        const hours = durationHours[duration || '24h'] || 24;
+        const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+
+        addDoc(collection(db, 'boosts'), {
+          partnerId: partnerId || user?.uid || '',
+          city: city ? decodeURIComponent(city) : '',
+          duration: duration || '24h',
+          active: true,
+          stripeSessionId: sessionId,
+          createdAt: serverTimestamp(),
+          expiresAt,
+        }).then(() => {
+          toast({ title: "Boost activé", description: `Votre boost est actif pour ${DURATIONS.find(d => d.value === duration)?.label || duration}.` });
+        }).catch(err => console.error('[Boost] Save error:', err));
+      }
+
+      // Clean URL
+      window.history.replaceState({}, '', '/partner/boost');
+    } else if (status === 'cancel') {
+      setPaymentStatus('cancel');
+      toast({ title: "Paiement annulé", description: "Le boost n'a pas été activé.", variant: "destructive" });
+      window.history.replaceState({}, '', '/partner/boost');
+    }
+  }, [searchParams, partnerId, user]);
+
+  const handleBoost = async () => {
     setIsLoading(true);
-    setTimeout(() => setIsLoading(false), 2000);
+    try {
+      const res = await fetch('/api/boost-checkout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          duration: selectedDuration,
+          city: selectedCity,
+          country: selectedCountry || undefined,
+          partnerId: partnerId || user?.uid || '',
+          userId: user?.uid || '',
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      // Redirect to Stripe Checkout
+      window.location.href = data.url;
+    } catch (err: any) {
+      console.error('[Boost]', err);
+      toast({
+        title: "Erreur",
+        description: err.message || "Impossible de lancer le paiement.",
+        variant: "destructive",
+      });
+      setIsLoading(false);
+    }
   };
 
   const resetLocation = () => {
@@ -52,6 +161,27 @@ export default function PartnerBoostPage() {
   const locationLabel = selectedCity
     ? (selectedCountry ? `${selectedCity}, ${selectedCountry}` : selectedCity)
     : '';
+
+  // Success banner
+  if (paymentStatus === 'success') {
+    return (
+      <div className="space-y-8">
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <div className="w-20 h-20 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center mb-6">
+            <CheckCircle className="h-10 w-10 text-green-400" />
+          </div>
+          <h2 className="text-2xl font-extralight text-white mb-2">Boost activé !</h2>
+          <p className="text-white/40 font-light mb-8">Votre visibilité est maintenant boostée. Les utilisateurs verront votre offre en priorité.</p>
+          <Button
+            onClick={() => setPaymentStatus(null)}
+            className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white rounded-full h-12 px-8 font-light"
+          >
+            Configurer un autre boost
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -70,6 +200,15 @@ export default function PartnerBoostPage() {
         </p>
       </div>
 
+      {/* Cancel banner */}
+      {paymentStatus === 'cancel' && (
+        <div className="flex items-center gap-3 p-4 bg-red-500/5 border border-red-500/10 rounded-xl">
+          <XCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
+          <p className="text-sm text-red-400/80 font-light">Le paiement a été annulé. Vous pouvez réessayer quand vous voulez.</p>
+          <button onClick={() => setPaymentStatus(null)} className="text-xs text-white/30 hover:text-white/60 ml-auto">✕</button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-5 gap-6">
 
         {/* Configuration — left column */}
@@ -85,7 +224,6 @@ export default function PartnerBoostPage() {
                 <MapPin className="h-3 w-3" /> Ville ciblée
               </label>
 
-              {/* Show selected location badge if city is chosen */}
               {selectedCity && (
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#D91CD2]/10 text-[#D91CD2] border border-[#D91CD2]/30 text-sm font-light">
@@ -101,7 +239,6 @@ export default function PartnerBoostPage() {
                 </div>
               )}
 
-              {/* Step 1: Choose Swiss or International */}
               {locationMode === 'choose' && !selectedCity && (
                 <div className="grid grid-cols-2 gap-3">
                   <button
@@ -121,7 +258,6 @@ export default function PartnerBoostPage() {
                 </div>
               )}
 
-              {/* Step 2a: Swiss cities */}
               {locationMode === 'swiss' && !selectedCity && (
                 <div className="space-y-2">
                   <button
@@ -144,7 +280,6 @@ export default function PartnerBoostPage() {
                 </div>
               )}
 
-              {/* Step 2b: International — pick country */}
               {locationMode === 'international-country' && !selectedCity && (
                 <div className="space-y-2">
                   <button
@@ -170,7 +305,6 @@ export default function PartnerBoostPage() {
                 </div>
               )}
 
-              {/* Step 3: International — pick city */}
               {locationMode === 'international-city' && selectedCountry && !selectedCity && (
                 <div className="space-y-2">
                   <button
@@ -240,7 +374,7 @@ export default function PartnerBoostPage() {
                 }`}
               >
                 {isLoading ? (
-                  <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Traitement...</>
+                  <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Redirection vers Stripe...</>
                 ) : (
                   <><Zap className="mr-2 h-5 w-5" /> Payer et activer</>
                 )}
@@ -306,12 +440,30 @@ export default function PartnerBoostPage() {
           {/* Active boosts */}
           <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
             <h3 className="text-sm text-white/30 uppercase tracking-wider font-light mb-4">Boosts actifs</h3>
-            <div className="flex flex-col items-center py-6 text-center">
-              <div className="w-12 h-12 rounded-full bg-white/5 border border-white/5 flex items-center justify-center mb-3">
-                <Rocket className="h-5 w-5 text-white/15" />
+            {activeBoosts.length > 0 ? (
+              <div className="space-y-3">
+                {activeBoosts.map(b => (
+                  <div key={b.id} className="flex items-center gap-3 p-3 bg-[#D91CD2]/5 border border-[#D91CD2]/10 rounded-xl">
+                    <Zap className="h-4 w-4 text-[#D91CD2] flex-shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm text-white/70 font-light">{b.city}</p>
+                      <p className="text-xs text-white/30 font-light">
+                        {DURATIONS.find(d => d.value === b.duration)?.label || b.duration}
+                        {b.expiresAt && ` — expire ${new Date(b.expiresAt.seconds ? b.expiresAt.seconds * 1000 : b.expiresAt).toLocaleDateString('fr-CH')}`}
+                      </p>
+                    </div>
+                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                  </div>
+                ))}
               </div>
-              <p className="text-white/25 font-light text-sm">Aucun boost actif</p>
-            </div>
+            ) : (
+              <div className="flex flex-col items-center py-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-white/5 border border-white/5 flex items-center justify-center mb-3">
+                  <Rocket className="h-5 w-5 text-white/15" />
+                </div>
+                <p className="text-white/25 font-light text-sm">Aucun boost actif</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
