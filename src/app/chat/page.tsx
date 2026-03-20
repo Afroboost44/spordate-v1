@@ -12,6 +12,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from '@/lib/utils';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { useAuth } from '@/context/AuthContext';
+import { useCredits } from '@/hooks/useCredits';
+import BackButton from '@/components/BackButton';
 import { useToast } from "@/hooks/use-toast";
 import {
   getUserMatches,
@@ -450,6 +452,7 @@ function EmptyChat() {
 // ——— Main Chat Page ———
 function ChatPageContent() {
   const { user } = useAuth();
+  const { hasCredits, requireCreditsForChat, credits: creditCount } = useCredits();
   const router = useRouter();
   const searchParams = useSearchParams();
   const { toast } = useToast();
@@ -464,6 +467,10 @@ function ChatPageContent() {
   const currentUserId = user?.uid || '';
 
   // Handle post-payment redirect: auto-select the match and unlock chat
+  useEffect(() => {
+    if (!requireCreditsForChat()) return;
+  }, []);
+
   useEffect(() => {
     if (paymentHandled) return;
     const paymentStatus = searchParams.get('payment');
