@@ -8,6 +8,7 @@ import { Loader2, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import BackButton from '@/components/BackButton';
 
 interface ActivityCard {
   activityId: string;
@@ -52,6 +53,7 @@ function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
   return (
     <Card className="overflow-hidden bg-card border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20 transition-all duration-300 transform hover:-translate-y-2">
       <div className="relative h-56 w-full group">
+        <BackButton fallbackUrl="/discovery" />
         <img
           src={allImages[imgIndex]}
           alt={activity.title}
