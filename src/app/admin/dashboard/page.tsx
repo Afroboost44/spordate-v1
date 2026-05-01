@@ -746,7 +746,7 @@ export default function AdminDashboard() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {payout.map((p) => (
+                  {payouts.map((p) => (
                     <TableRow key={p.payoutId} className="border-gray-800">
                       <TableCell className="font-mono text-sm">{p.creatorId.slice(0, 8)}...</TableCell>
                       <TableCell className="font-bold">{(p.amount / 100).toFixed(2)} CHF</TableCell>
@@ -784,7 +784,7 @@ export default function AdminDashboard() {
                   ))}
                 </TableBody>
               </Table>
-              {payout.length === 0 && (
+              {payouts.length === 0 && (
                 <p className="text-center text-gray-500 py-8">No payouts pending</p>
               )}
             </CardContent>
