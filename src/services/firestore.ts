@@ -9,7 +9,7 @@ import {
   query, collection, where, orderBy, limit, onSnapshot,
   increment, serverTimestamp, Timestamp, writeBatch,
   type DocumentReference, type Query, type Unsubscribe,
-  startAfter, type DocumentSnapshot,
+  startAfter, type DocumentSnapshot, type FieldValue,
 } from 'firebase/firestore';
 
 import type {
@@ -727,7 +727,7 @@ export async function updateAnalyticsOnPayment(amount: number, paymentMethod: st
     const dailyRef = getDocRef('analytics', `daily_${todayString()}`);
     const dailySnap = await getDoc(dailyRef);
 
-    const updates: Record<string, unknown> = {
+    const updates: Record<string, FieldValue> = {
       revenue: increment(amountCHF),
       creditsPurchased: increment(1),
       [`byPaymentMethod.${paymentMethod}`]: increment(amountCHF),
