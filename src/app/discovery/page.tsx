@@ -230,11 +230,12 @@ export default function DiscoveryPage() {
   // Load active boosts from Firestore
   useEffect(() => {
     if (!db || !isFirebaseConfigured) return;
+    const fbDb = db; // capture for async closures (already proven non-null by guard above)
 
     const loadActiveBoosts = async () => {
       try {
         const now = Timestamp.now();
-        const boostsRef = collection(db, 'boosts');
+        const boostsRef = collection(fbDb, 'boosts');
         const q = query(
           boostsRef,
           where('active', '==', true),
@@ -263,10 +264,10 @@ export default function DiscoveryPage() {
       try {
         let snap;
         try {
-          const q = query(collection(db, 'activities'), where('isActive', '==', true), orderBy('createdAt', 'desc'));
+          const q = query(collection(fbDb, 'activities'), where('isActive', '==', true), orderBy('createdAt', 'desc'));
           snap = await getDocs(q);
         } catch {
-          const q = query(collection(db, 'activities'), where('isActive', '==', true));
+          const q = query(collection(fbDb, 'activities'), where('isActive', '==', true));
           snap = await getDocs(q);
         }
         const acts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
