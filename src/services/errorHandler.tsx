@@ -278,7 +278,7 @@ interface ErrorHandlerContextValue {
 
 const ErrorHandlerContext = createContext<ErrorHandlerContextValue | null>(null);
 
-export function ErrorHandlerProvider({ children }: { children: ReactNode }): JSX.Element {
+export function ErrorHandlerProvider({ children }: { children: ReactNode }) {
   const value: ErrorHandlerContextValue = {
     captureError: (msg, stack, level, meta) => globalErrorHandler.captureError(msg, stack, level, meta),
     setUserId: (uid) => globalErrorHandler.setUserId(uid),
