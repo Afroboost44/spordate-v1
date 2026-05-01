@@ -40,6 +40,7 @@ export function useCredits() {
   const hasCredits = credits > 0;
 
   const useCredit = async (): Promise<boolean> => {
+    if (!db) return false;
     if (!user || !hasCredits) {
       toast({
         title: "\u2764\uFE0F Pas de credits",
