@@ -52,22 +52,23 @@ export default function PartnerBoostPage() {
   // Load partner ID and active boosts
   useEffect(() => {
     if (!user?.uid || !db) return;
+    const fbDb = db; // capture for async closure (already proven non-null by guard above)
 
     const load = async () => {
       try {
         // Get partner ID
-        const docSnap = await getDoc(doc(db, 'partners', user.uid));
+        const docSnap = await getDoc(doc(fbDb, 'partners', user.uid));
         if (docSnap.exists()) {
           setPartnerId(docSnap.id);
         } else {
-          const q = query(collection(db, 'partners'), where('email', '==', user.email), limit(1));
+          const q = query(collection(fbDb, 'partners'), where('email', '==', user.email), limit(1));
           const snap = await getDocs(q);
           if (!snap.empty) setPartnerId(snap.docs[0].id);
         }
 
         // Load active boosts
         const boostQ = query(
-          collection(db, 'boosts'),
+          collection(fbDb, 'boosts'),
           where('partnerId', '==', user.uid),
           where('active', '==', true),
           limit(10)
