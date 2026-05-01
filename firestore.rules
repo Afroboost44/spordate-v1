@@ -115,7 +115,15 @@ service cloud.firestore {
           && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
         allow create: if isAuth()
           && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
-          && get(/databases/$(database)/documents/matches/$(chatId)).data.chatUnlocked == true;
+          && get(/databases/$(database)/documents/matches/$(chatId)).data.chatUnlocked == true
+          // Phase 1 (additif) : verrouillage temporel basé sur la session liée.
+          // Si le match n'a pas de sessionId (legacy) → comportement inchangé.
+          // Sinon → refuser le create si la session est 'completed' ou 'cancelled'.
+          && (
+            !('sessionId' in get(/databases/$(database)/documents/matches/$(chatId)).data)
+            || get(/databases/$(database)/documents/matches/$(chatId)).data.sessionId == ''
+            || !(get(/databases/$(database)/documents/sessions/$(get(/databases/$(database)/documents/matches/$(chatId)).data.sessionId)).data.status in ['completed', 'cancelled'])
+          );
         allow update, delete: if false;
       }
     }
@@ -167,6 +175,28 @@ service cloud.firestore {
     match /promos/{doc} {
       allow read: if isAuth();
       allow write: if isAdmin();
+    }
+
+    // === SESSIONS ===
+    // Occurrences datées d'une Activity (Phase 1 du système "Dates par Activités").
+    // Les champs currentParticipants/currentTier/currentPrice ne sont écrits QUE par le serveur
+    // (webhook Stripe + crons Phase 7) via l'Admin SDK qui bypass les rules.
+    match /sessions/{sessionId} {
+      allow read: if isAuth();
+      allow create: if isAuth()
+        && (
+          isAdmin()
+          || get(/databases/$(database)/documents/activities/$(request.resource.data.activityId)).data.partnerId == request.auth.uid
+        );
+      allow update: if isAuth()
+        && (
+          isAdmin()
+          || (
+            get(/databases/$(database)/documents/activities/$(resource.data.activityId)).data.partnerId == request.auth.uid
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['currentParticipants', 'currentTier', 'currentPrice'])
+          )
+        );
+      allow delete: if isAdmin();
     }
 
   }

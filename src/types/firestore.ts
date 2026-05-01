@@ -94,6 +94,8 @@ export interface Match {
   initiatedBy: string;
   createdAt: Timestamp;
   expiresAt: Timestamp;
+  /** Phase 1 (additif). Référence optionnelle vers la session liée. Absence = match legacy. */
+  sessionId?: string;
 }
 
 export interface MatchUser {
@@ -127,12 +129,101 @@ export interface Activity {
   createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  // ----- Phase 1 / Sessions (additif, optionnel) -----
+  /** Template de paliers copié dans chaque session générée à partir de cette activity. Modifiable session par session. */
+  defaultPricingTiers?: PricingTier[];
+  /** Combien de minutes avant startAt le chat des sessions s'ouvre (défaut Phase 4 : 120 = H-2). */
+  chatOpenOffsetMinutes?: number;
 }
 
 export interface ActivitySchedule {
   day: 'lundi' | 'mardi' | 'mercredi' | 'jeudi' | 'vendredi' | 'samedi' | 'dimanche';
   start: string; // "09:00"
   end: string;   // "18:00"
+}
+
+// ===================== SESSIONS =====================
+// Phase 1 du système "Dates par Activités" (additif).
+// Une Session = occurrence datée et payante d'une Activity.
+// Une Activity (cours Afroboost récurrent) génère N sessions, une par date.
+// La session porte le compte à rebours, les paliers de prix, et la fenêtre temporelle du chat.
+
+export type SessionStatus =
+  | 'scheduled'    // créée mais pas encore ouverte aux réservations
+  | 'open'         // ouverte aux réservations
+  | 'full'         // toutes les places sont prises
+  | 'in_progress'  // l'activité est en cours
+  | 'completed'    // terminée — chat en lecture seule
+  | 'cancelled';   // annulée
+
+export type PricingTierKind = 'early' | 'standard' | 'last_minute';
+
+/**
+ * Un palier de prix progressif. Le palier ACTIF est le PLUS HAUT (early < standard < last_minute)
+ * dont au moins une des deux conditions est satisfaite (temps OU remplissage). Si aucune n'est
+ * satisfaite, 'early' s'applique par défaut.
+ */
+export interface PricingTier {
+  kind: PricingTierKind;
+  /**
+   * Prix en CHF centimes (cohérent avec Transaction.amount, Booking.amount, et Stripe unit_amount).
+   * À NE PAS confondre avec settings/pricing.packages.X.priceCHF qui est en CHF (lisibilité admin) —
+   * c'est un système distinct (packages de crédits génériques).
+   */
+  price: number;
+  /**
+   * Active ce palier quand le temps restant (en minutes) avant startAt descend SOUS ce seuil.
+   * null = aucun déclencheur temporel pour ce palier.
+   * Exemple : 4320 = J-3, 1440 = J-1.
+   */
+  activateMinutesBeforeStart: number | null;
+  /**
+   * Active ce palier quand le taux de remplissage (currentParticipants / maxParticipants) atteint
+   * ou dépasse ce seuil. Valeur 0.0..1.0. null = aucun déclencheur de remplissage pour ce palier.
+   * Exemple : 0.5 = à 50% rempli.
+   */
+  activateAtFillRate: number | null;
+}
+
+export interface Session {
+  sessionId: string;
+  /** Référence vers l'Activity parent. */
+  activityId: string;
+  // Champs dénormalisés depuis Activity (pour des listes rapides sans get supplémentaire) :
+  partnerId: string;
+  creatorId: string;
+  sport: string;
+  title: string;
+  city: string;
+
+  // ----- Timing -----
+  startAt: Timestamp;
+  endAt: Timestamp;
+  /** Ouverture du chat (par défaut : startAt - Activity.chatOpenOffsetMinutes ?? 120). */
+  chatOpenAt: Timestamp;
+  /** Fermeture du chat (par défaut : endAt). Après cela, chat en lecture seule. */
+  chatCloseAt: Timestamp;
+
+  // ----- Capacité -----
+  maxParticipants: number;
+  /** Mis à jour UNIQUEMENT côté serveur (webhook Stripe via Admin SDK). Le client ne l'écrit jamais. */
+  currentParticipants: number;
+
+  // ----- Pricing -----
+  /** Copie indépendante des paliers (issue d'Activity.defaultPricingTiers à la création de la session, modifiable). */
+  pricingTiers: PricingTier[];
+  /** Cache du palier actif. La source de vérité reste pricingTiers + computePricingTier() (Phase 2). */
+  currentTier: PricingTierKind;
+  /** Cache du prix actif en CHF centimes. */
+  currentPrice: number;
+
+  // ----- État -----
+  status: SessionStatus;
+
+  // ----- Audit -----
+  createdBy: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 }
 
 // ===================== BOOKINGS =====================
@@ -153,6 +244,8 @@ export interface Booking {
   creditsUsed: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  /** Phase 1 (additif). Référence optionnelle vers la session liée. Absence = booking legacy sans session. */
+  sessionId?: string;
 }
 
 // ===================== CREDITS =====================
