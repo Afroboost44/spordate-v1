@@ -23,18 +23,19 @@ export default function PartnerWalletPage() {
   // Load partner data from Firestore
   useEffect(() => {
     if (!user?.uid || !db) { setLoadingData(false); return; }
+    const fbDb = db; // capture for async closure (already proven non-null by guard above)
 
     const loadPartner = async () => {
       try {
         // Try direct doc by uid
-        const docSnap = await getDoc(doc(db, 'partners', user.uid));
+        const docSnap = await getDoc(doc(fbDb, 'partners', user.uid));
         if (docSnap.exists()) {
           setPartnerData({ id: docSnap.id, ...docSnap.data() });
           setLoadingData(false);
           return;
         }
         // Fallback: query by email
-        const q = query(collection(db, 'partners'), where('email', '==', user.email), limit(1));
+        const q = query(collection(fbDb, 'partners'), where('email', '==', user.email), limit(1));
         const snap = await getDocs(q);
         if (!snap.empty) {
           const d = snap.docs[0];
