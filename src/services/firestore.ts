@@ -7,8 +7,8 @@ import { db, isFirebaseConfigured } from '@/lib/firebase';
 import {
   doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
   query, collection, where, orderBy, limit, onSnapshot,
-  increment, serverTimestamp, Timestamp, writeBatch,
-  type DocumentReference, type Query, type Unsubscribe,
+  increment, serverTimestamp, Timestamp, writeBatch, runTransaction,
+  type DocumentReference, type Query, type Unsubscribe, type Firestore,
   startAfter, type DocumentSnapshot, type FieldValue,
 } from 'firebase/firestore';
 
@@ -17,6 +17,7 @@ import type {
   CreditEntry, Transaction, Creator, Partner, Referral,
   Payout, Chat, ChatMessage, Notification, ErrorLog,
   AnalyticsGlobal, AnalyticsDaily, CreditPackage, CreditType,
+  Session, SessionStatus, PricingTier, PricingTierKind,
 } from '@/types/firestore';
 import { CREDIT_PACKAGES } from '@/types/firestore';
 
@@ -829,4 +830,533 @@ export async function sendGlobalNotification(title: string, body: string): Promi
   }
 
   await batch.commit();
+}
+
+// ===================== SESSIONS =====================
+// Phase 2 du système "Dates par Activités" — fonctions PURES uniquement (étape 4.A).
+// Les CRUD et bookSession seront ajoutés en étape 4.B.
+//
+// Convention : les fonctions de cette section sont SANS effet de bord côté Firestore (pures).
+// Elles peuvent être appelées côté client (UI countdown live, page détail) ET côté serveur
+// (webhook Stripe en Phase 3) sans dépendance à Firebase Admin SDK.
+
+// ----- Inputs interfaces -----
+
+/** Input pour créer une session (4.B). Définie ici pour cohérence du typage. */
+export interface CreateSessionInput {
+  activityId: string;
+  startAt: Date;
+  endAt: Date;
+  maxParticipants: number;
+  /** Si omis : copie depuis activity.defaultPricingTiers. */
+  pricingTiers?: PricingTier[];
+  /** Si omis : activity.chatOpenOffsetMinutes ?? 120. */
+  chatOpenOffsetMinutes?: number;
+}
+
+/** Filtres pour getUpcomingSessions / getCompletedSessions (4.B). */
+export interface SessionFilters {
+  city?: string;
+  sport?: string;
+  partnerId?: string;
+  creatorId?: string;
+  /** Défaut 20. */
+  limit?: number;
+}
+
+/** Input pour bookSession (4.B). paymentIntentId sert de clé d'idempotency. */
+export interface BookSessionInput {
+  sessionId: string;
+  userId: string;
+  /** En CHF centimes (cohérent avec Transaction.amount, Stripe unit_amount). */
+  amount: number;
+  /** Palier actif au moment du paiement (pour traçabilité). */
+  tier: PricingTierKind;
+  /** Référence Stripe — si un booking existe déjà pour ce paymentIntentId, l'opération est idempotente. */
+  paymentIntentId: string;
+  /** Optionnel — si la réservation est liée à un match (Phase 6). */
+  matchId?: string;
+}
+
+// ----- Helpers internes (non exportés) -----
+
+/** Calcule un taux de remplissage (0..) en évitant la division par zéro. */
+function computeFillRate(currentParticipants: number, maxParticipants: number): number {
+  if (maxParticipants <= 0) return 0;
+  return currentParticipants / maxParticipants;
+}
+
+// ----- Fonctions pures exportées -----
+
+/**
+ * Calcule la fenêtre temporelle du chat à partir d'inputs primitifs.
+ * - chatOpenAt = startAt - chatOpenOffsetMinutes
+ * - chatCloseAt = endAt
+ *
+ * Fonction pure, pas d'accès Firestore. Utilisable côté client et serveur.
+ */
+export function computeChatWindow(
+  startAt: Date,
+  endAt: Date,
+  chatOpenOffsetMinutes: number,
+): { chatOpenAt: Timestamp; chatCloseAt: Timestamp } {
+  const openAtMs = startAt.getTime() - chatOpenOffsetMinutes * 60_000;
+  return {
+    chatOpenAt: Timestamp.fromMillis(openAtMs),
+    chatCloseAt: Timestamp.fromDate(endAt),
+  };
+}
+
+/**
+ * Détermine la phase actuelle de la fenêtre chat pour une session :
+ * - 'before'    : now < chatOpenAt (chat pas encore ouvert)
+ * - 'chat-open' : chatOpenAt <= now < startAt (chat ouvert, événement pas commencé)
+ * - 'started'   : startAt <= now < chatCloseAt (événement en cours)
+ * - 'ended'     : now >= chatCloseAt (chat archivé en lecture seule)
+ *
+ * Fonction pure.
+ */
+export function getChatPhase(
+  session: Pick<Session, 'chatOpenAt' | 'chatCloseAt' | 'startAt' | 'endAt'>,
+  now: Date,
+): 'before' | 'chat-open' | 'started' | 'ended' {
+  const nowMs = now.getTime();
+  const openAtMs = session.chatOpenAt.toMillis();
+  const startAtMs = session.startAt.toMillis();
+  const closeAtMs = session.chatCloseAt.toMillis();
+
+  if (nowMs < openAtMs) return 'before';
+  if (nowMs < startAtMs) return 'chat-open';
+  if (nowMs < closeAtMs) return 'started';
+  return 'ended';
+}
+
+/**
+ * Renvoie true si la session est encore réservable :
+ * - status est 'scheduled' ou 'open'
+ * - currentParticipants < maxParticipants
+ * - startAt > now (événement futur)
+ *
+ * Fonction pure.
+ */
+export function isSessionBookable(session: Session, now: Date): boolean {
+  const isOpenStatus = session.status === 'scheduled' || session.status === 'open';
+  const hasRoom = session.currentParticipants < session.maxParticipants;
+  const isFuture = session.startAt.toMillis() > now.getTime();
+  return isOpenStatus && hasRoom && isFuture;
+}
+
+/**
+ * Calcule le palier de prix ACTIF pour une session à un instant T.
+ *
+ * Logique :
+ * - Le palier actif est le PLUS HAUT (rang : early < standard < last_minute) dont AU MOINS
+ *   UNE des deux conditions est satisfaite (temps OU remplissage). Si aucune n'est satisfaite,
+ *   le palier 'early' s'applique par défaut.
+ * - Condition temporelle : minutesUntilStart <= activateMinutesBeforeStart (inclusif).
+ * - Condition remplissage : fillRate >= activateAtFillRate (inclusif).
+ * - Si activateMinutesBeforeStart est null, la condition temporelle ne se déclenche jamais.
+ * - Si activateAtFillRate est null, la condition remplissage ne se déclenche jamais.
+ *
+ * Edge cases :
+ * - pricingTiers vide → tier='early', price=0
+ * - pricingTiers sans 'early' → fallback price=0 (pas de prix early trouvé)
+ * - maxParticipants=0 → fillRate=0 (pas de division par zéro)
+ * - now > startAt → minutesUntilStart négatif → tous les paliers temporels déclenchent
+ * - currentParticipants > maxParticipants → fillRate > 1.0 → palier 'last_minute' déclenché
+ *
+ * Fonction pure, idempotente, sans accès Firestore.
+ *
+ * @param session La session à analyser.
+ * @param now Date courante (injectée pour faciliter les tests).
+ * @param currentParticipantsOverride Optionnel — surcharge le compteur de la session
+ *   (utile pour calculer le tier APRÈS un nouvel ajout, sans avoir à muter la session).
+ *
+ * @returns
+ *   - tier : kind du palier actif ('early' | 'standard' | 'last_minute')
+ *   - price : prix en CHF centimes du palier actif
+ *   - passedTiers : kinds des paliers de rang inférieur (utiles pour UI : prix barrés)
+ */
+export function computePricingTier(
+  session: Session,
+  now: Date,
+  currentParticipantsOverride?: number,
+): { tier: PricingTierKind; price: number; passedTiers: PricingTierKind[] } {
+  const tiers = session.pricingTiers || [];
+  const rank: Record<PricingTierKind, number> = { early: 0, standard: 1, last_minute: 2 };
+
+  // Default fallback : 'early' avec price = prix du tier 'early' s'il existe, sinon 0.
+  const earlyTier = tiers.find((t) => t.kind === 'early');
+  let activeTier: PricingTierKind = 'early';
+  let activePrice: number = earlyTier?.price ?? 0;
+
+  // Calculs de contexte (temps et remplissage).
+  const minutesUntilStart = (session.startAt.toMillis() - now.getTime()) / 60_000;
+  const participants = currentParticipantsOverride ?? session.currentParticipants;
+  const fillRate = computeFillRate(participants, session.maxParticipants);
+
+  // Parcours des paliers par rang croissant ; le DERNIER triggered devient l'actif (= le plus haut).
+  const sortedTiers = [...tiers].sort((a, b) => rank[a.kind] - rank[b.kind]);
+  for (const tier of sortedTiers) {
+    const timeTriggers =
+      tier.activateMinutesBeforeStart !== null &&
+      minutesUntilStart <= tier.activateMinutesBeforeStart;
+    const fillTriggers =
+      tier.activateAtFillRate !== null && fillRate >= tier.activateAtFillRate;
+
+    if (timeTriggers || fillTriggers) {
+      activeTier = tier.kind;
+      activePrice = tier.price;
+    }
+  }
+
+  // passedTiers = tous les kinds de rang inférieur au tier actif (pour UI : prix barrés).
+  const activeRank = rank[activeTier];
+  const allKinds: PricingTierKind[] = ['early', 'standard', 'last_minute'];
+  const passedTiers = allKinds.filter((k) => rank[k] < activeRank);
+
+  return { tier: activeTier, price: activePrice, passedTiers };
+}
+
+// ----- Test seam (étape 4.B) -----
+// Pour permettre aux tests d'intégration emulator d'injecter un Firestore alternatif.
+// En prod, ce override reste null et les fonctions utilisent la `db` globale de @/lib/firebase.
+
+let _sessionsDbOverride: Firestore | null = null;
+
+/**
+ * @internal — utilisé UNIQUEMENT par les tests pour injecter un Firestore
+ * connecté à l'emulator (cf. tests/sessions-integration.test.ts).
+ * Ne JAMAIS appeler depuis le code de production.
+ */
+export function __setSessionsDbForTesting(testDb: Firestore | null): void {
+  _sessionsDbOverride = testDb;
+}
+
+/** Récupère le Firestore actif pour les fonctions Sessions (test override OU prod global). */
+function getSessionsDb(): Firestore {
+  const fbDb = _sessionsDbOverride ?? db;
+  if (!fbDb) throw new Error('Firestore non initialisé');
+  return fbDb;
+}
+
+// ----- CRUD Sessions -----
+
+/**
+ * Crée une nouvelle session datée à partir d'une activity template.
+ *
+ * Comportement :
+ * 1. Lit l'activity (doit exister) pour récupérer partnerId, createdBy, sport, title, city,
+ *    defaultPricingTiers, chatOpenOffsetMinutes.
+ * 2. Si input.pricingTiers est fourni, l'utilise tel quel ; sinon copie depuis activity.defaultPricingTiers.
+ * 3. Si aucun pricingTiers n'est disponible (ni input ni default sur l'activity) → throw.
+ * 4. Calcule chatOpenAt et chatCloseAt depuis input.startAt/endAt et l'offset.
+ * 5. Initialise currentTier='early', currentPrice = (tier early)?.price ?? 0.
+ * 6. status='scheduled' à la création (l'admin / partner publiera ensuite à 'open').
+ *
+ * Permission Firestore : l'appelant doit être le partnerId de l'activity, ou admin.
+ *
+ * @returns sessionId de la session créée.
+ * @throws si activity introuvable, si pas de pricingTiers disponibles, si rules denied.
+ */
+export async function createSession(input: CreateSessionInput): Promise<string> {
+  const fbDb = getSessionsDb();
+
+  // 1. Lire l'activity
+  const activitySnap = await getDoc(doc(fbDb, 'activities', input.activityId));
+  if (!activitySnap.exists()) throw new Error('Activity introuvable');
+  const activity = activitySnap.data() as Activity;
+
+  // 2. Résoudre les pricingTiers
+  const pricingTiers = input.pricingTiers ?? activity.defaultPricingTiers;
+  if (!pricingTiers || pricingTiers.length === 0) {
+    throw new Error('Pas de pricingTiers disponibles (ni input.pricingTiers ni activity.defaultPricingTiers)');
+  }
+
+  // 3. Calculer la fenêtre chat
+  const chatOpenOffsetMinutes = input.chatOpenOffsetMinutes ?? activity.chatOpenOffsetMinutes ?? 120;
+  const { chatOpenAt, chatCloseAt } = computeChatWindow(input.startAt, input.endAt, chatOpenOffsetMinutes);
+
+  // 4. Initialiser le palier actif
+  const earlyTier = pricingTiers.find((t) => t.kind === 'early');
+  const initialPrice = earlyTier?.price ?? 0;
+
+  // 5. Créer le doc
+  const ref = doc(collection(fbDb, 'sessions'));
+  const sessionData: Session = {
+    sessionId: ref.id,
+    activityId: input.activityId,
+    partnerId: activity.partnerId,
+    creatorId: activity.createdBy, // l'auteur de l'activity = creator (peut être affiné Phase 5+)
+    sport: activity.sport,
+    title: activity.title,
+    city: activity.city,
+    startAt: Timestamp.fromDate(input.startAt),
+    endAt: Timestamp.fromDate(input.endAt),
+    chatOpenAt,
+    chatCloseAt,
+    maxParticipants: input.maxParticipants,
+    currentParticipants: 0,
+    pricingTiers,
+    currentTier: 'early',
+    currentPrice: initialPrice,
+    status: 'scheduled',
+    createdBy: activity.partnerId,
+    createdAt: serverTimestamp() as unknown as Timestamp,
+    updatedAt: serverTimestamp() as unknown as Timestamp,
+  };
+
+  await setDoc(ref, sessionData);
+  return ref.id;
+}
+
+/** Lecture one-shot d'une session par ID. Retourne null si absente. */
+export async function getSession(sessionId: string): Promise<Session | null> {
+  const fbDb = getSessionsDb();
+  const snap = await getDoc(doc(fbDb, 'sessions', sessionId));
+  return snap.exists() ? (snap.data() as Session) : null;
+}
+
+/**
+ * Subscribe en temps réel à une session (pour la page détail avec countdown live).
+ * Retourne la fonction unsubscribe. Le callback reçoit null si le doc est supprimé.
+ */
+export function subscribeToSession(
+  sessionId: string,
+  callback: (session: Session | null) => void,
+): Unsubscribe {
+  const fbDb = getSessionsDb();
+  return onSnapshot(doc(fbDb, 'sessions', sessionId), (snap) => {
+    callback(snap.exists() ? (snap.data() as Session) : null);
+  });
+}
+
+/**
+ * Liste paginée des sessions à venir (status in ['scheduled', 'open']) triées par startAt ASC.
+ * Filtres optionnels : ville, sport, partnerId, creatorId.
+ *
+ * Pattern fallback : si l'index composite n'est pas encore déployé en prod, on retombe sur
+ * une requête sans orderBy + tri client-side (cf. getUserMatches).
+ */
+export async function getUpcomingSessions(filters?: SessionFilters): Promise<Session[]> {
+  const fbDb = getSessionsDb();
+  const lim = filters?.limit ?? 20;
+
+  const buildBaseQuery = (withOrderBy: boolean) => {
+    const conditions: ReturnType<typeof where>[] = [where('status', 'in', ['scheduled', 'open'])];
+    if (filters?.sport) conditions.push(where('sport', '==', filters.sport));
+    if (filters?.city) conditions.push(where('city', '==', filters.city));
+    if (filters?.partnerId) conditions.push(where('partnerId', '==', filters.partnerId));
+    if (filters?.creatorId) conditions.push(where('creatorId', '==', filters.creatorId));
+
+    if (withOrderBy) {
+      return query(collection(fbDb, 'sessions'), ...conditions, orderBy('startAt', 'asc'), limit(lim));
+    }
+    return query(collection(fbDb, 'sessions'), ...conditions, limit(lim * 3));
+  };
+
+  try {
+    const snap = await getDocs(buildBaseQuery(true));
+    return snap.docs.map((d) => d.data() as Session);
+  } catch (err) {
+    console.warn('[getUpcomingSessions] Index pas prêt, fallback sans orderBy:', err);
+    try {
+      const snap = await getDocs(buildBaseQuery(false));
+      const sessions = snap.docs.map((d) => d.data() as Session);
+      sessions.sort((a, b) => a.startAt.toMillis() - b.startAt.toMillis());
+      return sessions.slice(0, lim);
+    } catch (err2) {
+      console.error('[getUpcomingSessions] Fallback échoué:', err2);
+      return [];
+    }
+  }
+}
+
+/**
+ * Liste des sessions terminées (status='completed'), triées par endAt DESC.
+ * Pour la section "Ils l'ont vécu" (social proof).
+ *
+ * Note : Phase 1 n'a pas d'index `(status, endAt DESC)` ; on fait une requête sur status seule
+ * + tri client-side. Acceptable tant qu'on n'a pas trop de sessions completed.
+ */
+export async function getCompletedSessions(filters?: {
+  limit?: number;
+  sport?: string;
+  city?: string;
+}): Promise<Session[]> {
+  const fbDb = getSessionsDb();
+  const lim = filters?.limit ?? 20;
+
+  try {
+    const conditions: ReturnType<typeof where>[] = [where('status', '==', 'completed')];
+    if (filters?.sport) conditions.push(where('sport', '==', filters.sport));
+    if (filters?.city) conditions.push(where('city', '==', filters.city));
+
+    const q = query(collection(fbDb, 'sessions'), ...conditions, limit(lim * 3));
+    const snap = await getDocs(q);
+    const sessions = snap.docs.map((d) => d.data() as Session);
+    sessions.sort((a, b) => b.endAt.toMillis() - a.endAt.toMillis());
+    return sessions.slice(0, lim);
+  } catch (err) {
+    console.error('[getCompletedSessions] Erreur:', err);
+    return [];
+  }
+}
+
+/** Sessions d'une activity spécifique, triées par startAt ASC. */
+export async function getSessionsByActivity(activityId: string): Promise<Session[]> {
+  const fbDb = getSessionsDb();
+
+  try {
+    const q = query(
+      collection(fbDb, 'sessions'),
+      where('activityId', '==', activityId),
+      orderBy('startAt', 'asc'),
+    );
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => d.data() as Session);
+  } catch (err) {
+    console.warn('[getSessionsByActivity] Index pas prêt, fallback:', err);
+    try {
+      const q = query(collection(fbDb, 'sessions'), where('activityId', '==', activityId));
+      const snap = await getDocs(q);
+      const sessions = snap.docs.map((d) => d.data() as Session);
+      sessions.sort((a, b) => a.startAt.toMillis() - b.startAt.toMillis());
+      return sessions;
+    } catch (err2) {
+      console.error('[getSessionsByActivity] Fallback échoué:', err2);
+      return [];
+    }
+  }
+}
+
+// ----- Réservation transactionnelle -----
+
+/**
+ * Crée un booking + incrémente atomiquement currentParticipants + recompute tier/price/status.
+ *
+ * Comportement :
+ * 1. IDEMPOTENCY (hors transaction) — si un booking existe déjà pour le même paymentIntentId,
+ *    retourne son ID sans rien créer. C'est la clé pour gérer les retries de webhook Stripe.
+ * 2. TRANSACTION atomique :
+ *    a. Lit la session (re-vérifie disponibilité)
+ *    b. Vérifie isSessionBookable → throw si non
+ *    c. Re-calcule le tier serveur pour cohérence (warning seulement, pas blocking)
+ *    d. Crée le booking avec sessionId, paymentIntentId, tier, amount
+ *    e. Incrémente session.currentParticipants
+ *    f. Recompute currentTier/currentPrice avec le nouveau count
+ *    g. Si max atteint → status='full', sinon 'open'
+ *    h. Si matchId fourni → débloque match.chatUnlocked + lie match.sessionId
+ * 3. POST-COMMIT (best effort, hors transaction) — notification au booker.
+ *
+ * IMPORTANT (cf. risque H.3 du plan Phase 2) :
+ * Cette fonction est destinée à être appelée CÔTÉ SERVEUR (webhook Stripe Phase 3 via Admin SDK qui
+ * bypass les rules). Côté client en prod, les rules de Phase 1 protègent currentParticipants/currentTier/
+ * currentPrice contre les writes non-server → la transaction échouera avec "permission-denied".
+ * Utilisée tel quel en client uniquement pour les tests emulator (où on désactive les rules).
+ *
+ * @returns bookingId créé (ou bookingId existant si idempotency hit).
+ * @throws "Session introuvable" | "Session non réservable (status=..., x/y)" | erreur transaction Firestore.
+ */
+export async function bookSession(input: BookSessionInput): Promise<string> {
+  const fbDb = getSessionsDb();
+
+  // 1. Idempotency check (hors transaction)
+  const existing = await getDocs(
+    query(
+      collection(fbDb, 'bookings'),
+      where('paymentIntentId', '==', input.paymentIntentId),
+      limit(1),
+    ),
+  );
+  if (!existing.empty) return existing.docs[0].id;
+
+  // 2. Transaction atomique
+  const bookingId = await runTransaction(fbDb, async (tx) => {
+    const sessionRef = doc(fbDb, 'sessions', input.sessionId);
+    const sessionSnap = await tx.get(sessionRef);
+    if (!sessionSnap.exists()) throw new Error('Session introuvable');
+
+    const session = sessionSnap.data() as Session;
+    const now = new Date();
+
+    // Vérifier que la session est encore réservable
+    if (!isSessionBookable(session, now)) {
+      throw new Error(
+        `Session non réservable (status=${session.status}, ${session.currentParticipants}/${session.maxParticipants})`,
+      );
+    }
+
+    // Re-vérification de cohérence tier (warning seulement — on respecte input)
+    const computed = computePricingTier(session, now);
+    if (computed.tier !== input.tier || computed.price !== input.amount) {
+      console.warn(
+        `[bookSession] Tier mismatch: input=(${input.tier}, ${input.amount}) computed=(${computed.tier}, ${computed.price}). Using input.`,
+      );
+    }
+
+    // Créer le booking
+    const bookingRef = doc(collection(fbDb, 'bookings'));
+    const bookingData: Booking = {
+      bookingId: bookingRef.id,
+      userId: input.userId,
+      userName: '',
+      matchId: input.matchId || '',
+      activityId: session.activityId,
+      partnerId: session.partnerId,
+      sport: session.sport,
+      ticketType: 'solo',
+      sessionDate: session.startAt,
+      status: 'confirmed',
+      transactionId: '',
+      amount: input.amount,
+      currency: 'CHF',
+      creditsUsed: 0,
+      sessionId: input.sessionId,
+      paymentIntentId: input.paymentIntentId,
+      tier: input.tier,
+      createdAt: serverTimestamp() as unknown as Timestamp,
+      updatedAt: serverTimestamp() as unknown as Timestamp,
+    };
+    tx.set(bookingRef, bookingData);
+
+    // Incrémenter currentParticipants + recompute tier/price/status
+    const newParticipants = session.currentParticipants + 1;
+    const { tier: newTier, price: newPrice } = computePricingTier(session, now, newParticipants);
+    const newStatus: SessionStatus = newParticipants >= session.maxParticipants ? 'full' : 'open';
+
+    tx.update(sessionRef, {
+      currentParticipants: newParticipants,
+      currentTier: newTier,
+      currentPrice: newPrice,
+      status: newStatus,
+      updatedAt: serverTimestamp(),
+    });
+
+    // Match chat unlock (si lié)
+    if (input.matchId) {
+      tx.update(doc(fbDb, 'matches', input.matchId), {
+        chatUnlocked: true,
+        sessionId: input.sessionId,
+      });
+    }
+
+    return bookingRef.id;
+  });
+
+  // 3. Post-commit (best effort) — utilise la fonction globale createNotification
+  //    qui passe par la `db` standard et non le test seam ; en tests on accepte que ça échoue silencieusement.
+  try {
+    await createNotification(
+      input.userId,
+      'booking',
+      'Réservation confirmée',
+      'Votre Sport Date est confirmé.',
+      { bookingId, sessionId: input.sessionId },
+    );
+  } catch {
+    /* silent — best effort */
+  }
+
+  return bookingId;
 }

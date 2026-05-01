@@ -134,6 +134,16 @@ export interface Activity {
   defaultPricingTiers?: PricingTier[];
   /** Combien de minutes avant startAt le chat des sessions s'ouvre (défaut Phase 4 : 120 = H-2). */
   chatOpenOffsetMinutes?: number;
+  // ----- Phase 2 / Sessions UI (additif, optionnel) -----
+  /** Phase 2 (additif). Miniature affichée sur les cards de session.
+   *  Le partenaire choisit entre image OU vidéo lors de la création.
+   *  Cf. architecture.md section 9.bis pour les détails UX/UI Phase 5. */
+  thumbnailMedia?: {
+    type: 'image' | 'video';
+    url: string;
+    /** Pour les vidéos = frame de preview. Optionnel pour les images. */
+    posterUrl?: string;
+  };
 }
 
 export interface ActivitySchedule {
@@ -246,6 +256,10 @@ export interface Booking {
   updatedAt: Timestamp;
   /** Phase 1 (additif). Référence optionnelle vers la session liée. Absence = booking legacy sans session. */
   sessionId?: string;
+  /** Phase 2 (additif) — référence Stripe pour les réservations sessions. Sert de clé d'idempotency. */
+  paymentIntentId?: string;
+  /** Phase 2 (additif) — palier de prix actif au moment de la réservation (traçabilité). */
+  tier?: PricingTierKind;
 }
 
 // ===================== CREDITS =====================
