@@ -373,7 +373,7 @@ export default function DiscoveryPage() {
   
   const resetProfiles = () => {
     setCurrentIndex(0);
-    setProfiles(initialProfiles);
+    setProfiles(fallbackProfiles);
   }
 
   const closeMatchModal = () => {
@@ -920,7 +920,7 @@ END:VCALENDAR`;
 
               {/* Sports Tags */}
               <div className="flex flex-wrap gap-2">
-                {currentProfile.sports.map(sport => (
+                {currentProfile.sports.map((sport: string) => (
                   <span key={sport} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-light tracking-wider uppercase text-white/80 border border-white/10">
                     {sport === 'Afroboost' && <Zap className="h-3 w-3 text-[#D91CD2]" />}
                     {sport}
