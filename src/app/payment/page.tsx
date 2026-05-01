@@ -140,7 +140,7 @@ export default function PaymentPage() {
         })
           .then(res => res.json())
           .then(async (data) => {
-            if (data.verified && data.credits > 0 && user?.uid) {
+            if (data.verified && data.credits > 0 && user?.uid && db) {
               try {
                 const userRef = doc(db, 'users', user.uid);
                 await updateDoc(userRef, {
