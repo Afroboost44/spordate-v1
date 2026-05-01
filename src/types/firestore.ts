@@ -144,6 +144,10 @@ export interface Activity {
     /** Pour les vidéos = frame de preview. Optionnel pour les images. */
     posterUrl?: string;
   };
+  // ----- Phase 3 / Bundle credits chat (additif, optionnel) -----
+  /** Phase 3 (additif). Nombre de crédits chat accordés à l'acheteur d'une session de cette activity.
+   *  Si absent, défaut 50 dans le code (checkout + webhook). */
+  chatCreditsBundle?: number;
 }
 
 export interface ActivitySchedule {
@@ -277,7 +281,7 @@ export interface CreditEntry {
 }
 
 // ===================== TRANSACTIONS =====================
-export type TransactionType = 'credit_purchase' | 'partner_subscription' | 'refund';
+export type TransactionType = 'credit_purchase' | 'partner_subscription' | 'refund' | 'session_purchase';
 export type PaymentMethod = 'twint' | 'card' | 'apple_pay';
 export type TransactionStatus = 'pending' | 'succeeded' | 'failed' | 'refunded';
 export type CreditPackage = '1_date' | '3_dates' | '10_dates' | 'partner_monthly';
@@ -297,6 +301,10 @@ export interface Transaction {
   creditsGranted: number;
   createdAt: Timestamp;
   completedAt: Timestamp;
+  /** Phase 3 (additif). Référence vers le booking créé pour cette transaction (uniquement si type='session_purchase'). */
+  bookingId?: string;
+  /** Phase 3 (additif). Référence vers la session liée (uniquement si type='session_purchase'). Dénormalisé pour le dashboard admin. */
+  sessionId?: string;
 }
 
 // Packages de crédits

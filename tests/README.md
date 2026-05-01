@@ -13,15 +13,21 @@ Couvre les fonctions sans accès Firestore (computePricingTier, computeChatWindo
 ## Tests d'intégration (avec emulator Firestore)
 
 ```bash
+# Phase 2 — services Firestore Sessions (8 cas)
 firebase emulators:exec --only firestore "npx tsx tests/sessions-integration.test.ts"
+
+# Phase 3 — webhook Stripe mode 'session' + régression mode 'package' (4 cas)
+firebase emulators:exec --only firestore "npx tsx tests/sessions-checkout.test.ts"
 ```
 
 Nécessite :
 - `firebase-tools` CLI installé (`npm install -g firebase-tools`)
-- `@firebase/rules-unit-testing@4.0.1` (déjà en devDep)
+- Java 21+ pour l'emulator Firestore
+- `@firebase/rules-unit-testing@4.0.1` (déjà en devDep, utilisé par sessions-integration)
 - `firestore.rules` chargé depuis le repo (les rules de Phase 1 sont appliquées dans l'emulator)
 
-Couvre 8 cas :
+### `sessions-integration.test.ts` (Phase 2) — 8 cas
+
 1. createSession happy path
 2. createSession rejet par rules (autre partner)
 3. getSession + subscribeToSession
@@ -30,6 +36,17 @@ Couvre 8 cas :
 6. bookSession idempotency (même paymentIntentId)
 7. bookSession session pleine
 8. bookSession concurrent (race sur la dernière place)
+
+### `sessions-checkout.test.ts` (Phase 3) — 4 cas
+
+3. Webhook session happy path (booking + bundle credits + chatUnlocked)
+4. Webhook idempotency (2 retries → 1 seul booking)
+5. Webhook session pleine → erreur log + notif user, pas de booking
+7. Régression mode 'package' (legacy, sans metadata.mode → flow existant)
+
+Note : on ne teste PAS le flow `/api/checkout` HTTP côté client (T1/T2/T6 du plan)
+car l'anti-cheat est garanti par construction (`computePricingTier` server-side
+ignore tout `amount`/`tier` envoyé par le client).
 
 ### Test seam
 

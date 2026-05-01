@@ -1,9 +1,15 @@
 /**
  * Spordateur V2 — Checkout API (optimized)
  * Static imports + package caching for fast cold starts
+ *
+ * Phase 3 : ajout du mode 'session' à côté du mode 'package' existant.
+ * Le mode 'session' achète une session datée (paiement direct CHF + bundle crédits chat).
+ * Le mode 'package' (défaut, rétrocompatible) reste inchangé pour l'achat de crédits génériques.
  */
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
+import { computePricingTier, isSessionBookable } from '@/services/firestore';
+import type { Session, Activity, PricingTierKind } from '@/types/firestore';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -79,6 +85,13 @@ async function loadPackages(): Promise<typeof DEFAULT_PACKAGES> {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+
+    // Phase 3 : dispatch sur body.mode. Si 'session' → flow nouveau.
+    // Sinon (défaut, rétrocompatible) → flow 'package' existant.
+    if (body?.mode === 'session') {
+      return handleSessionMode(body);
+    }
+
     const { packageId, userId, matchId, referralCode, partnerId } = body;
 
     if (!process.env.STRIPE_SECRET_KEY) {
@@ -177,4 +190,124 @@ export async function GET() {
     paymentMethods: ['card', 'twint', 'apple_pay'],
     currency: 'CHF',
   });
+}
+
+// =============================================================
+// Phase 3 — Mode 'session' : achat direct d'une session datée
+// =============================================================
+
+/** Body POST attendu pour mode='session'. */
+interface SessionCheckoutBody {
+  mode: 'session';
+  sessionId: string;
+  userId: string;
+  matchId?: string;
+  referralCode?: string;
+}
+
+/**
+ * Handler du mode 'session' :
+ * 1. Lit la session via Admin SDK
+ * 2. Recompute tier + price server-side (anti-cheat)
+ * 3. Vérifie la session bookable
+ * 4. Lit l'activity pour title + chatCreditsBundle
+ * 5. Crée la Stripe Checkout session avec metadata enrichie
+ *
+ * Erreurs renvoyées :
+ * - 400 si body invalide
+ * - 404 si session/activity introuvable
+ * - 409 si session non réservable (pleine, completed, cancelled, passée)
+ * - 503 si Stripe non configuré
+ * - 500 sur erreur inattendue
+ */
+async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<NextResponse> {
+  // 1. Validation
+  if (!body.sessionId || !body.userId) {
+    return NextResponse.json({ error: 'sessionId et userId requis' }, { status: 400 });
+  }
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return NextResponse.json({ error: 'Stripe non configuré' }, { status: 503 });
+  }
+
+  try {
+    const db = await getDb();
+
+    // 2. Lire la session
+    const sessionSnap = await db.collection('sessions').doc(body.sessionId).get();
+    if (!sessionSnap.exists) {
+      return NextResponse.json({ error: 'Session introuvable' }, { status: 404 });
+    }
+    const session = sessionSnap.data() as unknown as Session;
+
+    // 3. Recompute tier server-side (anti-cheat — on ignore tout amount/tier envoyé par le client)
+    const now = new Date();
+    if (!isSessionBookable(session, now)) {
+      return NextResponse.json(
+        {
+          error: `Session non réservable (status=${session.status}, ${session.currentParticipants}/${session.maxParticipants})`,
+        },
+        { status: 409 },
+      );
+    }
+    const { tier, price } = computePricingTier(session, now);
+
+    // 4. Lire l'activity pour title + chatCreditsBundle
+    const activitySnap = await db.collection('activities').doc(session.activityId).get();
+    if (!activitySnap.exists) {
+      return NextResponse.json({ error: 'Activity introuvable' }, { status: 404 });
+    }
+    const activity = activitySnap.data() as unknown as Activity;
+    const bundleCredits = activity.chatCreditsBundle ?? 50;
+
+    // 5. Construire la session Stripe
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
+    // TODO Phase 5: change success_url to `/sessions/${body.sessionId}?status=success&session_id={CHECKOUT_SESSION_ID}` once page exists
+    const successUrl = `${baseUrl}/dashboard?status=success&sessionId=${body.sessionId}&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${baseUrl}/dashboard?status=cancel&sessionId=${body.sessionId}`;
+
+    const tierLabel: Record<PricingTierKind, string> = {
+      early: 'Early Bird',
+      standard: 'Standard',
+      last_minute: 'Last Minute',
+    };
+
+    const stripeSession = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card', 'twint'],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      line_items: [
+        {
+          price_data: {
+            currency: 'chf',
+            product_data: {
+              name: session.title,
+              description: `${tierLabel[tier]} • Inclut ${bundleCredits} crédits chat`,
+              images: ['https://spordateur.com/logo.png'],
+            },
+            unit_amount: price, // SERVER-recomputed (centimes CHF)
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        mode: 'session',
+        sessionId: body.sessionId,
+        userId: body.userId,
+        matchId: body.matchId || '',
+        referralCode: body.referralCode || '',
+        tier,
+        amount: String(price),
+        activityId: session.activityId,
+        partnerId: session.partnerId,
+        bundleCredits: String(bundleCredits),
+      },
+    });
+
+    return NextResponse.json({ sessionId: stripeSession.id, url: stripeSession.url });
+  } catch (error: unknown) {
+    console.error('[Checkout session] Erreur:', error);
+    const message = error instanceof Error ? error.message : 'Erreur serveur';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }
