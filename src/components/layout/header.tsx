@@ -39,9 +39,10 @@ export default function Header() {
       setIsPartner(false);
       return;
     }
+    const fbDb = db; // capture for async closure (already proven non-null by guard above)
     const checkPartner = async () => {
       try {
-        const q = query(collection(db, 'partners'), where('email', '==', user.email), limit(1));
+        const q = query(collection(fbDb, 'partners'), where('email', '==', user.email), limit(1));
         const snap = await getDocs(q);
         if (!snap.empty) {
           const data = snap.docs[0].data();
