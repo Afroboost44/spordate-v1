@@ -174,7 +174,7 @@ export default function AdminManagePage() {
         const { getDoc: getDocFn2 } = await import('firebase/firestore');
         const siteSnap = await getDocFn2(doc(db, 'settings', 'site'));
         if (siteSnap.exists()) {
-          setSiteConfig({ ...DEFAULT_SITE, ...siteSnap.data() as Partial<SiteConfig> });
+          setSiteConfig({ ...DEFAULT_SITE, ...siteSnap.data() as Partial<SiteConfig> } as SiteConfig);
         }
       } catch { /* use defaults */ }
       // Load commission settings
