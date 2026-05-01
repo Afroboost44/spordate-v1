@@ -46,6 +46,7 @@ export interface AutoCorrectorReport {
  */
 async function fixNegativeCredits(): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
+  if (!db) return results;
 
   try {
     const usersSnap = await getDocs(collection(db, 'users'));
@@ -93,6 +94,7 @@ async function fixNegativeCredits(): Promise<CorrectionResult[]> {
  */
 async function fixOrphanTransactions(): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
+  if (!db) return results;
 
   try {
     const txSnap = await getDocs(
@@ -155,6 +157,7 @@ async function fixOrphanTransactions(): Promise<CorrectionResult[]> {
  */
 async function fixExpiredMatches(): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
+  if (!db) return results;
 
   try {
     const matchSnap = await getDocs(
@@ -199,6 +202,7 @@ async function fixExpiredMatches(): Promise<CorrectionResult[]> {
  */
 async function fixUnlockedChatsWithoutBooking(): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
+  if (!db) return results;
 
   try {
     const chatsSnap = await getDocs(
@@ -249,6 +253,7 @@ async function fixUnlockedChatsWithoutBooking(): Promise<CorrectionResult[]> {
  */
 async function flagDoublePacements(): Promise<CorrectionResult[]> {
   const results: CorrectionResult[] = [];
+  if (!db) return results;
 
   try {
     const txSnap = await getDocs(
@@ -340,6 +345,10 @@ export async function runAutoCorrections(): Promise<AutoCorrectorReport> {
   let totalScanned = 0;
   let totalFixed = 0;
   const corrections: CorrectionResult[] = [];
+
+  if (!db) {
+    return { timestamp, totalScanned: 0, totalFixed: 0, corrections: [], errors: ['Firestore non initialisé'] };
+  }
 
   console.log('[AutoCorrector] Starting auto-correction cycle...');
 
