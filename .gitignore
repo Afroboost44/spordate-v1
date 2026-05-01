@@ -53,3 +53,6 @@ firestore-debug.log
 memory/
 .modified
 .gitconfig
+
+# Claude Code workspace (privé, ne pas committer)
+.claude/

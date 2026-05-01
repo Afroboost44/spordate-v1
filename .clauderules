@@ -1,0 +1,94 @@
+# .clauderules — Règles strictes pour Claude sur le projet Spordate
+
+Ces règles sont **non négociables**. Claude doit les respecter à chaque intervention sur le code, le design ou la documentation.
+
+---
+
+## RÈGLE 1 — ZÉRO RÉGRESSION
+
+**On ne casse jamais ce qui marche.**
+
+- Avant toute modification, identifier les fonctionnalités existantes touchées.
+- Ne jamais supprimer ou réécrire un composant, une fonction ou une route sans validation explicite.
+- Toujours préférer une modification additive (nouveau composant, nouveau prop optionnel) plutôt que destructive.
+- Tester manuellement les flows critiques après chaque changement : login, swipe, match, chat, création d'événement.
+- Si un refactor est nécessaire, le proposer en plan d'abord, ne pas l'exécuter sans accord.
+- Les imports, types et signatures de fonctions exportées sont stables — toute modification est un breaking change qui doit être signalé.
+
+---
+
+## RÈGLE 2 — DESIGN AFROBOOST (CHARTE STRICTE)
+
+**Palette autorisée — exclusivement :**
+
+| Usage | Valeur hex | Variable Tailwind |
+|---|---|---|
+| Fond principal | `#000000` | `bg-black` |
+| Accent / CTA / liens / focus | `#D91CD2` | `bg-afro-purple` (custom) |
+| Texte principal / contraste | `#FFFFFF` | `text-white` |
+
+**Règles d'application :**
+- **Fond global** : toujours noir `#000000`. Aucune page avec fond blanc, gris clair ou pastel.
+- **Accent unique** : le violet `#D91CD2` est la SEULE couleur d'accent. Pas de bleu, vert, rouge, orange.
+  - Boutons primaires, liens actifs, états hover, badges de notification, indicateur de match.
+- **Texte** : blanc `#FFFFFF` sur fond noir. Niveaux secondaires autorisés via opacité (`text-white/70`, `text-white/50`).
+- **États système** :
+  - Erreur : violet (pas de rouge).
+  - Succès : violet (pas de vert).
+  - Pour différencier les états, utiliser l'icône, pas la couleur.
+- **Pas d'ombres colorées**, pas de dégradés multicolores. Si un dégradé est nécessaire : noir → violet uniquement.
+- **Typographie** : sans-serif moderne, hiérarchie par taille/poids, pas par couleur.
+
+**Tailwind config :**
+```js
+// tailwind.config.js
+theme: {
+  extend: {
+    colors: {
+      'afro-purple': '#D91CD2',
+    }
+  }
+}
+```
+
+---
+
+## RÈGLE 3 — STACK TECHNIQUE IMPOSÉE
+
+**Technologies autorisées — exclusivement :**
+
+- **Framework** : Next.js (App Router uniquement, pas de Pages Router).
+- **Backend / DB** : Firebase (Auth, Firestore, Storage, Cloud Functions).
+- **Styling** : Tailwind CSS uniquement (pas de CSS modules, pas de styled-components, pas de Sass).
+- **Langage** : TypeScript partout (`.ts`, `.tsx`). Pas de `.js` dans `app/` ou `components/`.
+
+**Interdits :**
+- Pas d'autre BDD (Supabase, MongoDB, Postgres direct).
+- Pas de framework CSS alternatif (Bootstrap, Material UI, Chakra).
+- Pas de state manager externe (Redux, Zustand) tant que React Context + hooks suffisent.
+- Pas de librairie d'auth alternative (NextAuth, Clerk, Auth0).
+
+**Conventions de code :**
+- Composants en PascalCase, fichiers en kebab-case.
+- Hooks customs préfixés `use` (`useAuth`, `useMatches`).
+- Tous les appels Firebase passent par `lib/firebase/*`. Pas d'appel direct depuis un composant.
+- Server Components par défaut, `'use client'` uniquement quand nécessaire (state, effets, événements).
+- Pas de `any` en TypeScript. Utiliser `unknown` + narrowing si vraiment nécessaire.
+
+---
+
+## RÈGLE 4 — SÉCURITÉ ET DONNÉES
+
+- Jamais de clé API en dur dans le code. Toujours via `process.env`.
+- Les variables côté client doivent commencer par `NEXT_PUBLIC_`. Tout le reste est server-only.
+- Toute écriture Firestore doit avoir une règle de sécurité associée dans `firestore.rules`.
+- Ne jamais committer `.env.local`, `service-account.json`, ou tout fichier de secret.
+
+---
+
+## RÈGLE 5 — COMMUNICATION AVEC L'UTILISATEUR
+
+- Toujours expliquer en français.
+- Avant un changement majeur (refactor, suppression, migration), demander confirmation.
+- Lister les fichiers modifiés à la fin de chaque intervention.
+- Si une règle ci-dessus entre en conflit avec une demande, signaler le conflit avant d'agir.
