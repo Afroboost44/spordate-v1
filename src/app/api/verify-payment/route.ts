@@ -9,7 +9,7 @@ import Stripe from 'stripe';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2024-04-10' });
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-02-25.clover' });
 
 const PACKAGE_CREDITS: Record<string, number> = {
   test_1chf: 1,
