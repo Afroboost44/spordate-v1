@@ -446,5 +446,4 @@ export async function runSinglePattern(
 }
 
 // ===================== EXPORTS =====================
-
-export type { CorrectionResult, AutoCorrectorReport };
+// (CorrectionResult et AutoCorrectorReport déjà exportés via `export interface` ci-dessus)
