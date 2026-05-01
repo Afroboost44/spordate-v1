@@ -374,5 +374,4 @@ export async function getHealthCheckEndpoint(): Promise<{
 }
 
 // ===================== EXPORTS =====================
-
-export type { HealthStatus, ServiceHealth, HealthCheckReport };
+// (HealthStatus, ServiceHealth, HealthCheckReport déjà exportés via `export interface` ci-dessus)
