@@ -64,6 +64,7 @@ export default function PartnerRegisterPage() {
         address: formData.address, city: formData.city || 'Genève', canton: formData.canton || 'GE',
         geoPoint: new GeoPoint(46.2044, 6.1432), type: formData.type, description: formData.description,
         logo: '', images: [],
+        status: hasPromo ? 'pending_validation' : 'pending_payment',
         subscriptionStatus: hasPromo ? 'active' : 'trial',
         subscriptionEnd: null as any, monthlyFee: hasPromo ? 0 : 4900,
         promoCode: hasPromo ? formData.promoCode.toUpperCase() : '',
