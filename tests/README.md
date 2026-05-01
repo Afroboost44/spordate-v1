@@ -5,10 +5,16 @@ Tests standalone pour les services backend. Pas de framework de test (pas de Jes
 ## Tests purs (sans Firestore)
 
 ```bash
+# Phase 1+2 — services Firestore Sessions (23 cas)
 npx tsx tests/sessions-pure.test.ts
+
+# Phase 4 — helpers UI countdown (7 cas)
+npx tsx tests/sessions-ui-pure.test.ts
 ```
 
-Couvre les fonctions sans accès Firestore (computePricingTier, computeChatWindow, getChatPhase, isSessionBookable). Aucune dépendance externe — peut tourner partout.
+`sessions-pure.test.ts` couvre les fonctions service sans accès Firestore (computePricingTier, computeChatWindow, getChatPhase, isSessionBookable). Aucune dépendance externe — peut tourner partout.
+
+`sessions-ui-pure.test.ts` couvre les helpers UI extraits (breakdownMs, formatBadge). Pas de React, pas de Firestore. Importable n'importe où.
 
 ## Tests d'intégration (avec emulator Firestore)
 
