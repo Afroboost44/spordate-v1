@@ -368,7 +368,7 @@ Liste exhaustive des dettes et incohérences identifiées au moment de Phase 1. 
 - [ ] **Cleanup post-migration (à faire après 30j de vérification)** :
   - Supprimer le projet Firebase `studio-9336829343-59db2` (ancien)
   - Vérifier qu'aucun service tiers (Stripe webhook, Analytics, etc.) ne pointe encore sur l'ancien projet
-  - Activer Storage sur `spordate-prod` quand on en aura besoin (Phase 6 chat avec photos/vidéos)
+  - Activer Storage sur `spordate-prod` quand on en aura besoin (Phase 7 chat avec photos/vidéos)
   - Activer Google Auth sur `spordate-prod` (skipped pendant migration, à faire dans Phase 5+ si nécessaire)
   - Mettre à jour `.env.example` pour refléter `spordate-prod` au lieu du placeholder `spordateur-claude`
 - [ ] **`.env.example`** mentionne `spordateur-claude` qui n'existe pas — c'est un placeholder qui prête à confusion. Le vrai project ID est `studio-9336829343-59db2`. À mettre à jour ou à génériciser.
@@ -390,7 +390,7 @@ Liste exhaustive des dettes et incohérences identifiées au moment de Phase 1. 
 - [ ] Remplacer "Firebase App Hosting" par "Vercel" dans la règle 3.
 - [ ] Mettre à jour la règle 6 pour refléter le workflow réel : `git push prod main` (Afroboost44) déclenche le déploiement spordateur.com via Vercel.
 - [ ] Documenter que `firestore.rules` et `firestore.indexes.json` doivent être déployés séparément avec `firebase deploy --only firestore:rules,firestore:indexes` sur le projet Firebase de prod (pas le projet Studio).
-- [ ] Mentionner Cloud Functions Phase 7 : à implémenter en **Vercel Cron Jobs** OU en **Firebase Functions séparées**, à arbitrer en début de Phase 7.
+- [ ] Mentionner Cloud Functions Phase 6 (cron pricing recompute anti-cheat) + Phase 7 (chat lifecycle + crons chat opening/closing) : à implémenter en **Vercel Cron Jobs** OU en **Firebase Functions séparées**, à arbitrer en début de chaque phase. Re-ordering mai 2026 : ces crons sont scindés entre Phase 6 (anti-cheat) et Phase 7 (chat retention).
 
 ### Storage rules à versionner dans le repo (Phase 8 cleanup)
 
@@ -436,11 +436,11 @@ Liste exhaustive des dettes et incohérences identifiées au moment de Phase 1. 
    - "Places limitées · 20 max"
    - Le compteur participants ne s'affiche QUE quand ≥ 3-4 inscrits.
 
-3. **Section "Ils l'ont vécu"** en haut de la home : 6-8 photos d'anciens cours Afroboost **réels** + 2-3 testimonials courts. Pas de prix ni de countdown — juste de l'aspirational pour donner le vibe "on existe depuis longtemps". **Doctrine no-fake-content stricte** : si <3 vraies photos disponibles au launch, masquer la section plutôt que de mocker (LCD Suisse Art. 3 publicité trompeuse + risque réputationnel sur plateforme dating-adjacent). Photos stockées dans `/public/past-sessions/`, indexées dans `/src/data/past-afroboost-sessions.ts` (`PAST_AFROBOOST_SESSIONS`). Le composant `PastSessionsGallery` applique cette règle automatiquement (`return null` si `sessions.length < minToShow`). Migration Firestore + admin UI prévue Phase 7.
+3. **Section "Ils l'ont vécu"** en haut de la home : 6-8 photos d'anciens cours Afroboost **réels** + 2-3 testimonials courts. Pas de prix ni de countdown — juste de l'aspirational pour donner le vibe "on existe depuis longtemps". **Doctrine no-fake-content stricte** : si <3 vraies photos disponibles au launch, masquer la section plutôt que de mocker (LCD Suisse Art. 3 publicité trompeuse + risque réputationnel sur plateforme dating-adjacent). Photos stockées dans `/public/past-sessions/`, indexées dans `/src/data/past-afroboost-sessions.ts` (`PAST_AFROBOOST_SESSIONS`). Le composant `PastSessionsGallery` applique cette règle automatiquement (`return null` si `sessions.length < minToShow`). Migration Firestore + admin UI prévue Phase 8.
 
 4. **Pre-fill villes avec "Bientôt"** : afficher Lausanne / Zürich / Bern même sans session active. Bouton "Me notifier de la première session". Donne l'impression d'expansion en cours.
 
-5. **Compteur d'intérêt cumulatif** : "47 membres intéressés" basé sur les clics sur sessions (signal soft, pas une réservation). Jamais de "0 réservations". Pas de fenêtre temporelle dans le wording (rolling-7d / ISO-week sera tranché en Phase 7) pour rester future-proof.
+5. **Compteur d'intérêt cumulatif** : "47 membres intéressés" basé sur les clics sur sessions (signal soft, pas une réservation). Jamais de "0 réservations". Pas de fenêtre temporelle dans le wording (rolling-7d / ISO-week sera tranché en Phase 8 analytics) pour rester future-proof.
 
 6. **Notifications "future session"** : tout visiteur peut s'inscrire à une liste d'attente par activité ou par ville. Capture l'engagement.
 
@@ -489,7 +489,7 @@ Liste exhaustive des dettes et incohérences identifiées au moment de Phase 1. 
 - Webhook étendu : sur paiement session → `bookSession()` (Phase 2) + grant `Activity.chatCreditsBundle ?? 50` au user via le système crédits existant
 - Activity.chatCreditsBundle? : champ optionnel, défaut 50
 
-**Phase 6 — chat avec coût variable** :
+**Phase 7 — chat avec coût variable** :
 - Helper `computeMessageCost(type: 'text' | 'image' | 'video'): number`
   - text → 1
   - image → 5
@@ -503,6 +503,250 @@ Liste exhaustive des dettes et incohérences identifiées au moment de Phase 1. 
 - **Money du top-up crédits** : reste à Spordate (= flux Stripe direct, déjà en place)
 
 → Cohérent avec le système Stripe Connect partner déjà identifié dans le code (`/api/partner-request`, `partner.stripeAccountId`, etc.)
+
+---
+
+## 9.quinquies — Modèle de rétention post-event Phase 7 (validé mai 2026)
+
+> **Contexte** : Phase 7 ship le chat post-event + détection anti-leak + suggestions IA + invite Individuel. Doctrine validée mai 2026 par Bassi en 2 batchs de décisions (26 questions tranchées).
+>
+> **Re-ordering** : la roadmap mai 2026 a re-priorisé l'**anti-cheat (Phase 6)** avant la **rétention (Phase 7)**. Cf. §10 mis à jour.
+
+### Vue d'ensemble
+
+Phase 7 = transformer chaque session bookée en **plusieurs sessions bookées sur 6 mois** via 4 mécanismes :
+1. **Chat post-event payant** (bundle 50 crédits) — boucle session → chat → crédits → re-booking
+2. **Anti-contact-exchange** (4 niveaux L1-L4) — défend la rétention sans aliéner les users
+3. **Suggestions IA** dans le chat — transforme conversation en re-booking quick-tap
+4. **Invite Individuel** — réduit la friction de booking groupé (Split + Gift = Phase 8)
+
+---
+
+### A. Doctrine économique — in-platform retention vs match-and-leak
+
+**Règle** : Spordate génère du revenue **par session bookée + crédits chat consommés**, pas par mise en relation. La rétention est l'enjeu N°1 post-event : un user qui rencontre quelqu'un sur Spordate doit avoir plus à gagner à rester sur la plateforme qu'à passer en off-platform.
+
+**Modèle économique consolidé** (cohérent §9.quater) :
+
+```
+Session bookée (CHF) → bundle 50 crédits chat
+                              ↓
+              Chat post-event consume crédits :
+                  texte = 1 / photo = 5 / vidéo = 10
+                              ↓
+              Crédits épuisés → top-up via /payment
+                              ↓
+              Top-up motive next session booking
+                              ↓
+                     [Boucle vertueuse]
+```
+
+**Pas de subscription "Spordate+" Phase 7** — modèle crédits suffit, KISS. Subscription envisagée Phase 9+ si data Phase 7 le justifie.
+
+**Décisions tranchées** :
+
+- **A.Q1 (✅)** : on accepte ~40% de leak off-platform comme inévitable. La défense se concentre sur les 60% qui hésitent — ceux que la friction L1-L3 fait basculer côté on-platform.
+- **A.Q2 (✅ batch 1)** : modèle crédits chat (pas de subscription Phase 7).
+- **A.Q3 (✅)** : KPIs rétention reformulés en **stretch goals à mesurer**, pas conditions de succès. **Le succès Phase 7 = avoir la machinerie qui mesure + optimise progressivement.** Industrie dating-adjacent au launch est plutôt 10-20% à 30j initialement.
+  - Cibles à mesurer (stretch, pas minima) :
+    - Rétention 60j : 35% à 6 mois (stretch), 25% à 3 mois (réaliste), 15% à 1 mois (baseline industrie)
+
+**Justification** :
+- Économique : crédits = revenue récurrent sans dating-app churn
+- Cultural CH : régularité + structure → re-booking naturel
+- Différenciation : positionne Spordate comme **plateforme sport avec dimension sociale**, pas dating-app-with-sport-hooks
+
+---
+
+### B. Anti-contact-exchange — 4 niveaux de défense
+
+**Règle** : défense progressive 4 niveaux dans le chat post-session uniquement.
+
+| Niveau | Mécanique | Trigger | UX |
+|---|---|---|---|
+| **L1** | Detection passive (regex + IA) | Chaque message envoyé | Aucune (analyse silencieuse, log serveur) |
+| **L2** | Soft warning UI | 1er hit L1 dans la conv | Toast non-bloquant : *"Le chat reste ouvert jusqu'à ta prochaine session — pas besoin de partager ton Insta."* Message envoyé quand même. |
+| **L3** | Friction modal | 3ème hit L1 dans la même conv | Modal pré-envoi : *"Cet échange enfreint la doctrine Spordate. Continue → message envoyé / Annule → message gardé en brouillon."* Message envoyé si user continue (laisse-faire). |
+| **L4** | Account flag (admin review **manuelle**) | 5ème hit + escalade conv | Pas d'action user-visible. Admin reçoit alerte email, peut limiter compte hors-band. |
+
+**Décisions tranchées (batch 2)** :
+
+- **B.Q1 (✅)** : **transparence totale**. CGU explicite + 1 onboarding-bubble la 1ère fois qu'un user entre dans un chat post-session : *"Tes messages sont scannés pour détection des partages de contact — tu peux nous appeler si flag à tort"*. Réduit la perception "surveillance" → "protection rétention".
+- **B.Q2 (✅)** : **L3 modal laisse-faire** — message envoyé quand même après le warning. Bloquer = revolt user.
+- **B.Q3 (✅)** : **L4 escalation manuelle** Phase 7 (admin humain). Volume faible attendu, biais algorithmique = risque LCD si erreur. Phase 8+ peut ajouter auto-quarantine après 10+ flags.
+- **B.Q4 (✅)** : **précision cible 92-95%**. Au-dessus = lent/coûteux. En-dessous = trop de UX-noise. Mesurer via taux d'appels users ("ce flag est faux") < 5%.
+
+**Justification** :
+- Économique : chaque off-platform exchange = revenue futur perdu
+- Légale :
+  - **LPD Art. 6** (transparence) : CGU explicite + onboarding-bubble obligatoires
+  - **LPD Art. 7** (proportionnalité) : pas de stockage durable du contenu, juste extraction pattern + délétion message
+  - **LCD Art. 3** : pas de pratiques trompeuses
+- UX : graduation = pas de surprise, pas de censure abrupte
+
+**Contraintes techniques implicites** :
+- Latence detection < 200ms (chat temps réel)
+- Faux positifs = UX killer (e.g. "555 calories brûlées" ne doit pas flag comme téléphone)
+- **Disclosure CGU obligatoire avant ship Phase 7** (`src/app/terms/page.tsx` + `src/app/privacy/page.tsx` à patcher)
+- Mécanisme d'**appel** (user signale faux flag → admin review)
+
+---
+
+### C. Patterns détection — Regex + IA Genkit
+
+**Règle** : architecture **hybride** — regex (rapide, gratuit, déterministe) en première passe + IA Genkit (lent, payant, contextuel) en deuxième passe sur les cas ambigus.
+
+**Layer 1 — Regex (synchrone, ~5ms)** :
+- Téléphones CH : `\b0[0-9]{2}\s?[0-9]{3}\s?[0-9]{2}\s?[0-9]{2}\b` + variantes `+41 ...`
+- Emails : `\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`
+- Handles Instagram/Snapchat/TikTok : `@[a-zA-Z0-9_.]{3,30}` (avec heuristique : précédé de "insta", "ig", "snap", "tiktok")
+- Domaines : `\b[a-zA-Z0-9.-]+\.(ch|com|net|org|io)\b`
+- Mots-clés explicites : "WhatsApp", "Telegram", "DM moi", "MP", etc.
+
+**Layer 2 — IA Genkit (asynchrone, ~150-500ms)** :
+- Trigger : appel **uniquement** si regex L1 ambigu (e.g. "j'ai 555 calories" — possible faux positif tel)
+- Prompt : *"Ce message contient-il une tentative de partage de contact ou intention de quitter la plateforme ? Score 0-1."*
+- Modèle : **Gemini Flash via Genkit** (Firebase stack, quotas généreux)
+- Cache : 24h sur hash exact du message uniquement. Si 1 char change → re-scorer
+
+**Décisions tranchées** :
+
+- **C.Q1 (✅ batch 1)** : **Genkit + Gemini Flash**. Cohérent stack Firebase, quotas gratuits Google généreux. Switch Phase 8+ si quality bar pas atteinte (Anthropic, etc.). No self-hosted Phase 7.
+- **C.Q2 (✅)** : logs IA = **scores + hash anonyme du message** Phase 7. Pas de contenu lisible. Permet tuning sans risque LPD. Logs purgés à 30j.
+- **C.Q3 (✅)** : **FR uniquement Phase 7**. DE + IT en Phase 9+ quand on aura une base utilisateurs DE/IT validée.
+- **C.Q4 (✅)** : **cache 24h sur hash exact** uniquement. Si 1 char change → re-scorer. Évite false-cache-hit + reste safe pour patterns créatifs.
+
+**Justification** :
+- Économique : regex couvre 80% des cas pour 0 coût. IA monte la précision à 95%+ avec coût marginal (uniquement les ambigus)
+- Technique : combo respecte budget latence (<200ms p95) + budget coût (<$0.001 / message)
+- Évolutif : regex maintenu côté code, IA s'améliore via prompt-tuning sans déployer
+
+**Contraintes techniques implicites** :
+- Genkit dans le stack : vérifier que `@genkit-ai/*` est installé (sinon ajout Phase 7-pre)
+- Multilingue Phase 7 : FR uniquement (DE + IT déférés Phase 9+)
+- Privacy : message envoyé à l'API IA = donnée traitée par tiers → CGU doivent l'indiquer
+- Rate limiting : max N appels IA / user / minute pour éviter abus
+
+---
+
+### D. Suggestions next-activity dans chat post-event (IA-driven)
+
+**Règle** : après la fin d'une session, le chat reste ouvert avec les crédits restants. **L'IA suggère 1-3 activities suivantes** dans le chat, sous forme de message bot avec boutons quick-book.
+
+**Mécanique** :
+- **Trigger** : conjonction de :
+  - Session terminée depuis >24h
+  - Aucune mention de "next time" / "on remet ça" dans les dernières 48h (ne pas devancer l'organique)
+  - OU mention détectée par IA (intent-classification "next-event-mention")
+- **IA fait** : lit les 30 derniers messages + profile groupe (sports passés, villes) → propose 3 activities upcoming dans la base Spordate (filtre par city + sport-affinity)
+- **Output** : message **bot inline** dans le chat avec avatar Spordate distinct + label "Suggestion" :
+  ```
+  🤖 Spordate · Suggestion
+  Si vous voulez remettre ça :
+  [Card 1: Afroboost Lausanne — sam 18 mai]  [Réserver →]
+  [Card 2: Yoga Genève — dim 19 mai]         [Réserver →]
+  [Card 3: Padel Bern — sam 25 mai]          [Réserver →]
+  ```
+- **Quick-book** : tap → ouvre flow d'invite Individuel (cf. section E)
+
+**Décisions tranchées** :
+
+- **D.Q1 (✅ batch 1)** : **default-on** + disclosure CGU explicite + toggle off 1-tap dans `/profile`. Justification : opt-in tue la rétention (most users won't activate proactively). LPD respect via toggle facile + transparence.
+- **D.Q2 (✅)** : **1 suggestion par 72h max** + ne pas relancer avant 24h après dernier message user. Évite spam, respecte rythme organique.
+- **D.Q3 (✅)** : **gratuites pour tous Phase 7** (cohérent A.Q2 : pas de subscription Phase 7). Phase 9+ peut introduire Spordate+ avec quotas illimités, suggestions raffinées.
+- **D.Q4 (✅)** : **affichage inline** comme message bot avec avatar Spordate distinct + label "Suggestion". Plus naturel mobile, plus engageant que sidebar.
+
+**Justification** :
+- Économique : chaque suggestion bookée = revenue session + nouveau bundle crédits = effet de roue
+- UX : friction-free re-engagement, valorise l'effort fait pour booker la 1ère session
+- Différenciation : pas juste un chat, c'est un assistant social → moat vs WhatsApp
+
+**Contraintes techniques implicites** :
+- Coût IA : ~$0.01/groupe par 72h → estimable Phase 7 OK avec ~1000 groupes actifs
+- Privacy : chat content envoyé à l'IA → opt-out facile dans `/profile` (D.Q1)
+- Quality bar : suggestions hors-cible = bot perçu comme spam → pénalise rétention au lieu de l'aider
+- Feature flag : ship gradué (10% → 50% → 100% des chats) avec metrics
+
+---
+
+### E. Invitation réciproque (Phase 7 : Individuel uniquement)
+
+**Règle Phase 7** : invite Individuel uniquement. Chacun paye sa part en acceptant. Modes Split + Gift = Phase 8.
+
+**Mode Individuel** :
+- User A invite User B à une session via tap sur SessionCard ou "Invite à cette suggestion"
+- B reçoit notification + lien d'invite
+- B accepte → checkout Stripe à son nom (paye sa place, flux Stripe direct existant)
+- B refuse → A peut inviter quelqu'un d'autre
+
+**Décision tranchée** :
+
+- **E.Q1 (✅ batch 1)** : **Phase 7 = Individuel uniquement**. Évite couplage Stripe Connect destination splits + refund logic complexe dans MVP.
+
+**Modes différés Phase 8** :
+- **Split** : organisateur paye X%, invités le reste (default mode probable Phase 8)
+- **Gift** : organisateur paye 100% (use-case anniversaire, gratitude — viralisation potentielle)
+- Les 4 questions design (default mode Phase 8, min/max split, cancellation policy, UI) → tranchées en pré-Phase 8 sur la base de la donnée Phase 7 (taux d'invite Individuel, abandons, demandes user).
+
+**Justification** :
+- Économique : Individuel = -friction modeste vs Split mais ship-able en ~3-4 jours vs ~2 semaines
+- Risque : Stripe Connect destination splits = surface bug + fraud potentielle. À mûrir Phase 8 sur du code Phase 7 stable.
+
+---
+
+### F. Scope Phase 7 vs Phase 8+
+
+**Règle** :
+- **Phase 7 = MVP rétention** (~3-4 semaines) : ship value rapide, learn from real data
+- **Phase 8 = sophistication** : modes Split/Gift, admin UI, analytics dashboard, polish + cleanup
+- **Phase 9+ = subscription** : Spordate+ avec quotas premium, multilingue DE/IT
+
+**Découpage final** :
+
+| Item | Phase 7 (MVP rétention) | Phase 8 (Polish) | Phase 9+ (Premium) |
+|---|---|---|---|
+| Detection L1 regex | ✅ ship | maintenance | maintenance |
+| Detection L2 soft warning UI | ✅ ship | maintenance | maintenance |
+| Detection L3 modal friction | ✅ ship (3+ hits, laisse-faire) | tuning | maintenance |
+| Detection L4 admin flag | ⚠️ basic (count + alert email manuel) | full review UI + auto-quarantine | maintenance |
+| IA Genkit detection layer | ✅ ship (Gemini Flash) | tuning prompts | switch model si nécessaire |
+| Multilingue patterns regex/IA | FR uniquement | FR | + DE + IT |
+| Suggestions next-activity | ✅ ship (IA-driven, default-on) | analytics + tuning | quotas premium Spordate+ |
+| Suggestions data source | matrice JSON `src/data/activity-suggestions.ts` (admin maintient) | UI activity-creator self-service | + perso ML |
+| Invite Individuel | ✅ ship | maintenance | maintenance |
+| Invite Split + Gift | ❌ | ✅ ship (Stripe Connect destination) | maintenance |
+| Analytics rétention dashboard | ❌ (collecte data uniquement) | ✅ ship admin | + cohort analytics |
+| Subscription Spordate+ | ❌ | ❌ | ✅ ship |
+
+**Décisions tranchées (batch 2)** :
+
+- **F.Q1 (✅)** : **Phase 6 anti-cheat AVANT Phase 7 rétention**. Re-ordering acté §10. Sans anti-cheat, attaquant peut manipuler les prix → revenue loss > rétention gain. Phase 6 doit rester focused (~1 semaine).
+- **F.Q2 (✅)** : **admin Spordate Phase 7** maintient les recommandations cross-activity dans `src/data/activity-suggestions.ts` (matrice JSON). Activity creator self-service = Phase 8 avec UI dédiée.
+- **F.Q3 (✅)** : **Subscription Spordate+ = Phase 9+**. Ship rétention basique gratuite Phase 7, monétise sophistication Phase 9+ quand on aura la donnée pour pricer.
+- **F.Q4 (✅)** : **4 KPIs Phase 7** à mesurer (stretch goals — cf. A.Q3 — pas conditions strictes de succès) :
+  1. **Rétention 60j** : % users qui font une 2ème session dans les 60j (cible 25% à 3 mois post-launch, 35% à 6 mois)
+  2. **% bookings via suggestion** : % de re-bookings depuis suggestion-quick-book (cible 15%+)
+  3. **% messages flagged** : ratio L1 hits / total messages (mesure baseline, ajuste regex)
+  4. **% appels users sur flags** : % flagged-messages contestés ("faux flag") — mesure faux positifs (cible <5%)
+
+---
+
+### G. Disclosure CGU à patcher (pré-Phase 7)
+
+Les pages légales doivent être patchées **avant ship Phase 7** (LPD Art. 6 transparence, LCD Art. 3 honnêteté pratiques) :
+
+- `src/app/terms/page.tsx` :
+  - Mention explicite : *"Les messages échangés dans le chat post-session sont scannés (regex + IA) pour détecter les tentatives de partage de contact, dans le but de préserver la rétention de la plateforme."*
+  - Mécanisme d'appel utilisateur en cas de flag erroné
+- `src/app/privacy/page.tsx` :
+  - Mention LPD Art. 6 (transparence) + Art. 7 (proportionnalité, pas de stockage contenu)
+  - Données traitées par tiers (Google Gemini via Genkit) avec finalité claire
+  - Toggle opt-out facile dans `/profile` (suggestions IA + scanning)
+- `src/app/profile/...` :
+  - Toggle 1-tap "Recevoir des suggestions IA" (default-on per D.Q1)
+  - Toggle 1-tap "Scanning de mes messages chat" (default-on, mais opt-out clair)
+
+Cette étape Phase 7-pre est **non-optionnelle**.
 
 ---
 
@@ -552,8 +796,9 @@ interface Activity {
 | Phase 2 | Service Firestore Sessions (createSession, getUpcomingSessions, computePricingTier, bookSession) | ✅ **SHIPPÉE** — push Afroboost44/main commit `375742b`, Vercel rebuild auto-deploy. 7 fichiers, +1430/-2 lignes, 23 tests purs + 42 sub-assertions emulator PASS, build 35 routes OK. Java 21 + emulator Firestore opérationnels en local pour les futures phases. | mai 2026 |
 | Phase 2.5 | **MIGRATION FIREBASE** : `studio-9336829343-59db2` → `spordate-prod`. Nouveau projet Firebase classique (compte `bassicustomshoes@gmail.com`), Firestore eur3 mode prod, Auth Email/Password, Storage à activer plus tard, Web App config + Service Account créés, 8 env vars Vercel updatées, Firestore rules + 4 indexes Phase 1 déployés sur `spordate-prod`, Vercel `vercel --prod` redeploy commit `4YeH1VLDX` Ready 37s. | ✅ **SHIPPÉE** — spordateur.com tourne maintenant sur `spordate-prod`. Backend `studio-9336829343-59db2` reste en standby 30j pour rollback éventuel, à supprimer en Phase 8. **Firebase Studio shutdown 22 mars 2027 = plus un risque**. | mai 2026 |
 | Phase 3 | Pricing progressif côté serveur (extension `/api/checkout` + `/api/webhooks/stripe`) | ✅ **SHIPPÉE** — push Afroboost44/main commit `930e090`, Vercel auto-deploy. Extension mode 'session' avec recompute server-side anti-cheat, refactor route.ts → handler.ts (Next.js constraint), idempotency #1 hors-tx, transaction Admin SDK atomique (booking + currentParticipants++ + tier recompute + chatUnlock + grant 50 credits), Activity.chatCreditsBundle? + TransactionType+'session_purchase' + Transaction.bookingId?+sessionId?. Tests 23+42+37 = 102 sub-assertions PASS. Build 35 pages OK. | mai 2026 |
-| Phase 4 | Hooks countdown (useCountdown, useSessionWindow, useServerTimeOffset) + composants UI countdown | À faire | — |
-| Phase 5 | Pages `/sessions` (liste + détail) + widget UpcomingSessions | À faire | — |
-| Phase 6 | Chat temporel (étendre chatUnlocked avec phase before/chat-open/started/ended) | À faire | — |
-| Phase 7 | Cloud Functions / Cron Jobs (J-1, H-2 chat opening, T-0 start, T+0 end + emails Resend) | À faire | — |
-| Phase 8 | **Cleanup** — voir section 9 ci-dessus | À faire | — |
+| Phase 4 | Hooks countdown (useCountdown, useSessionWindow, useServerTimeOffset) + composants UI countdown (CountdownBadge, CountdownHero, PricingTierIndicator, ChatStatusBadge) | ✅ **SHIPPÉE** — push Afroboost44/main commit `0984f92`, Vercel auto-deploy. | mai 2026 |
+| Phase 5 | Pages `/sessions` (liste + détail) + 14 composants UI + 8 tactiques anti-ghost-town + doctrine no-fake-content | ✅ **SHIPPÉE** — push Afroboost44/main commit `db8b888` (squash 3 WIPs), polish #1 commit `ad46a18` (galerie 7/7 photos Afroboost Silent Neuchâtel). 31 fichiers, +2534/-5 lignes. ISR 60s/30s, WCAG 2.1 AA, prefers-reduced-motion. Doctrine LCD Suisse Art. 3 + LPD Art. 31 documentée §9.ter Tactique 3. | mai 2026 |
+| Phase 6 | **Anti-cheat server-recompute pricing** : crons recompute `currentTier`/`currentPrice` toutes les N minutes selon temps écoulé + fill rate (extension Phase 3 anti-cheat checkout vers anti-cheat continu). Hardening additionnel checkout flow (idempotency edge cases, race conditions concurrentes). Re-priorisé mai 2026 AVANT Phase 7 rétention (defensive depth d'abord). | À faire — **~1 semaine** | — |
+| Phase 7 | **Chat post-event + rétention + suggestions IA + invite Individuel** : chat persistant avec crédits 50/bundle (texte=1, photo=5, vidéo=10), détection anti-leak L1-L4 (regex + Gemini Flash via Genkit, FR uniquement Phase 7), suggestions IA next-activity default-on (cadence 1/72h, inline avec avatar bot), invite Individuel via Stripe direct, disclosure CGU pré-ship. Cibles KPIs en stretch goals (rétention 60j, % bookings via suggestion, % flagged, % appels). Cf. §9.quinquies pour la doctrine complète. | À faire — **~3-4 semaines** | — |
+| Phase 8 | **Polish (Split/Gift invites, admin UI, analytics) + cleanup** : modes Invite Split + Gift via Stripe Connect destination splits, admin UI past-sessions photos + activity-suggestions JSON, analytics retention dashboard (cohort 30/60/90j), email notifications J-1/T-0/T+0 via Resend, cleanup hérité (cf. §9 — Stripe lazy-init 4 routes, etc.). | À faire | — |
+| Phase 9+ | **Subscription Spordate+ + multilingue DE/IT** : abonnement premium (quotas IA illimités, suggestions raffinées, cohort analytics persos), patterns regex DE/IT pour anti-leak, prompts IA multilingues. | À faire | — |
