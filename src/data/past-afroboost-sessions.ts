@@ -39,8 +39,6 @@ export interface PastAfroboostSession {
  * Liste réelle des photos de sessions Afroboost passées.
  * Si length < 3, PastSessionsGallery ne s'affiche pas (doctrine no-fake-content).
  */
-// TODO Bassi : 3 photos supplémentaires (5.jpg, 6.jpg, 7.jpg) en attente de metadata réelle.
-//             Date Neuchâtel à reconfirmer (octobre vs août 2025).
 export const PAST_AFROBOOST_SESSIONS: PastAfroboostSession[] = [
   {
     photoSrc: '/past-sessions/1.jpg',
@@ -69,5 +67,26 @@ export const PAST_AFROBOOST_SESSIONS: PastAfroboostSession[] = [
     city: 'Neuchâtel',
     date: '2025-10-30',
     alt: "Groupe en mouvement lors d'un Afroboost Silent aux Jeunes-Rives de Neuchâtel",
+  },
+  {
+    photoSrc: '/past-sessions/5.jpg',
+    sport: 'Afroboost Silent',
+    city: 'Neuchâtel',
+    date: '2025-10-30',
+    alt: "Cours Afroboost Silent en plein air aux Jeunes-Rives de Neuchâtel",
+  },
+  {
+    photoSrc: '/past-sessions/6.jpg',
+    sport: 'Afroboost Silent',
+    city: 'Neuchâtel',
+    date: '2025-10-30',
+    alt: "Participantes Afroboost Silent dansant aux Jeunes-Rives, Neuchâtel",
+  },
+  {
+    photoSrc: '/past-sessions/7.jpg',
+    sport: 'Afroboost Silent',
+    city: 'Neuchâtel',
+    date: '2025-10-30',
+    alt: "Atmosphère d'une session Afroboost Silent aux Jeunes-Rives, Neuchâtel",
   },
 ];
