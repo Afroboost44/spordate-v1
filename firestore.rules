@@ -181,8 +181,12 @@ service cloud.firestore {
     // Occurrences datées d'une Activity (Phase 1 du système "Dates par Activités").
     // Les champs currentParticipants/currentTier/currentPrice ne sont écrits QUE par le serveur
     // (webhook Stripe + crons Phase 7) via l'Admin SDK qui bypass les rules.
+    //
+    // Phase 5 : read PUBLIC (cohérent avec activities/ ligne 39 — pas de PII dans les
+    // documents session, contenu marketing/discovery indispensable au SSR de /sessions
+    // sans login. Le ReserveButton déclenche le redirect login uniquement au clic.).
     match /sessions/{sessionId} {
-      allow read: if isAuth();
+      allow read: if true;
       allow create: if isAuth()
         && (
           isAdmin()

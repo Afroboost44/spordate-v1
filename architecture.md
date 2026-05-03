@@ -360,7 +360,18 @@ Liste exhaustive des dettes et incohérences identifiées au moment de Phase 1. 
 
 ### Firebase
 
-- [ ] Supprimer (ou laisser mourir) le projet Firebase Studio **`studio-9336829343-59db2`** — sandbox abandonnée, sera coupée le 22 mars 2027 par Google.
+- [x] ✅ **MIGRATION FIREBASE FAITE** (mai 2026, anticipée depuis Phase 8 vers Phase 2.5)
+  - Ancien projet : `studio-9336829343-59db2` (Firebase Studio, deadline shutdown 22 mars 2027)
+  - Nouveau projet : `spordate-prod` (Firebase classique, compte `bassicustomshoes@gmail.com`, région eur3)
+  - Pas de migration de données nécessaire (0 utilisateur réel au moment de la migration)
+  - 8 env vars Vercel mises à jour, Firestore rules + 4 indexes déployés, Vercel redeploy `4YeH1VLDX` Ready
+- [ ] **Cleanup post-migration (à faire après 30j de vérification)** :
+  - Supprimer le projet Firebase `studio-9336829343-59db2` (ancien)
+  - Vérifier qu'aucun service tiers (Stripe webhook, Analytics, etc.) ne pointe encore sur l'ancien projet
+  - Activer Storage sur `spordate-prod` quand on en aura besoin (Phase 6 chat avec photos/vidéos)
+  - Activer Google Auth sur `spordate-prod` (skipped pendant migration, à faire dans Phase 5+ si nécessaire)
+  - Mettre à jour `.env.example` pour refléter `spordate-prod` au lieu du placeholder `spordateur-claude`
+- [ ] **`.env.example`** mentionne `spordateur-claude` qui n'existe pas — c'est un placeholder qui prête à confusion. Le vrai project ID est `studio-9336829343-59db2`. À mettre à jour ou à génériciser.
 - [ ] Confirmer le projet Firebase de prod réel (probablement `spordateur-claude` selon `.env.example`, à vérifier avec les variables d'env Vercel).
 - [ ] Créer un fichier `.firebaserc` à la racine du repo avec le bon project ID pour simplifier les commandes CLI (`firebase deploy --only firestore:rules`).
 
@@ -381,10 +392,26 @@ Liste exhaustive des dettes et incohérences identifiées au moment de Phase 1. 
 - [ ] Documenter que `firestore.rules` et `firestore.indexes.json` doivent être déployés séparément avec `firebase deploy --only firestore:rules,firestore:indexes` sur le projet Firebase de prod (pas le projet Studio).
 - [ ] Mentionner Cloud Functions Phase 7 : à implémenter en **Vercel Cron Jobs** OU en **Firebase Functions séparées**, à arbitrer en début de Phase 7.
 
+### Storage rules à versionner dans le repo (Phase 8 cleanup)
+
+- [ ] **Créer `storage.rules`** à la racine du repo avec les règles déployées manuellement le mai 2026 (cf. Firebase Console). Permissions actuelles :
+  - `users/{userId}/...` : owner-only writes, images <10 MB
+  - `activities/{activityId}/...` : auth required, images/vidéos <10 MB (TODO: check partnerId)
+  - `chats/{chatId}/...` : auth required, files <25 MB (TODO: check participants)
+  - Default: deny
+- [ ] **Ajouter section `storage` dans `firebase.json`** :
+  ```json
+  "storage": {
+    "rules": "storage.rules"
+  }
+  ```
+- [ ] **Déployer via CLI** : `firebase deploy --only storage:rules --project spordate-prod --account bassicustomshoes@gmail.com`
+- [ ] **Affiner les rules en Phase 8** : vérification partnerId pour `activities/`, vérification participants pour `chats/`
+
 ### Sécurité & monitoring
 
 - [ ] Régler le warning Vercel **`STRIPE_SECRET_KEY` "Needs Attention"** — probablement remplacer par une "restricted key" Stripe au lieu de la clé secrète complète.
-- [ ] **Fix Stripe lazy init** dans `src/app/api/checkout/route.ts` (ligne 12) : déplacer `const stripe = new Stripe(...)` du niveau module dans le `POST` handler (lazy init), comme c'est déjà fait dans `webhooks/stripe/route.ts`. Sinon le build local échoue sans `.env.local` (sur Vercel ça passe car env vars définies). Découvert pendant Phase 1 cleanup, hors scope.
+- [ ] **Fix Stripe lazy init** dans les 4 routes API qui instancient `new Stripe(...)` au niveau module (confirmé Phase 5 lors du `npm run build` local) : `src/app/api/checkout/route.ts`, `src/app/api/boost-checkout/route.ts`, `src/app/api/stripe-connect/route.ts`, `src/app/api/verify-payment/route.ts`. Déplacer chaque `const stripe = new Stripe(...)` du niveau module dans le `POST` handler (lazy init), comme c'est déjà fait dans `webhooks/stripe/route.ts`. Sinon le build local échoue sans `.env.local` avec "Neither apiKey nor config.authenticator provided" au moment du `Collecting page data`. Sur Vercel ça passe car env vars définies. Découvert pendant Phase 1 cleanup, reconfirmé Phase 5, hors scope Phase 5.
 - [ ] Auditer les autres env vars Vercel — confirmer que toutes les 11 attendues (cf. `.env.example`) sont présentes.
 - [ ] Vérifier que `FIREBASE_SERVICE_ACCOUNT_KEY` est bien configuré côté serveur (utilisé par les API routes Stripe webhook).
 
@@ -396,13 +423,135 @@ Liste exhaustive des dettes et incohérences identifiées au moment de Phase 1. 
 
 ---
 
+## 9.ter — Stratégie UX du LANCEMENT (anti-ghost-town)
+
+**Contexte** : au lancement (Phase 5+), Afroboost est le **premier et unique partenaire**. Risque majeur : que le site **paraisse vide / mort** → les premiers visiteurs partent → spirale négative.
+
+**8 tactiques à implémenter en Phase 5** pour donner l'impression d'un site vivant et établi :
+
+1. **Pre-créer 8+ sessions Afroboost** sur 4-6 semaines (même cours à dates différentes = sessions différentes). Faire ça AVANT le lancement public.
+
+2. **Ne jamais afficher "0 X"** dans l'UI. Remplacer par :
+   - "Réservation ouverte" / "Sois le premier"
+   - "Places limitées · 20 max"
+   - Le compteur participants ne s'affiche QUE quand ≥ 3-4 inscrits.
+
+3. **Section "Ils l'ont vécu"** en haut de la home : 6-8 photos d'anciens cours Afroboost **réels** + 2-3 testimonials courts. Pas de prix ni de countdown — juste de l'aspirational pour donner le vibe "on existe depuis longtemps". **Doctrine no-fake-content stricte** : si <3 vraies photos disponibles au launch, masquer la section plutôt que de mocker (LCD Suisse Art. 3 publicité trompeuse + risque réputationnel sur plateforme dating-adjacent). Photos stockées dans `/public/past-sessions/`, indexées dans `/src/data/past-afroboost-sessions.ts` (`PAST_AFROBOOST_SESSIONS`). Le composant `PastSessionsGallery` applique cette règle automatiquement (`return null` si `sessions.length < minToShow`). Migration Firestore + admin UI prévue Phase 7.
+
+4. **Pre-fill villes avec "Bientôt"** : afficher Lausanne / Zürich / Bern même sans session active. Bouton "Me notifier de la première session". Donne l'impression d'expansion en cours.
+
+5. **Compteur d'intérêt cumulatif** : "47 membres intéressés" basé sur les clics sur sessions (signal soft, pas une réservation). Jamais de "0 réservations". Pas de fenêtre temporelle dans le wording (rolling-7d / ISO-week sera tranché en Phase 7) pour rester future-proof.
+
+6. **Notifications "future session"** : tout visiteur peut s'inscrire à une liste d'attente par activité ou par ville. Capture l'engagement.
+
+7. **Hero story / mini-blog "Notre histoire"** : 3 paragraphes sur Afroboost + photos + vidéo intro 30s. Construit la confiance avant la transaction.
+
+8. **Scarcity intelligente** : mix réel — certaines sessions à 87% remplies (last min) + d'autres à 20% (early bird). Pas tout à "1 place restante".
+
+**Importance** : ces tactiques sont **autant** importantes que le code lui-même. Sans elles, même un site techniquement parfait paraîtra mort. Elles doivent être intégrées **dès Phase 5** (et pas reportées à Phase 8).
+
+---
+
+## 9.quater — Modèle économique Sessions (validé mai 2026)
+
+### Logique business
+
+```
+┌──────────────────────────────────────────────────────────┐
+│ SESSION PURCHASE (paiement direct CHF, → partenaire)    │
+│                                                          │
+│ User réserve session → Stripe checkout (35 CHF)         │
+│        ↓                                                 │
+│ Webhook Stripe → bookSession() Phase 2                  │
+│        ↓                                                 │
+│ User reçoit AUSSI un BUNDLE de crédits chat             │
+│ (configurable par activity, défaut 50)                  │
+└──────────────────────────────────────────────────────────┘
+                ↓
+   L'activité physique se déroule
+                ↓
+┌──────────────────────────────────────────────────────────┐
+│ CHAT POST-ACTIVITÉ (avec personnes rencontrées)         │
+│                                                          │
+│ Coût par message selon type :                           │
+│   - Texte : 1 crédit                                    │
+│   - Photo : 5 crédits                                   │
+│   - Vidéo : 10 crédits                                  │
+│                                                          │
+│ Crédits épuisés → top-up via /payment classique         │
+└──────────────────────────────────────────────────────────┘
+```
+
+### Décisions techniques
+
+**Phase 3 — extension `/api/checkout`** :
+- Nouveau mode `'session'` en plus du mode `'package'` existant
+- Webhook étendu : sur paiement session → `bookSession()` (Phase 2) + grant `Activity.chatCreditsBundle ?? 50` au user via le système crédits existant
+- Activity.chatCreditsBundle? : champ optionnel, défaut 50
+
+**Phase 6 — chat avec coût variable** :
+- Helper `computeMessageCost(type: 'text' | 'image' | 'video'): number`
+  - text → 1
+  - image → 5
+  - video → 10
+- À l'envoi d'un message : déduit le coût des crédits du user
+- Si crédits insuffisants : modal "Top up"
+
+### Répartition du revenu
+
+- **Money de la session** : va au partenaire (= flux Stripe Connect classique, ou à voir avec partner.stripeAccountId)
+- **Money du top-up crédits** : reste à Spordate (= flux Stripe direct, déjà en place)
+
+→ Cohérent avec le système Stripe Connect partner déjà identifié dans le code (`/api/partner-request`, `partner.stripeAccountId`, etc.)
+
+---
+
+## 9.bis — Décisions UX/UI (à garder en mémoire pour Phase 4-5)
+
+### Médias des sessions/activités (image ou vidéo au choix du partenaire)
+
+Le partenaire (créateur Afroboost, ou autre partenaire) doit pouvoir choisir **soit une photo, soit une vidéo** comme miniature de chaque activité/session. C'est l'élément visuel qui drive l'engagement.
+
+**Modèle de données à étendre en Phase 2** (additif sur `Activity`) :
+```typescript
+interface Activity {
+  // ... champs existants
+  
+  /** Phase 2 (additif). Miniature affichée sur les cards de session. */
+  thumbnailMedia?: {
+    type: 'image' | 'video';
+    url: string;
+    posterUrl?: string;  // Pour les vidéos = frame de preview
+  };
+}
+```
+
+**Partner dashboard (à coder en Phase 5)** :
+- Toggle radio "Image" / "Vidéo" dans le formulaire de création/édition d'activité
+- Upload zone adaptée au choix
+- Preview avant validation
+- Pour vidéo : choix manuel du frame de poster OU auto-extraction
+- Recommandations affichées : ratio 4:5 ou 16:9, taille max, durée max ~10s
+
+**Session card UI (à coder en Phase 5)** :
+- Image → `background-image` avec `object-fit: cover`
+- Vidéo → `<video autoplay muted loop playsInline poster={posterUrl}>` avec fallback image statique
+- Mobile : autoplay conditionnel via Intersection Observer (économie batterie/data)
+- Hors viewport → pause vidéo
+- Respecter `prefers-reduced-motion` (vidéo statique sur poster si user le préfère)
+
+**Skill UI/UX à utiliser** : `ui-ux-pro-max-skill` (déjà installé dans `.claude/skills/`) pour suivre les patterns de média responsive + accessibilité.
+
+---
+
 ## 10. Journal des phases de la mission Sessions
 
 | Phase | Description | Statut | Date |
 |---|---|---|---|
 | Phase 1 | Types Session/PricingTier + champs optionnels Activity/Match/Booking + rules `/sessions` + 4 indexes + sweep typecheck (rename .ts→.tsx + 6 fixes preexisting) | ✅ **SHIPPÉE** — push Afroboost44/main commit `66d4668`, Vercel auto-deploy. 18 commits dont 17 fixes typecheck préexistants + 1 commit Phase 1 v2. Firestore rules + indexes restent à déployer en début de Phase 2 (`firebase deploy --only firestore:rules,firestore:indexes` après confirmation projet Firebase prod). | mai 2026 |
-| Phase 2 | Service Firestore Sessions (createSession, getUpcomingSessions, computePricingTier, bookSession) | À faire | — |
-| Phase 3 | Pricing progressif côté serveur (extension `/api/checkout` + `/api/webhooks/stripe`) | À faire | — |
+| Phase 2 | Service Firestore Sessions (createSession, getUpcomingSessions, computePricingTier, bookSession) | ✅ **SHIPPÉE** — push Afroboost44/main commit `375742b`, Vercel rebuild auto-deploy. 7 fichiers, +1430/-2 lignes, 23 tests purs + 42 sub-assertions emulator PASS, build 35 routes OK. Java 21 + emulator Firestore opérationnels en local pour les futures phases. | mai 2026 |
+| Phase 2.5 | **MIGRATION FIREBASE** : `studio-9336829343-59db2` → `spordate-prod`. Nouveau projet Firebase classique (compte `bassicustomshoes@gmail.com`), Firestore eur3 mode prod, Auth Email/Password, Storage à activer plus tard, Web App config + Service Account créés, 8 env vars Vercel updatées, Firestore rules + 4 indexes Phase 1 déployés sur `spordate-prod`, Vercel `vercel --prod` redeploy commit `4YeH1VLDX` Ready 37s. | ✅ **SHIPPÉE** — spordateur.com tourne maintenant sur `spordate-prod`. Backend `studio-9336829343-59db2` reste en standby 30j pour rollback éventuel, à supprimer en Phase 8. **Firebase Studio shutdown 22 mars 2027 = plus un risque**. | mai 2026 |
+| Phase 3 | Pricing progressif côté serveur (extension `/api/checkout` + `/api/webhooks/stripe`) | ✅ **SHIPPÉE** — push Afroboost44/main commit `930e090`, Vercel auto-deploy. Extension mode 'session' avec recompute server-side anti-cheat, refactor route.ts → handler.ts (Next.js constraint), idempotency #1 hors-tx, transaction Admin SDK atomique (booking + currentParticipants++ + tier recompute + chatUnlock + grant 50 credits), Activity.chatCreditsBundle? + TransactionType+'session_purchase' + Transaction.bookingId?+sessionId?. Tests 23+42+37 = 102 sub-assertions PASS. Build 35 pages OK. | mai 2026 |
 | Phase 4 | Hooks countdown (useCountdown, useSessionWindow, useServerTimeOffset) + composants UI countdown | À faire | — |
 | Phase 5 | Pages `/sessions` (liste + détail) + widget UpcomingSessions | À faire | — |
 | Phase 6 | Chat temporel (étendre chatUnlocked avec phase before/chat-open/started/ended) | À faire | — |
