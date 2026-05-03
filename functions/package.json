@@ -1,0 +1,23 @@
+{
+  "name": "spordate-functions",
+  "version": "0.1.0",
+  "description": "Cloud Functions pour Spordateur — Phase 6 anti-cheat scheduler + futures phases (chat retention, etc.)",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": {
+    "node": "20"
+  },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "deploy": "firebase deploy --only functions --project spordate-prod",
+    "logs": "firebase functions:log --project spordate-prod"
+  },
+  "dependencies": {
+    "firebase-functions": "^6.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5"
+  }
+}

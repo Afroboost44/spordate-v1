@@ -46,6 +46,8 @@ next-env.d.ts
 # firebase
 firebase-debug.log
 firestore-debug.log
+functions/lib/
+functions/node_modules/
 
 # AI tool artifacts (prevent re-commit)
 .emergent/
