@@ -227,5 +227,78 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // === REVIEWS (Phase 7 T&S — public read si published, anonymisation graduée 1-2★) ===
+    // Cf. architecture.md §9.sexies C pour la doctrine.
+    // Workflow auto-publication 3-5★ : status='published' direct au create.
+    // Workflow modération 1-2★ : status='pending' au create, admin transitionne vers 'published'/'rejected'.
+    // Service layer (commit 2/6) garantira reviewerId != revieweeId, participation même session, etc.
+    match /reviews/{reviewId} {
+      // Read public si la review est publiée. Auteur peut lire ses pending. Admin lit tout.
+      allow read: if (resource.data.status == 'published')
+        || isAdmin()
+        || (isAuth() && resource.data.reviewerId == request.auth.uid);
+
+      // Create par utilisateur authentifié sur son propre compte (anti-spoofing reviewerId).
+      // Defense-in-depth :
+      // - reviewerId == auth.uid (anti-spoofing)
+      // - reviewerId != revieweeId (impossible de se reviewer soi-même)
+      // - rating ∈ [1..5], comment longueur 10-500 chars, createdAt == server time
+      // - creditsAwarded == false (server-managed, set par allocation bonus crédits ultérieure)
+      // - moderatedBy / moderatedAt absents (server-managed, set par admin moderation)
+      // - status / anonymized / publishedAt / editableUntil COHÉRENTS avec rating :
+      //     rating ≥ 3 → status='published', anonymized=false, publishedAt=now, editableUntil>now
+      //     rating ≤ 2 → status='pending', anonymized=true, pas de publishedAt/editableUntil
+      //   (anti-bypass modération pré-pub 1-2★ via spoofing status='published' au create)
+      allow create: if isAuth()
+        && request.resource.data.reviewerId == request.auth.uid
+        && request.resource.data.reviewerId != request.resource.data.revieweeId
+        && request.resource.data.rating >= 1
+        && request.resource.data.rating <= 5
+        && request.resource.data.comment is string
+        && request.resource.data.comment.size() >= 10
+        && request.resource.data.comment.size() <= 500
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.creditsAwarded == false
+        && !('moderatedBy' in request.resource.data)
+        && !('moderatedAt' in request.resource.data)
+        && (
+             (request.resource.data.rating >= 3
+               && request.resource.data.status == 'published'
+               && request.resource.data.anonymized == false
+               && 'publishedAt' in request.resource.data
+               && request.resource.data.publishedAt == request.time
+               && 'editableUntil' in request.resource.data
+               && request.resource.data.editableUntil > request.time)
+             ||
+             (request.resource.data.rating <= 2
+               && request.resource.data.status == 'pending'
+               && request.resource.data.anonymized == true
+               && !('publishedAt' in request.resource.data)
+               && !('editableUntil' in request.resource.data))
+           );
+
+      // Update par auteur uniquement, dans la fenêtre éditable (editableUntil), status doit
+      // rester 'published', SEULS comment + rating mutables.
+      // Tous les autres champs (status, anonymized, moderation, etc.) sont immuables côté client.
+      // Cross-tier rating change INTERDIT (3-5 ↔ 1-2) — anti re-modération bypass post-pub :
+      // un user qui a publié 5★ ne peut pas le baisser à 1★ via update (qui resterait
+      // anonymized=false illégitimement) ; doit passer par soft-delete service Phase 7
+      // + re-création avec rating bas → modération pré-pub appliquée.
+      allow update: if isAuth()
+        && resource.data.reviewerId == request.auth.uid
+        && resource.data.status == 'published'
+        && 'editableUntil' in resource.data
+        && request.time < resource.data.editableUntil
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['comment', 'rating'])
+        && (
+             (resource.data.rating >= 3 && request.resource.data.rating >= 3)
+             ||
+             (resource.data.rating <= 2 && request.resource.data.rating <= 2)
+           );
+
+      // Delete admin-only (suppression user passe par soft delete via service Phase 7).
+      allow delete: if isAdmin();
+    }
+
   }
 }

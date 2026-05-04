@@ -451,6 +451,48 @@ export interface ChatMessage {
   createdAt: Timestamp;
 }
 
+// ===================== REVIEWS (Phase 7 T&S) =====================
+// Reviews publiques post-session avec anonymisation graduée selon note.
+// 5/4/3★ → publication auto, nominative.
+// 2/1★ → status 'pending' jusqu'à modération admin pré-publication, anonymisée.
+// Edition/suppression possible dans 24h post-publication (editableUntil cutoff).
+// Cf. architecture.md §9.sexies C pour la doctrine complète.
+
+export type ReviewRating = 1 | 2 | 3 | 4 | 5;
+
+export type ReviewStatus = 'pending' | 'published' | 'rejected';
+
+export interface Review {
+  /** Document ID — généré Firestore, dénormalisé dans le doc pour query simplifiée. */
+  reviewId: string;
+  /** Activity sur laquelle porte la review (pas une session spécifique). */
+  activityId: string;
+  /** Auteur de la review. */
+  reviewerId: string;
+  /** Cible de la review (autre participant, jamais soi-même). */
+  revieweeId: string;
+  /** Note 1-5 étoiles. */
+  rating: ReviewRating;
+  /** Commentaire 10-500 chars (validation rule + service). */
+  comment: string;
+  /** Statut workflow : pending → published OU pending → rejected. */
+  status: ReviewStatus;
+  /** True si rating ≤ 2 (publié anonyme comme "Un·e participant·e"). */
+  anonymized: boolean;
+  /** Création utilisateur. Server timestamp au create. */
+  createdAt: Timestamp;
+  /** Set quand status passe à 'published' (auto pour 3-5★, manuel admin pour 1-2★). */
+  publishedAt?: Timestamp;
+  /** Cutoff pour édition/suppression user (24h post-publication). */
+  editableUntil?: Timestamp;
+  /** Admin uid qui a modéré (1-2★ pré-pub OU rejet). */
+  moderatedBy?: string;
+  /** Timestamp de la décision modération admin. */
+  moderatedAt?: Timestamp;
+  /** True une fois le bonus 5 crédits chat alloué (anti-double-bonus). */
+  creditsAwarded: boolean;
+}
+
 // ===================== NOTIFICATIONS =====================
 export type NotificationType = 'match' | 'message' | 'booking' | 'payment' | 'system' | 'promo';
 
