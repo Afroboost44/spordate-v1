@@ -1,0 +1,325 @@
+/**
+ * Spordateur — Phase 7 sub-chantier 3 commit 2/5
+ * Reports service — internal helpers, DI seam, constants, error codes.
+ *
+ * Pattern DI seam cohérent src/lib/reviews/_internal.ts + src/lib/blocks/_internal.ts :
+ * - __setReportsDbForTesting(db) → override Firestore client pour tests unit
+ * - getReportsDb() retourne db importé de @/lib/firebase en prod
+ *
+ * Cf. architecture.md §9.sexies D + F pour la doctrine reports + sanctions complète.
+ *
+ * NOTE Phase 7 commit 2/5 : `_triggerSanctionStub` est une implémentation minimale
+ * qui crée une UserSanction sans wire email + denorm. Commit 3/5 extrait cette
+ * logique vers triggerAutoSanction.ts avec :
+ *  - email userSanctionNotice via sendEmail
+ *  - denorm preparation (NON écrit côté client Phase 7, cf. Q3 doctrine)
+ *  - appeal flow flags
+ */
+
+import { db } from '@/lib/firebase';
+import {
+  Timestamp,
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  query,
+  serverTimestamp,
+  setDoc,
+  where,
+  type Firestore,
+} from 'firebase/firestore';
+import type {
+  Booking,
+  Report,
+  SanctionLevel,
+  SanctionReason,
+  Session,
+  UserProfile,
+} from '@/types/firestore';
+
+// =====================================================================
+// DI seam (test injection)
+// =====================================================================
+
+let _testDb: Firestore | null = null;
+
+export function __setReportsDbForTesting(testDb: Firestore | null): void {
+  _testDb = testDb;
+}
+
+export function getReportsDb(): Firestore {
+  if (_testDb) return _testDb;
+  if (!db) {
+    throw new Error('Firestore not initialized — check Firebase config (NEXT_PUBLIC_FIREBASE_*)');
+  }
+  return db;
+}
+
+// =====================================================================
+// Constants (doctrine §9.sexies D + F)
+// =====================================================================
+
+/** Rate limit anti-abus doctrine §D.3 (rolling 24h). */
+export const RATE_LIMIT_PER_DAY = 3;
+
+/** Fenêtre report doctrine §D.4 : 30 jours post-session. */
+export const REPORT_WINDOW_DAYS = 30;
+
+/** Rolling window threshold compute reports généraux doctrine §D.3. */
+export const REPORTS_ROLLING_MONTHS = 12;
+
+/** Rolling window threshold compute no-show doctrine §D.5. */
+export const NOSHOW_ROLLING_DAYS = 90;
+
+/** Min length freeText pour category='autre' (cohérent rule create). */
+export const FREETEXT_MIN_LENGTH = 10;
+
+/** Min length appeal note (cohérent rule update userSanctions). */
+export const APPEAL_NOTE_MIN_LENGTH = 20;
+
+/**
+ * Threshold compute reports généraux (rolling 12 mois, distinct reporters).
+ * Doctrine §D.3 :
+ *   1 → review humaine, PAS d'action auto
+ *   2 → suspension_7d auto + review
+ *   3+ → suspension_30d auto + review prioritaire
+ */
+export function computeReportsThresholdAction(distinctReporterCount: number): {
+  level: SanctionLevel | null;
+  reason: SanctionReason;
+} {
+  if (distinctReporterCount >= 3) return { level: 'suspension_30d', reason: 'reports_threshold' };
+  if (distinctReporterCount === 2) return { level: 'suspension_7d', reason: 'reports_threshold' };
+  // 0 ou 1 : pas d'action auto
+  return { level: null, reason: 'reports_threshold' };
+}
+
+// =====================================================================
+// Error codes (machine-parseable)
+// =====================================================================
+
+export type ReportErrorCode =
+  | 'self-report'
+  | 'rate-limit-exceeded'
+  | 'no-shared-session'
+  | 'report-window-closed'
+  | 'freetext-required'
+  | 'invalid-category'
+  | 'invalid-uid'
+  | 'report-not-found'
+  | 'report-not-pending'
+  | 'not-admin'
+  | 'invalid-decision';
+
+export class ReportError extends Error {
+  constructor(
+    public code: ReportErrorCode,
+    public details?: Record<string, unknown>,
+  ) {
+    super(code);
+    this.name = 'ReportError';
+  }
+}
+
+// =====================================================================
+// Helpers : participation + shared session
+// =====================================================================
+
+/**
+ * Récupère les sessionIds passés (endAt < now) auxquels userId a participé.
+ * Cohérent pattern reviews/_internal.ts mais cross-activity (reports peuvent
+ * être créés sans activityId spécifique).
+ */
+async function getAttendedPastSessionIds(userId: string, now: Date): Promise<string[]> {
+  const fbDb = getReportsDb();
+  // Query bookings confirmés du user (single where, filter status client-side)
+  const bookingsSnap = await getDocs(
+    query(collection(fbDb, 'bookings'), where('userId', '==', userId)),
+  );
+  const sessionIds = bookingsSnap.docs
+    .map((d) => d.data() as Booking)
+    .filter((b) => b.status === 'confirmed' && b.sessionId)
+    .map((b) => b.sessionId as string);
+
+  if (sessionIds.length === 0) return [];
+
+  // Filtrer sessions passées (endAt < now)
+  const sessions = await Promise.all(
+    sessionIds.map(async (sid) => {
+      const snap = await getDoc(doc(fbDb, 'sessions', sid));
+      return snap.exists() ? (snap.data() as Session) : null;
+    }),
+  );
+  return sessions
+    .filter((s): s is Session => s !== null && s.endAt.toMillis() < now.getTime())
+    .map((s) => s.sessionId);
+}
+
+/**
+ * Trouve la session passée la plus récente partagée entre 2 users.
+ * Cross-activity (vs reviews qui scope par activityId).
+ * Retourne null si aucune session partagée.
+ */
+export async function findLatestSharedPastSession(
+  userA: string,
+  userB: string,
+  now: Date,
+): Promise<Session | null> {
+  const [aSessionIds, bSessionIds] = await Promise.all([
+    getAttendedPastSessionIds(userA, now),
+    getAttendedPastSessionIds(userB, now),
+  ]);
+
+  // Intersection
+  const sharedIds = aSessionIds.filter((id) => bSessionIds.includes(id));
+  if (sharedIds.length === 0) return null;
+
+  // Récupérer Session docs
+  const fbDb = getReportsDb();
+  const sessions = await Promise.all(
+    sharedIds.map(async (sid) => {
+      const snap = await getDoc(doc(fbDb, 'sessions', sid));
+      return snap.exists() ? (snap.data() as Session) : null;
+    }),
+  );
+  const validSessions = sessions.filter((s): s is Session => s !== null);
+  if (validSessions.length === 0) return null;
+  return validSessions.reduce((latest, s) =>
+    s.endAt.toMillis() > latest.endAt.toMillis() ? s : latest,
+  );
+}
+
+// =====================================================================
+// Helpers : threshold + rate limit queries
+// =====================================================================
+
+/**
+ * Count distinct reporterIds qui ont reporté reportedId rolling 12 mois.
+ * Doctrine §D.3 dédup : 2 reports même reporter sur même reporté = compté 1.
+ *
+ * Retourne aussi la liste des reportIds (1 par distinct reporter, le plus récent)
+ * pour passer à `triggeringReportIds` de UserSanction.
+ */
+export async function getDistinctReportersAgainst(
+  reportedId: string,
+  now: Date,
+): Promise<{ count: number; triggeringReportIds: string[] }> {
+  const fbDb = getReportsDb();
+  const cutoff = Timestamp.fromMillis(
+    now.getTime() - REPORTS_ROLLING_MONTHS * 30 * 24 * 60 * 60 * 1000,
+  );
+  const snap = await getDocs(
+    query(
+      collection(fbDb, 'reports'),
+      where('reportedId', '==', reportedId),
+      where('createdAt', '>=', cutoff),
+    ),
+  );
+  // Dedup by reporterId (premier vu par doc order — pas crucial pour count)
+  const reportersByReportId = new Map<string, string>();
+  for (const d of snap.docs) {
+    const r = d.data() as Report;
+    if (!reportersByReportId.has(r.reporterId)) {
+      reportersByReportId.set(r.reporterId, r.reportId);
+    }
+  }
+  return {
+    count: reportersByReportId.size,
+    triggeringReportIds: Array.from(reportersByReportId.values()),
+  };
+}
+
+/**
+ * Count reports émis par reporterId rolling 24h (rate limit doctrine §D.3).
+ * Q8 décision : query rolling 24h, pas de denorm dailyCount.
+ */
+export async function getDailyReportCountByReporter(
+  reporterId: string,
+  now: Date,
+): Promise<number> {
+  const fbDb = getReportsDb();
+  const cutoff = Timestamp.fromMillis(now.getTime() - 24 * 60 * 60 * 1000);
+  const snap = await getDocs(
+    query(
+      collection(fbDb, 'reports'),
+      where('reporterId', '==', reporterId),
+      where('createdAt', '>=', cutoff),
+    ),
+  );
+  return snap.size;
+}
+
+// =====================================================================
+// Helpers : auth role check (admin)
+// =====================================================================
+
+/**
+ * Vérifie que userId a le rôle 'admin' dans Firestore users/.
+ * Utilisé par dismissReport/sustainReport pour gating service-side
+ * (defense complémentaire à isAdmin() dans rules).
+ */
+export async function isAdminRole(userId: string): Promise<boolean> {
+  if (!userId) return false;
+  const fbDb = getReportsDb();
+  const snap = await getDoc(doc(fbDb, 'users', userId));
+  if (!snap.exists()) return false;
+  const data = snap.data() as UserProfile;
+  return data.role === 'admin';
+}
+
+// =====================================================================
+// STUB Phase 7 commit 2/5 — auto-trigger sanction
+// =====================================================================
+
+/**
+ * STUB Phase 7 commit 2/5 — création minimale UserSanction quand threshold atteint.
+ * Sera remplacé/extrait dans commit 3/5 par triggerAutoSanction.ts complet
+ * avec :
+ *  - email userSanctionNotice via sendEmail (best-effort)
+ *  - denorm preparation activeSanction* (commenté Phase 7 cf. Q3 — pas d'écriture
+ *    users/{uid} client-side, en attente Phase 8 Cloud Function)
+ *  - appeal flow setup (appealable, appealUsed=false initial)
+ *
+ * Retourne le sanctionId créé OU null si level==null (pas de sanction à créer).
+ */
+export async function _triggerSanctionStub(opts: {
+  userId: string;
+  reason: SanctionReason;
+  level: SanctionLevel;
+  triggeringReportIds: string[];
+  refundDue?: boolean;
+}): Promise<string> {
+  const fbDb = getReportsDb();
+  const ref = doc(collection(fbDb, 'userSanctions'));
+  const sanctionId = ref.id;
+
+  const isWarning = opts.level === 'warning';
+  const isPermanent = opts.level === 'ban_permanent';
+
+  // endsAt computed côté client pour cosmétique (test predictable) — production
+  // pourrait basculer sur serverTimestamp + offset Cloud Function Phase 8.
+  let endsAt: Timestamp | undefined;
+  if (!isWarning && !isPermanent) {
+    const days = opts.level === 'suspension_7d' ? 7 : 30;
+    endsAt = Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000);
+  }
+
+  const payload: Record<string, unknown> = {
+    sanctionId,
+    userId: opts.userId,
+    level: opts.level,
+    reason: opts.reason,
+    triggeringReportIds: opts.triggeringReportIds,
+    startsAt: serverTimestamp(),
+    appealable: !isWarning, // warning level pas appealable doctrine §F
+    appealUsed: false,
+    isActive: true,
+    createdAt: serverTimestamp(),
+  };
+  if (endsAt) payload.endsAt = endsAt;
+  if (opts.refundDue === true) payload.refundDue = true;
+
+  await setDoc(ref, payload);
+  return sanctionId;
+}

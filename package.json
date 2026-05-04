@@ -17,7 +17,8 @@
     "test:reviews": "firebase emulators:exec --only firestore 'npx tsx tests/reviews/service.test.ts'",
     "test:reviews:rules": "firebase emulators:exec --only firestore 'npx tsx tests/reviews/rules.test.ts'",
     "test:blocks": "firebase emulators:exec --only firestore 'npx tsx tests/blocks/service.test.ts'",
-    "test:blocks:rules": "firebase emulators:exec --only firestore 'npx tsx tests/blocks/rules.test.ts'"
+    "test:blocks:rules": "firebase emulators:exec --only firestore 'npx tsx tests/blocks/rules.test.ts'",
+    "test:reports": "firebase emulators:exec --only firestore 'npx tsx tests/reports/service.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",
