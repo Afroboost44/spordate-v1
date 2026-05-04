@@ -16,7 +16,7 @@ export default function TermsPage() {
           Conditions Générales d&apos;Utilisation
         </h1>
         <p className="text-sm text-gray-500 font-light mb-10">
-          Dernière mise à jour : 17 mars 2026
+          Dernière mise à jour : 4 mai 2026 (ajout sections 7.bis Sanctions Trust &amp; Safety + 7.ter Reviews publiques)
         </p>
 
         <div className="space-y-8 text-gray-400 font-light leading-relaxed text-[15px]">
@@ -120,13 +120,108 @@ export default function TermsPage() {
               — Utiliser la Plateforme de manière conforme à sa destination et aux présentes CGU ;
               — Ne pas publier de contenu illicite, offensant, discriminatoire ou portant atteinte aux
               droits de tiers ;
-              — Se comporter de manière respectueuse envers les autres Utilisateurs et Partenaires ;
+              — Se comporter de manière respectueuse envers les autres Utilisateurs et Partenaires
+              (interdiction de harcèlement sexuel, comportement agressif ou irrespectueux, fake profile,
+              substances ou état problématique pendant les sessions) ;
+              — Honorer ses réservations (l&apos;absence sans excuse préalable constitue un no-show
+              susceptible de sanctions, cf. section 7.bis) ;
               — Ne pas utiliser la Plateforme à des fins commerciales non autorisées ;
               — Disposer d&apos;une assurance personnelle couvrant la pratique sportive.
             </p>
             <p className="mt-3">
               Spordate se réserve le droit de suspendre ou supprimer tout compte contrevenant
-              aux présentes CGU, sans préavis ni indemnité.
+              aux présentes CGU, sans préavis ni indemnité, dans le cadre du système de sanctions
+              décrit en section 7.bis ci-dessous.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg text-white font-normal mb-3">7.bis Système de signalements et sanctions Trust &amp; Safety</h2>
+            <p>
+              <span className="text-white">Reports formels (anonymes).</span> Tout Utilisateur ayant
+              participé à une même session peut signaler un autre participant pour l&apos;un des motifs
+              structurés suivants : harcèlement sexuel, comportement agressif, fake profile, substance
+              ou état problématique, no-show, autre (texte libre obligatoire). Les signalements sont
+              traités par notre équipe modération de manière strictement confidentielle.
+              L&apos;identité du signalant n&apos;est jamais communiquée au signalé (protection lanceur
+              d&apos;alerte). Délai max de signalement : 30 jours après la session concernée.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Workflow de sanctions automatisées (rolling 12 mois).</span>{' '}
+              Pour limiter le bruit et les abus, les seuils suivants déclenchent des actions automatiques :
+              1 signalement = revue humaine sans action automatique ;
+              2 signalements indépendants = suspension automatique 7 jours pendant la revue humaine ;
+              3+ signalements indépendants = suspension automatique 30 jours et revue prioritaire ;
+              en cas de récidive avérée ou faits graves = bannissement permanent.
+              Limite anti-abus : 3 signalements émis maximum par Utilisateur et par jour.
+              Les motifs no-show suivent un workflow distinct (rolling 90 jours :
+              1 = avertissement, 2 = avertissement + flag, 3 = suspension 30j + remboursement Partenaire,
+              4+ = ban permanent).
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Workflow de bannissement progressif.</span>{' '}
+              Quatre niveaux de sanction sont appliqués selon la gravité et la récurrence : avertissement
+              (flag interne, pas de restriction), suspension 7 jours, suspension 30 jours
+              (avec interdiction de re-création de compte avec le même e-mail), bannissement permanent.
+              Toute sanction est notifiée à l&apos;Utilisateur par e-mail mentionnant la catégorie du
+              signalement (sans nom de signalant), la durée, la date de fin (si suspension) et le
+              mécanisme d&apos;appel.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Droit d&apos;appel (1× par niveau de sanction).</span>{' '}
+              L&apos;Utilisateur sanctionné dispose d&apos;un droit d&apos;appel exerçable une seule fois par
+              niveau de sanction. L&apos;appel se formule par écrit à <span className="text-[#D91CD2]">contact@spordateur.com</span>{' '}
+              en répondant à l&apos;e-mail de notification, en exposant les motifs détaillés et les
+              éléments contradictoires. Délai de réponse de notre équipe modération : 7 jours
+              calendaires (SLA Phase 7 ; 48 heures à terme avec équipe modération étendue).
+              Les bannissements permanents font l&apos;objet d&apos;une revue annuelle automatique
+              (protection des victimes contre la réinsertion prématurée du sanctionné).
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Procédure équitable (nLPD Art. 19, LCD Art. 3).</span>{' '}
+              Toute décision de sanction est motivée, notifiée par écrit, susceptible d&apos;appel
+              (1 × par niveau) et révisable par décision humaine. Spordate s&apos;engage à un
+              traitement transparent, proportionné et non-discriminatoire des signalements.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Liste de blocage personnelle (block list).</span>{' '}
+              Tout Utilisateur peut bloquer un autre Utilisateur depuis son profil, une session
+              ou le chat. Le blocage rend les deux comptes mutuellement invisibles
+              (sessions, profils, chats). Aucune notification n&apos;est envoyée à la personne
+              bloquée. Le blocage est réversible à tout moment depuis /profile/blocks et n&apos;est
+              soumis à aucune limite numérique.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg text-white font-normal mb-3">7.ter Reviews publiques (notation post-session)</h2>
+            <p>
+              Tout Utilisateur ayant participé à une même session peut publier, dans une fenêtre de
+              <span className="text-white"> 24 heures à 7 jours après la session</span>, une review qualitative
+              comprenant une note de 1 à 5 étoiles et un commentaire optionnel. Le délai de 24 heures
+              constitue un cooling-off anti-impulsion à chaud. Au-delà de 7 jours, la review n&apos;est
+              plus possible.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Anonymisation graduée selon la note.</span>{' '}
+              Les reviews 5, 4 et 3 étoiles sont publiées de manière nominative (avatar et prénom du
+              reviewer affichés). Les reviews 2 et 1 étoile sont publiées de manière{' '}
+              <span className="text-white">anonymisée</span> (« Un·e participant·e ») et soumises à
+              modération admin pré-publication afin de filtrer les insultes et attaques personnelles.
+              Cette graduation protège l&apos;auteur du backlash potentiel d&apos;une review négative.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Édition et suppression.</span> L&apos;Utilisateur peut éditer
+              ou supprimer ses propres reviews dans une fenêtre de 24 heures après publication.
+              Au-delà, la review est figée pour préserver l&apos;intégrité historique. Les reviews
+              de représailles (review négative en réponse à une review négative reçue) sont détectées
+              et peuvent être retirées par l&apos;équipe modération.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Reviews optionnelles, jamais bloquantes.</span> Aucune
+              fonctionnalité de la Plateforme n&apos;est conditionnée à la rédaction d&apos;une review.
+              Pour encourager les reviews, un bonus de 5 crédits chat est offert pour toute review
+              écrite après session.
             </p>
           </section>
 
@@ -161,6 +256,15 @@ export default function TermsPage() {
               </Link>
               , établie conformément à la Loi fédérale sur la protection des données (nLPD, RS 235.1)
               entrée en vigueur le 1er septembre 2023.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Sous-traitants (nLPD Art. 9, RGPD Art. 28).</span> Spordate
+              recourt à des sous-traitants pour assurer le fonctionnement de la Plateforme : Stripe
+              (paiements, États-Unis), Vercel (hébergement web, États-Unis), Firebase / Google Cloud
+              (base de données, stockage, authentification, eur3 Frankfurt), Hostinger (mailbox
+              contact@spordateur.com, Lituanie UE), Resend (e-mails transactionnels, États-Unis).
+              La liste détaillée et les finalités de chaque sous-traitant figurent dans la Politique
+              de Confidentialité, section 5.
             </p>
           </section>
 

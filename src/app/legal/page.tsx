@@ -124,6 +124,14 @@ export default function LegalPage() {
               les tribunaux de Genève sont compétents, sous réserve des fors impératifs prévus par
               le droit suisse. Le droit suisse est applicable.
             </p>
+            <p className="mt-3">
+              <span className="text-white">Sanctions Trust &amp; Safety.</span> Les sanctions appliquées
+              dans le cadre du système de modération privée Trust &amp; Safety (cf. CGU section 7.bis)
+              ne constituent pas des décisions juridictionnelles. Elles relèvent exclusivement de la
+              modération privée de Spordate. Tout Utilisateur sanctionné dispose d&apos;un droit d&apos;appel
+              motivé adressé par écrit à contact@spordateur.com (1 appel par niveau de sanction,
+              SLA de réponse 7 jours calendaires) avant tout recours juridictionnel.
+            </p>
           </section>
 
           <section>

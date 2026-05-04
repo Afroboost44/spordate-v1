@@ -16,7 +16,7 @@ export default function PrivacyPage() {
           Politique de Confidentialité
         </h1>
         <p className="text-sm text-gray-500 font-light mb-10">
-          Dernière mise à jour : 17 mars 2026
+          Dernière mise à jour : 4 mai 2026 (refonte sections 2 / 5 / 7 / 8 — données T&amp;S, sous-traitants Hostinger+Resend, conservation, droits)
         </p>
 
         <div className="space-y-8 text-gray-400 font-light leading-relaxed text-[15px]">
@@ -70,6 +70,15 @@ export default function PrivacyPage() {
               système d&apos;exploitation, pages consultées, horodatages — collectées automatiquement via
               des cookies techniques nécessaires au fonctionnement du service.
             </p>
+            <p className="mt-3">
+              <span className="text-white">Données Trust &amp; Safety (Phase 7) :</span> signalements
+              émis et reçus (motif, date, statut), reviews publiées (note, commentaire, date), historique
+              des sanctions appliquées, traces d&apos;audit administratif (collection adminActions —
+              identifiant admin, action, motif, horodatage). En cas de bannissement permanent, un
+              enregistrement Banlist (hash anonymisé du compte + raison + date + drapeau de non-recréation)
+              est conservé indéfiniment pour empêcher le contournement par création d&apos;un nouveau
+              compte avec les mêmes informations d&apos;identification.
+            </p>
           </section>
 
           <section>
@@ -79,8 +88,11 @@ export default function PrivacyPage() {
               — Fourniture et amélioration du service de matching sportif ;
               — Gestion de votre compte et de votre profil ;
               — Traitement des paiements et gestion des abonnements ;
-              — Communication relative au service (notifications, e-mails transactionnels) ;
-              — Prévention des fraudes et sécurité de la Plateforme ;
+              — Communication relative au service (notifications, e-mails transactionnels via Resend) ;
+              — <span className="text-white">Modération et sécurité de la Plateforme</span> :
+              traitement des signalements Trust &amp; Safety, application des sanctions, prévention
+              du harcèlement et des comportements inappropriés, audit des décisions admin ;
+              — Prévention des fraudes ;
               — Respect de nos obligations légales.
             </p>
           </section>
@@ -100,20 +112,35 @@ export default function PrivacyPage() {
 
           <section>
             <h2 className="text-lg text-white font-normal mb-3">5. Hébergement et sous-traitants</h2>
-            <p>Vos données sont hébergées et traitées par les prestataires suivants :</p>
+            <p>Vos données sont hébergées et traitées par les prestataires (sous-traitants au sens de l&apos;art. 9 nLPD / art. 28 RGPD) suivants :</p>
             <p className="mt-3">
-              <span className="text-white">Firebase / Google Cloud Platform</span> — Authentification et
-              base de données (Firestore). Données hébergées dans la région europe-west6 (Zurich, Suisse).
-              Google LLC est certifié selon le Swiss-U.S. Data Privacy Framework.
+              <span className="text-white">Firebase / Google Cloud Platform</span> — Authentification,
+              base de données Firestore (région eur3 multi-region Frankfurt), stockage de fichiers,
+              Cloud Functions (région europe-west1 Belgique). Google LLC est certifié selon le
+              Swiss-U.S. Data Privacy Framework. Finalité : socle technique de la Plateforme.
             </p>
             <p className="mt-3">
-              <span className="text-white">Vercel Inc.</span> — Hébergement de l&apos;application web. Serveurs
-              principaux aux États-Unis et en Europe. Vercel est conforme au RGPD.
+              <span className="text-white">Vercel Inc.</span> — Hébergement de l&apos;application web
+              (États-Unis et Europe). Vercel est conforme au RGPD. Finalité : exécution du serveur
+              web Next.js et des routes API.
             </p>
             <p className="mt-3">
-              <span className="text-white">Stripe Inc.</span> — Traitement des paiements. Stripe est
-              certifié PCI DSS Level 1 et conforme au RGPD. Les données de paiement ne transitent
-              pas par nos serveurs.
+              <span className="text-white">Stripe Inc.</span> — Traitement des paiements (États-Unis,
+              Vermont). Stripe est certifié PCI DSS Level 1 et conforme au RGPD. Les données de carte
+              bancaire ne transitent jamais par nos serveurs. Finalité : encaissement des sessions et
+              abonnements en CHF.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Hostinger International Ltd.</span> — Mailbox{' '}
+              contact@spordateur.com (Lituanie, UE). Hostinger est conforme au RGPD. Finalité : relais
+              des e-mails entrants utilisateurs (notamment les appels de sanctions T&amp;S).
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Resend.com</span> — E-mails transactionnels sortants
+              (États-Unis, Delaware). Resend est conforme au RGPD et utilise des sous-traitants AWS
+              (États-Unis et Europe). Finalité : envoi des notifications T&amp;S (avertissements,
+              suspensions, accusés d&apos;appel), confirmations de réservation, rappels de review 48h.
+              Les contenus des e-mails sont stockés temporairement (logs Resend, durée &lt; 30 jours).
             </p>
           </section>
 
@@ -137,6 +164,30 @@ export default function PrivacyPage() {
               (art. 958f CO) et des données nécessaires à la constatation, l&apos;exercice ou la défense de
               droits en justice.
             </p>
+            <p className="mt-3">
+              <span className="text-white">Durées spécifiques aux données Trust &amp; Safety
+              (proportionnalité — nLPD Art. 7) :</span>
+            </p>
+            <p className="mt-2">
+              — <span className="text-white">Reviews publiques</span> : conservation indéfinie
+              sauf demande de suppression de l&apos;Utilisateur (art. 17 RGPD / nLPD) ;
+              — <span className="text-white">Signalements actifs (12 derniers mois)</span> :
+              conservation rolling 12 mois pour le calcul des seuils auto-sanctions ;
+              — <span className="text-white">Signalements résolus</span> (warning émis, suspension
+              ou ban exécuté) : 12 mois après résolution pour traçabilité audit et détection de
+              récidive ;
+              — <span className="text-white">Bannissements permanents — données personnelles (PII)</span> :
+              24 mois (e-mail original, données de profil), puis anonymisation automatique ;
+              — <span className="text-white">Bannissements permanents — enregistrement Banlist</span>
+              (hash anonymisé du compte + raison + date + drapeau de non-recréation) :
+              <span className="text-white"> conservation indéfinie</span> pour empêcher le
+              contournement par création d&apos;un nouveau compte ; cet enregistrement ne contient
+              aucune donnée personnelle identifiable après les 24 mois ;
+              — <span className="text-white">Traces d&apos;audit administratif (adminActions)</span> :
+              24 mois pour conformité et traçabilité des décisions de modération ;
+              — <span className="text-white">Logs Resend (e-mails sortants)</span> : durée
+              standard Resend (&lt; 30 jours).
+            </p>
           </section>
 
           <section>
@@ -157,6 +208,28 @@ export default function PrivacyPage() {
               Pour exercer ces droits, contactez-nous à contact@spordateur.com. Nous répondrons dans
               un délai de 30 jours. En cas de désaccord, vous pouvez déposer une réclamation auprès
               du Préposé fédéral à la protection des données et à la transparence (PFPDT).
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Droit d&apos;information sur sanctions Trust &amp; Safety
+              (nLPD Art. 19).</span> En cas de sanction (avertissement, suspension, bannissement),
+              vous recevez par e-mail une notification motivée mentionnant la catégorie du
+              signalement, la durée, la date de fin (si suspension) et le mécanisme d&apos;appel.
+              L&apos;identité du signalant n&apos;est jamais communiquée (protection lanceur d&apos;alerte).
+              Vous disposez d&apos;un droit d&apos;appel exerçable une seule fois par niveau de sanction
+              (réponse à l&apos;e-mail ou écrit à contact@spordateur.com), avec un délai de réponse
+              de notre équipe modération de 7 jours calendaires (Phase 7) — voir CGU section 7.bis.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Droit à l&apos;effacement et anonymisation soft delete
+              (RGPD Art. 17 / nLPD).</span> En cas de demande de suppression de votre compte,
+              vos données personnelles sont effacées sous 30 jours conformément à la section 7.
+              Les contenus relationnels nécessaires à l&apos;intégrité du système Trust &amp; Safety
+              (signalements émis ou reçus, reviews publiées, traces d&apos;audit admin) sont
+              <span className="text-white"> anonymisés</span> (suppression des informations
+              d&apos;identification personnelle, conservation du contenu non-identifiant pour
+              l&apos;intégrité historique). En Phase 7, cette anonymisation est effectuée
+              manuellement par notre équipe modération sur demande ; en Phase 9, une procédure UI
+              automatisée respectant les délais légaux sera mise en place.
             </p>
           </section>
 
