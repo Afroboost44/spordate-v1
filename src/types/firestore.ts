@@ -274,7 +274,7 @@ export interface Booking {
 }
 
 // ===================== CREDITS =====================
-export type CreditType = 'purchase' | 'referral_bonus' | 'share_bonus' | 'refund' | 'usage';
+export type CreditType = 'purchase' | 'referral_bonus' | 'share_bonus' | 'review_bonus' | 'refund' | 'usage';
 
 export interface CreditEntry {
   creditId: string;

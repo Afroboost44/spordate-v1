@@ -13,7 +13,8 @@
     "test:anti-cheat:b": "firebase emulators:exec --only firestore 'npx tsx tests/anti-cheat/maxParticipants-guard.test.ts'",
     "test:anti-cheat:c": "firebase emulators:exec --only firestore 'npx tsx tests/anti-cheat/pricingTiers-guard.test.ts'",
     "test:anti-cheat:d": "firebase emulators:exec --only firestore 'npx tsx tests/anti-cheat/integration-cross-cutting.test.ts'",
-    "test:email": "npx tsx tests/email/sendEmail.test.ts"
+    "test:email": "npx tsx tests/email/sendEmail.test.ts",
+    "test:reviews": "firebase emulators:exec --only firestore 'npx tsx tests/reviews/service.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",
