@@ -807,8 +807,16 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 - Doc-id pattern `${blockerId}_${blockedId}` enforcé via Firestore rule create — anti-doublon + anti-spoofing.
 - Warning partner co-inscrits différé sub-chantier 4 (admin moderation dashboard) ou sub-chantier 5 (email wiring) — partner-side, hors scope user-side ce sub-chantier.
 
-**Sub-chantiers prochains** ⏳ À démarrer après 3
-- Sub-chantier 4 — Admin moderation dashboard MVP + warning partner co-inscrits (~8-10h)
+**Sub-chantier 4 — Admin moderation dashboard MVP + warning partner co-inscrits** ✅ COMPLET (4 commits)
+- 1/4 `b8ab6e2` : Service layer admin extension (`getPendingReports`/`overturnSanction`/`resolveAppeal`/`listAllBlocks`/`getCoInscribedConflicts`) + tests RA1-RA10 (19 sub-assertions)
+- 2/4 `a30773b` : UI tabs `T&S Reviews` + `T&S Reports` queue + 5 components admin (`PriorityBadge`/`SanctionPickerDialog`/`ReviewModerationActionsDialog` + 2 panels extraits `TandSReviewsPanel`/`TandSReportsPanel`)
+- 3/4 `0dadde7` : UI tabs `T&S Sanctions` (filtres dropdown + overturn action) + `T&S Appeals` (queue uphold/overturn) + `<CoInscribedWarning>` partner banner discret (admin dashboard + partner dashboard + check-in page)
+- 4/4 *(this commit)* : Tests rules update appeals admin (RS11-RS15 dans rules.test.ts) + tests `getCoInscribedConflicts` (CC1-CC6 dans co-inscribed.test.ts) + close-out
+- Cumulatif tests sub-chantier 4 : `test:reports:admin` 19/19 + `test:reports:rules` extension RS11-RS15 (~5 nouveaux) + `test:reports:co-inscribed` ~10/10
+- **Q9 exception charte stricte** : admin dashboard conserve style `bg-gray-900 / border-gray-800` (utilitaire, pas brand-facing). Charte stricte black/#D91CD2/white = user-facing seulement.
+- **Q2 admin auth setup requis** : avant utilisation tabs T&S, setup `users.{adminUid}.role='admin'` via Firebase Console (services admin font check role-based via `isAdminRole`). Refactor Firebase Auth role-based différé Phase 9.
+
+**Sub-chantiers prochains** ⏳ À démarrer après 4
 - Sub-chantier 5 — Email notifications wiring + audit trail (`adminActions/`) (~3-5h)
 - Sub-chantier 6 — Card session entry point block + ReportButton + tests + polish (~3-4h)
 

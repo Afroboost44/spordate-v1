@@ -639,10 +639,166 @@ async function main(): Promise<void> {
     }
   }
 
+  // ===================================================================
+  // /userSanctions/ ADMIN APPEAL RESOLUTION + OVERTURN (RS11-RS15)
+  // Phase 7 sub-chantier 4 commit 4/4 — admin update flows.
+  // ===================================================================
+  section('/userSanctions/ admin appeal resolution + overturn (RS11-RS15)');
+
+  // Setup : sanction avec appealUsed=true pour tests RS11/RS12
+  const SANCTION_APPEAL_FILED = 'rs-appeal-filed';
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const fbDb = asFirestore(ctx.firestore());
+    await setDoc(doc(fbDb, 'userSanctions', SANCTION_APPEAL_FILED), {
+      sanctionId: SANCTION_APPEAL_FILED,
+      userId: REPORTED_UID,
+      level: 'suspension_7d',
+      reason: 'reports_threshold',
+      triggeringReportIds: ['rp_z'],
+      startsAt: Timestamp.now(),
+      appealable: true,
+      appealUsed: true,
+      appealNote: 'Note appel filé par owner — long enough to pass rule.',
+      isActive: true,
+      createdAt: Timestamp.now(),
+    });
+  });
+
+  // RS11 : admin update appealResolvedBy + appealResolvedAt + appealDecision → SUCCESS
+  {
+    const adminCtx = env.authenticatedContext(ADMIN_UID);
+    const fbDb = asFirestore(adminCtx.firestore());
+    try {
+      await assertSucceeds(
+        updateDoc(doc(fbDb, 'userSanctions', SANCTION_APPEAL_FILED), {
+          appealResolvedBy: ADMIN_UID,
+          appealResolvedAt: serverTimestamp(),
+          appealDecision: 'upheld',
+        }),
+      );
+      passManually('RS11 admin update appealResolvedBy/At/Decision=upheld → SUCCESS');
+    } catch (e) {
+      failManually('RS11 (expected success)', e);
+    }
+  }
+
+  // RS12 : non-admin (other user, ni owner ni admin) update appealResolved* → REJET
+  {
+    // Reset sanction state via security disabled
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const fbDb = asFirestore(ctx.firestore());
+      await setDoc(doc(fbDb, 'userSanctions', SANCTION_APPEAL_FILED), {
+        sanctionId: SANCTION_APPEAL_FILED,
+        userId: REPORTED_UID,
+        level: 'suspension_7d',
+        reason: 'reports_threshold',
+        triggeringReportIds: ['rp_z'],
+        startsAt: Timestamp.now(),
+        appealable: true,
+        appealUsed: true,
+        appealNote: 'Note appel filé par owner — long enough to pass rule.',
+        isActive: true,
+        createdAt: Timestamp.now(),
+      });
+    });
+    const otherCtx = env.authenticatedContext(OTHER_UID);
+    const fbDb = asFirestore(otherCtx.firestore());
+    try {
+      await assertFails(
+        updateDoc(doc(fbDb, 'userSanctions', SANCTION_APPEAL_FILED), {
+          appealResolvedBy: OTHER_UID,
+          appealResolvedAt: serverTimestamp(),
+          appealDecision: 'upheld',
+        }),
+      );
+      passManually('RS12 non-admin update appealResolved* → REJET');
+    } catch (e) {
+      failManually('RS12 (expected fail)', e);
+    }
+  }
+
+  // Setup : sanction active distincte pour tests RS13/RS14/RS15
+  const SANCTION_OVERTURN = 'rs-overturn';
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const fbDb = asFirestore(ctx.firestore());
+    await setDoc(doc(fbDb, 'userSanctions', SANCTION_OVERTURN), {
+      sanctionId: SANCTION_OVERTURN,
+      userId: REPORTED_UID,
+      level: 'suspension_30d',
+      reason: 'manual_admin',
+      triggeringReportIds: ['rp_w'],
+      startsAt: Timestamp.now(),
+      appealable: true,
+      appealUsed: false,
+      isActive: true,
+      createdAt: Timestamp.now(),
+    });
+  });
+
+  // RS13 : admin update isActive=false (overturn manuel) → SUCCESS
+  {
+    const adminCtx = env.authenticatedContext(ADMIN_UID);
+    const fbDb = asFirestore(adminCtx.firestore());
+    try {
+      await assertSucceeds(
+        updateDoc(doc(fbDb, 'userSanctions', SANCTION_OVERTURN), {
+          isActive: false,
+        }),
+      );
+      passManually('RS13 admin update isActive=false (overturn manuel) → SUCCESS');
+    } catch (e) {
+      failManually('RS13 (expected success)', e);
+    }
+  }
+
+  // RS14 : admin update plusieurs champs simultanés (overturn complet) → SUCCESS
+  {
+    // Reset state
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      const fbDb = asFirestore(ctx.firestore());
+      await updateDoc(doc(fbDb, 'userSanctions', SANCTION_OVERTURN), {
+        isActive: true,
+      });
+    });
+    const adminCtx = env.authenticatedContext(ADMIN_UID);
+    const fbDb = asFirestore(adminCtx.firestore());
+    try {
+      await assertSucceeds(
+        updateDoc(doc(fbDb, 'userSanctions', SANCTION_OVERTURN), {
+          isActive: false,
+          appealResolvedBy: ADMIN_UID,
+          appealResolvedAt: serverTimestamp(),
+          appealDecision: 'overturned',
+        }),
+      );
+      passManually('RS14 admin update plusieurs champs simultanés → SUCCESS');
+    } catch (e) {
+      failManually('RS14 (expected success)', e);
+    }
+  }
+
+  // RS15 : non-admin (other user, ni owner ni admin) tente isActive mutation → REJET
+  // Cohérent rule update : owner peut SEULEMENT muter appealUsed+appealNote (hasOnly).
+  // isActive mutation interdite à non-admin.
+  {
+    const ownerCtx = env.authenticatedContext(REPORTED_UID); // owner mais pas admin
+    const fbDb = asFirestore(ownerCtx.firestore());
+    try {
+      await assertFails(
+        updateDoc(doc(fbDb, 'userSanctions', SANCTION_OVERTURN), {
+          isActive: true, // tentative ré-activer
+        }),
+      );
+      passManually('RS15 owner tente isActive mutation → REJET (hasOnly viole)');
+    } catch (e) {
+      failManually('RS15 (expected fail)', e);
+    }
+  }
+
   await env.cleanup();
 
   console.log('');
-  console.log('====== Résumé Reports + UserSanctions rules (RR1-RR16 + RS1-RS10) ======');
+  console.log('====== Résumé Reports + UserSanctions rules (RR1-RR16 + RS1-RS15) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);
