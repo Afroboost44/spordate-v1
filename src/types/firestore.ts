@@ -603,6 +603,42 @@ export interface UserSanction {
 // Cf. UserProfile interface au début du fichier — ajout des 3 champs optionnels :
 //   activeSanctionId?, activeSanctionLevel?, activeSanctionEndsAt?
 
+// ===================== ADMIN ACTIONS (Phase 7 T&S sub-chantier 5) =====================
+// Audit trail des décisions admin sur reviews/reports/sanctions (doctrine §9.sexies H).
+// Collection séparée `adminActions/{actionId}` (vs sub-collection users) — query
+// plus simple, filtres temporels propres. Conservation 24 mois.
+//
+// Phase 7 Q7 décision : targetType minimal review|report|sanction. Extension Phase 9 :
+// 'block' | 'user' (admin SDK actions futures).
+
+export type AdminActionType =
+  | 'review_publish'
+  | 'review_reject'
+  | 'report_dismiss'
+  | 'report_sustain'
+  | 'sanction_overturn'
+  | 'appeal_resolve_upheld'
+  | 'appeal_resolve_overturned'
+  | 'sanction_manual_create';
+
+export type AdminActionTargetType = 'review' | 'report' | 'sanction';
+
+export interface AdminAction {
+  /** Doc ID Firestore — dénormalisé. */
+  actionId: string;
+  /** Admin uid qui a effectué l'action. */
+  adminId: string;
+  actionType: AdminActionType;
+  targetType: AdminActionTargetType;
+  /** ID de la ressource ciblée (reviewId / reportId / sanctionId). */
+  targetId: string;
+  /** Note motivée (optionnelle, recommandée pour transparency + audit). */
+  reason?: string;
+  /** Champs spécifiques à l'action (ex: { level: 'suspension_7d' } pour sanction_manual_create). */
+  metadata?: Record<string, unknown>;
+  createdAt: Timestamp;
+}
+
 // ===================== BLOCKS (Phase 7 T&S) =====================
 // Block list user-side. Invisibilité mutuelle (sessions/profils/chats) entre blocker et blocked.
 // Aucune notification au bloqué (anti-confrontation). Réversible via /profile/blocks.

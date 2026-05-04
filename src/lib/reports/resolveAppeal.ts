@@ -28,6 +28,7 @@
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { UserSanction } from '@/types/firestore';
 import { sendEmail } from '@/lib/email/sendEmail';
+import { logAdminAction } from '@/lib/admin-actions';
 import { ReportError, fetchReportEmailContext, getReportsDb, isAdminRole } from './_internal';
 
 export type AppealDecision = 'upheld' | 'overturned';
@@ -95,6 +96,15 @@ export async function resolveAppeal(input: ResolveAppealInput): Promise<void> {
   }
 
   await updateDoc(ref, update);
+
+  // Phase 7 sub-chantier 5 commit 2/3 — audit trail (branching action type)
+  await logAdminAction({
+    adminId: input.adminId,
+    actionType: input.decision === 'upheld' ? 'appeal_resolve_upheld' : 'appeal_resolve_overturned',
+    targetType: 'sanction',
+    targetId: input.sanctionId,
+    reason: input.decisionNote,
+  });
 
   // Phase 7 sub-chantier 5 commit 1/3 — best-effort sendEmail appealResolved (branching)
   try {

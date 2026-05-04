@@ -413,6 +413,50 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // === ADMIN ACTIONS (Phase 7 T&S sub-chantier 5 — audit trail 24 mois) ===
+    // Cf. architecture.md §9.sexies H pour la doctrine.
+    // Collection séparée — read+create admin only, jamais update ni delete (audit trail).
+    match /adminActions/{actionId} {
+      // Read : admin only (doctrine §H — audit privé admin team)
+      allow read: if isAdmin();
+
+      // Create : admin only + adminId == auth.uid (anti-spoofing)
+      // + actionType enum + targetType enum + createdAt == request.time + keys hasOnly
+      // (Q4 strict defense-in-depth cohérent autres rules T&S)
+      allow create: if isAdmin()
+        && request.resource.data.adminId == request.auth.uid
+        && request.resource.data.actionType in [
+             'review_publish',
+             'review_reject',
+             'report_dismiss',
+             'report_sustain',
+             'sanction_overturn',
+             'appeal_resolve_upheld',
+             'appeal_resolve_overturned',
+             'sanction_manual_create'
+           ]
+        && request.resource.data.targetType in ['review', 'report', 'sanction']
+        && request.resource.data.targetId is string
+        && request.resource.data.targetId.size() > 0
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.keys().hasOnly([
+             'actionId',
+             'adminId',
+             'actionType',
+             'targetType',
+             'targetId',
+             'reason',
+             'metadata',
+             'createdAt'
+           ]);
+
+      // Update : jamais (audit immuable doctrine §H)
+      allow update: if false;
+
+      // Delete : jamais (conservation 24 mois — purge cron Phase 9)
+      allow delete: if false;
+    }
+
     // === BLOCKS (Phase 7 T&S sub-chantier 2 — invisibilité mutuelle, sans notification) ===
     // Cf. architecture.md §9.sexies E pour la doctrine.
     // Doc-id pattern strict : `${blockerId}_${blockedId}` (déduplication + idempotency).

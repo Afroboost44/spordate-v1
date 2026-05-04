@@ -18,6 +18,7 @@
 
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { Report } from '@/types/firestore';
+import { logAdminAction } from '@/lib/admin-actions';
 import { ReportError, getReportsDb, isAdminRole } from './_internal';
 
 export interface DismissReportInput {
@@ -68,4 +69,13 @@ export async function dismissReport(input: DismissReportInput): Promise<void> {
   if (input.decisionNote) update.decisionNote = input.decisionNote;
 
   await updateDoc(ref, update);
+
+  // Phase 7 sub-chantier 5 commit 2/3 — audit trail
+  await logAdminAction({
+    adminId: input.adminId,
+    actionType: 'report_dismiss',
+    targetType: 'report',
+    targetId: input.reportId,
+    reason: input.decisionNote,
+  });
 }

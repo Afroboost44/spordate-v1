@@ -13,6 +13,7 @@
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { UserSanction } from '@/types/firestore';
 import { sendEmail } from '@/lib/email/sendEmail';
+import { logAdminAction } from '@/lib/admin-actions';
 import { ReportError, fetchReportEmailContext, getReportsDb, isAdminRole } from './_internal';
 
 export interface OverturnSanctionInput {
@@ -60,6 +61,15 @@ export async function overturnSanction(input: OverturnSanctionInput): Promise<vo
   if (input.reason) update.appealNote = input.reason;
 
   await updateDoc(ref, update);
+
+  // Phase 7 sub-chantier 5 commit 2/3 — audit trail
+  await logAdminAction({
+    adminId: input.adminId,
+    actionType: 'sanction_overturn',
+    targetType: 'sanction',
+    targetId: input.sanctionId,
+    reason: input.reason,
+  });
 
   // Phase 7 sub-chantier 5 commit 1/3 — best-effort sendEmail userSanctionOverturned
   try {

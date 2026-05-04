@@ -17,6 +17,7 @@
 
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { Report, SanctionLevel } from '@/types/firestore';
+import { logAdminAction } from '@/lib/admin-actions';
 import { ReportError, getReportsDb, isAdminRole } from './_internal';
 import { triggerAutoSanction } from './triggerAutoSanction';
 
@@ -79,6 +80,15 @@ export async function sustainReport(input: SustainReportInput): Promise<SustainR
 
   await updateDoc(ref, update);
 
+  // Phase 7 sub-chantier 5 commit 2/3 — audit trail (sustain report)
+  await logAdminAction({
+    adminId: input.adminId,
+    actionType: 'report_sustain',
+    targetType: 'report',
+    targetId: input.reportId,
+    reason: input.decisionNote,
+  });
+
   // 2. Manual sanction si demandée — délégué à triggerAutoSanction (cohérence flow)
   let manualSanctionId: string | undefined;
   if (input.manualSanctionLevel) {
@@ -88,6 +98,16 @@ export async function sustainReport(input: SustainReportInput): Promise<SustainR
       reason: 'manual_admin',
       triggeringReportIds: [input.reportId],
       createdBy: input.adminId,
+    });
+
+    // Phase 7 sub-chantier 5 commit 2/3 — audit trail (manual sanction creation)
+    await logAdminAction({
+      adminId: input.adminId,
+      actionType: 'sanction_manual_create',
+      targetType: 'sanction',
+      targetId: manualSanctionId,
+      reason: input.decisionNote,
+      metadata: { level: input.manualSanctionLevel, sourceReportId: input.reportId },
     });
   }
 

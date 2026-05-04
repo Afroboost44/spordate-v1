@@ -25,6 +25,7 @@
 
 import { Timestamp, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { sendEmail } from '@/lib/email/sendEmail';
+import { logAdminAction } from '@/lib/admin-actions';
 import type { Review } from '@/types/firestore';
 import {
   ReviewError,
@@ -122,6 +123,14 @@ export async function moderateReview(input: ModerateReviewInput): Promise<Modera
       });
     }
 
+    // Phase 7 sub-chantier 5 commit 2/3 — audit trail
+    await logAdminAction({
+      adminId: input.adminId,
+      actionType: 'review_publish',
+      targetType: 'review',
+      targetId: input.reviewId,
+    });
+
     return { newStatus: 'published', bonusAwarded };
   }
 
@@ -153,6 +162,14 @@ export async function moderateReview(input: ModerateReviewInput): Promise<Modera
       error: err instanceof Error ? err.message : String(err),
     });
   }
+
+  // Phase 7 sub-chantier 5 commit 2/3 — audit trail
+  await logAdminAction({
+    adminId: input.adminId,
+    actionType: 'review_reject',
+    targetType: 'review',
+    targetId: input.reviewId,
+  });
 
   return { newStatus: 'rejected', bonusAwarded: false };
 }
