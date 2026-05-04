@@ -148,6 +148,13 @@ export interface Activity {
   /** Phase 3 (additif). Nombre de crédits chat accordés à l'acheteur d'une session de cette activity.
    *  Si absent, défaut 50 dans le code (checkout + webhook). */
   chatCreditsBundle?: number;
+  // ----- Phase 7 / Trust & Safety (additif, optionnel — préparation, sans UI active) -----
+  /** Phase 7 (additif). Audience cible de l'activity. Préparation data model SANS UI active.
+   *  Activation Phase 9 (women-priority quota) + Phase 10+ (women-only stricte si demande forte).
+   *  Défaut undefined = 'all' (rétro-compatible activities existantes).
+   *  Modifiable via Admin SDK / Firebase Console / test seed Phase 7 (pas via UI partner).
+   *  Cf. architecture.md §9.sexies G pour la doctrine female-safety complète. */
+  audienceType?: 'all' | 'women-only' | 'men-only' | 'mixed-priority-women';
 }
 
 export interface ActivitySchedule {
