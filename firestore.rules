@@ -300,6 +300,119 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // === REPORTS (Phase 7 T&S sub-chantier 3 — anonymat TOTAL, defense-in-depth) ===
+    // Cf. architecture.md §9.sexies D pour la doctrine.
+    // Anonymat doctrine §D.1 : reported NE SAIT JAMAIS qui l'a signalé.
+    //   → read réservé admin (et reporter pour sa propre history rate-limit check).
+    // Auto-trigger sanctions (Phase 7) : service layer client-side trigger via createReport.
+    //   Production hardening Phase 8 = Cloud Function on reports create.
+    match /reports/{reportId} {
+      // Read : admin (queue moderation) OU reporter (vérif rate-limit + history personnelle)
+      // Reported NE PEUT JAMAIS lire les reports le concernant (anonymat doctrine §D.1).
+      allow read: if isAuth()
+        && (isAdmin() || resource.data.reporterId == request.auth.uid);
+
+      // Create : auth + reporterId == auth.uid (anti-spoofing) + anti-self + category enum
+      //   + freeTextReason OBLIGATOIRE si category='autre' + status='pending' au create
+      //   + createdAt == request.time (anti-backdate)
+      //   + source enum (user OU partner_no_show — partner check-in via service)
+      //   + champs admin absents (server-managed)
+      allow create: if isAuth()
+        && request.resource.data.reporterId == request.auth.uid
+        && request.resource.data.reportedId is string
+        && request.resource.data.reportedId.size() > 0
+        && request.resource.data.reporterId != request.resource.data.reportedId
+        && request.resource.data.category in [
+             'harassment_sexuel',
+             'comportement_agressif',
+             'fake_profile',
+             'substance_etat_problematique',
+             'no_show',
+             'autre'
+           ]
+        && (
+             request.resource.data.category != 'autre'
+             || (request.resource.data.freeTextReason is string
+                 && request.resource.data.freeTextReason.size() >= 10)
+           )
+        && request.resource.data.status == 'pending'
+        && request.resource.data.source in ['user', 'partner_no_show']
+        && request.resource.data.createdAt == request.time
+        && !('reviewedBy' in request.resource.data)
+        && !('reviewedAt' in request.resource.data)
+        && !('decision' in request.resource.data)
+        && !('decisionNote' in request.resource.data)
+        && !('resolvedAt' in request.resource.data);
+
+      // Update : admin uniquement (sustain/dismiss + decision note)
+      allow update: if isAdmin();
+
+      // Delete : jamais (audit trail conservé doctrine §H 12 mois)
+      allow delete: if false;
+    }
+
+    // === USER SANCTIONS (Phase 7 T&S sub-chantier 3 — collection séparée audit) ===
+    // Cf. architecture.md §9.sexies F pour la doctrine.
+    // Source authoritative pour enforcement (login check, banner UI, gating actions).
+    // Phase 7 : auto-trigger client-side via createReport service quand threshold atteint.
+    //   Anti-DoS : create restrictif sur shape + reason in {reports_threshold, no_show_threshold}.
+    //   manual_admin réservé admin (sustainReport flow).
+    // Production hardening Phase 8 = Cloud Function trigger anti-spoofing complet.
+    match /userSanctions/{sanctionId} {
+      // Read : owner (banner UI + appeal flow) OU admin (queue + audit)
+      allow read: if isAuth()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Create : admin (manual) OU auto-trigger via service avec validation shape stricte.
+      // Anti-self-sanction (un user ne peut pas se sanctionner lui-même).
+      // triggeringReportIds non-vide (au moins 1 report doit avoir déclenché).
+      allow create: if isAuth()
+        && (
+          isAdmin()
+          || (
+            request.resource.data.userId != request.auth.uid
+            && request.resource.data.userId is string
+            && request.resource.data.userId.size() > 0
+            && request.resource.data.level in [
+                 'warning',
+                 'suspension_7d',
+                 'suspension_30d',
+                 'ban_permanent'
+               ]
+            && request.resource.data.reason in ['reports_threshold', 'no_show_threshold']
+            && request.resource.data.triggeringReportIds is list
+            && request.resource.data.triggeringReportIds.size() > 0
+            && request.resource.data.isActive == true
+            && request.resource.data.startsAt == request.time
+            && !('appealUsed' in request.resource.data
+                  && request.resource.data.appealUsed == true)
+            && !('appealResolvedBy' in request.resource.data)
+            && !('appealResolvedAt' in request.resource.data)
+            && !('appealDecision' in request.resource.data)
+          )
+        );
+
+      // Update : admin (appeal decisions + désactivation manuelle) OU owner pour file appeal
+      // Owner peut SEULEMENT mutater appealUsed=true + appealNote (doctrine §F appel 1×).
+      // Toutes autres mutations réservées admin.
+      allow update: if isAuth()
+        && (
+          isAdmin()
+          || (
+            resource.data.userId == request.auth.uid
+            && resource.data.appealable == true
+            && resource.data.appealUsed != true
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['appealUsed', 'appealNote'])
+            && request.resource.data.appealUsed == true
+            && request.resource.data.appealNote is string
+            && request.resource.data.appealNote.size() >= 20
+          )
+        );
+
+      // Delete : jamais (audit trail conservé)
+      allow delete: if false;
+    }
+
     // === BLOCKS (Phase 7 T&S sub-chantier 2 — invisibilité mutuelle, sans notification) ===
     // Cf. architecture.md §9.sexies E pour la doctrine.
     // Doc-id pattern strict : `${blockerId}_${blockedId}` (déduplication + idempotency).

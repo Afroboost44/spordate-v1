@@ -29,6 +29,15 @@ export interface UserProfile {
   lastActive: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  // ----- Phase 7 sub-chantier 3 / Sanctions denorm (preparation, NON écrit Phase 7) -----
+  /** Phase 7 sub-chantier 3 (additif). Doc-id de la sanction active courante.
+   *  Cosmétique fast-check : authoritative source = getActiveUserSanction() query.
+   *  Phase 8 polish : Cloud Function denormalisera via Admin SDK. */
+  activeSanctionId?: string;
+  /** Phase 7 sub-chantier 3 (additif). Niveau sanction courante. Cf. activeSanctionId. */
+  activeSanctionLevel?: 'warning' | 'suspension_7d' | 'suspension_30d' | 'ban_permanent';
+  /** Phase 7 sub-chantier 3 (additif). Fin sanction courante. null pour warning + ban_permanent. */
+  activeSanctionEndsAt?: Timestamp;
 }
 
 export interface SportEntry {
@@ -492,6 +501,107 @@ export interface Review {
   /** True une fois le bonus 5 crédits chat alloué (anti-double-bonus). */
   creditsAwarded: boolean;
 }
+
+// ===================== REPORTS + SANCTIONS (Phase 7 T&S sub-chantier 3) =====================
+// Reports formels anonymes (anonymat TOTAL côté reported) + sanctions auto/admin.
+// Cf. architecture.md §9.sexies D + F pour la doctrine complète.
+//
+// Anti-fraude : reporter doit avoir partagé une session avec reported (validé service).
+// Rate limit : max 3 reports / reporter / jour (rolling 24h).
+// Dédup : 2 reports même reporter sur même reported = 1 seul (anti-revanche inflation).
+// Thresholds rolling 12 mois (reporters indépendants) : 1=review, 2=AUTO 7j, 3+=AUTO 30j.
+// No-show thresholds rolling 90j spécifiques : 1=warning, 2=warning+flag, 3=30j+refund, 4+=ban.
+
+/** 6 catégories doctrine §9.sexies D.2 — enum strict (rule create enforce). */
+export type ReportCategory =
+  | 'harassment_sexuel'             // 🔴 URGENTE
+  | 'comportement_agressif'         // 🟠 Haute
+  | 'fake_profile'                  // 🟡 Moyenne
+  | 'substance_etat_problematique'  // 🔴 URGENTE
+  | 'no_show'                       // 🟢 Basse (auto-handled cf. D.5)
+  | 'autre';                        // 🟡 Moyenne — freeText OBLIGATOIRE
+
+export type ReportStatus = 'pending' | 'reviewed' | 'actioned' | 'dismissed';
+
+export type ReportSource = 'user' | 'partner_no_show';
+
+export interface Report {
+  /** Document ID Firestore — dénormalisé pour query simplifiée. */
+  reportId: string;
+  /** Auteur du report. ANONYMISÉ côté reported (jamais exposé en lecture non-admin). */
+  reporterId: string;
+  /** Cible du report. Jamais == reporterId (validé rule + service). */
+  reportedId: string;
+  category: ReportCategory;
+  /** OBLIGATOIRE si category='autre' (validation rule + service). Optionnel sinon. */
+  freeTextReason?: string;
+  /** Référence session partagée (validation participation cohérent reviews). */
+  sessionId?: string;
+  /** Référence activity (utile pour no-show stats par activity). */
+  activityId?: string;
+  status: ReportStatus;
+  /** True si threshold a déclenché une suspension auto au moment du create. */
+  autoSuspensionApplied?: boolean;
+  /** Durée suspension déclenchée (7 ou 30 jours). */
+  autoSuspensionDurationDays?: number;
+  /** Admin qui a modéré (sustain ou dismiss). */
+  reviewedBy?: string;
+  reviewedAt?: Timestamp;
+  /** Verdict admin. */
+  decision?: 'sustain' | 'dismiss';
+  /** Note admin (motif décision). */
+  decisionNote?: string;
+  resolvedAt?: Timestamp;
+  /** Origine — user signale OU partner check-in marque no-show. */
+  source: ReportSource;
+  createdAt: Timestamp;
+}
+
+/** 4 niveaux ban doctrine §9.sexies F. */
+export type SanctionLevel = 'warning' | 'suspension_7d' | 'suspension_30d' | 'ban_permanent';
+
+export type SanctionReason = 'reports_threshold' | 'no_show_threshold' | 'manual_admin';
+
+export interface UserSanction {
+  /** Document ID Firestore — dénormalisé. */
+  sanctionId: string;
+  userId: string;
+  level: SanctionLevel;
+  reason: SanctionReason;
+  /** IDs des reports qui ont déclenché cette sanction (anti-recompute + audit). */
+  triggeringReportIds: string[];
+  startsAt: Timestamp;
+  /** null pour 'warning' (pas de fin) et 'ban_permanent' (revue annuelle hors scope ce champ). */
+  endsAt?: Timestamp;
+  /** False pour level='warning' (pas une sanction au sens doctrine appel D.6). */
+  appealable: boolean;
+  /** True une fois l'appel utilisé (1× par niveau, doctrine §F). */
+  appealUsed?: boolean;
+  /** Note rédigée par le user lors de l'appel. */
+  appealNote?: string;
+  appealResolvedBy?: string;
+  appealResolvedAt?: Timestamp;
+  /** Verdict admin appel. */
+  appealDecision?: 'upheld' | 'overturned';
+  /** False si expirée (endsAt passé) OU overturned via appel. */
+  isActive: boolean;
+  /** Phase 7 Q7 : flag refund partner pour no-show level 3 (suspension_30d).
+   *  Traitement manuel admin via Stripe dashboard. Phase 8 = automatisation Stripe API. */
+  refundDue?: boolean;
+  /** Admin uid si reason='manual_admin'. */
+  createdBy?: string;
+  createdAt: Timestamp;
+}
+
+// UserProfile additions (Phase 7 sub-chantier 3 — preparation denorm fields).
+// Note Phase 7 : ces champs sont DÉCLARÉS mais NON ÉCRITS côté client (rule users update
+// reste owner/admin only — pas de relaxation pour cosmétique). L'enforcement authoritative
+// passe par getActiveUserSanction() (query userSanctions indexed). Phase 8 polish :
+// Cloud Function on userSanctions create/update qui denormalise ces champs côté Admin SDK
+// pour permettre fast banner UI sans query supplémentaire.
+//
+// Cf. UserProfile interface au début du fichier — ajout des 3 champs optionnels :
+//   activeSanctionId?, activeSanctionLevel?, activeSanctionEndsAt?
 
 // ===================== BLOCKS (Phase 7 T&S) =====================
 // Block list user-side. Invisibilité mutuelle (sessions/profils/chats) entre blocker et blocked.

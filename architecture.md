@@ -780,8 +780,25 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 - 1/4 `bc3798a` : Data model `Block` + Firestore rules `/blocks/{blockId}` (defense-in-depth + doc-id pattern enforcé) + indexes (`blockerId+createdAt DESC`, `blockedId+createdAt DESC`)
 - 2/4 `8767bc6` : Service layer (`blockUser`/`unblockUser`/`isBlocked`/`getBlockedByMe`/`getBlockingMe`/`getMutualBlockSet`) + tests service B1-B15 (36 sub-assertions)
 - 3/4 `c3463a0` : UI components (`BlockButton` variants `'profile' | 'chat'`, `BlockUserDialog` confirmation, `BlocksManagementList`) + page `/profile/blocks`
-- 4/4 *(this commit)* : Integration (profile button + invisibilité mutuelle profile/[uid] + chat filter + discovery filter) + tests Firestore rules `tests/blocks/rules.test.ts` (RB1-RB12) + close-out
+- 4/4 `1855745` : Integration (profile button + invisibilité mutuelle profile/[uid] + chat filter + discovery filter) + tests Firestore rules `tests/blocks/rules.test.ts` (RB1-RB12) + close-out
 - Cumulatif tests : `test:blocks` 36/36 PASS + `test:blocks:rules` 12/12 PASS
+
+**Sub-chantier 3 — Reports + No-show workflow** 🚧 EN COURS (5 commits planifiés)
+- 1/5 *(this commit)* : Data model `Report` (6 catégories enum + 4 statuses) + `UserSanction` (4 levels + appeal flow) + UserProfile additions denorm (preparation, non écrits Phase 7) + Firestore rules `/reports/` (anonymat read admin/reporter, defense-in-depth create) + `/userSanctions/` (read owner+admin, create admin OR auto-trigger restrictif, update admin OR owner appeal) + 6 indexes
+- 2/5 : Service layer Reports + admin actions (`createReport`/`getReportsForReporter`/`getReportsAgainst`/`dismissReport`/`sustainReport`) + tests RP1-RP18
+- 3/5 : Service No-show + Sanctions auto-trigger + Appeals (`markNoShow`/`getNoShowsForUser`/`getActiveUserSanction`/`triggerAutoSanction`/`appealSanction`/`cancelNoShow`) + tests NP1-NP12
+- 4/5 : UI components (`ReportButton` variants `'profile' | 'chat'` + `ReportUserDialog` 6 catégories radio) + integration profile/chat
+- 5/5 : Partner check-in UI (`/partner/sessions/[sessionId]/check-in` + `NoShowCheckInList`) + email templates (4 NEW : reportSubmitted/userSanctionNotice/noShowWarningNotice/partnerNoShowConfirmed) + `SanctionBanner` component sticky + tests Firestore rules + close-out
+
+**Décisions tranchées sub-chantier 3 (mai 2026)** :
+- Q1 page partner check-in dédiée `/partner/sessions/[sessionId]/check-in` (vs section dashboard).
+- Q2 validation participation report obligatoire (cohérent reviews) — anti-fraude.
+- Q3 sanctions = collection séparée `userSanctions/` ; champs denorm UserProfile préparés mais NON écrits Phase 7 (rule users update reste owner/admin only — relaxation reportée Phase 8 via Cloud Function). Authoritative source = `getActiveUserSanction()` query indexée (1 query rapide, acceptable login + setInterval).
+- Q4 SanctionBanner sticky top + lien recours `mailto:contact@spordateur.com`.
+- Q5 appel sanction = email reply uniquement (cohérent doctrine §F), pas de form in-app.
+- Q6 enforcement check au login + setInterval 5 min (custom claims Phase 9).
+- Q7 refund partner no-show level 3 = flag `userSanctions.refundDue=true`, traitement manuel admin Stripe dashboard Phase 7 (Stripe API automatisation Phase 8).
+- Q8 rate limit 3 reports/jour = query rolling 24h sur `reports` (pas de denorm dailyCount).
 
 **Décisions tranchées sub-chantier 2 (mai 2026)** :
 - Card session entry point différé sub-chantier 6 polish — UI participants n'existe pas encore, à wirer naturellement quand elle sera ajoutée.
@@ -789,11 +806,10 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 - Doc-id pattern `${blockerId}_${blockedId}` enforcé via Firestore rule create — anti-doublon + anti-spoofing.
 - Warning partner co-inscrits différé sub-chantier 4 (admin moderation dashboard) ou sub-chantier 5 (email wiring) — partner-side, hors scope user-side ce sub-chantier.
 
-**Sub-chantiers prochains** ⏳ À démarrer après 2
-- Sub-chantier 3 — Reports + No-show workflow (~6-8h)
+**Sub-chantiers prochains** ⏳ À démarrer après 3
 - Sub-chantier 4 — Admin moderation dashboard MVP + warning partner co-inscrits (~8-10h)
 - Sub-chantier 5 — Email notifications wiring + audit trail (`adminActions/`) (~3-5h)
-- Sub-chantier 6 — Card session entry point block + tests + polish (~3-4h)
+- Sub-chantier 6 — Card session entry point block + ReportButton + tests + polish (~3-4h)
 
 ### A. Doctrine économique — T&S = pré-requis rétention
 
