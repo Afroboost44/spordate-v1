@@ -19,13 +19,16 @@
  *    décision Phase 7 : remplace — la note user reste dans appealNote initial,
  *    on ajoute une "decisionNote" séparée si besoin Phase 8 polish)
  *
- * Best-effort : pas de sendEmail Phase 7 (l'admin répond directement à l'email
- * reply user — flow doctrine §F).
+ * Best-effort sendEmail appealResolved (sub-chantier 5 commit 1/3) :
+ *  - Branching uphold/overturn dans body (cohérent reviewModerationDecision pattern)
+ *  - Si fail → log warn (jamais throw — décision admin reste enregistrée)
+ *  - L'admin peut aussi répondre directement à l'email reply user (flow doctrine §F)
  */
 
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { UserSanction } from '@/types/firestore';
-import { ReportError, getReportsDb, isAdminRole } from './_internal';
+import { sendEmail } from '@/lib/email/sendEmail';
+import { ReportError, fetchReportEmailContext, getReportsDb, isAdminRole } from './_internal';
 
 export type AppealDecision = 'upheld' | 'overturned';
 
@@ -92,4 +95,27 @@ export async function resolveAppeal(input: ResolveAppealInput): Promise<void> {
   }
 
   await updateDoc(ref, update);
+
+  // Phase 7 sub-chantier 5 commit 1/3 — best-effort sendEmail appealResolved (branching)
+  try {
+    const ctx = await fetchReportEmailContext({ userId: sanction.userId });
+    if (ctx.email) {
+      await sendEmail({
+        to: ctx.email,
+        templateName: 'appealResolved',
+        templateData: {
+          userName: ctx.displayName,
+          level: sanction.level,
+          decision: input.decision,
+          adminNote: input.decisionNote,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[resolveAppeal] sendEmail appealResolved failed (non-blocking)', {
+      sanctionId: input.sanctionId,
+      decision: input.decision,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }

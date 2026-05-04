@@ -12,7 +12,8 @@
 
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { UserSanction } from '@/types/firestore';
-import { ReportError, getReportsDb, isAdminRole } from './_internal';
+import { sendEmail } from '@/lib/email/sendEmail';
+import { ReportError, fetchReportEmailContext, getReportsDb, isAdminRole } from './_internal';
 
 export interface OverturnSanctionInput {
   adminId: string;
@@ -59,4 +60,25 @@ export async function overturnSanction(input: OverturnSanctionInput): Promise<vo
   if (input.reason) update.appealNote = input.reason;
 
   await updateDoc(ref, update);
+
+  // Phase 7 sub-chantier 5 commit 1/3 — best-effort sendEmail userSanctionOverturned
+  try {
+    const ctx = await fetchReportEmailContext({ userId: sanction.userId });
+    if (ctx.email) {
+      await sendEmail({
+        to: ctx.email,
+        templateName: 'userSanctionOverturned',
+        templateData: {
+          userName: ctx.displayName,
+          level: sanction.level,
+          adminNote: input.reason,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[overturnSanction] sendEmail userSanctionOverturned failed (non-blocking)', {
+      sanctionId: input.sanctionId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }

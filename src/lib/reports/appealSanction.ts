@@ -1,5 +1,6 @@
 /**
  * Phase 7 sub-chantier 3 commit 3/5 — appealSanction.
+ * Sub-chantier 5 commit 1/3 — wire sendEmail appealAcknowledgment (Q9).
  *
  * User file un appel sur sa sanction. Doctrine §F : 1× par niveau.
  *
@@ -12,15 +13,31 @@
  * Update sanction : appealUsed=true + appealNote (cohérent rule update owner).
  *
  * Note doctrine §F : appel formellement par email reply à contact@spordateur.com.
- * Ce service stocke appealUsed + appealNote pour tracking. Le résolveur (admin)
- * traitera via update sanction côté admin dashboard sub-chantier 4 (appealResolvedBy/At/Decision).
+ * Ce service stocke appealUsed + appealNote pour tracking. L'admin résout via
+ * resolveAppeal (sub-chantier 4) qui wire appealResolved email post-décision.
  *
- * Best-effort wire email notification admin → TODO commit 5/5.
+ * Sub-chantier 5 commit 1/3 : wire confirmation in-app appealAcknowledgment (template
+ * existant non utilisé jusqu'ici) — UX transparency post-filing.
  */
 
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import type { UserSanction } from '@/types/firestore';
-import { APPEAL_NOTE_MIN_LENGTH, ReportError, getReportsDb } from './_internal';
+import type { SanctionLevel, UserSanction } from '@/types/firestore';
+import { sendEmail } from '@/lib/email/sendEmail';
+import {
+  APPEAL_NOTE_MIN_LENGTH,
+  ReportError,
+  fetchReportEmailContext,
+  getReportsDb,
+} from './_internal';
+
+const SANCTION_LEVEL_LABEL_FR: Record<SanctionLevel, string> = {
+  warning: 'Avertissement',
+  suspension_7d: 'Suspension 7 jours',
+  suspension_30d: 'Suspension 30 jours',
+  ban_permanent: 'Bannissement permanent',
+};
+
+const APPEAL_SLA_DAYS = 7;
 
 export interface AppealSanctionInput {
   /** UID du user qui file l'appel (doit == sanction.userId). */
@@ -74,15 +91,39 @@ export async function appealSanction(input: AppealSanctionInput): Promise<void> 
     appealNote: input.appealNote,
   });
 
-  // Phase 7 sub-chantier 3 commit 5/5 — log info pour traçabilité audit.
-  // Pas de sendEmail admin formel : doctrine §F prévoit que le user formule l'appel
-  // par email reply à contact@spordateur.com (l'admin voit naturellement l'appel
-  // dans sa boîte). Le flag appealUsed est purement interne pour tracking + UI gating
-  // (empêcher 2ème appel). Phase 8 polish : admin dashboard pourra surfacer les
-  // sanctions appealable=true && appealUsed=true sans réponse admin.
   console.info('[appealSanction] appel filed', {
     sanctionId: input.sanctionId,
     userId: input.userId,
     noteLength: input.appealNote.length,
   });
+
+  // Phase 7 sub-chantier 5 commit 1/3 — best-effort sendEmail appealAcknowledgment
+  // Confirmation in-app du filing (UX transparency, SLA admin 7j mentionné).
+  try {
+    const ctx = await fetchReportEmailContext({ userId: input.userId });
+    if (ctx.email) {
+      const receivedAt = new Date().toLocaleDateString('fr-CH', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      await sendEmail({
+        to: ctx.email,
+        templateName: 'appealAcknowledgment',
+        templateData: {
+          userName: ctx.displayName,
+          banLevelLabel: SANCTION_LEVEL_LABEL_FR[sanction.level],
+          receivedAt,
+          slaDays: APPEAL_SLA_DAYS,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[appealSanction] sendEmail appealAcknowledgment failed (non-blocking)', {
+      sanctionId: input.sanctionId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 }

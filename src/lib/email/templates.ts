@@ -30,7 +30,9 @@ export type TemplateName =
   | 'reportSubmitted' // T&S Phase 7 sub-chantier 3 commit 5/5 — confirme reception report
   | 'userSanctionNotice' // T&S Phase 7 sub-chantier 3 commit 5/5 — notif sanctionné (4 levels)
   | 'noShowWarningNotice' // T&S Phase 7 sub-chantier 3 commit 5/5 — notif no-show 1-4
-  | 'partnerNoShowConfirmed'; // T&S Phase 7 sub-chantier 3 commit 5/5 — confirm partner check-in
+  | 'partnerNoShowConfirmed' // T&S Phase 7 sub-chantier 3 commit 5/5 — confirm partner check-in
+  | 'userSanctionOverturned' // T&S Phase 7 sub-chantier 5 commit 1/3 — admin a annulé sanction
+  | 'appealResolved'; // T&S Phase 7 sub-chantier 5 commit 1/3 — résultat appel (uphold/overturn)
 
 export type BanLevel = 'warning' | 'suspension_7j' | 'suspension_30j' | 'permanent';
 
@@ -122,6 +124,22 @@ export interface TemplateDataMap {
     sessionDate: string;
     /** Heures restantes pour annuler (24h depuis création report). */
     cancelWindowHours: number;
+  };
+  userSanctionOverturned: {
+    userName: string;
+    /** Niveau de la sanction qui a été annulée (informational). */
+    level: SanctionLevelEmail;
+    /** Note admin motivant l'overturn (audit + transparency). Optionnelle mais recommandée. */
+    adminNote?: string;
+  };
+  appealResolved: {
+    userName: string;
+    /** Niveau de la sanction concernée par l'appel. */
+    level: SanctionLevelEmail;
+    /** Verdict admin : maintenue (upheld) ou annulée (overturned). */
+    decision: 'upheld' | 'overturned';
+    /** Note admin motivant la décision (audit + transparency). Optionnelle. */
+    adminNote?: string;
   };
 }
 
@@ -398,6 +416,56 @@ function renderPartnerNoShowConfirmed(d: TemplateDataMap['partnerNoShowConfirmed
   return { subject, html: layout({ headerBadgeText: 'Partner check-in', bodyHtml: body }) };
 }
 
+function renderUserSanctionOverturned(d: TemplateDataMap['userSanctionOverturned']) {
+  const levelLabel = SANCTION_LEVEL_LABELS[d.level];
+  const subject = `Sanction annulée — ${levelLabel}`;
+  const noteLine = d.adminNote
+    ? p(`<strong style="color:#ffffff;">Motif</strong> : ${d.adminNote}`)
+    : '';
+  const body = `
+    ${h1(`Sanction annulée`)}
+    ${p(`Bonjour ${d.userName || 'membre Spordateur'},`)}
+    ${p(`Bonne nouvelle : la sanction <strong style="color:#ffffff;">${levelLabel}</strong> appliquée à ton compte a été <strong style="color:#D91CD2;">annulée</strong> par notre équipe modération.`)}
+    ${noteLine}
+    ${p(`Ton compte est de nouveau pleinement opérationnel. Tu peux à nouveau réserver, matcher et participer aux sessions Spordateur normalement.`)}
+    ${p(`Pour toute question : contact@spordateur.com.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
+}
+
+function renderAppealResolved(d: TemplateDataMap['appealResolved']) {
+  const levelLabel = SANCTION_LEVEL_LABELS[d.level];
+  const isOverturned = d.decision === 'overturned';
+  const subject = isOverturned
+    ? `Appel accepté — sanction ${levelLabel} annulée`
+    : `Appel examiné — sanction ${levelLabel} maintenue`;
+
+  const noteLine = d.adminNote
+    ? p(`<strong style="color:#ffffff;">Motif décision admin</strong> : ${d.adminNote}`)
+    : '';
+
+  const body = isOverturned
+    ? `
+        ${h1(`Appel accepté`)}
+        ${p(`Bonjour ${d.userName || 'membre Spordateur'},`)}
+        ${p(`Notre équipe modération a examiné ton appel concernant la sanction <strong style="color:#ffffff;">${levelLabel}</strong>.`)}
+        ${p(`<strong style="color:#D91CD2;">Décision : appel accepté</strong>. La sanction est annulée et ton compte est de nouveau pleinement opérationnel.`)}
+        ${noteLine}
+        ${p(`Merci d'avoir fait remonter ces éléments. Spordateur applique une politique de fair process — chaque appel est traité humainement avec attention.`, '40')}
+      `
+    : `
+        ${h1(`Appel examiné`)}
+        ${p(`Bonjour ${d.userName || 'membre Spordateur'},`)}
+        ${p(`Notre équipe modération a examiné ton appel concernant la sanction <strong style="color:#ffffff;">${levelLabel}</strong>.`)}
+        ${p(`<strong style="color:#ffffff;">Décision : sanction maintenue</strong>. Après examen des éléments contradictoires, la sanction reste active.`)}
+        ${noteLine}
+        ${p(`Conformément à la doctrine §F (1× appel par niveau), tu ne peux pas faire un nouvel appel sur cette sanction. Tu peux contester sur d'autres voies (médiation externe, recours juridique) — Spordateur respecte les droits LPD/nLPD.`)}
+        ${p(`Pour toute question : contact@spordateur.com.`, '40')}
+      `;
+
+  return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
+}
+
 // =====================================================================
 // Public renderTemplate (type-safe dispatch)
 // =====================================================================
@@ -429,6 +497,10 @@ export function renderTemplate<T extends TemplateName>(
       return renderNoShowWarningNotice(data as TemplateDataMap['noShowWarningNotice']);
     case 'partnerNoShowConfirmed':
       return renderPartnerNoShowConfirmed(data as TemplateDataMap['partnerNoShowConfirmed']);
+    case 'userSanctionOverturned':
+      return renderUserSanctionOverturned(data as TemplateDataMap['userSanctionOverturned']);
+    case 'appealResolved':
+      return renderAppealResolved(data as TemplateDataMap['appealResolved']);
     default: {
       // Exhaustive check — TypeScript should error if a new TemplateName is added without case
       const _exhaustive: never = templateName;
