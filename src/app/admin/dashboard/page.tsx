@@ -16,7 +16,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
   BarChart3, DollarSign, Users, Building2, Check, X, Lock, Unlock,
-  Trash2, LogOut, Activity, Shield, Mail, AlertCircle, TrendingUp,
+  Trash2, LogOut, Activity, Shield, ShieldCheck, ShieldAlert, Mail, AlertCircle, TrendingUp,
   ArrowUp, Eye, EyeOff, Zap
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
@@ -40,6 +40,10 @@ import type {
   Payout, ErrorLog, Partner
 } from '@/types/firestore';
 import { ADMIN_EMAIL } from '@/lib/sports';
+import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { collection, query as fsQuery, where, getDocs, limit as fsLimit } from 'firebase/firestore';
+import { TandSReviewsPanel } from '@/components/admin/TandSReviewsPanel';
+import { TandSReportsPanel } from '@/components/admin/TandSReportsPanel';
 
 // Auth key
 const ADMIN_AUTH_KEY = 'spordate_admin_auth';
@@ -120,6 +124,34 @@ export default function AdminDashboard() {
   };
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
   const [selectedPayout, setSelectedPayout] = useState<Payout | null>(null);
+
+  // ==================== T&S ADMIN UID RESOLUTION (sub-chantier 4 commit 2/4) ====================
+  // Q2 décision : services admin (sustainReport / dismissReport / moderateReview) attendent
+  // un UID, pas un email. On résout users where email==ADMIN_EMAIL au mount des tabs T&S.
+  // Si null retourné → setup users.{uid}.role='admin' requis (Firebase Console).
+  const [adminUid, setAdminUid] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isAuthenticated || !db || !isFirebaseConfigured) return;
+    if (adminUid) return;
+    (async () => {
+      try {
+        const snap = await getDocs(
+          fsQuery(
+            collection(db!, 'users'),
+            where('email', '==', AUTHORIZED_EMAIL),
+            fsLimit(1),
+          ),
+        );
+        if (!snap.empty) {
+          setAdminUid(snap.docs[0].id);
+        } else {
+          console.warn('[AdminDashboard] users/{adminUid} introuvable — setup Firebase Console requis');
+        }
+      } catch (err) {
+        console.warn('[AdminDashboard] adminUid resolution failed', err);
+      }
+    })();
+  }, [isAuthenticated, adminUid]);
 
   // ==================== AUTH CHECK ====================
   useEffect(() => {
@@ -416,6 +448,15 @@ export default function AdminDashboard() {
           <TabsTrigger value="activities" className="text-xs md:text-sm">
             <Activity className="mr-2 h-4 w-4" />
             Activités
+          </TabsTrigger>
+          {/* Phase 7 sub-chantier 4 commit 2/4 — T&S queues */}
+          <TabsTrigger value="ts-reviews" className="text-xs md:text-sm">
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            T&amp;S Reviews
+          </TabsTrigger>
+          <TabsTrigger value="ts-reports" className="text-xs md:text-sm">
+            <ShieldAlert className="mr-2 h-4 w-4" />
+            T&amp;S Reports
           </TabsTrigger>
         </TabsList>
 
@@ -1020,6 +1061,16 @@ export default function AdminDashboard() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ==================== T&S REVIEWS QUEUE (sub-chantier 4 commit 2/4) ==================== */}
+        <TabsContent value="ts-reviews" className="space-y-6">
+          <TandSReviewsPanel adminUid={adminUid} />
+        </TabsContent>
+
+        {/* ==================== T&S REPORTS QUEUE (sub-chantier 4 commit 2/4) ==================== */}
+        <TabsContent value="ts-reports" className="space-y-6">
+          <TandSReportsPanel adminUid={adminUid} />
         </TabsContent>
       </Tabs>
     </div>
