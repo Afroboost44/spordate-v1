@@ -9,19 +9,19 @@
  * - Si Resend API throw → catch, log erreur, retourne ok=false + error string (jamais throw)
  * - Permet de coder le flow ban/review sans bloquer si infra email pas encore configurée
  *
- * Usage Phase 7 sub-chantier 5+ :
+ * Usage Phase 7 :
  *   import { sendEmail } from '@/lib/email/sendEmail';
  *
  *   const result = await sendEmail({
  *     to: 'user@example.com',
- *     templateName: 'banNotification',
+ *     templateName: 'userSanctionNotice',
  *     templateData: {
  *       userName: 'Marie',
- *       banLevel: 'suspension_7j',
- *       categoryLabel: 'Harcèlement',
- *       expiresAt: '11 mai 2026',
+ *       level: 'suspension_7d',
+ *       reason: 'reports_threshold',
+ *       endsAtFormatted: '11 mai 2026',
+ *       appealable: true,
  *       appealEmail: 'contact@spordateur.com',
- *       appealSlaDays: 7,
  *     },
  *   });
  *

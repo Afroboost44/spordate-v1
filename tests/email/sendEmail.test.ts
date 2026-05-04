@@ -100,16 +100,18 @@ async function main(): Promise<void> {
   __setResendForTesting(null);
 
   {
+    // Sub-chantier 6 cleanup : banNotification legacy retiré, on utilise userSanctionNotice
+    // (template fonctionnellement équivalent, cohérent data model UserSanction).
     const result = await sendEmail({
       to: 'user@example.com',
-      templateName: 'banNotification',
+      templateName: 'userSanctionNotice',
       templateData: {
         userName: 'Marie',
-        banLevel: 'suspension_7j',
-        categoryLabel: 'Harcèlement',
-        expiresAt: '11 mai 2026',
+        level: 'suspension_7d',
+        reason: 'reports_threshold',
+        endsAtFormatted: '11 mai 2026',
+        appealable: true,
         appealEmail: 'contact@spordateur.com',
-        appealSlaDays: 7,
       },
     });
     assertEq(result.ok, true, 'E1 ok=true (degradation gracieuse)');
@@ -183,22 +185,24 @@ async function main(): Promise<void> {
     __setResendForTesting(null);
   }
 
-  section('E4 : Template rendering banNotification — fields attendus dans html');
+  section('E4 : Template rendering userSanctionNotice — fields attendus dans html');
 
   {
-    const { subject, html } = renderTemplate('banNotification', {
+    // Sub-chantier 6 cleanup : remplacé banNotification legacy par userSanctionNotice
+    // (template Phase 7 actif, cohérent data model UserSanction).
+    const { subject, html } = renderTemplate('userSanctionNotice', {
       userName: 'Bassi',
-      banLevel: 'permanent',
-      categoryLabel: 'Comportement agressif',
+      level: 'ban_permanent',
+      reason: 'reports_threshold',
+      appealable: true,
       appealEmail: 'contact@spordateur.com',
-      appealSlaDays: 7,
     });
 
     assertContains(subject, 'Bannissement permanent', 'E4 subject contient "Bannissement permanent"');
     assertContains(html, 'Bassi', 'E4 html contient userName');
-    assertContains(html, 'Comportement agressif', 'E4 html contient categoryLabel');
+    assertContains(html, 'plusieurs signalements', 'E4 html contient reason label (reports_threshold)');
     assertContains(html, 'contact@spordateur.com', 'E4 html contient appealEmail');
-    assertContains(html, '7 jours calendaires', 'E4 html contient slaDays');
+    assertContains(html, '7 jours calendaires', 'E4 html contient SLA appel');
     assertContains(html, '#D91CD2', 'E4 html contient accent color #D91CD2 (charte stricte)');
     assertContains(html, '#000000', 'E4 html contient background #000000 (charte stricte)');
   }

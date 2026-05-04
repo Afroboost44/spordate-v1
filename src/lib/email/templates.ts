@@ -1,5 +1,5 @@
 /**
- * Spordateur — Phase 7 sub-chantier 0
+ * Spordateur — Phase 7 sub-chantier 0 (créé) + sub-chantier 6 (cleanup banNotification legacy)
  * Templates email transactional Phase 7 — wrapper renderTemplate() type-safe.
  *
  * Charte stricte (cohérent UI Phase 5) :
@@ -9,8 +9,9 @@
  * - Pas de gradient (refonte vs templates legacy.ts qui utilisaient violet/rose)
  * - Email-safe HTML (table-based layout, inline styles, pas de CSS Grid/Flexbox)
  *
- * Phase 7 sub-chantier 5 ajoutera la wiring (ban handler appelle sendEmail
- * avec banNotification, etc.). Sub-chantier 0 ne fait que poser la fondation.
+ * Sub-chantier 6 cleanup : `banNotification` legacy retiré (jamais utilisé Phase 7,
+ * remplacé fonctionnellement par `userSanctionNotice` qui supporte les 4 SanctionLevel
+ * cohérents avec le data model UserSanction).
  *
  * Cf. architecture.md §9.sexies pour la doctrine T&S complète.
  */
@@ -21,8 +22,7 @@
 
 export type TemplateName =
   | 'bookingConfirmation' // existing flow Stripe webhook (refactor depuis legacy.ts)
-  | 'banNotification' // T&S — warning / suspension_7j / suspension_30j / permanent
-  | 'reviewReminder' // T&S — push 48h post-session
+  | 'reviewReminder' // T&S — push 48h post-session (Phase 8 wire pending)
   | 'appealAcknowledgment' // T&S — confirme reception appel SLA 7j
   | 'reviewBonusGranted' // T&S Phase 7 commit 5/6 — bonus +5 crédits alloué
   | 'reviewPendingModeration' // T&S Phase 7 commit 5/6 — review 1-2★ en modération
@@ -33,8 +33,6 @@ export type TemplateName =
   | 'partnerNoShowConfirmed' // T&S Phase 7 sub-chantier 3 commit 5/5 — confirm partner check-in
   | 'userSanctionOverturned' // T&S Phase 7 sub-chantier 5 commit 1/3 — admin a annulé sanction
   | 'appealResolved'; // T&S Phase 7 sub-chantier 5 commit 1/3 — résultat appel (uphold/overturn)
-
-export type BanLevel = 'warning' | 'suspension_7j' | 'suspension_30j' | 'permanent';
 
 /** SanctionLevel cohérent src/types/firestore.ts (utilisé par userSanctionNotice). */
 export type SanctionLevelEmail = 'warning' | 'suspension_7d' | 'suspension_30d' | 'ban_permanent';
@@ -50,14 +48,6 @@ export interface TemplateDataMap {
     sessionDate: string; // formatted FR (ex: 'Mardi 14 mai à 17h00')
     amount: number; // CHF (display value, ex: 35)
     bookingId: string;
-  };
-  banNotification: {
-    userName: string;
-    banLevel: BanLevel;
-    categoryLabel: string; // ex: 'Harcèlement', 'Comportement agressif'
-    expiresAt?: string; // formatted FR (sauf permanent où omis)
-    appealEmail: string; // 'contact@spordateur.com'
-    appealSlaDays: number; // 7
   };
   reviewReminder: {
     userName: string;
@@ -191,15 +181,8 @@ function ctaButton(label: string, href: string): string {
 }
 
 // =====================================================================
-// Templates (4)
+// Templates rendering
 // =====================================================================
-
-const BAN_LEVEL_LABELS: Record<BanLevel, string> = {
-  warning: 'Avertissement',
-  suspension_7j: 'Suspension 7 jours',
-  suspension_30j: 'Suspension 30 jours',
-  permanent: 'Bannissement permanent',
-};
 
 function renderBookingConfirmation(d: TemplateDataMap['bookingConfirmation']) {
   const subject = `Réservation confirmée — ${d.sessionTitle}`;
@@ -212,26 +195,6 @@ function renderBookingConfirmation(d: TemplateDataMap['bookingConfirmation']) {
     ${p(`Référence : ${d.bookingId}`, '40')}
   `;
   return { subject, html: layout({ headerBadgeText: 'Réservation', bodyHtml: body }) };
-}
-
-function renderBanNotification(d: TemplateDataMap['banNotification']) {
-  const levelLabel = BAN_LEVEL_LABELS[d.banLevel];
-  const subject = `${levelLabel} — Spordateur`;
-  const expirationLine =
-    d.expiresAt && d.banLevel !== 'permanent'
-      ? p(`<strong style="color:#ffffff;">Fin de la sanction</strong> : ${d.expiresAt}`)
-      : d.banLevel === 'permanent'
-        ? p(`Cette mesure est <strong style="color:#ffffff;">permanente</strong>.`)
-        : '';
-  const body = `
-    ${h1(`${levelLabel}`)}
-    ${p(`Bonjour ${d.userName},`)}
-    ${p(`Suite à un signalement de catégorie <strong style="color:#ffffff;">${d.categoryLabel}</strong>, ton compte fait l'objet d'une sanction Trust & Safety.`)}
-    ${expirationLine}
-    ${p(`Tu disposes d'un droit d'appel (1× par niveau de sanction). Pour faire appel, réponds à cet email ou écris à <strong style="color:#D91CD2;">${d.appealEmail}</strong> avec le motif détaillé. Délai de réponse admin : <strong style="color:#ffffff;">${d.appealSlaDays} jours calendaires</strong>.`)}
-    ${p(`Conformément à la nLPD Art. 19, cette décision est motivée et susceptible de recours. Cf. CGU sections 7.bis (sanctions) et 8 (droits) sur spordateur.com/terms.`, '40')}
-  `;
-  return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
 }
 
 function renderReviewReminder(d: TemplateDataMap['reviewReminder']) {
@@ -477,8 +440,6 @@ export function renderTemplate<T extends TemplateName>(
   switch (templateName) {
     case 'bookingConfirmation':
       return renderBookingConfirmation(data as TemplateDataMap['bookingConfirmation']);
-    case 'banNotification':
-      return renderBanNotification(data as TemplateDataMap['banNotification']);
     case 'reviewReminder':
       return renderReviewReminder(data as TemplateDataMap['reviewReminder']);
     case 'appealAcknowledgment':

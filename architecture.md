@@ -827,6 +827,73 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 **Sub-chantier prochain** ⏳ À démarrer après 5
 - Sub-chantier 6 — Card session entry point block + ReportButton + tests + polish (~3-4h)
 
+---
+
+## Phase 7 — État final (mai 2026)
+
+> Section close-out consolidée — récap commits + tests + statut shipped vs différé.
+
+### Commits Phase 7 sub-chantiers 0-6
+
+| Sub-chantier | Commits hashs | Tests cumul. | Statut |
+|---|---|---|---|
+| 0 — CGU + Resend + audienceType | `c81df6e` `6e5eada` `3dc206e` | 20 (email) | ✅ |
+| 1 — Reviews publiques | `7e1a126` `a54c3f3` `66e74d6` `6fc7890` `9f6fe66` `e1227a7` | 82 (64+18) | ✅ |
+| 2 — Block list user-side | `bc3798a` `8767bc6` `c3463a0` `1855745` | 48 (36+12) | ✅ |
+| 3 — Reports + No-show | `1fdc519` `79474a7` `aac0558` `21a9392` `d761500` | 124 (51+47+26) | ✅ |
+| 4 — Admin moderation MVP | `b8ab6e2` `a30773b` `0dadde7` `a6d878f` | 63 (19+13+5+26) | ✅ |
+| 5 — Email + audit trail | `4eb9f89` `2db3105` `662c33d` | 35 (24+11) | ✅ |
+| 6 — Polish + close-out final | *(commits 1/2 + 2/2)* | (no nouveau) | ✅ |
+
+**Total Phase 7 T&S** : ~372 tests cumulatifs (1 seul build, 0 régression accumulée).
+
+### Shipped Phase 7 (couvert par les 6 sub-chantiers)
+
+✅ Reviews 1-5★ + anonymisation graduée 1-2★ + cooling-off 24h + édition 24h
+✅ Block list user-side mutuelle invisibilité (silencieux) + page `/profile/blocks`
+✅ Reports formels 6 catégories anonymes + rate limit 3/jour + dédup + thresholds 12mo
+✅ No-show workflow partner check-in (grâce 30min + undo 24h + thresholds 90j)
+✅ Sanctions auto 4 niveaux + appeals 1×/niveau + admin overturn manuel
+✅ Admin moderation dashboard 4 tabs (Reviews / Reports / Sanctions / Appeals)
+✅ Email notifications Resend (12 templates wirés)
+✅ Audit trail `adminActions/` collection (24mo conservation)
+✅ `Activity.audienceType` data model (sans UI active)
+✅ `<SanctionBanner />` global + `<CoInscribedWarning />` partner
+✅ CGU + Privacy + Terms rédigés (LPD/nLPD/LCD compliance)
+
+### Différé Phase 8 (polish + hardening — Cloud Functions / SDK)
+
+⏳ `listAllBlocks` admin via Admin SDK endpoint
+⏳ Cloud Function denorm `users.{uid}.activeSanction*` on userSanctions create/update
+⏳ Cron purge audit trail `/adminActions/` après 24mo
+⏳ Cron purge banlist PII après 24mo
+⏳ `cancelNoShow` recompute threshold automatique si sanction déclenchée par report annulé
+⏳ Push reminder 48h post-session (template `reviewReminder` wire)
+⏳ Stripe API automatisation refund partner no-show level 3
+
+### Différé Phase 9 (UX + features avancées)
+
+⏳ Card session UI participants list complète + entry points block/report participants (Phase 7 wire seulement le partner)
+⏳ Refactor admin auth Firebase Auth role-based (vs localStorage email actuel)
+⏳ Admin UI queue `adminActions/` history + filtres + export CSV
+⏳ IA-assistée Genkit pour modération reviews 1-2★ (volume > 10/jour)
+⏳ Charte stricte appliquée admin dashboard (vs `bg-gray-900` exception actuelle)
+⏳ Excuse pré-session ≥2h avant = no-show pas comptabilisé
+⏳ Visibility réduite algo matching score reviews <3.5★
+⏳ Detection patterns représailles cross-user reviews
+⏳ Female-safety women-priority quota active (audienceType field)
+⏳ Anonymisation soft delete user UI auto
+
+### Documentation Phase 7
+
+- `architecture.md` §9.sexies (sections A-J) — doctrine source de vérité
+- `docs/phase-7-trust-safety.md` — guide consolidé pour future contributors (~300 lignes : architecture + doctrine + tests + wiring + TODO)
+- `src/app/terms/page.tsx` §7.bis + §7.ter — CGU rédigées
+- `src/app/privacy/page.tsx` — mention adminActions, bans, conservation
+- `README.md` — section Trust & Safety dédiée
+
+**Conclusion** : Phase 7 T&S = MVP fonctionnel complet. Spordateur est désormais conforme nLPD/RGPD/LCD avec workflow ban équitable + admin moderation dashboard + audit trail. Prête à gérer les premiers incidents user au launch.
+
 ### A. Doctrine économique — T&S = pré-requis rétention
 
 **Règle** : sans T&S structurée, la rétention femmes est compromise. Femmes ≈ 50% des users cibles. Une mauvaise expérience non gérée → quitte la plateforme + word-of-mouth négatif → spirale.
