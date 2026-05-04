@@ -824,8 +824,22 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 - **Conservation audit trail** : 24 mois (doctrine §H), purge cron Phase 9
 - **Q5 best-effort** logs `[logAdminAction] write failed (silent)` quand DI seam non injecté côté tests existants — comportement attendu, prouve robustesse pattern
 
-**Sub-chantier prochain** ⏳ À démarrer après 5
-- Sub-chantier 6 — Card session entry point block + ReportButton + tests + polish (~3-4h)
+**Sub-chantier 6 — Card session entry point + polish + close-out final Phase 7** ✅ COMPLET (2 commits)
+- 1/2 `21f20cc` : Polish + cleanup (banNotification template legacy retiré) + documentation consolidée `docs/phase-7-trust-safety.md` (229 lignes) + README full rewrite + architecture.md récap "Phase 7 — État final"
+- 2/2 *(this commit)* : Card session entry point pragmatique (`<SessionTSActions />` Client island sur `/sessions/[sessionId]` — block + report ciblant partner + lien `/profile/blocks`) + close-out final Phase 7
+- Cumulatif tests sub-chantier 6 : aucun nouveau (polish + cleanup, no regression confirmé)
+- **Décision Q1 hybride** : entry point pragmatique partner (80% use case couvert), UI complete participants list différée Phase 9 (privacy + UX scope)
+
+**🎉 PHASE 7 ENTIÈRE OFFICIELLEMENT CLOSE 🎉**
+
+**Phase 7 = MVP Trust & Safety production-ready** :
+- 6 sub-chantiers (0+1+2+3+4+5+6) — 100% shipped
+- 26 commits cumulés (de `c81df6e` à *this*)
+- ~372 tests passing
+- Doctrine §9.sexies appliquée intégralement (sections A-J)
+- Compliance LPD/nLPD/RGPD/LCD opérationnelle
+- Admin moderation dashboard MVP utilisable + audit trail 24mo
+- Email notifications wirées + appeals 1×/niveau via doctrine §F
 
 ---
 
@@ -843,7 +857,7 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 | 3 — Reports + No-show | `1fdc519` `79474a7` `aac0558` `21a9392` `d761500` | 124 (51+47+26) | ✅ |
 | 4 — Admin moderation MVP | `b8ab6e2` `a30773b` `0dadde7` `a6d878f` | 63 (19+13+5+26) | ✅ |
 | 5 — Email + audit trail | `4eb9f89` `2db3105` `662c33d` | 35 (24+11) | ✅ |
-| 6 — Polish + close-out final | *(commits 1/2 + 2/2)* | (no nouveau) | ✅ |
+| 6 — Polish + close-out final | `21f20cc` `<this>` | (no nouveau) | ✅ |
 
 **Total Phase 7 T&S** : ~372 tests cumulatifs (1 seul build, 0 régression accumulée).
 
@@ -893,6 +907,8 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 - `README.md` — section Trust & Safety dédiée
 
 **Conclusion** : Phase 7 T&S = MVP fonctionnel complet. Spordateur est désormais conforme nLPD/RGPD/LCD avec workflow ban équitable + admin moderation dashboard + audit trail. Prête à gérer les premiers incidents user au launch.
+
+**Prochaine phase** : **Phase 8** — Chat post-event + retention + IA + invite Individuel (cf. ledger phase ci-dessous, §F invitation réciproque). Ouvre nouvelle stratosphère engagement utilisateur après le solid floor T&S Phase 7.
 
 ### A. Doctrine économique — T&S = pré-requis rétention
 

@@ -38,6 +38,7 @@ import {
 import { SessionHero } from '@/components/sessions/SessionHero';
 import { SessionDetailsPanel } from '@/components/sessions/SessionDetailsPanel';
 import { PricingTimeline } from '@/components/sessions/PricingTimeline';
+import { SessionTSActions } from '@/components/sessions/SessionTSActions';
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
@@ -167,6 +168,16 @@ export default async function SessionDetailPage({ params }: PageProps) {
               {activity.description}
             </p>
           </section>
+        )}
+
+        {/* ============= SÉCURITÉ T&S — Phase 7 sub-chantier 6 commit 2/2 ============= */}
+        {/* Doctrine §9.sexies E "card session entry point" — wire seulement le partner Phase 7.
+            UI complete participants list différée Phase 9 (privacy + UX scope). */}
+        {activity?.partnerId && (
+          <SessionTSActions
+            partnerId={activity.partnerId}
+            partnerName={activity.partnerName ?? ''}
+          />
         )}
       </div>
     </div>
