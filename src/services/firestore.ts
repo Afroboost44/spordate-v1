@@ -1230,6 +1230,84 @@ export async function getSessionsByActivity(activityId: string): Promise<Session
   }
 }
 
+// ----- Update partiel (Phase 6 anti-cheat V7) -----
+
+/**
+ * Update partiel d'une session avec validation anti-cheat.
+ *
+ * À utiliser obligatoirement Phase 7+ par tout code serveur qui mute une session
+ * (admin UI, partner dashboard, etc.). NE remplace PAS bookSession (qui a sa propre tx
+ * pour gérer currentParticipants).
+ *
+ * Validations actuelles (Phase 6 chantier B) :
+ * - V7 : maxParticipants (si présent dans updates) ≥ session.currentParticipants actuel.
+ *
+ * Validations FUTURES (chantier C / Phase 8) :
+ * - C : pricingTiers freeze après 1er booking (currentParticipants > 0)
+ * - 8 : status downgrade prevention (e.g. 'completed' → 'open' interdit)
+ * - 8 : startAt ne peut pas devenir < now sur session active
+ *
+ * Champs explicitement exclus du Pick<> (réservés webhook Stripe Phase 3 + cron Phase 6) :
+ * - currentParticipants, currentTier, currentPrice
+ *
+ * Defense en 2 couches : si appelé côté client, les rules Phase 6
+ * (validMaxParticipantsUpdate) bloqueront aussi un downgrade illégitime.
+ *
+ * @param sessionId  ID de la session à updater
+ * @param updates    Champs à modifier (Partial). Server-managed fields excluded by type.
+ * @throws Error('session-not-found') si la session n'existe pas
+ * @throws Error('maxParticipants-cannot-be-below-currentParticipants') avec err.cause
+ *         { attempted, current, sessionId } pour debug admin Phase 7+
+ */
+export async function updateSession(
+  sessionId: string,
+  updates: Partial<Pick<
+    Session,
+    | 'maxParticipants'
+    | 'status'
+    | 'pricingTiers'
+    | 'startAt'
+    | 'endAt'
+    | 'chatOpenAt'
+    | 'chatCloseAt'
+    | 'title'
+    | 'sport'
+    | 'city'
+  >>,
+): Promise<void> {
+  const fbDb = getSessionsDb();
+  const ref = doc(fbDb, 'sessions', sessionId);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) {
+    throw new Error('session-not-found');
+  }
+  const session = snap.data() as Session;
+
+  // V7 guard : downgrade strict bloqué (égalité OK = ferme aux nouvelles bookings)
+  if (
+    updates.maxParticipants !== undefined &&
+    updates.maxParticipants < session.currentParticipants
+  ) {
+    throw new Error('maxParticipants-cannot-be-below-currentParticipants', {
+      cause: {
+        attempted: updates.maxParticipants,
+        current: session.currentParticipants,
+        sessionId,
+      },
+    });
+  }
+
+  // Defensive runtime filter — TypeScript Pick<> exclut déjà les server-managed fields,
+  // mais des callers JS (ou `as any`) pourraient bypasser. Filter no-op si TS respecté.
+  // Spread inline cohérent avec pattern updateUser/updateActivity du fichier (pas de cast `any`).
+  const SERVER_MANAGED = ['currentParticipants', 'currentTier', 'currentPrice'] as const;
+  const filteredUpdates = Object.fromEntries(
+    Object.entries(updates).filter(([k]) => !SERVER_MANAGED.includes(k as never)),
+  );
+
+  await updateDoc(ref, { ...filteredUpdates, updatedAt: serverTimestamp() });
+}
+
 // ----- Réservation transactionnelle -----
 
 /**

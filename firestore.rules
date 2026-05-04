@@ -14,6 +14,17 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == "admin";
     }
 
+    // Phase 6 anti-cheat V7 — interdit le downgrade de Session.maxParticipants sous currentParticipants.
+    // Autorise : upgrade (5→10), no-change, ou égalité (5→5 = ferme aux nouvelles bookings).
+    // Bloque  : downgrade strict (8→3 si currentParticipants=5).
+    // Admin skip cette garde via la branche isAdmin() du allow update sessions — emergency edits permises.
+    // Note : helper spécifique sessions/{id} (accède maxParticipants + currentParticipants) ; n'invoquer
+    //        que depuis ce match block, sinon résultats imprévisibles sur autres collections.
+    function validMaxParticipantsUpdate() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['maxParticipants'])
+        || request.resource.data.maxParticipants >= resource.data.currentParticipants;
+    }
+
     // === USERS ===
     match /users/{userId} {
       allow read: if isAuth();
@@ -198,6 +209,7 @@ service cloud.firestore {
           || (
             get(/databases/$(database)/documents/activities/$(resource.data.activityId)).data.partnerId == request.auth.uid
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['currentParticipants', 'currentTier', 'currentPrice'])
+            && validMaxParticipantsUpdate()
           )
         );
       allow delete: if isAdmin();
