@@ -23,7 +23,13 @@ import {
   where,
   type Firestore,
 } from 'firebase/firestore';
-import type { Booking, CreditType, Session } from '@/types/firestore';
+import type {
+  Activity,
+  Booking,
+  CreditType,
+  Session,
+  UserProfile,
+} from '@/types/firestore';
 
 // =====================================================================
 // DI seams (test injection)
@@ -203,6 +209,59 @@ export async function findLatestSharedPastSession(
   return validSessions.reduce((latest, s) =>
     s.endAt.toMillis() > latest.endAt.toMillis() ? s : latest,
   );
+}
+
+/**
+ * Contexte minimal nécessaire à l'envoi d'un email review :
+ * - email (recipient — null si user introuvable, dans ce cas pas d'email envoyé)
+ * - userName (personnalisation greeting, '' fallback)
+ * - sessionTitle (subject + body, '' fallback)
+ *
+ * Best-effort : tous les fetches sont try/catch, retournent valeurs par défaut.
+ * Utilisé par awardReviewBonus, createReview (pending branch), moderateReview.
+ */
+export interface ReviewEmailContext {
+  email: string | null;
+  userName: string;
+  sessionTitle: string;
+}
+
+export async function fetchReviewEmailContext(
+  userId: string,
+  activityId: string,
+): Promise<ReviewEmailContext> {
+  const fbDb = getReviewsDb();
+  let email: string | null = null;
+  let userName = '';
+  let sessionTitle = '';
+
+  try {
+    const userSnap = await getDoc(doc(fbDb, 'users', userId));
+    if (userSnap.exists()) {
+      const data = userSnap.data() as UserProfile;
+      email = data.email ?? null;
+      userName = data.displayName ?? '';
+    }
+  } catch (err) {
+    console.warn('[fetchReviewEmailContext] user fetch failed (non-blocking)', {
+      userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  try {
+    const actSnap = await getDoc(doc(fbDb, 'activities', activityId));
+    if (actSnap.exists()) {
+      sessionTitle = (actSnap.data() as Activity).title ?? '';
+    }
+  } catch (err) {
+    console.warn('[fetchReviewEmailContext] activity fetch failed (non-blocking)', {
+      activityId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  return { email, userName, sessionTitle };
 }
 
 /**

@@ -23,7 +23,10 @@ export type TemplateName =
   | 'bookingConfirmation' // existing flow Stripe webhook (refactor depuis legacy.ts)
   | 'banNotification' // T&S — warning / suspension_7j / suspension_30j / permanent
   | 'reviewReminder' // T&S — push 48h post-session
-  | 'appealAcknowledgment'; // T&S — confirme reception appel SLA 7j
+  | 'appealAcknowledgment' // T&S — confirme reception appel SLA 7j
+  | 'reviewBonusGranted' // T&S Phase 7 commit 5/6 — bonus +5 crédits alloué
+  | 'reviewPendingModeration' // T&S Phase 7 commit 5/6 — review 1-2★ en modération
+  | 'reviewModerationDecision'; // T&S Phase 7 commit 5/6 — décision admin publish/reject
 
 export type BanLevel = 'warning' | 'suspension_7j' | 'suspension_30j' | 'permanent';
 
@@ -56,6 +59,24 @@ export interface TemplateDataMap {
     banLevelLabel: string; // ex: 'Suspension 7 jours'
     receivedAt: string; // ISO ou formatted FR
     slaDays: number; // 7
+  };
+  reviewBonusGranted: {
+    userName: string;
+    sessionTitle: string; // titre activity (peut être vide en fallback)
+    rating: number; // 1-5 — note de la review qui a généré le bonus
+    creditsAdded: number; // 5 (cohérent REVIEW_BONUS_CREDITS)
+  };
+  reviewPendingModeration: {
+    userName: string;
+    sessionTitle: string;
+    rating: 1 | 2; // 1-2★ uniquement (3-5★ auto-publish, pas de modération)
+    slaDays: number; // 7 (cohérent ban appeal SLA)
+  };
+  reviewModerationDecision: {
+    userName: string;
+    decision: 'publish' | 'reject';
+    rating: number;
+    sessionTitle: string;
   };
 }
 
@@ -176,6 +197,59 @@ function renderAppealAcknowledgment(d: TemplateDataMap['appealAcknowledgment']) 
   return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
 }
 
+function renderReviewBonusGranted(d: TemplateDataMap['reviewBonusGranted']) {
+  const titleSuffix = d.sessionTitle ? ` sur ${d.sessionTitle}` : '';
+  const subject = `Merci pour ton avis ★${d.rating} — +${d.creditsAdded} crédits chat`;
+  const body = `
+    ${h1(`Merci pour ton avis !`)}
+    ${p(`Bonjour ${d.userName || 'membre Spordateur'},`)}
+    ${p(`Ton avis ★${d.rating}${titleSuffix} vient d'être publié.`)}
+    ${p(`<strong style="color:#D91CD2;">+${d.creditsAdded} crédits chat</strong> ont été ajoutés à ton compte en remerciement. Ils te permettront d'échanger avec d'autres membres après tes prochaines sessions.`)}
+    ${p(`Continue à partager tes expériences — ça aide la communauté Spordateur à choisir les bonnes sessions.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Avis publié', bodyHtml: body }) };
+}
+
+function renderReviewPendingModeration(d: TemplateDataMap['reviewPendingModeration']) {
+  const titleSuffix = d.sessionTitle ? ` sur ${d.sessionTitle}` : '';
+  const subject = `Ton avis${titleSuffix} est en modération`;
+  const body = `
+    ${h1(`Avis bien reçu`)}
+    ${p(`Bonjour ${d.userName || 'membre Spordateur'},`)}
+    ${p(`Ton avis ★${d.rating}${titleSuffix} a bien été reçu.`)}
+    ${p(`Conformément à notre doctrine de modération (CGU section 7.ter), les avis ★1 et ★2 sont publiés <strong style="color:#ffffff;">anonymement après validation</strong> par notre équipe modération. Cela protège l'auteur de tout backlash et permet de filtrer les attaques personnelles.`)}
+    ${p(`Délai de modération : <strong style="color:#ffffff;">${d.slaDays} jours calendaires maximum</strong>. Tu seras notifié par email dès que la décision est prise (publication ou refus motivé).`)}
+    ${p(`Pour toute question, contacte-nous à contact@spordateur.com.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Avis en modération', bodyHtml: body }) };
+}
+
+function renderReviewModerationDecision(d: TemplateDataMap['reviewModerationDecision']) {
+  const titleSuffix = d.sessionTitle ? ` sur ${d.sessionTitle}` : '';
+  if (d.decision === 'publish') {
+    const subject = `Ton avis${titleSuffix} a été publié`;
+    const body = `
+      ${h1(`Ton avis est publié`)}
+      ${p(`Bonjour ${d.userName || 'membre Spordateur'},`)}
+      ${p(`Ton avis ★${d.rating}${titleSuffix} a été publié anonymement après modération de notre équipe (cohérent CGU section 7.ter).`)}
+      ${p(`Tu reçois également <strong style="color:#D91CD2;">+5 crédits chat</strong> en bonus pour ton retour. Merci pour ta contribution à la qualité de la communauté Spordateur.`)}
+      ${p(`Pour tout désaccord ou question, contacte-nous à contact@spordateur.com.`, '40')}
+    `;
+    return { subject, html: layout({ headerBadgeText: 'Avis publié', bodyHtml: body }) };
+  }
+  // reject
+  const subject = `Ton avis${titleSuffix} n'a pas été retenu`;
+  const body = `
+    ${h1(`Avis non retenu`)}
+    ${p(`Bonjour ${d.userName || 'membre Spordateur'},`)}
+    ${p(`Ton avis ★${d.rating}${titleSuffix} n'a pas été retenu pour publication après modération de notre équipe.`)}
+    ${p(`Si tu souhaites partager une expérience constructive, tu peux essayer de reformuler ton commentaire en restant factuel et respectueux. Cf. CGU section 7.ter pour les attentes éditoriales.`)}
+    ${p(`Pour tout désaccord, tu peux contester cette décision en répondant à cet email avec tes éléments. Notre équipe revoit les contestations sous 7 jours.`)}
+    ${p(`Contact direct : <strong style="color:#D91CD2;">contact@spordateur.com</strong>.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Modération', bodyHtml: body }) };
+}
+
 // =====================================================================
 // Public renderTemplate (type-safe dispatch)
 // =====================================================================
@@ -193,6 +267,12 @@ export function renderTemplate<T extends TemplateName>(
       return renderReviewReminder(data as TemplateDataMap['reviewReminder']);
     case 'appealAcknowledgment':
       return renderAppealAcknowledgment(data as TemplateDataMap['appealAcknowledgment']);
+    case 'reviewBonusGranted':
+      return renderReviewBonusGranted(data as TemplateDataMap['reviewBonusGranted']);
+    case 'reviewPendingModeration':
+      return renderReviewPendingModeration(data as TemplateDataMap['reviewPendingModeration']);
+    case 'reviewModerationDecision':
+      return renderReviewModerationDecision(data as TemplateDataMap['reviewModerationDecision']);
     default: {
       // Exhaustive check — TypeScript should error if a new TemplateName is added without case
       const _exhaustive: never = templateName;

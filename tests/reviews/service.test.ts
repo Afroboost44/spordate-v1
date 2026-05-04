@@ -52,6 +52,7 @@ import {
   softDeleteReview,
   type CreditsAdder,
 } from '../../src/lib/reviews';
+import { __setResendForTesting } from '../../src/lib/email/sendEmail';
 import type {
   Activity,
   Booking,
@@ -184,6 +185,30 @@ function makeMockCreditsAdder(): { adder: CreditsAdder; calls: CreditsAdderCall[
     return newBalance;
   };
   return { adder, calls };
+}
+
+// Mock Resend (cohérent sub-chantier 0 sendEmail.test.ts pattern, spy track-only)
+interface ResendSendArgs {
+  from?: string;
+  to?: string | string[];
+  subject?: string;
+  html?: string;
+}
+
+function makeMockResend(): {
+  resend: { emails: { send: (args: ResendSendArgs) => Promise<{ data: { id: string }; error: null }> } };
+  calls: ResendSendArgs[];
+} {
+  const calls: ResendSendArgs[] = [];
+  const resend = {
+    emails: {
+      send: async (args: ResendSendArgs) => {
+        calls.push(args);
+        return { data: { id: `mock_msg_${calls.length}` }, error: null };
+      },
+    },
+  };
+  return { resend, calls };
 }
 
 // =====================================================================
@@ -863,6 +888,270 @@ async function main(): Promise<void> {
           `R24 anonymized review (rating=${r.rating}) → reviewerId NON résolu dans Map`,
         );
       }
+    }
+
+    // ===================================================================
+    // R25-R28 : Email wiring (Phase 7 sub-chantier 1 commit 5/6)
+    // ===================================================================
+    section('Email wiring : reviewBonusGranted, reviewPendingModeration, reviewModerationDecision');
+
+    // R25 : createReview 5★ auto-publish → 1 email reviewBonusGranted (via awardReviewBonus)
+    {
+      const ACTIVITY_J = 'act_scenarioJ_email';
+      const REVIEWER_J = 'user_jean_email';
+      const REVIEWEE_J = 'user_julie_email';
+
+      await setupActivity(fbDb, { activityId: ACTIVITY_J, partnerId: PARTNER_ID });
+      await setupSession(fbDb, {
+        sessionId: 'sess_J1',
+        activityId: ACTIVITY_J,
+        endAtMs: threeDaysAgoMs,
+      });
+      await setupBooking(fbDb, {
+        bookingId: 'book_J1_jean',
+        userId: REVIEWER_J,
+        sessionId: 'sess_J1',
+        activityId: ACTIVITY_J,
+      });
+      await setupBooking(fbDb, {
+        bookingId: 'book_J1_julie',
+        userId: REVIEWEE_J,
+        sessionId: 'sess_J1',
+        activityId: ACTIVITY_J,
+      });
+      // User doc avec email pour permettre l'envoi
+      await setDoc(doc(fbDb, 'users', REVIEWER_J), {
+        uid: REVIEWER_J,
+        email: 'jean@test.local',
+        displayName: 'Jean Tester',
+      });
+
+      const { resend: r25Resend, calls: r25EmailCalls } = makeMockResend();
+      __setResendForTesting(r25Resend as unknown as Parameters<typeof __setResendForTesting>[0]);
+
+      await createReview({
+        activityId: ACTIVITY_J,
+        reviewerId: REVIEWER_J,
+        revieweeId: REVIEWEE_J,
+        rating: 5,
+        comment: 'Super session, vraiment top !',
+      });
+
+      assertEq(
+        r25EmailCalls.length,
+        1,
+        'R25 5★ auto-publish → 1 email envoyé (reviewBonusGranted)',
+      );
+      if (r25EmailCalls.length > 0) {
+        const subject = String(r25EmailCalls[0].subject ?? '');
+        assertEq(
+          subject.includes('Merci') && subject.includes('★5') && subject.includes('+5 crédits'),
+          true,
+          `R25 subject contient "Merci"+"★5"+"+5 crédits" (got: "${subject}")`,
+        );
+      }
+      __setResendForTesting(null);
+    }
+
+    // R26 : createReview 1★ pending → 1 email reviewPendingModeration
+    {
+      const ACTIVITY_K = 'act_scenarioK_email';
+      const REVIEWER_K = 'user_kevin_email';
+      const REVIEWEE_K = 'user_lola_email';
+
+      await setupActivity(fbDb, { activityId: ACTIVITY_K, partnerId: PARTNER_ID });
+      await setupSession(fbDb, {
+        sessionId: 'sess_K1',
+        activityId: ACTIVITY_K,
+        endAtMs: threeDaysAgoMs,
+      });
+      await setupBooking(fbDb, {
+        bookingId: 'book_K1_kevin',
+        userId: REVIEWER_K,
+        sessionId: 'sess_K1',
+        activityId: ACTIVITY_K,
+      });
+      await setupBooking(fbDb, {
+        bookingId: 'book_K1_lola',
+        userId: REVIEWEE_K,
+        sessionId: 'sess_K1',
+        activityId: ACTIVITY_K,
+      });
+      await setDoc(doc(fbDb, 'users', REVIEWER_K), {
+        uid: REVIEWER_K,
+        email: 'kevin@test.local',
+        displayName: 'Kevin Tester',
+      });
+
+      const { resend: r26Resend, calls: r26EmailCalls } = makeMockResend();
+      __setResendForTesting(r26Resend as unknown as Parameters<typeof __setResendForTesting>[0]);
+
+      await createReview({
+        activityId: ACTIVITY_K,
+        reviewerId: REVIEWER_K,
+        revieweeId: REVIEWEE_K,
+        rating: 1,
+        comment: 'Comportement vraiment inapproprié pendant la session',
+      });
+
+      assertEq(
+        r26EmailCalls.length,
+        1,
+        'R26 1★ pending → 1 email envoyé (reviewPendingModeration)',
+      );
+      if (r26EmailCalls.length > 0) {
+        const subject = String(r26EmailCalls[0].subject ?? '');
+        assertEq(
+          subject.includes('modération'),
+          true,
+          `R26 subject contient "modération" (got: "${subject}")`,
+        );
+      }
+      __setResendForTesting(null);
+    }
+
+    // R27 : moderateReview decision='publish' sur 1★ pending → 2 emails
+    //  (reviewBonusGranted via awardReviewBonus + reviewModerationDecision publish)
+    {
+      const ACTIVITY_L = 'act_scenarioL_email';
+      const REVIEWER_L = 'user_luc_email';
+      const REVIEWEE_L = 'user_marie_email';
+
+      await setupActivity(fbDb, { activityId: ACTIVITY_L, partnerId: PARTNER_ID });
+      await setupSession(fbDb, {
+        sessionId: 'sess_L1',
+        activityId: ACTIVITY_L,
+        endAtMs: threeDaysAgoMs,
+      });
+      await setupBooking(fbDb, {
+        bookingId: 'book_L1_luc',
+        userId: REVIEWER_L,
+        sessionId: 'sess_L1',
+        activityId: ACTIVITY_L,
+      });
+      await setupBooking(fbDb, {
+        bookingId: 'book_L1_marie',
+        userId: REVIEWEE_L,
+        sessionId: 'sess_L1',
+        activityId: ACTIVITY_L,
+      });
+      await setDoc(doc(fbDb, 'users', REVIEWER_L), {
+        uid: REVIEWER_L,
+        email: 'luc@test.local',
+        displayName: 'Luc Tester',
+      });
+
+      // Étape 1 : créer review 2★ pending (utilise un mock Resend pour swallow l'email pending,
+      // pas dans le périmètre de R27)
+      const { resend: r27ResendSetup } = makeMockResend();
+      __setResendForTesting(r27ResendSetup as unknown as Parameters<typeof __setResendForTesting>[0]);
+      const r27CreateResult = await createReview({
+        activityId: ACTIVITY_L,
+        reviewerId: REVIEWER_L,
+        revieweeId: REVIEWEE_L,
+        rating: 2,
+        comment: 'Pas top du tout, comportement bizarre observé',
+      });
+      assertEq(r27CreateResult.status, 'pending', 'R27 setup : 2★ → status pending OK');
+      __setResendForTesting(null);
+
+      // Étape 2 : modérer publish — frais mock pour capter les 2 emails
+      const { resend: r27Resend, calls: r27EmailCalls } = makeMockResend();
+      __setResendForTesting(r27Resend as unknown as Parameters<typeof __setResendForTesting>[0]);
+
+      await moderateReview({
+        reviewId: r27CreateResult.reviewId,
+        decision: 'publish',
+        adminId: 'admin_alice',
+      });
+
+      assertEq(
+        r27EmailCalls.length,
+        2,
+        'R27 modération publish → 2 emails (reviewBonusGranted + reviewModerationDecision)',
+      );
+      if (r27EmailCalls.length === 2) {
+        const subjects = r27EmailCalls.map((c) => String(c.subject ?? '')).join(' | ');
+        // L'un des 2 doit contenir "Merci" (bonus), l'autre doit contenir "publié" (decision)
+        const hasBonus = r27EmailCalls.some((c) => String(c.subject ?? '').includes('Merci'));
+        const hasDecision = r27EmailCalls.some((c) => String(c.subject ?? '').includes('publié'));
+        assertEq(
+          hasBonus && hasDecision,
+          true,
+          `R27 emails contiennent "Merci" (bonus) ET "publié" (decision). Subjects: ${subjects}`,
+        );
+      }
+      __setResendForTesting(null);
+    }
+
+    // R28 : moderateReview decision='reject' → 1 email reviewModerationDecision (no bonus)
+    {
+      const ACTIVITY_M = 'act_scenarioM_email';
+      const REVIEWER_M = 'user_max_email';
+      const REVIEWEE_M = 'user_nina_email';
+
+      await setupActivity(fbDb, { activityId: ACTIVITY_M, partnerId: PARTNER_ID });
+      await setupSession(fbDb, {
+        sessionId: 'sess_M1',
+        activityId: ACTIVITY_M,
+        endAtMs: threeDaysAgoMs,
+      });
+      await setupBooking(fbDb, {
+        bookingId: 'book_M1_max',
+        userId: REVIEWER_M,
+        sessionId: 'sess_M1',
+        activityId: ACTIVITY_M,
+      });
+      await setupBooking(fbDb, {
+        bookingId: 'book_M1_nina',
+        userId: REVIEWEE_M,
+        sessionId: 'sess_M1',
+        activityId: ACTIVITY_M,
+      });
+      await setDoc(doc(fbDb, 'users', REVIEWER_M), {
+        uid: REVIEWER_M,
+        email: 'max@test.local',
+        displayName: 'Max Tester',
+      });
+
+      const { resend: r28ResendSetup } = makeMockResend();
+      __setResendForTesting(r28ResendSetup as unknown as Parameters<typeof __setResendForTesting>[0]);
+      const r28CreateResult = await createReview({
+        activityId: ACTIVITY_M,
+        reviewerId: REVIEWER_M,
+        revieweeId: REVIEWEE_M,
+        rating: 2,
+        comment: 'Setup pour test reject — content sans intérêt mais valide',
+      });
+      assertEq(r28CreateResult.status, 'pending', 'R28 setup : 2★ pending OK');
+      __setResendForTesting(null);
+
+      const { resend: r28Resend, calls: r28EmailCalls } = makeMockResend();
+      __setResendForTesting(r28Resend as unknown as Parameters<typeof __setResendForTesting>[0]);
+
+      await moderateReview({
+        reviewId: r28CreateResult.reviewId,
+        decision: 'reject',
+        adminId: 'admin_alice',
+      });
+
+      assertEq(
+        r28EmailCalls.length,
+        1,
+        'R28 modération reject → 1 email envoyé (reviewModerationDecision uniquement, pas de bonus)',
+      );
+      if (r28EmailCalls.length > 0) {
+        const subject = String(r28EmailCalls[0].subject ?? '');
+        assertEq(
+          subject.includes("n'a pas été retenu"),
+          true,
+          `R28 subject contient "n'a pas été retenu" (got: "${subject}")`,
+        );
+        // Vérifier qu'aucun email "Merci" n'a été envoyé (pas de bonus)
+        const hasBonus = r28EmailCalls.some((c) => String(c.subject ?? '').includes('Merci'));
+        assertEq(hasBonus, false, 'R28 PAS d\'email "Merci" (no bonus pour reject)');
+      }
+      __setResendForTesting(null);
     }
   });
 

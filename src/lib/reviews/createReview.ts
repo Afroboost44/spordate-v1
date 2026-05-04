@@ -24,6 +24,7 @@ import {
   serverTimestamp,
 } from 'firebase/firestore';
 import type { Activity, Review, ReviewRating } from '@/types/firestore';
+import { sendEmail } from '@/lib/email/sendEmail';
 import {
   ReviewError,
   COMMENT_MAX_LENGTH,
@@ -31,11 +32,15 @@ import {
   COOLING_OFF_HOURS,
   EDITABLE_HOURS_AFTER_PUB,
   REVIEW_WINDOW_DAYS,
+  fetchReviewEmailContext,
   findLatestSharedPastSession,
   getReviewsDb,
   reviewAlreadyExists,
 } from './_internal';
 import { awardReviewBonus } from './awardReviewBonus';
+
+/** SLA modération admin — cohérent doctrine §9.sexies + sub-chantier 0 CGU. */
+const MODERATION_SLA_DAYS = 7;
 
 export interface CreateReviewInput {
   activityId: string;
@@ -182,7 +187,7 @@ export async function createReview(input: CreateReviewInput): Promise<CreateRevi
   // 7. Write
   await setDoc(ref, payload);
 
-  // 8. Si auto-publish → award bonus (best effort)
+  // 8. Si auto-publish → award bonus (best effort, déclenche aussi email reviewBonusGranted)
   let bonusAwarded = false;
   if (isAutoPublish) {
     try {
@@ -192,6 +197,29 @@ export async function createReview(input: CreateReviewInput): Promise<CreateRevi
       // Log mais n'invalide pas la review créée — la review existe, le bonus
       // peut être réessayé manuellement Phase 8 admin UI ou par un job nightly.
       console.error('[createReview] awardReviewBonus failed (review still created)', {
+        reviewId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  } else {
+    // Branche pending (rating ≤ 2) : email reviewPendingModeration (best-effort)
+    try {
+      const ctx = await fetchReviewEmailContext(input.reviewerId, input.activityId);
+      if (ctx.email) {
+        await sendEmail({
+          to: ctx.email,
+          templateName: 'reviewPendingModeration',
+          templateData: {
+            userName: ctx.userName,
+            sessionTitle: ctx.sessionTitle,
+            rating: input.rating as 1 | 2,
+            slaDays: MODERATION_SLA_DAYS,
+          },
+        });
+      }
+    } catch (err) {
+      // Best-effort : review créée + en pending OK, juste pas d'email
+      console.warn('[createReview] reviewPendingModeration email failed (non-blocking)', {
         reviewId,
         error: err instanceof Error ? err.message : String(err),
       });

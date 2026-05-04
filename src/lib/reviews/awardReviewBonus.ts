@@ -11,10 +11,12 @@
  */
 
 import { doc, runTransaction } from 'firebase/firestore';
+import { sendEmail } from '@/lib/email/sendEmail';
 import type { Review } from '@/types/firestore';
 import {
   ReviewError,
   REVIEW_BONUS_CREDITS,
+  fetchReviewEmailContext,
   getCreditsAdder,
   getReviewsDb,
 } from './_internal';
@@ -70,6 +72,32 @@ export async function awardReviewBonus(reviewId: string): Promise<AwardReviewBon
     `Bonus pour review (${reviewId})`,
     reviewId,
   );
+
+  // Phase 3 : email reviewBonusGranted (best-effort, n'invalide pas le bonus si fail)
+  try {
+    const ctx = await fetchReviewEmailContext(
+      reviewSnapshot.review.reviewerId,
+      reviewSnapshot.review.activityId,
+    );
+    if (ctx.email) {
+      await sendEmail({
+        to: ctx.email,
+        templateName: 'reviewBonusGranted',
+        templateData: {
+          userName: ctx.userName,
+          sessionTitle: ctx.sessionTitle,
+          rating: reviewSnapshot.review.rating,
+          creditsAdded: REVIEW_BONUS_CREDITS,
+        },
+      });
+    }
+  } catch (err) {
+    // Best-effort : crédits déjà alloués, on ne reverse pas. Log + continue.
+    console.warn('[awardReviewBonus] email send failed (non-blocking)', {
+      reviewId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   return {
     awarded: true,

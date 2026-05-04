@@ -24,8 +24,14 @@
  */
 
 import { Timestamp, doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import { sendEmail } from '@/lib/email/sendEmail';
 import type { Review } from '@/types/firestore';
-import { ReviewError, EDITABLE_HOURS_AFTER_PUB, getReviewsDb } from './_internal';
+import {
+  ReviewError,
+  EDITABLE_HOURS_AFTER_PUB,
+  fetchReviewEmailContext,
+  getReviewsDb,
+} from './_internal';
 import { awardReviewBonus } from './awardReviewBonus';
 
 export type ModerationDecision = 'publish' | 'reject';
@@ -79,12 +85,38 @@ export async function moderateReview(input: ModerateReviewInput): Promise<Modera
     });
 
     // Trigger bonus (best effort — la modération réussit même si bonus crash)
+    // Note : awardReviewBonus enverra ALSO un email reviewBonusGranted, donc le user
+    // recevra 2 emails au final (reviewModerationDecision ci-dessous + reviewBonusGranted
+    // depuis awardReviewBonus). C'est intentionnel : transparence sur la décision admin
+    // ET reconnaissance du bonus crédits.
     let bonusAwarded = false;
     try {
       const result = await awardReviewBonus(input.reviewId);
       bonusAwarded = result.awarded;
     } catch (err) {
       console.error('[moderateReview] awardReviewBonus failed (review still published)', {
+        reviewId: input.reviewId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+
+    // Email reviewModerationDecision (best-effort)
+    try {
+      const ctx = await fetchReviewEmailContext(review.reviewerId, review.activityId);
+      if (ctx.email) {
+        await sendEmail({
+          to: ctx.email,
+          templateName: 'reviewModerationDecision',
+          templateData: {
+            userName: ctx.userName,
+            decision: 'publish',
+            rating: review.rating,
+            sessionTitle: ctx.sessionTitle,
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('[moderateReview] reviewModerationDecision (publish) email failed', {
         reviewId: input.reviewId,
         error: err instanceof Error ? err.message : String(err),
       });
@@ -99,5 +131,28 @@ export async function moderateReview(input: ModerateReviewInput): Promise<Modera
     moderatedBy: input.adminId,
     moderatedAt: serverTimestamp(),
   });
+
+  // Email reviewModerationDecision (best-effort, decision='reject')
+  try {
+    const ctx = await fetchReviewEmailContext(review.reviewerId, review.activityId);
+    if (ctx.email) {
+      await sendEmail({
+        to: ctx.email,
+        templateName: 'reviewModerationDecision',
+        templateData: {
+          userName: ctx.userName,
+          decision: 'reject',
+          rating: review.rating,
+          sessionTitle: ctx.sessionTitle,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[moderateReview] reviewModerationDecision (reject) email failed', {
+      reviewId: input.reviewId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
   return { newStatus: 'rejected', bonusAwarded: false };
 }
