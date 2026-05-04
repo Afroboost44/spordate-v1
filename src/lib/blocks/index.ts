@@ -17,6 +17,8 @@ export { isBlocked } from './isBlocked';
 export { getBlockedByMe } from './getBlockedByMe';
 export { getBlockingMe } from './getBlockingMe';
 export { getMutualBlockSet } from './getMutualBlockSet';
+// Phase 7 sub-chantier 4 commit 1/4 — admin audit
+export { listAllBlocks, type ListAllBlocksOptions } from './listAllBlocks';
 
 // Errors + helpers
 export {

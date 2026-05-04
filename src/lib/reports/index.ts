@@ -49,6 +49,20 @@ export {
   type CancelNoShowInput,
   NO_SHOW_CANCEL_WINDOW_HOURS,
 } from './cancelNoShow';
+// Phase 7 sub-chantier 4 commit 1/4 — admin actions
+export {
+  getPendingReports,
+  type GetPendingReportsOptions,
+} from './getPendingReports';
+export {
+  overturnSanction,
+  type OverturnSanctionInput,
+} from './overturnSanction';
+export {
+  resolveAppeal,
+  type ResolveAppealInput,
+  type AppealDecision,
+} from './resolveAppeal';
 
 // Errors + helpers + constants
 export {
@@ -60,6 +74,8 @@ export {
   NOSHOW_ROLLING_DAYS,
   FREETEXT_MIN_LENGTH,
   APPEAL_NOTE_MIN_LENGTH,
+  REPORT_CATEGORY_PRIORITY,
+  ADMIN_CONTACT_EMAIL,
   computeReportsThresholdAction,
   computeNoShowThresholdAction,
   findLatestSharedPastSession,

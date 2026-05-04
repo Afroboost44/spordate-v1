@@ -145,7 +145,11 @@ export type ReportErrorCode =
   | 'appeal-already-used'
   | 'appeal-note-too-short'
   | 'cancel-window-closed'
-  | 'report-not-cancellable';
+  | 'report-not-cancellable'
+  // Admin actions (sub-chantier 4 commit 1/4)
+  | 'not-sanction-active'
+  | 'appeal-not-filed'
+  | 'appeal-already-resolved';
 
 export class ReportError extends Error {
   constructor(
@@ -395,3 +399,17 @@ export const REPORT_CATEGORY_LABELS: Record<string, string> = {
 
 /** Email contact admin (cohérent doctrine §F + CGU). */
 export const ADMIN_CONTACT_EMAIL = 'contact@spordateur.com';
+
+/**
+ * Priorité catégorie reports doctrine §D.2.
+ * 1 = urgent (rouge), 2 = haute (orange), 3 = moyenne (jaune), 4 = basse (vert).
+ * Utilisé par getPendingReports admin queue sort.
+ */
+export const REPORT_CATEGORY_PRIORITY: Record<string, number> = {
+  harassment_sexuel: 1,           // 🔴 urgent
+  substance_etat_problematique: 1, // 🔴 urgent
+  comportement_agressif: 2,        // 🟠 haute
+  fake_profile: 3,                 // 🟡 moyenne
+  autre: 3,                        // 🟡 moyenne
+  no_show: 4,                      // 🟢 basse (auto-handled)
+};
