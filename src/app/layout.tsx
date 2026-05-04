@@ -4,6 +4,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
 import PWARegister from "@/components/PWARegister";
+import { SanctionBanner } from "@/components/SanctionBanner";
 
 export const metadata: Metadata = {
   title: "Spordate",
@@ -42,6 +43,7 @@ export default function RootLayout({
       <body className="font-body">
         <AuthProvider>
           <LanguageProvider>
+            <SanctionBanner />
             {children}
             <Toaster />
             <PWARegister />

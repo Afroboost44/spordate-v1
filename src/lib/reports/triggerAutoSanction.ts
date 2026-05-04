@@ -29,7 +29,8 @@
 
 import { Timestamp, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import type { SanctionLevel, SanctionReason } from '@/types/firestore';
-import { getReportsDb } from './_internal';
+import { sendEmail } from '@/lib/email/sendEmail';
+import { ADMIN_CONTACT_EMAIL, fetchReportEmailContext, formatDateFR, getReportsDb } from './_internal';
 
 export interface TriggerAutoSanctionInput {
   userId: string;
@@ -79,11 +80,31 @@ export async function triggerAutoSanction(
 
   await setDoc(ref, payload);
 
-  // TODO commit 5/5 : best-effort sendEmail userSanctionNotice
-  //   (template à créer dans src/lib/email/templates.ts) avec :
-  //   - userName, level, reason, endsAt, appealable, contactEmail
-  //   try { await sendEmail({ to: userEmail, templateName: 'userSanctionNotice', ... }); }
-  //   catch (err) { console.warn('[triggerAutoSanction] email failed', err); }
+  // Phase 7 sub-chantier 3 commit 5/5 — best-effort sendEmail userSanctionNotice
+  // Doctrine : intégrité sanction > email delivery (jamais throw).
+  try {
+    const ctx = await fetchReportEmailContext({ userId: input.userId });
+    if (ctx.email) {
+      await sendEmail({
+        to: ctx.email,
+        templateName: 'userSanctionNotice',
+        templateData: {
+          userName: ctx.displayName,
+          level: input.level,
+          reason: input.reason,
+          endsAtFormatted: endsAt ? formatDateFR(endsAt) : undefined,
+          appealable: !isWarning,
+          appealEmail: ADMIN_CONTACT_EMAIL,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[triggerAutoSanction] sendEmail userSanctionNotice failed (sanction tjrs créée)', {
+      sanctionId,
+      userId: input.userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   // Q3 décision : denorm UserProfile activeSanction* NON écrit Phase 7
   // (rule users update reste owner+admin only). Cloud Function Phase 8 fera ce wire.

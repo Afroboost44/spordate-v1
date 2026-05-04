@@ -27,18 +27,24 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import type { Report, ReportCategory } from '@/types/firestore';
+import { sendEmail } from '@/lib/email/sendEmail';
 import {
+  REPORT_CATEGORY_LABELS,
   ReportError,
   FREETEXT_MIN_LENGTH,
   RATE_LIMIT_PER_DAY,
   REPORT_WINDOW_DAYS,
   computeReportsThresholdAction,
+  fetchReportEmailContext,
   findLatestSharedPastSession,
   getDailyReportCountByReporter,
   getDistinctReportersAgainst,
   getReportsDb,
 } from './_internal';
 import { triggerAutoSanction } from './triggerAutoSanction';
+
+/** SLA admin response heures (doctrine §D.3 = 72h Phase 7). */
+const ADMIN_REVIEW_SLA_HOURS = 72;
 
 const VALID_CATEGORIES: ReportCategory[] = [
   'harassment_sexuel',
@@ -191,6 +197,28 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
         error: err instanceof Error ? err.message : String(err),
       });
     }
+  }
+
+  // Phase 7 sub-chantier 3 commit 5/5 — best-effort sendEmail reportSubmitted au reporter
+  try {
+    const ctx = await fetchReportEmailContext({ userId: input.reporterId });
+    if (ctx.email) {
+      await sendEmail({
+        to: ctx.email,
+        templateName: 'reportSubmitted',
+        templateData: {
+          reporterName: ctx.displayName,
+          categoryLabel: REPORT_CATEGORY_LABELS[input.category] ?? input.category,
+          slaHours: ADMIN_REVIEW_SLA_HOURS,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[createReport] sendEmail reportSubmitted failed (non-blocking)', {
+      reportId,
+      reporterId: input.reporterId,
+      error: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return {

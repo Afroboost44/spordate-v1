@@ -28,6 +28,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import type {
+  Activity,
   Booking,
   Report,
   SanctionLevel,
@@ -308,5 +309,89 @@ export async function isAdminRole(userId: string): Promise<boolean> {
 //
 // Phase 7 commit 2/5 contenait `_triggerSanctionStub` ici. Commit 3/5 a extrait
 // la logique vers `src/lib/reports/triggerAutoSanction.ts` (service public propre).
-// Les unused imports `serverTimestamp` + `setDoc` restent utilisés par les helpers
-// au-dessus (_internal.ts ne contient plus de write Firestore directement).
+
+// =====================================================================
+// Email context fetcher (cohérent reviews/_internal.ts pattern)
+// =====================================================================
+
+/**
+ * Contexte minimal pour wirer sendEmail Phase 7 sub-chantier 3 commit 5/5.
+ * Best-effort : tous les fetches try/catch, retournent valeurs par défaut si fail.
+ */
+export interface ReportEmailContext {
+  /** Email du user à notifier (null si introuvable, dans ce cas pas d'email envoyé). */
+  email: string | null;
+  /** Display name pour personnalisation greeting (fallback ''). */
+  displayName: string;
+  /** Titre activity associée (fallback ''). */
+  sessionTitle: string;
+}
+
+export async function fetchReportEmailContext(opts: {
+  userId?: string;
+  activityId?: string;
+}): Promise<ReportEmailContext> {
+  const fbDb = getReportsDb();
+  let email: string | null = null;
+  let displayName = '';
+  let sessionTitle = '';
+
+  if (opts.userId) {
+    try {
+      const userSnap = await getDoc(doc(fbDb, 'users', opts.userId));
+      if (userSnap.exists()) {
+        const data = userSnap.data() as UserProfile;
+        email = data.email ?? null;
+        displayName = data.displayName ?? '';
+      }
+    } catch (err) {
+      console.warn('[fetchReportEmailContext] user fetch failed (non-blocking)', {
+        userId: opts.userId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  if (opts.activityId) {
+    try {
+      const actSnap = await getDoc(doc(fbDb, 'activities', opts.activityId));
+      if (actSnap.exists()) {
+        sessionTitle = (actSnap.data() as Activity).title ?? '';
+      }
+    } catch (err) {
+      console.warn('[fetchReportEmailContext] activity fetch failed (non-blocking)', {
+        activityId: opts.activityId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  return { email, displayName, sessionTitle };
+}
+
+/**
+ * Format Timestamp → string FR pour endsAtFormatted (cohérent userSanctionNotice template).
+ * Exemple : '12 mai 2026'.
+ */
+export function formatDateFR(ts: Timestamp | undefined): string {
+  if (!ts) return '';
+  const date = ts.toDate();
+  return date.toLocaleDateString('fr-CH', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+/** Labels catégories pour template reportSubmitted (cohérent ReportUserDialog). */
+export const REPORT_CATEGORY_LABELS: Record<string, string> = {
+  harassment_sexuel: 'Harcèlement sexuel',
+  comportement_agressif: 'Comportement agressif',
+  fake_profile: 'Faux profil',
+  substance_etat_problematique: 'Substances / état problématique',
+  no_show: 'No-show',
+  autre: 'Autre',
+};
+
+/** Email contact admin (cohérent doctrine §F + CGU). */
+export const ADMIN_CONTACT_EMAIL = 'contact@spordateur.com';

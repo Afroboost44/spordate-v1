@@ -31,12 +31,15 @@ import {
   where,
 } from 'firebase/firestore';
 import type { Activity, Booking, Session } from '@/types/firestore';
+import { sendEmail } from '@/lib/email/sendEmail';
 import {
   NOSHOW_ROLLING_DAYS,
   ReportError,
   computeNoShowThresholdAction,
+  fetchReportEmailContext,
   getReportsDb,
 } from './_internal';
+import { NO_SHOW_CANCEL_WINDOW_HOURS } from './cancelNoShow';
 import { triggerAutoSanction } from './triggerAutoSanction';
 
 /** Grâce 30 min après session.endAt avant marquage no-show (doctrine §D.5). */
@@ -204,8 +207,69 @@ export async function markNoShow(input: MarkNoShowInput): Promise<MarkNoShowResu
     }
   }
 
-  // TODO commit 5/5 : best-effort sendEmail noShowWarningNotice
-  //   (template à créer) avec : userName, sessionTitle, count, level, contactEmail
+  // Phase 7 sub-chantier 3 commit 5/5 — best-effort sendEmail (2 emails : user + partner)
+  // Doctrine : intégrité du marquage > email delivery (jamais throw).
+  try {
+    const userCtx = await fetchReportEmailContext({
+      userId: input.userId,
+      activityId: session.activityId,
+    });
+    if (userCtx.email) {
+      const partnerName = activity.partnerName ?? 'le partenaire';
+      await sendEmail({
+        to: userCtx.email,
+        templateName: 'noShowWarningNotice',
+        templateData: {
+          userName: userCtx.displayName,
+          sessionTitle: userCtx.sessionTitle || 'la session',
+          partnerName,
+          noShowCount: noShowCountAfter,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[markNoShow] sendEmail noShowWarningNotice (user) failed (non-blocking)', {
+      reportId,
+      userId: input.userId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
+
+  try {
+    const partnerCtx = await fetchReportEmailContext({
+      userId: input.partnerId,
+      activityId: session.activityId,
+    });
+    const userCtxForPartner = await fetchReportEmailContext({ userId: input.userId });
+    if (partnerCtx.email) {
+      const sessionDate = session.startAt?.toDate
+        ? session.startAt.toDate().toLocaleDateString('fr-CH', {
+            weekday: 'long',
+            day: 'numeric',
+            month: 'long',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : '';
+      await sendEmail({
+        to: partnerCtx.email,
+        templateName: 'partnerNoShowConfirmed',
+        templateData: {
+          partnerName: partnerCtx.displayName,
+          userName: userCtxForPartner.displayName || 'le participant',
+          sessionTitle: partnerCtx.sessionTitle || 'la session',
+          sessionDate,
+          cancelWindowHours: NO_SHOW_CANCEL_WINDOW_HOURS,
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[markNoShow] sendEmail partnerNoShowConfirmed failed (non-blocking)', {
+      reportId,
+      partnerId: input.partnerId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+  }
 
   return { reportId, sanctionId, noShowCountAfter };
 }

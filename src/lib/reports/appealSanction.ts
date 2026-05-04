@@ -74,6 +74,15 @@ export async function appealSanction(input: AppealSanctionInput): Promise<void> 
     appealNote: input.appealNote,
   });
 
-  // TODO commit 5/5 : best-effort sendEmail admin notification "Appeal filed"
-  //   → contact@spordateur.com avec sanctionId, userId, level, note pour traitement humain.
+  // Phase 7 sub-chantier 3 commit 5/5 — log info pour traçabilité audit.
+  // Pas de sendEmail admin formel : doctrine §F prévoit que le user formule l'appel
+  // par email reply à contact@spordateur.com (l'admin voit naturellement l'appel
+  // dans sa boîte). Le flag appealUsed est purement interne pour tracking + UI gating
+  // (empêcher 2ème appel). Phase 8 polish : admin dashboard pourra surfacer les
+  // sanctions appealable=true && appealUsed=true sans réponse admin.
+  console.info('[appealSanction] appel filed', {
+    sanctionId: input.sanctionId,
+    userId: input.userId,
+    noteLength: input.appealNote.length,
+  });
 }

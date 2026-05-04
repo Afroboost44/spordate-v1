@@ -1,20 +1,30 @@
 "use client";
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CalendarCheck, Wallet, BarChart, Loader2, Users, Bell } from 'lucide-react';
+import { CalendarCheck, Wallet, BarChart, Loader2, Users, Bell, UserX, ChevronRight } from 'lucide-react';
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import {
-  collection, query, where, getDocs, orderBy, limit, onSnapshot
+  collection, query, where, getDocs, orderBy, limit, onSnapshot, Timestamp
 } from 'firebase/firestore';
+import type { Session, Activity } from '@/types/firestore';
+
+interface RecentSessionForCheckIn {
+  sessionId: string;
+  activityId: string;
+  title: string;
+  endAt: Timestamp;
+}
 
 export default function PartnerDashboardPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ activities: 0, bookings: 0, revenue: 0 });
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
+  const [recentSessionsForCheckIn, setRecentSessionsForCheckIn] = useState<RecentSessionForCheckIn[]>([]);
 
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
@@ -24,6 +34,7 @@ export default function PartnerDashboardPage() {
         // Count activities
         const actQ = query(collection(db!, 'activities'), where('partnerId', '==', user.uid));
         const actSnap = await getDocs(actQ);
+        const activities = actSnap.docs.map(d => ({ ...d.data(), activityId: d.id })) as Activity[];
 
         // Count bookings for this partner's activities
         const actIds = actSnap.docs.map(d => d.id);
@@ -47,6 +58,34 @@ export default function PartnerDashboardPage() {
             totalRevenue += data.amount || 0;
             bookings.push(data);
           });
+
+          // Phase 7 sub-chantier 3 commit 5/5 : Fetch sessions terminées dernières 24h pour check-in no-show
+          try {
+            const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
+            const partnerQ = query(
+              collection(db!, 'sessions'),
+              where('partnerId', '==', user.uid),
+            );
+            const sessSnap = await getDocs(partnerQ);
+            const sessions: RecentSessionForCheckIn[] = [];
+            const activityTitleMap = new Map(activities.map(a => [a.activityId, a.title || 'Session']));
+            sessSnap.forEach(d => {
+              const s = d.data() as Session;
+              const endMs = s.endAt?.toMillis?.() ?? 0;
+              if (endMs >= cutoffMs && endMs <= Date.now()) {
+                sessions.push({
+                  sessionId: s.sessionId,
+                  activityId: s.activityId,
+                  title: activityTitleMap.get(s.activityId) || 'Session',
+                  endAt: s.endAt,
+                });
+              }
+            });
+            sessions.sort((a, b) => b.endAt.toMillis() - a.endAt.toMillis());
+            setRecentSessionsForCheckIn(sessions);
+          } catch (e) {
+            console.warn('[PartnerDashboard] check-in sessions fetch failed (non-blocking)', e);
+          }
         }
 
         setStats({
@@ -115,6 +154,37 @@ export default function PartnerDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Phase 7 sub-chantier 3 commit 5/5 — Sessions à check-in (no-show marquage) */}
+      {recentSessionsForCheckIn.length > 0 && (
+        <Card className="bg-[#1A1A1A] border-white/5">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base font-light text-white flex items-center gap-2">
+              <UserX className="h-4 w-4 text-[#D91CD2]" />
+              Check-in no-show (sessions terminées 24h)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {recentSessionsForCheckIn.map((s) => (
+                <Link
+                  key={s.sessionId}
+                  href={`/partner/sessions/${s.sessionId}/check-in`}
+                  className="flex items-center justify-between p-3 bg-black/40 rounded-xl border border-white/5 hover:border-[#D91CD2]/40 hover:bg-white/5 transition-colors"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-white truncate">{s.title}</p>
+                    <p className="text-xs text-white/40">
+                      Terminée {s.endAt.toDate().toLocaleString('fr-CH', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                    </p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-white/30 shrink-0" />
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Recent bookings */}
       <Card className="bg-[#1A1A1A] border-white/5">

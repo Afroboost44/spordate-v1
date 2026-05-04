@@ -783,12 +783,13 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 - 4/4 `1855745` : Integration (profile button + invisibilité mutuelle profile/[uid] + chat filter + discovery filter) + tests Firestore rules `tests/blocks/rules.test.ts` (RB1-RB12) + close-out
 - Cumulatif tests : `test:blocks` 36/36 PASS + `test:blocks:rules` 12/12 PASS
 
-**Sub-chantier 3 — Reports + No-show workflow** 🚧 EN COURS (5 commits planifiés)
-- 1/5 *(this commit)* : Data model `Report` (6 catégories enum + 4 statuses) + `UserSanction` (4 levels + appeal flow) + UserProfile additions denorm (preparation, non écrits Phase 7) + Firestore rules `/reports/` (anonymat read admin/reporter, defense-in-depth create) + `/userSanctions/` (read owner+admin, create admin OR auto-trigger restrictif, update admin OR owner appeal) + 6 indexes
-- 2/5 : Service layer Reports + admin actions (`createReport`/`getReportsForReporter`/`getReportsAgainst`/`dismissReport`/`sustainReport`) + tests RP1-RP18
-- 3/5 : Service No-show + Sanctions auto-trigger + Appeals (`markNoShow`/`getNoShowsForUser`/`getActiveUserSanction`/`triggerAutoSanction`/`appealSanction`/`cancelNoShow`) + tests NP1-NP12
-- 4/5 : UI components (`ReportButton` variants `'profile' | 'chat'` + `ReportUserDialog` 6 catégories radio) + integration profile/chat
-- 5/5 : Partner check-in UI (`/partner/sessions/[sessionId]/check-in` + `NoShowCheckInList`) + email templates (4 NEW : reportSubmitted/userSanctionNotice/noShowWarningNotice/partnerNoShowConfirmed) + `SanctionBanner` component sticky + tests Firestore rules + close-out
+**Sub-chantier 3 — Reports + No-show workflow** ✅ COMPLET (5 commits)
+- 1/5 `1fdc519` : Data model `Report` (6 catégories enum + 4 statuses) + `UserSanction` (4 levels + appeal flow) + UserProfile additions denorm (preparation, non écrits Phase 7) + Firestore rules `/reports/` (anonymat read admin/reporter, defense-in-depth create) + `/userSanctions/` (read owner+admin, create admin OR auto-trigger restrictif, update admin OR owner appeal) + 6 indexes
+- 2/5 `79474a7` : Service layer Reports + admin actions (`createReport`/`getReportsForReporter`/`getReportsAgainst`/`dismissReport`/`sustainReport`) + tests RP1-RP18 (51 sub-assertions)
+- 3/5 `aac0558` : Service No-show + Sanctions auto-trigger + Appeals (`markNoShow`/`getNoShowsForUser`/`getActiveUserSanction`/`triggerAutoSanction`/`appealSanction`/`cancelNoShow`) + tests TR1-TR2 + NP1-NP13 (47 sub-assertions)
+- 4/5 `21a9392` : UI components (`ReportButton` variants `'profile' | 'chat'` + `ReportUserDialog` 6 catégories radio) + integration profile/chat
+- 5/5 *(this commit)* : Partner check-in UI (`/partner/sessions/[sessionId]/check-in` + `NoShowCheckInList`) + 4 email templates (reportSubmitted/userSanctionNotice/noShowWarningNotice/partnerNoShowConfirmed) + `SanctionBanner` component sticky + wire sendEmail dans triggerAutoSanction/markNoShow/createReport + tests Firestore rules `tests/reports/rules.test.ts` (RR1-RR16 + RS1-RS10) + dashboard partner section check-in
+- Cumulatif tests : `test:reports` 51/51 + `test:reports:no-show` 47/47 + `test:reports:rules` ~26/26 = 124/124 PASS
 
 **Décisions tranchées sub-chantier 3 (mai 2026)** :
 - Q1 page partner check-in dédiée `/partner/sessions/[sessionId]/check-in` (vs section dashboard).

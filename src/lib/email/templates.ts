@@ -26,9 +26,19 @@ export type TemplateName =
   | 'appealAcknowledgment' // T&S — confirme reception appel SLA 7j
   | 'reviewBonusGranted' // T&S Phase 7 commit 5/6 — bonus +5 crédits alloué
   | 'reviewPendingModeration' // T&S Phase 7 commit 5/6 — review 1-2★ en modération
-  | 'reviewModerationDecision'; // T&S Phase 7 commit 5/6 — décision admin publish/reject
+  | 'reviewModerationDecision' // T&S Phase 7 commit 5/6 — décision admin publish/reject
+  | 'reportSubmitted' // T&S Phase 7 sub-chantier 3 commit 5/5 — confirme reception report
+  | 'userSanctionNotice' // T&S Phase 7 sub-chantier 3 commit 5/5 — notif sanctionné (4 levels)
+  | 'noShowWarningNotice' // T&S Phase 7 sub-chantier 3 commit 5/5 — notif no-show 1-4
+  | 'partnerNoShowConfirmed'; // T&S Phase 7 sub-chantier 3 commit 5/5 — confirm partner check-in
 
 export type BanLevel = 'warning' | 'suspension_7j' | 'suspension_30j' | 'permanent';
+
+/** SanctionLevel cohérent src/types/firestore.ts (utilisé par userSanctionNotice). */
+export type SanctionLevelEmail = 'warning' | 'suspension_7d' | 'suspension_30d' | 'ban_permanent';
+
+/** SanctionReason cohérent src/types/firestore.ts. */
+export type SanctionReasonEmail = 'reports_threshold' | 'no_show_threshold' | 'manual_admin';
 
 export interface TemplateDataMap {
   bookingConfirmation: {
@@ -77,6 +87,41 @@ export interface TemplateDataMap {
     decision: 'publish' | 'reject';
     rating: number;
     sessionTitle: string;
+  };
+  reportSubmitted: {
+    reporterName: string;
+    /** Label catégorie en français (ex: 'Harcèlement sexuel'). */
+    categoryLabel: string;
+    /** SLA admin response. Phase 7 = 72h doctrine §D.3. */
+    slaHours: number;
+  };
+  userSanctionNotice: {
+    userName: string;
+    level: SanctionLevelEmail;
+    reason: SanctionReasonEmail;
+    /** Pré-formaté FR (ex: '12 mai 2026'). Présent pour suspension_*, absent pour warning + ban_permanent. */
+    endsAtFormatted?: string;
+    /** Si true, mention du droit d'appel + email contact. */
+    appealable: boolean;
+    /** 'contact@spordateur.com'. */
+    appealEmail: string;
+  };
+  noShowWarningNotice: {
+    userName: string;
+    sessionTitle: string;
+    partnerName: string;
+    /** Compteur cumulé doctrine §D.5 — 1, 2, 3 ou 4+. */
+    noShowCount: number;
+  };
+  partnerNoShowConfirmed: {
+    partnerName: string;
+    /** Nom du participant marqué no-show. */
+    userName: string;
+    sessionTitle: string;
+    /** Pré-formaté FR (ex: 'Lundi 12 mai à 18h'). */
+    sessionDate: string;
+    /** Heures restantes pour annuler (24h depuis création report). */
+    cancelWindowHours: number;
   };
 }
 
@@ -251,6 +296,109 @@ function renderReviewModerationDecision(d: TemplateDataMap['reviewModerationDeci
 }
 
 // =====================================================================
+// Templates Phase 7 sub-chantier 3 commit 5/5 (4 NEW)
+// =====================================================================
+
+const SANCTION_LEVEL_LABELS: Record<SanctionLevelEmail, string> = {
+  warning: 'Avertissement',
+  suspension_7d: 'Suspension 7 jours',
+  suspension_30d: 'Suspension 30 jours',
+  ban_permanent: 'Bannissement permanent',
+};
+
+const SANCTION_REASON_LABELS: Record<SanctionReasonEmail, string> = {
+  reports_threshold: 'plusieurs signalements indépendants',
+  no_show_threshold: 'plusieurs no-shows confirmés',
+  manual_admin: 'décision administrative motivée',
+};
+
+function renderReportSubmitted(d: TemplateDataMap['reportSubmitted']) {
+  const subject = 'Signalement bien reçu';
+  const body = `
+    ${h1(`Signalement bien reçu`)}
+    ${p(`Bonjour ${d.reporterName || 'membre Spordateur'},`)}
+    ${p(`Nous avons bien reçu ton signalement de catégorie <strong style="color:#ffffff;">${d.categoryLabel}</strong>.`)}
+    ${p(`<strong style="color:#ffffff;">Anonymat garanti</strong> : la personne signalée ne saura jamais qui l'a signalée. Notre équipe modération examinera ton signalement sous <strong style="color:#ffffff;">${d.slaHours}h</strong> (cf. CGU section 7.bis).`)}
+    ${p(`Merci de contribuer à la sécurité de la communauté Spordateur. Pour toute question : contact@spordateur.com.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
+}
+
+function renderUserSanctionNotice(d: TemplateDataMap['userSanctionNotice']) {
+  const levelLabel = SANCTION_LEVEL_LABELS[d.level];
+  const reasonLabel = SANCTION_REASON_LABELS[d.reason];
+  const subject = `${levelLabel} — Spordateur`;
+
+  const expirationLine =
+    d.endsAtFormatted && d.level !== 'ban_permanent' && d.level !== 'warning'
+      ? p(`<strong style="color:#ffffff;">Fin de la sanction</strong> : ${d.endsAtFormatted}`)
+      : d.level === 'ban_permanent'
+        ? p(`Cette mesure est <strong style="color:#ffffff;">permanente</strong>. Elle fait l'objet d'une revue annuelle automatique.`)
+        : '';
+
+  const appealLine = d.appealable
+    ? p(`Tu disposes d'un droit d'appel (1× par niveau de sanction). Pour faire appel, écris à <strong style="color:#D91CD2;">${d.appealEmail}</strong> en exposant ta version des faits et les éléments contradictoires. Délai de réponse admin : <strong style="color:#ffffff;">7 jours calendaires</strong>.`)
+    : p(`Cet avertissement n'est pas une sanction au sens du droit d'appel (cf. doctrine §F). Il vise à signaler un comportement à corriger. Toute récidive pourra entraîner une sanction effective avec droit d'appel.`);
+
+  const body = `
+    ${h1(`${levelLabel}`)}
+    ${p(`Bonjour ${d.userName || 'membre Spordateur'},`)}
+    ${p(`Suite à <strong style="color:#ffffff;">${reasonLabel}</strong>, ton compte fait l'objet d'une mesure Trust & Safety.`)}
+    ${expirationLine}
+    ${appealLine}
+    ${p(`Conformément à la nLPD Art. 19 et à la LCD Art. 3, cette décision est motivée et susceptible de recours. Cf. CGU sections 7.bis (sanctions) sur spordateur.com/terms.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
+}
+
+function renderNoShowWarningNotice(d: TemplateDataMap['noShowWarningNotice']) {
+  const isFirst = d.noShowCount === 1;
+  const isSecond = d.noShowCount === 2;
+  const isThird = d.noShowCount === 3;
+  const isBan = d.noShowCount >= 4;
+
+  let subject: string;
+  let escalationLine: string;
+  if (isFirst) {
+    subject = `No-show enregistré`;
+    escalationLine = p(`<strong style="color:#ffffff;">C'est ton 1er no-show</strong>. À 3 no-shows cumulés (90 jours), une suspension 30 jours sera appliquée + remboursement automatique au partenaire. À 4+, ban permanent.`);
+  } else if (isSecond) {
+    subject = `2ème no-show enregistré`;
+    escalationLine = p(`<strong style="color:#D91CD2;">2ème no-show cumulé</strong> (90 jours rolling). Prochain no-show → suspension 30 jours + remboursement partner. À 4+, ban permanent.`);
+  } else if (isThird) {
+    subject = `3ème no-show — suspension 30 jours`;
+    escalationLine = p(`<strong style="color:#D91CD2;">3ème no-show cumulé</strong> (90 jours rolling). Une suspension 30 jours est automatiquement appliquée + remboursement partner. Tu peux faire appel par email à contact@spordateur.com.`);
+  } else {
+    // ban
+    subject = `Ban permanent — no-shows répétés`;
+    escalationLine = p(`<strong style="color:#D91CD2;">${d.noShowCount}ème no-show cumulé</strong>. Bannissement permanent appliqué. Tu peux faire appel 1× via contact@spordateur.com.`);
+  }
+
+  const body = `
+    ${h1(isBan ? 'Ban permanent' : 'No-show enregistré')}
+    ${p(`Bonjour ${d.userName || 'membre Spordateur'},`)}
+    ${p(`Tu as été marqué <strong style="color:#ffffff;">no-show</strong> par ${d.partnerName} pour la session <strong style="color:#ffffff;">${d.sessionTitle}</strong> à laquelle tu étais inscrit·e.`)}
+    ${escalationLine}
+    ${p(`Si c'est une erreur, contacte <strong style="color:#D91CD2;">contact@spordateur.com</strong> dans les 24h. Le partenaire peut aussi annuler le marquage depuis son dashboard pendant ce délai.`)}
+    ${p(`Cf. CGU section 7.bis pour le détail du workflow no-show. Spordateur applique une politique de fair-play : honorer ses réservations protège la communauté.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
+}
+
+function renderPartnerNoShowConfirmed(d: TemplateDataMap['partnerNoShowConfirmed']) {
+  const subject = `Confirmation no-show — ${d.userName}`;
+  const body = `
+    ${h1(`No-show enregistré`)}
+    ${p(`Bonjour ${d.partnerName || 'partenaire Spordateur'},`)}
+    ${p(`Tu as marqué <strong style="color:#ffffff;">${d.userName}</strong> comme no-show à la session <strong style="color:#ffffff;">${d.sessionTitle}</strong> (${d.sessionDate}).`)}
+    ${p(`Le participant a été notifié par email. La sanction (warning, suspension ou ban) est appliquée automatiquement selon son cumul de no-shows sur 90 jours.`)}
+    ${p(`<strong style="color:#D91CD2;">Tu peux annuler ce marquage</strong> dans les <strong style="color:#ffffff;">${d.cancelWindowHours}h</strong> qui suivent depuis ton dashboard partner (en cas d'erreur ou retard de dernière minute découvert).`)}
+    ${p(`Merci de contribuer à la qualité de la communauté Spordateur en honorant cette responsabilité.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Partner check-in', bodyHtml: body }) };
+}
+
+// =====================================================================
 // Public renderTemplate (type-safe dispatch)
 // =====================================================================
 
@@ -273,6 +421,14 @@ export function renderTemplate<T extends TemplateName>(
       return renderReviewPendingModeration(data as TemplateDataMap['reviewPendingModeration']);
     case 'reviewModerationDecision':
       return renderReviewModerationDecision(data as TemplateDataMap['reviewModerationDecision']);
+    case 'reportSubmitted':
+      return renderReportSubmitted(data as TemplateDataMap['reportSubmitted']);
+    case 'userSanctionNotice':
+      return renderUserSanctionNotice(data as TemplateDataMap['userSanctionNotice']);
+    case 'noShowWarningNotice':
+      return renderNoShowWarningNotice(data as TemplateDataMap['noShowWarningNotice']);
+    case 'partnerNoShowConfirmed':
+      return renderPartnerNoShowConfirmed(data as TemplateDataMap['partnerNoShowConfirmed']);
     default: {
       // Exhaustive check — TypeScript should error if a new TemplateName is added without case
       const _exhaustive: never = templateName;
