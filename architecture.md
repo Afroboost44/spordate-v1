@@ -776,11 +776,12 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 - 6/6 `e1227a7` : Tests Firestore rules `tests/reviews/rules.test.ts` (RR1-RR18, defense-in-depth validation)
 - Cumulatif tests : `test:reviews` 64/64 PASS + `test:reviews:rules` 18/18 PASS
 
-**Sub-chantier 2 — Block list user-side** 🚧 EN COURS (4 commits planifiés)
-- 1/4 *(this commit)* : Data model `Block` + Firestore rules `/blocks/{blockId}` (defense-in-depth + doc-id pattern enforcé) + indexes (`blockerId+createdAt DESC`, `blockedId+createdAt DESC`)
-- 2/4 : Service layer (`blockUser`/`unblockUser`/`isBlocked`/`getBlockedByMe`/`getBlockingMe`/`getMutualBlockSet`) + tests service
-- 3/4 : UI components (`BlockButton` variants `'profile' | 'chat'`, `BlockUserDialog` confirmation, `BlocksManagementList`) + page `/profile/blocks`
-- 4/4 : Integration (profile button + chat filter + discovery filter) + tests Firestore rules + close-out
+**Sub-chantier 2 — Block list user-side** ✅ COMPLET (4 commits)
+- 1/4 `bc3798a` : Data model `Block` + Firestore rules `/blocks/{blockId}` (defense-in-depth + doc-id pattern enforcé) + indexes (`blockerId+createdAt DESC`, `blockedId+createdAt DESC`)
+- 2/4 `8767bc6` : Service layer (`blockUser`/`unblockUser`/`isBlocked`/`getBlockedByMe`/`getBlockingMe`/`getMutualBlockSet`) + tests service B1-B15 (36 sub-assertions)
+- 3/4 `c3463a0` : UI components (`BlockButton` variants `'profile' | 'chat'`, `BlockUserDialog` confirmation, `BlocksManagementList`) + page `/profile/blocks`
+- 4/4 *(this commit)* : Integration (profile button + invisibilité mutuelle profile/[uid] + chat filter + discovery filter) + tests Firestore rules `tests/blocks/rules.test.ts` (RB1-RB12) + close-out
+- Cumulatif tests : `test:blocks` 36/36 PASS + `test:blocks:rules` 12/12 PASS
 
 **Décisions tranchées sub-chantier 2 (mai 2026)** :
 - Card session entry point différé sub-chantier 6 polish — UI participants n'existe pas encore, à wirer naturellement quand elle sera ajoutée.

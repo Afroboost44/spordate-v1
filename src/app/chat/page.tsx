@@ -23,6 +23,7 @@ import {
   getUser,
   unlockChat,
 } from '@/services/firestore';
+import { getMutualBlockSet } from '@/lib/blocks';
 import type { Match, ChatMessage, UserProfile } from '@/types/firestore';
 import { Timestamp } from 'firebase/firestore';
 
@@ -502,10 +503,20 @@ function ChatPageContent() {
 
     try {
       const matches = await getUserMatches(currentUserId);
-      // Only show accepted matches or matches with chat unlocked
-      const relevantMatches = matches.filter(
-        (m) => m.status === 'accepted' || m.chatUnlocked
-      );
+
+      // Phase 7 sub-chantier 2 commit 4/4 : filter mutual blocks (doctrine §9.sexies E)
+      const blockSet = await getMutualBlockSet(currentUserId).catch((err) => {
+        console.warn('[Chat] getMutualBlockSet failed (non-blocking, defaulting empty)', err);
+        return new Set<string>();
+      });
+
+      // Only show accepted matches or matches with chat unlocked, and exclude mutual blocks
+      const relevantMatches = matches.filter((m) => {
+        if (!(m.status === 'accepted' || m.chatUnlocked)) return false;
+        const otherUid = m.userIds.find((id) => id !== currentUserId);
+        if (otherUid && blockSet.has(otherUid)) return false;
+        return true;
+      });
 
       // Fetch other user profiles
       const convos: ConversationItem[] = [];

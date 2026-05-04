@@ -39,6 +39,7 @@ import { collection, query, where, getDocs, limit as firestoreLimit, orderBy, Ti
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
 import { createMatch } from '@/services/firestore';
+import { getMutualBlockSet } from '@/lib/blocks';
 import { useCredits } from '@/hooks/useCredits';
 import BackButton from '@/components/BackButton';
 import ProfileActions from '@/components/ProfileActions';
@@ -185,9 +186,16 @@ export default function DiscoveryPage() {
           }
         });
 
-        if (firestoreUsers.length > 0) {
+        // Phase 7 sub-chantier 2 commit 4/4 : filter mutual blocks (doctrine §9.sexies E)
+        const blockSet = await getMutualBlockSet(user.uid).catch((err) => {
+          console.warn('[Discovery] getMutualBlockSet failed (non-blocking, defaulting empty)', err);
+          return new Set<string>();
+        });
+        const visibleUsers = firestoreUsers.filter((u) => !blockSet.has(u.uid));
+
+        if (visibleUsers.length > 0) {
           // Convert to card format and compute match scores
-          let cardProfiles = firestoreUsers.map((u, i) => {
+          let cardProfiles = visibleUsers.map((u, i) => {
             const card = firestoreProfileToCard(u, i);
             card.matchScore = computeMatchScore(userProfile, u);
             return card;

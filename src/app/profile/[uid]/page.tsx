@@ -9,8 +9,11 @@ import {
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { AuthGuard } from '@/components/auth/AuthGuard';
+import { useAuth } from '@/context/AuthContext';
 import { getUser } from "@/services/firestore";
 import { getReviewsByUser, getReviewerProfiles, type ReviewerProfile } from "@/lib/reviews";
+import { isBlocked } from "@/lib/blocks";
+import { BlockButton } from "@/components/blocks/BlockButton";
 import { ReviewsList } from "@/components/reviews/ReviewsList";
 import type { Review, UserProfile } from "@/types/firestore";
 import { Timestamp } from 'firebase/firestore';
@@ -41,23 +44,36 @@ function PublicProfileContent() {
   const router = useRouter();
   const params = useParams();
   const uid = params.uid as string;
+  const { user } = useAuth();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [reviewerProfiles, setReviewerProfiles] = useState<Map<string, ReviewerProfile>>(new Map());
   const [loading, setLoading] = useState(true);
+  // Phase 7 sub-chantier 2 commit 4/4 : check mutuel blocks (doctrine §9.sexies E)
+  const [blocked, setBlocked] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (!uid) return;
     (async () => {
       try {
-        const [p, r] = await Promise.all([
+        // Block check en parallèle des autres fetch (non-bloquant)
+        const blockedPromise = user?.uid
+          ? isBlocked(user.uid, uid).catch((err) => {
+              console.warn('[PublicProfile] isBlocked check failed (defaulting to false)', err);
+              return false;
+            })
+          : Promise.resolve(false);
+
+        const [p, r, isBlockedRes] = await Promise.all([
           getUser(uid),
           getReviewsByUser(uid).catch((err) => {
             console.error('[PublicProfile] Reviews fetch failed (non-blocking)', err);
             return [] as Review[];
           }),
+          blockedPromise,
         ]);
+        setBlocked(isBlockedRes);
         setProfile(p);
         setReviews(r);
         // Phase 7 commit 4/6 : résoudre les profils reviewers nominatifs (3-5★)
@@ -74,7 +90,7 @@ function PublicProfileContent() {
         setLoading(false);
       }
     })();
-  }, [uid]);
+  }, [uid, user?.uid]);
 
   if (loading) {
     return (
@@ -88,6 +104,19 @@ function PublicProfileContent() {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6">
         <p className="text-gray-400 font-light text-lg mb-4">Profil introuvable</p>
+        <Button variant="ghost" onClick={() => router.back()} className="text-gray-400">
+          <ArrowLeft className="mr-2 h-4 w-4" /> Retour
+        </Button>
+      </div>
+    );
+  }
+
+  // Phase 7 sub-chantier 2 commit 4/4 : invisibilité mutuelle (doctrine §9.sexies E).
+  // Si bloqué dans un sens ou l'autre, affichage neutre (pas de fuite d'info au bloqué).
+  if (blocked === true) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6">
+        <p className="text-gray-400 font-light text-lg mb-4">Profil non disponible</p>
         <Button variant="ghost" onClick={() => router.back()} className="text-gray-400">
           <ArrowLeft className="mr-2 h-4 w-4" /> Retour
         </Button>
@@ -109,7 +138,16 @@ function PublicProfileContent() {
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-white font-light text-lg">Profil</h1>
+        <h1 className="text-white font-light text-lg flex-1">Profil</h1>
+        {/* Phase 7 sub-chantier 2 commit 4/4 : entry point block (variant 'profile') */}
+        {user?.uid && (
+          <BlockButton
+            variant="profile"
+            targetUid={uid}
+            targetName={profile.displayName || 'cet utilisateur'}
+            currentUserId={user.uid}
+          />
+        )}
       </div>
 
       {/* Profile Card */}
