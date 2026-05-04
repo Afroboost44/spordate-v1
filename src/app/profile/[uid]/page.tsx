@@ -14,6 +14,7 @@ import { getUser } from "@/services/firestore";
 import { getReviewsByUser, getReviewerProfiles, type ReviewerProfile } from "@/lib/reviews";
 import { isBlocked } from "@/lib/blocks";
 import { BlockButton } from "@/components/blocks/BlockButton";
+import { ReportButton } from "@/components/reports/ReportButton";
 import { ReviewsList } from "@/components/reviews/ReviewsList";
 import type { Review, UserProfile } from "@/types/firestore";
 import { Timestamp } from 'firebase/firestore';
@@ -139,14 +140,22 @@ function PublicProfileContent() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <h1 className="text-white font-light text-lg flex-1">Profil</h1>
-        {/* Phase 7 sub-chantier 2 commit 4/4 : entry point block (variant 'profile') */}
+        {/* Phase 7 sub-chantier 2-3 : entry points T&S (block + report variant 'profile') */}
         {user?.uid && (
-          <BlockButton
-            variant="profile"
-            targetUid={uid}
-            targetName={profile.displayName || 'cet utilisateur'}
-            currentUserId={user.uid}
-          />
+          <div className="flex items-center gap-2">
+            <ReportButton
+              variant="profile"
+              targetUid={uid}
+              targetName={profile.displayName || 'cet utilisateur'}
+              currentUserId={user.uid}
+            />
+            <BlockButton
+              variant="profile"
+              targetUid={uid}
+              targetName={profile.displayName || 'cet utilisateur'}
+              currentUserId={user.uid}
+            />
+          </div>
         )}
       </div>
 

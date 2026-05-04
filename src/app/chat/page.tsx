@@ -24,6 +24,7 @@ import {
   unlockChat,
 } from '@/services/firestore';
 import { getMutualBlockSet } from '@/lib/blocks';
+import { ReportButton } from '@/components/reports/ReportButton';
 import type { Match, ChatMessage, UserProfile } from '@/types/firestore';
 import { Timestamp } from 'firebase/firestore';
 
@@ -284,6 +285,13 @@ function ChatWindow({
           </div>
           <ChevronRight className="h-4 w-4 text-gray-600 flex-shrink-0" />
         </button>
+        {/* Phase 7 sub-chantier 3 commit 4/5 : entry point report (variant 'chat') */}
+        <ReportButton
+          variant="chat"
+          targetUid={otherUser.uid}
+          targetName={otherUser.displayName || 'cet utilisateur'}
+          currentUserId={currentUserId}
+        />
       </div>
 
       {/* Locked State */}
