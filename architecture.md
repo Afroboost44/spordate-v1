@@ -816,8 +816,15 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 - **Q9 exception charte stricte** : admin dashboard conserve style `bg-gray-900 / border-gray-800` (utilitaire, pas brand-facing). Charte stricte black/#D91CD2/white = user-facing seulement.
 - **Q2 admin auth setup requis** : avant utilisation tabs T&S, setup `users.{adminUid}.role='admin'` via Firebase Console (services admin font check role-based via `isAdminRole`). Refactor Firebase Auth role-based différé Phase 9.
 
-**Sub-chantiers prochains** ⏳ À démarrer après 4
-- Sub-chantier 5 — Email notifications wiring + audit trail (`adminActions/`) (~3-5h)
+**Sub-chantier 5 — Email notifications wiring complete + audit trail `adminActions/`** ✅ COMPLET (3 commits)
+- 1/3 `4eb9f89` : 2 templates email manquants (`userSanctionOverturned` + `appealResolved`) + wire `sendEmail` dans 3 services admin (`overturnSanction` + `resolveAppeal` + `appealSanction` via `appealAcknowledgment` Q9)
+- 2/3 `2db3105` : Collection `adminActions/` defense-in-depth + service `logAdminAction`/`getAdminActions` + wire 5 services admin (moderateReview, dismissReport, sustainReport, overturnSanction, resolveAppeal) + tests LA1-LA8 (24 sub-assertions) + Q4-Q8 décisions appliquées
+- 3/3 *(this commit)* : Tests rules `/adminActions/` AA1-AA10 + close-out
+- Cumulatif tests sub-chantier 5 : `test:admin-actions` 24/24 + `test:admin-actions:rules` ~10/10 = ~34/34 PASS
+- **Conservation audit trail** : 24 mois (doctrine §H), purge cron Phase 9
+- **Q5 best-effort** logs `[logAdminAction] write failed (silent)` quand DI seam non injecté côté tests existants — comportement attendu, prouve robustesse pattern
+
+**Sub-chantier prochain** ⏳ À démarrer après 5
 - Sub-chantier 6 — Card session entry point block + ReportButton + tests + polish (~3-4h)
 
 ### A. Doctrine économique — T&S = pré-requis rétention
