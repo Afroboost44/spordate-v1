@@ -761,6 +761,28 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 > - Phase 9 = Polish + cleanup (ancien Phase 8)
 > - Phase 10+ = Subscription Spordate+ + multilingue (ancien Phase 9+)
 
+### Status implémentation (mise à jour mai 2026)
+
+**Sub-chantier 0 (BLOQUANT pré-ship)** ✅ COMPLET
+- CGU update + Resend setup + `Activity.audienceType` data model
+- Commits : `c81df6e` (CGU), `6e5eada` (Resend helper + 4 templates + 20 tests), `3dc206e` (audienceType)
+
+**Sub-chantier 1 — Reviews publiques** ✅ COMPLET (6 commits)
+- 1/6 `7e1a126` : Reviews data model + Firestore rules (defense-in-depth create + update cross-tier guard)
+- 2/6 `a54c3f3` : Service layer (createReview/edit/moderate/award/softDelete + 35 tests)
+- 3/6 `66e74d6` : UI components (StarRating + StarRatingInput + ReviewForm + ReviewsList + EmptyReviewsState) + getReviewsByUser + activity page + profile integration
+- 4/6 `6fc7890` : isEligibleToReview helper + ReviewTrigger Client island + reviewerProfiles fetch
+- 5/6 `9f6fe66` : Wire sendEmail dans 3 services (reviewBonusGranted + reviewPendingModeration + reviewModerationDecision) + 3 templates
+- 6/6 *(this commit)* : Tests Firestore rules `tests/reviews/rules.test.ts` (RR1-RR18, defense-in-depth validation)
+- Cumulatif tests : `test:reviews` 64/64 PASS + `test:reviews:rules` 18/18 PASS
+
+**Sub-chantiers prochains** ⏳ À démarrer
+- Sub-chantier 2 — Block list user-side (~4-6h)
+- Sub-chantier 3 — Reports + No-show workflow (~6-8h)
+- Sub-chantier 4 — Admin moderation dashboard MVP (~8-10h)
+- Sub-chantier 5 — Email notifications wiring + audit trail (`adminActions/`) (~3-5h)
+- Sub-chantier 6 — Tests + polish (~3-4h)
+
 ### A. Doctrine économique — T&S = pré-requis rétention
 
 **Règle** : sans T&S structurée, la rétention femmes est compromise. Femmes ≈ 50% des users cibles. Une mauvaise expérience non gérée → quitte la plateforme + word-of-mouth négatif → spirale.
