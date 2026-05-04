@@ -493,6 +493,25 @@ export interface Review {
   creditsAwarded: boolean;
 }
 
+// ===================== BLOCKS (Phase 7 T&S) =====================
+// Block list user-side. Invisibilité mutuelle (sessions/profils/chats) entre blocker et blocked.
+// Aucune notification au bloqué (anti-confrontation). Réversible via /profile/blocks.
+// Cf. architecture.md §9.sexies E pour la doctrine complète.
+//
+// Doc-id pattern strict : `${blockerId}_${blockedId}` (déduplication + idempotency au create).
+// Enforcement defense-in-depth via Firestore rule create.
+
+export interface Block {
+  /** Doc ID = `${blockerId}_${blockedId}`. Dénormalisé pour query simplifiée. */
+  blockId: string;
+  /** Auteur du block. */
+  blockerId: string;
+  /** Cible du block. Jamais == blockerId. */
+  blockedId: string;
+  /** Server timestamp au create. Immuable. */
+  createdAt: Timestamp;
+}
+
 // ===================== NOTIFICATIONS =====================
 export type NotificationType = 'match' | 'message' | 'booking' | 'payment' | 'system' | 'promo';
 

@@ -300,5 +300,40 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // === BLOCKS (Phase 7 T&S sub-chantier 2 — invisibilité mutuelle, sans notification) ===
+    // Cf. architecture.md §9.sexies E pour la doctrine.
+    // Doc-id pattern strict : `${blockerId}_${blockedId}` (déduplication + idempotency).
+    // Read autorisé pour les 2 côtés (blocker pour gérer sa liste, blocked pour appliquer
+    // côté client le filter mutuel sur discovery/chat). Pas de notification au bloqué :
+    // assuré côté UI (pas de toast/email), pas côté rule (le doc reste lisible).
+    match /blocks/{blockId} {
+      // Read par les 2 côtés (mutuelle invisibilité côté client)
+      allow read: if isAuth()
+        && (resource.data.blockerId == request.auth.uid
+            || resource.data.blockedId == request.auth.uid);
+
+      // Create par blocker uniquement, doc-id pattern enforcé (defense-in-depth) :
+      // - blockerId == auth.uid (anti-spoofing)
+      // - blockerId != blockedId (anti-self-block)
+      // - blockId == `${blockerId}_${blockedId}` (déduplication doc-id)
+      // - createdAt == request.time (anti-backdate)
+      // - keys hasOnly les 4 champs attendus (anti-payload-injection)
+      allow create: if isAuth()
+        && request.resource.data.blockerId == request.auth.uid
+        && request.resource.data.blockedId is string
+        && request.resource.data.blockedId.size() > 0
+        && request.resource.data.blockerId != request.resource.data.blockedId
+        && blockId == request.resource.data.blockerId + '_' + request.resource.data.blockedId
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.keys().hasOnly(['blockId', 'blockerId', 'blockedId', 'createdAt']);
+
+      // Immuable (révoquer = delete + re-create, pas un update)
+      allow update: if false;
+
+      // Delete par blocker uniquement (réversibilité doctrine §9.sexies E)
+      allow delete: if isAuth()
+        && resource.data.blockerId == request.auth.uid;
+    }
+
   }
 }

@@ -773,15 +773,26 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 - 3/6 `66e74d6` : UI components (StarRating + StarRatingInput + ReviewForm + ReviewsList + EmptyReviewsState) + getReviewsByUser + activity page + profile integration
 - 4/6 `6fc7890` : isEligibleToReview helper + ReviewTrigger Client island + reviewerProfiles fetch
 - 5/6 `9f6fe66` : Wire sendEmail dans 3 services (reviewBonusGranted + reviewPendingModeration + reviewModerationDecision) + 3 templates
-- 6/6 *(this commit)* : Tests Firestore rules `tests/reviews/rules.test.ts` (RR1-RR18, defense-in-depth validation)
+- 6/6 `e1227a7` : Tests Firestore rules `tests/reviews/rules.test.ts` (RR1-RR18, defense-in-depth validation)
 - Cumulatif tests : `test:reviews` 64/64 PASS + `test:reviews:rules` 18/18 PASS
 
-**Sub-chantiers prochains** ⏳ À démarrer
-- Sub-chantier 2 — Block list user-side (~4-6h)
+**Sub-chantier 2 — Block list user-side** 🚧 EN COURS (4 commits planifiés)
+- 1/4 *(this commit)* : Data model `Block` + Firestore rules `/blocks/{blockId}` (defense-in-depth + doc-id pattern enforcé) + indexes (`blockerId+createdAt DESC`, `blockedId+createdAt DESC`)
+- 2/4 : Service layer (`blockUser`/`unblockUser`/`isBlocked`/`getBlockedByMe`/`getBlockingMe`/`getMutualBlockSet`) + tests service
+- 3/4 : UI components (`BlockButton` variants `'profile' | 'chat'`, `BlockUserDialog` confirmation, `BlocksManagementList`) + page `/profile/blocks`
+- 4/4 : Integration (profile button + chat filter + discovery filter) + tests Firestore rules + close-out
+
+**Décisions tranchées sub-chantier 2 (mai 2026)** :
+- Card session entry point différé sub-chantier 6 polish — UI participants n'existe pas encore, à wirer naturellement quand elle sera ajoutée.
+- Filter blocks côté client (≤50 docs) — refactor query-level différé Phase 9 polish si scale dépasse 1000 users actifs.
+- Doc-id pattern `${blockerId}_${blockedId}` enforcé via Firestore rule create — anti-doublon + anti-spoofing.
+- Warning partner co-inscrits différé sub-chantier 4 (admin moderation dashboard) ou sub-chantier 5 (email wiring) — partner-side, hors scope user-side ce sub-chantier.
+
+**Sub-chantiers prochains** ⏳ À démarrer après 2
 - Sub-chantier 3 — Reports + No-show workflow (~6-8h)
-- Sub-chantier 4 — Admin moderation dashboard MVP (~8-10h)
+- Sub-chantier 4 — Admin moderation dashboard MVP + warning partner co-inscrits (~8-10h)
 - Sub-chantier 5 — Email notifications wiring + audit trail (`adminActions/`) (~3-5h)
-- Sub-chantier 6 — Tests + polish (~3-4h)
+- Sub-chantier 6 — Card session entry point block + tests + polish (~3-4h)
 
 ### A. Doctrine économique — T&S = pré-requis rétention
 
