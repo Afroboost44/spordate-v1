@@ -1239,13 +1239,13 @@ export async function getSessionsByActivity(activityId: string): Promise<Session
  * (admin UI, partner dashboard, etc.). NE remplace PAS bookSession (qui a sa propre tx
  * pour gérer currentParticipants).
  *
- * Validations actuelles (Phase 6 chantier B) :
- * - V7 : maxParticipants (si présent dans updates) ≥ session.currentParticipants actuel.
+ * Validations actuelles (Phase 6 chantiers B + C) :
+ * - V7 (chantier B) : maxParticipants (si présent dans updates) ≥ session.currentParticipants actuel.
+ * - V9 (chantier C) : pricingTiers immuable dès currentParticipants > 0 (équité bookers déjà engagés).
  *
- * Validations FUTURES (chantier C / Phase 8) :
- * - C : pricingTiers freeze après 1er booking (currentParticipants > 0)
- * - 8 : status downgrade prevention (e.g. 'completed' → 'open' interdit)
- * - 8 : startAt ne peut pas devenir < now sur session active
+ * Validations FUTURES (Phase 8) :
+ * - status downgrade prevention (e.g. 'completed' → 'open' interdit)
+ * - startAt ne peut pas devenir < now sur session active
  *
  * Champs explicitement exclus du Pick<> (réservés webhook Stripe Phase 3 + cron Phase 6) :
  * - currentParticipants, currentTier, currentPrice
@@ -1258,6 +1258,8 @@ export async function getSessionsByActivity(activityId: string): Promise<Session
  * @throws Error('session-not-found') si la session n'existe pas
  * @throws Error('maxParticipants-cannot-be-below-currentParticipants') avec err.cause
  *         { attempted, current, sessionId } pour debug admin Phase 7+
+ * @throws Error('pricingTiers-frozen-after-first-booking') avec err.cause
+ *         { sessionId, currentParticipants, attempted } si V9 violé
  */
 export async function updateSession(
   sessionId: string,
@@ -1293,6 +1295,22 @@ export async function updateSession(
         attempted: updates.maxParticipants,
         current: session.currentParticipants,
         sessionId,
+      },
+    });
+  }
+
+  // V9 guard : pricingTiers immuables après le 1er booking (équité bookers déjà engagés).
+  // Comparison method = présence simple dans updates (cohérent V7) — caller doit ne pas inclure
+  // le field s'il ne veut rien changer. Bloque modif, ajout, retrait, et tableau vide.
+  if (
+    updates.pricingTiers !== undefined &&
+    session.currentParticipants > 0
+  ) {
+    throw new Error('pricingTiers-frozen-after-first-booking', {
+      cause: {
+        sessionId,
+        currentParticipants: session.currentParticipants,
+        attempted: updates.pricingTiers,
       },
     });
   }

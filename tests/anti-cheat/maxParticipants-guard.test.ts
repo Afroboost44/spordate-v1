@@ -2,7 +2,8 @@
  * Tests Phase 6 chantier B — anti-cheat V7 maxParticipants guard.
  *
  * Exécution :
- *   firebase emulators:exec --only firestore "npx tsx tests/anti-cheat/maxParticipants-guard.test.ts"
+ *   npm run test:anti-cheat:b
+ *   (équivalent : firebase emulators:exec --only firestore "npx tsx tests/anti-cheat/maxParticipants-guard.test.ts")
  *
  * 8 cas couverts (cf. plan chantier B audit) :
  *
@@ -18,13 +19,7 @@
  *   B-T7 : partner SDK direct upgrade maxP → success
  *   B-T8 : partner SDK direct title only → success (pas de touche maxP)
  *
- * Setup : @firebase/rules-unit-testing v4 pilote l'emulator.
- *   - Service tests utilisent withSecurityRulesDisabled pour bypass rules + injecter le test seam
- *     (__setSessionsDbForTesting) dans le service.
- *   - Rules tests utilisent authenticatedContext(ALICE_UID) comme partner légitime owner d'activity.
- *
- * Pattern test runner : mini-runner cohérent sessions-integration.test.ts (assertEq/assertThrows
- * + section + main() async function pour CommonJS top-level await compat).
+ * Helpers shared : tests/anti-cheat/fixtures.ts (constantes, runner, makeTestSession, setupActivityAlice).
  */
 
 import {
@@ -33,87 +28,36 @@ import {
   assertSucceeds,
   type RulesTestEnvironment,
 } from '@firebase/rules-unit-testing';
-import {
-  Timestamp,
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  type Firestore,
-} from 'firebase/firestore';
+import { doc, getDoc, setDoc, updateDoc } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 
 import {
   __setSessionsDbForTesting,
   updateSession,
 } from '../../src/services/firestore';
-import type { Session, PricingTier } from '../../src/types/firestore';
+import type { Session } from '../../src/types/firestore';
 
-/**
- * @firebase/rules-unit-testing v4 retourne une Firestore "compat" (legacy namespace) qui est
- * runtime-compatible avec la modular SDK mais déclarée différemment côté types.
- */
-function asFirestore(rulesFs: unknown): Firestore {
-  return rulesFs as Firestore;
-}
-
-// =====================================================================
-// Mini test runner (cohérent sessions-integration.test.ts)
-// =====================================================================
-
-let passes = 0;
-let failures = 0;
-
-function assertEq<T>(actual: T, expected: T, label: string): void {
-  const aJson = JSON.stringify(actual);
-  const eJson = JSON.stringify(expected);
-  if (aJson === eJson) {
-    console.log(`PASS  ${label}`);
-    passes++;
-  } else {
-    console.log(`FAIL  ${label}`);
-    console.log(`        actual  : ${aJson}`);
-    console.log(`        expected: ${eJson}`);
-    failures++;
-  }
-}
-
-async function assertThrows(
-  fn: () => Promise<unknown>,
-  expectedMessage: string,
-  label: string,
-): Promise<Error | null> {
-  try {
-    await fn();
-    console.log(`FAIL  ${label} (expected throw "${expectedMessage}", got success)`);
-    failures++;
-    return null;
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    if (msg === expectedMessage) {
-      console.log(`PASS  ${label}`);
-      passes++;
-      return err instanceof Error ? err : null;
-    }
-    console.log(`FAIL  ${label} (expected throw "${expectedMessage}", got "${msg}")`);
-    failures++;
-    return null;
-  }
-}
-
-function section(title: string): void {
-  console.log('');
-  console.log(`--- ${title} ---`);
-}
+import {
+  ALICE_UID,
+  asFirestore,
+  assertEq,
+  assertThrows,
+  failManually,
+  getCounts,
+  makeTestSession,
+  passManually,
+  resetCounts,
+  section,
+  setupActivityAlice,
+} from './fixtures';
 
 // =====================================================================
 
 async function main(): Promise<void> {
-  const ALICE_UID = 'alice_partner';
-  const ACTIVITY_ID_ALICE = 'activity_alice';
+  resetCounts();
 
   const env: RulesTestEnvironment = await initializeTestEnvironment({
-    projectId: 'demo-spordate-anticheat',
+    projectId: 'demo-spordate-anticheat-b',
     firestore: {
       rules: readFileSync('firestore.rules', 'utf8'),
       host: 'localhost',
@@ -121,67 +65,10 @@ async function main(): Promise<void> {
     },
   });
 
-  /**
-   * Crée une Session test complète avec defaults sains. Override les champs nécessaires
-   * pour chaque test case.
-   */
-  function makeTestSession(overrides: Partial<Session>): Session {
-    const nowMs = Date.now();
-    const startAt = Timestamp.fromMillis(nowMs + 7 * 24 * 60 * 60 * 1000); // J+7
-    const endAt = Timestamp.fromMillis(nowMs + 7 * 24 * 60 * 60 * 1000 + 60 * 60 * 1000);
-    const chatOpenAt = Timestamp.fromMillis(nowMs + 5 * 24 * 60 * 60 * 1000);
-    const chatCloseAt = endAt;
-    const tiers: PricingTier[] = [
-      { kind: 'early', price: 2500, activateMinutesBeforeStart: null, activateAtFillRate: null },
-      { kind: 'standard', price: 3500, activateMinutesBeforeStart: 4320, activateAtFillRate: 0.5 },
-      { kind: 'last_minute', price: 4500, activateMinutesBeforeStart: 1440, activateAtFillRate: 0.8 },
-    ];
-    return {
-      sessionId: 'will-be-overridden',
-      activityId: ACTIVITY_ID_ALICE,
-      partnerId: ALICE_UID,
-      creatorId: ALICE_UID,
-      sport: 'Afroboost',
-      title: 'Test Session',
-      city: 'Genève',
-      startAt,
-      endAt,
-      chatOpenAt,
-      chatCloseAt,
-      maxParticipants: 10,
-      currentParticipants: 0,
-      pricingTiers: tiers,
-      currentTier: 'early',
-      currentPrice: 2500,
-      status: 'open',
-      createdBy: ALICE_UID,
-      createdAt: Timestamp.fromMillis(nowMs),
-      updatedAt: Timestamp.fromMillis(nowMs),
-      ...overrides,
-    };
-  }
-
-  /**
-   * Crée activities/{ACTIVITY_ID_ALICE} avec partnerId=ALICE_UID.
-   * Nécessaire pour que les rules sessions/{id} valident qu'ALICE est partner-owner.
-   * Setup minimum (juste partnerId) — autres champs Activity non requis par rules.
-   */
-  async function setupActivityAlice(): Promise<void> {
-    await env.withSecurityRulesDisabled(async (ctx) => {
-      const fbDb = asFirestore(ctx.firestore());
-      await setDoc(doc(fbDb, 'activities', ACTIVITY_ID_ALICE), {
-        activityId: ACTIVITY_ID_ALICE,
-        partnerId: ALICE_UID,
-        title: 'Test Activity Alice',
-      });
-    });
-  }
-
-  await setupActivityAlice();
+  await setupActivityAlice(env);
 
   // =====================================================================
   // SERVICE LAYER TESTS (B-T1..B-T5)
-  // Utilisent withSecurityRulesDisabled (bypass rules) + test seam injection
   // =====================================================================
 
   section('B-T1..B-T5 : updateSession() service layer');
@@ -190,7 +77,7 @@ async function main(): Promise<void> {
     const fbDb = asFirestore(ctx.firestore());
     __setSessionsDbForTesting(fbDb);
 
-    // B-T1 : upgrade maxP autorisé (5 → 10 avec currentP=5)
+    // B-T1 : upgrade maxP autorisé
     {
       const sessionId = 'session-bt1';
       await setDoc(
@@ -202,7 +89,7 @@ async function main(): Promise<void> {
       assertEq(updated.maxParticipants, 10, 'B-T1 upgrade maxP 5→10 (currentP=5)');
     }
 
-    // B-T2 : égalité autorisée (5 → 5 avec currentP=5)
+    // B-T2 : égalité autorisée
     {
       const sessionId = 'session-bt2';
       await setDoc(
@@ -214,7 +101,7 @@ async function main(): Promise<void> {
       assertEq(updated.maxParticipants, 5, 'B-T2 égalité maxP 5→5 (currentP=5)');
     }
 
-    // B-T3 : downgrade strict bloqué + err.cause vérifié (B3.Q4)
+    // B-T3 : downgrade strict bloqué + err.cause vérifié
     {
       const sessionId = 'session-bt3';
       await setDoc(
@@ -226,14 +113,12 @@ async function main(): Promise<void> {
         'maxParticipants-cannot-be-below-currentParticipants',
         'B-T3 downgrade strict 5→3 (currentP=5) throws V7',
       );
-      // Sub-assertion : err.cause contient bien { attempted, current, sessionId }
       const cause = (err?.cause ?? null) as
         | { attempted: number; current: number; sessionId: string }
         | null;
       assertEq(cause?.attempted, 3, 'B-T3 err.cause.attempted === 3');
       assertEq(cause?.current, 5, 'B-T3 err.cause.current === 5');
       assertEq(cause?.sessionId, sessionId, 'B-T3 err.cause.sessionId === session-bt3');
-      // Vérifier que Firestore n'a pas été modifié (write doit être abandonné avant updateDoc)
       const after = (await getDoc(doc(fbDb, 'sessions', sessionId))).data() as Session;
       assertEq(after.maxParticipants, 5, 'B-T3 maxP inchangé Firestore après throw');
     }
@@ -269,12 +154,10 @@ async function main(): Promise<void> {
     }
   });
 
-  // Reset test seam (le service revient sur le client SDK normal)
   __setSessionsDbForTesting(null);
 
   // =====================================================================
   // RULES LAYER TESTS (B-T6..B-T8)
-  // Utilisent authenticatedContext(ALICE) — partner SDK direct, rules appliquent
   // =====================================================================
 
   section('B-T6..B-T8 : firestore.rules partner direct');
@@ -295,11 +178,9 @@ async function main(): Promise<void> {
       await assertFails(
         updateDoc(doc(aliceDb, 'sessions', sessionId), { maxParticipants: 3 }),
       );
-      console.log('PASS  B-T6 partner downgrade SDK direct → permission-denied');
-      passes++;
+      passManually('B-T6 partner downgrade SDK direct → permission-denied');
     } catch {
-      console.log('FAIL  B-T6 (expected fail, got success)');
-      failures++;
+      failManually('B-T6 (expected fail, got success)');
     }
   }
 
@@ -319,15 +200,13 @@ async function main(): Promise<void> {
       await assertSucceeds(
         updateDoc(doc(aliceDb, 'sessions', sessionId), { maxParticipants: 20 }),
       );
-      console.log('PASS  B-T7 partner upgrade SDK direct → success');
-      passes++;
+      passManually('B-T7 partner upgrade SDK direct → success');
     } catch (e) {
-      console.log('FAIL  B-T7', e);
-      failures++;
+      failManually('B-T7', e);
     }
   }
 
-  // B-T8 : title only via SDK partner → success (pas de touche maxP)
+  // B-T8 : title only via SDK partner → success
   {
     const sessionId = 'session-bt8';
     await env.withSecurityRulesDisabled(async (ctx) => {
@@ -348,11 +227,9 @@ async function main(): Promise<void> {
       await assertSucceeds(
         updateDoc(doc(aliceDb, 'sessions', sessionId), { title: 'New' }),
       );
-      console.log('PASS  B-T8 partner title only SDK direct → success');
-      passes++;
+      passManually('B-T8 partner title only SDK direct → success');
     } catch (e) {
-      console.log('FAIL  B-T8', e);
-      failures++;
+      failManually('B-T8', e);
     }
   }
 
@@ -362,6 +239,7 @@ async function main(): Promise<void> {
 
   await env.cleanup();
 
+  const { passes, failures } = getCounts();
   console.log('');
   console.log('====== Résumé Anti-Cheat B (maxParticipants guard) ======');
   console.log(`PASS : ${passes}`);

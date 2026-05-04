@@ -25,6 +25,17 @@ service cloud.firestore {
         || request.resource.data.maxParticipants >= resource.data.currentParticipants;
     }
 
+    // Phase 6 anti-cheat V9 — interdit toute modification de Session.pricingTiers après le 1er booking.
+    // Autorise : modification libre tant que currentParticipants == 0 (avant tout booking, workflow normal pré-launch).
+    // Bloque  : toute modif (price, deletion d'un tier, ajout d'un tier) si currentParticipants > 0.
+    // Admin skip cette garde via la branche isAdmin() du allow update sessions — emergency edits permises.
+    // Note : helper spécifique sessions/{id} (accède pricingTiers + currentParticipants) ; n'invoquer
+    //        que depuis ce match block, sinon résultats imprévisibles sur autres collections.
+    function validPricingTiersUpdate() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['pricingTiers'])
+        || resource.data.currentParticipants == 0;
+    }
+
     // === USERS ===
     match /users/{userId} {
       allow read: if isAuth();
@@ -210,6 +221,7 @@ service cloud.firestore {
             get(/databases/$(database)/documents/activities/$(resource.data.activityId)).data.partnerId == request.auth.uid
             && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['currentParticipants', 'currentTier', 'currentPrice'])
             && validMaxParticipantsUpdate()
+            && validPricingTiersUpdate()
           )
         );
       allow delete: if isAdmin();
