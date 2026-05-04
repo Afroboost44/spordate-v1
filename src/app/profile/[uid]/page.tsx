@@ -10,7 +10,7 @@ import {
 import { useRouter, useParams } from "next/navigation";
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { getUser } from "@/services/firestore";
-import { getReviewsByUser } from "@/lib/reviews";
+import { getReviewsByUser, getReviewerProfiles, type ReviewerProfile } from "@/lib/reviews";
 import { ReviewsList } from "@/components/reviews/ReviewsList";
 import type { Review, UserProfile } from "@/types/firestore";
 import { Timestamp } from 'firebase/firestore';
@@ -44,6 +44,7 @@ function PublicProfileContent() {
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [reviewerProfiles, setReviewerProfiles] = useState<Map<string, ReviewerProfile>>(new Map());
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,11 +55,19 @@ function PublicProfileContent() {
           getUser(uid),
           getReviewsByUser(uid).catch((err) => {
             console.error('[PublicProfile] Reviews fetch failed (non-blocking)', err);
-            return [];
+            return [] as Review[];
           }),
         ]);
         setProfile(p);
         setReviews(r);
+        // Phase 7 commit 4/6 : résoudre les profils reviewers nominatifs (3-5★)
+        if (r.length > 0) {
+          const profilesMap = await getReviewerProfiles(r).catch((err) => {
+            console.error('[PublicProfile] reviewerProfiles fetch failed (non-blocking)', err);
+            return new Map<string, ReviewerProfile>();
+          });
+          setReviewerProfiles(profilesMap);
+        }
       } catch (err) {
         console.error('[PublicProfile] Error:', err);
       } finally {
@@ -175,7 +184,7 @@ function PublicProfileContent() {
           <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-3 font-light">
             Avis reçus
           </h3>
-          <ReviewsList reviews={reviews} variant="profile" />
+          <ReviewsList reviews={reviews} variant="profile" reviewerProfiles={reviewerProfiles} />
         </div>
 
         {/* Back to chat */}

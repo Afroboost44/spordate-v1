@@ -46,6 +46,8 @@ const COMMENT_MAX = 500;
 
 export interface ReviewFormProps {
   activityId: string;
+  /** UID du reviewer (current user) — caller responsabilité de fournir l'auth context. */
+  reviewerId: string;
   revieweeId: string;
   /** Nom du reviewé pour le titre du dialog (ex: "Reviewer Marie"). */
   revieweeName?: string;
@@ -66,6 +68,7 @@ function formatHoursLeft(coolingOffEndMs: number): string {
 
 export function ReviewForm({
   activityId,
+  reviewerId,
   revieweeId,
   revieweeName,
   open,
@@ -89,7 +92,7 @@ export function ReviewForm({
     try {
       const result = await createReview({
         activityId,
-        reviewerId: '', // sera rempli côté service via auth context Phase 7+ ; pour l'instant, le caller doit auth
+        reviewerId,
         revieweeId,
         rating: rating as ReviewRating,
         comment,

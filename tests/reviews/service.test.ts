@@ -44,7 +44,9 @@ import {
   awardReviewBonus,
   createReview,
   editReview,
+  getReviewerProfiles,
   getReviewsByUser,
+  isEligibleToReview,
   moderateReview,
   ReviewError,
   softDeleteReview,
@@ -692,6 +694,175 @@ async function main(): Promise<void> {
         true,
         'R19 tri createdAt DESC (plus récente en premier)',
       );
+    }
+
+    // ===================================================================
+    // R20-R24 : isEligibleToReview + getReviewerProfiles (commit 4/6)
+    // ===================================================================
+    section('isEligibleToReview : eligible / no-shared / already / cooling-off');
+
+    // R20 : éligibilité OK — nouveau scénario H avec session passée >24h <7j
+    const ACTIVITY_H = 'act_scenarioH';
+    const REVIEWER_FRANK = 'user_frank_h';
+    const REVIEWEE_GINA = 'user_gina_h';
+    await setupActivity(fbDb, { activityId: ACTIVITY_H, partnerId: PARTNER_ID });
+    await setupSession(fbDb, {
+      sessionId: 'sess_H1',
+      activityId: ACTIVITY_H,
+      endAtMs: threeDaysAgoMs,
+    });
+    await setupBooking(fbDb, {
+      bookingId: 'book_H1_frank',
+      userId: REVIEWER_FRANK,
+      sessionId: 'sess_H1',
+      activityId: ACTIVITY_H,
+    });
+    await setupBooking(fbDb, {
+      bookingId: 'book_H1_gina',
+      userId: REVIEWEE_GINA,
+      sessionId: 'sess_H1',
+      activityId: ACTIVITY_H,
+    });
+
+    {
+      const result = await isEligibleToReview({
+        userId: REVIEWER_FRANK,
+        activityId: ACTIVITY_H,
+        revieweeId: REVIEWEE_GINA,
+      });
+      assertEq(result.eligible, true, 'R20 happy path → eligible=true');
+      assertEq(result.reason, undefined, 'R20 pas de reason quand eligible');
+      assertEq(
+        result.windowEndsAt !== undefined,
+        true,
+        'R20 windowEndsAt set même quand eligible',
+      );
+    }
+
+    // R21 : self-review (court-circuit avant queries)
+    {
+      const result = await isEligibleToReview({
+        userId: REVIEWER_FRANK,
+        activityId: ACTIVITY_H,
+        revieweeId: REVIEWER_FRANK,
+      });
+      assertEq(result.eligible, false, 'R21 self-review → eligible=false');
+      assertEq(result.reason, 'self-review', 'R21 reason=self-review');
+    }
+
+    // R22 : already-reviewed — créer review puis re-tester
+    await createReview({
+      activityId: ACTIVITY_H,
+      reviewerId: REVIEWER_FRANK,
+      revieweeId: REVIEWEE_GINA,
+      rating: 4,
+      comment: 'Premier avis pour test already-reviewed',
+    });
+    {
+      const result = await isEligibleToReview({
+        userId: REVIEWER_FRANK,
+        activityId: ACTIVITY_H,
+        revieweeId: REVIEWEE_GINA,
+      });
+      assertEq(result.eligible, false, 'R22 already-reviewed → eligible=false');
+      assertEq(result.reason, 'already-reviewed', 'R22 reason=already-reviewed');
+    }
+
+    // R23 : cooling-off active (session 12h ago)
+    const ACTIVITY_I = 'act_scenarioI';
+    const REVIEWER_HUGO = 'user_hugo_i';
+    const REVIEWEE_IRIS = 'user_iris_i';
+    await setupActivity(fbDb, { activityId: ACTIVITY_I, partnerId: PARTNER_ID });
+    const twelveHoursAgoMsR23 = Date.now() - 12 * 60 * 60 * 1000;
+    await setupSession(fbDb, {
+      sessionId: 'sess_I1',
+      activityId: ACTIVITY_I,
+      endAtMs: twelveHoursAgoMsR23,
+    });
+    await setupBooking(fbDb, {
+      bookingId: 'book_I1_hugo',
+      userId: REVIEWER_HUGO,
+      sessionId: 'sess_I1',
+      activityId: ACTIVITY_I,
+    });
+    await setupBooking(fbDb, {
+      bookingId: 'book_I1_iris',
+      userId: REVIEWEE_IRIS,
+      sessionId: 'sess_I1',
+      activityId: ACTIVITY_I,
+    });
+
+    {
+      const result = await isEligibleToReview({
+        userId: REVIEWER_HUGO,
+        activityId: ACTIVITY_I,
+        revieweeId: REVIEWEE_IRIS,
+      });
+      assertEq(result.eligible, false, 'R23 cooling-off active → eligible=false');
+      assertEq(result.reason, 'cooling-off-active', 'R23 reason=cooling-off-active');
+      assertEq(
+        result.cooldownEndsAt !== undefined,
+        true,
+        'R23 cooldownEndsAt set (countdown UI)',
+      );
+    }
+
+    // R24 : getReviewerProfiles — Map avec uids résolus + anonymized skipped
+    section('getReviewerProfiles : Map résolution + anonymized skipped');
+
+    // Créer 2 user docs : Frank (reviewer 4★ nominatif) + un compte anonymized fictif
+    const usersColl = await import('firebase/firestore');
+    await setDoc(doc(fbDb, 'users', REVIEWER_FRANK), {
+      uid: REVIEWER_FRANK,
+      displayName: 'Frank Tester',
+      photoURL: 'https://example.com/frank.jpg',
+      email: 'frank@test.local',
+    });
+    void usersColl; // keep import side-effect
+
+    // Récupérer toutes les reviews avec une mix anonymized true/false
+    const allReviewsForCharlie = await getReviewsByUser(REVIEWEE_ID);
+    // Récupérer la review nominative de Frank → Gina (rating 4)
+    const reviewsForGina = await getReviewsByUser(REVIEWEE_GINA);
+    const allMixed = [...allReviewsForCharlie, ...reviewsForGina];
+
+    const profilesMap = await getReviewerProfiles(allMixed);
+
+    // Frank a un profile résolu (rating 4 → nominatif)
+    assertEq(
+      profilesMap.has(REVIEWER_FRANK),
+      true,
+      'R24 Map contient REVIEWER_FRANK (nominatif 4★, profile résolu)',
+    );
+    if (profilesMap.has(REVIEWER_FRANK)) {
+      assertEq(
+        profilesMap.get(REVIEWER_FRANK)?.displayName,
+        'Frank Tester',
+        'R24 displayName correctement résolu',
+      );
+    }
+
+    // Compter les anonymized dans la liste mixte
+    const anonymizedCount = allMixed.filter((r) => r.anonymized).length;
+    const nonAnonymizedReviewerIds = new Set(
+      allMixed.filter((r) => !r.anonymized).map((r) => r.reviewerId),
+    );
+    // Map size ≤ unique non-anonymized reviewerIds (certains user docs n'existent pas → skip)
+    assertEq(
+      profilesMap.size <= nonAnonymizedReviewerIds.size,
+      true,
+      `R24 Map.size (${profilesMap.size}) ≤ unique non-anonymized reviewerIds (${nonAnonymizedReviewerIds.size}) — anonymized=${anonymizedCount} skipped`,
+    );
+
+    // Aucune anonymized review ne doit avoir son reviewerId dans la Map
+    for (const r of allMixed) {
+      if (r.anonymized) {
+        assertEq(
+          profilesMap.has(r.reviewerId),
+          false,
+          `R24 anonymized review (rating=${r.rating}) → reviewerId NON résolu dans Map`,
+        );
+      }
     }
   });
 

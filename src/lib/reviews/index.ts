@@ -30,6 +30,16 @@ export {
 } from './moderateReview';
 export { softDeleteReview, type SoftDeleteReviewInput } from './softDeleteReview';
 export { awardReviewBonus, type AwardReviewBonusResult } from './awardReviewBonus';
+export {
+  isEligibleToReview,
+  type IsEligibleToReviewInput,
+  type EligibilityResult,
+  type EligibilityReason,
+} from './isEligibleToReview';
+export {
+  getReviewerProfiles,
+  type ReviewerProfile,
+} from './getReviewerProfiles';
 
 // Constants + errors typés
 export {

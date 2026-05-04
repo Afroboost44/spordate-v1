@@ -30,8 +30,9 @@ import Link from 'next/link';
 import { ArrowLeft, Building2, MapPin } from 'lucide-react';
 import type { Metadata } from 'next';
 import { getActivity } from '@/services/firestore';
-import { getReviewsByActivity } from '@/lib/reviews';
+import { getReviewsByActivity, getReviewerProfiles } from '@/lib/reviews';
 import { ReviewsList } from '@/components/reviews/ReviewsList';
+import { ReviewTrigger } from '@/components/reviews/ReviewTrigger';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -78,6 +79,12 @@ export default async function ActivityDetailPage({ params }: PageProps) {
   const reviews = await getReviewsByActivity(id, { limit: 50 }).catch((err) => {
     console.error('[ActivityDetailPage] getReviewsByActivity failed', err);
     return [];
+  });
+
+  // Phase 7 commit 4/6 : résoudre les profils reviewers nominatifs (3-5★)
+  const reviewerProfiles = await getReviewerProfiles(reviews).catch((err) => {
+    console.error('[ActivityDetailPage] getReviewerProfiles failed', err);
+    return new Map();
   });
 
   return (
@@ -143,13 +150,26 @@ export default async function ActivityDetailPage({ params }: PageProps) {
           aria-labelledby="activity-reviews-heading"
           className="flex flex-col gap-4"
         >
-          <h2
-            id="activity-reviews-heading"
-            className="text-lg sm:text-xl text-white font-light"
-          >
-            Avis
-          </h2>
-          <ReviewsList reviews={reviews} variant="activity" />
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <h2
+              id="activity-reviews-heading"
+              className="text-lg sm:text-xl text-white font-light"
+            >
+              Avis
+            </h2>
+            {/* Phase 7 commit 4/6 : ReviewTrigger Client island avec eligibility check */}
+            <ReviewTrigger
+              activityId={id}
+              revieweeId={activity.partnerId}
+              revieweeName={activity.partnerName}
+              className="text-sm"
+            />
+          </div>
+          <ReviewsList
+            reviews={reviews}
+            variant="activity"
+            reviewerProfiles={reviewerProfiles}
+          />
         </section>
       </div>
     </div>
