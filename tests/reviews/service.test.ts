@@ -44,6 +44,7 @@ import {
   awardReviewBonus,
   createReview,
   editReview,
+  getReviewsByUser,
   moderateReview,
   ReviewError,
   softDeleteReview,
@@ -629,6 +630,69 @@ async function main(): Promise<void> {
     assertEq(r17Reject.newStatus, 'rejected', 'R17 modération reject → status=rejected');
     assertEq(r17Reject.bonusAwarded, false, 'R17 reject → PAS de bonus crédits');
     assertEq(calls.length, callsBeforeR17, 'R17 creditsAdder PAS appelé pour rejected');
+
+    // ===================================================================
+    // R18 + R19 : getReviewsByUser
+    // ===================================================================
+    section('getReviewsByUser : returns published only + sorted DESC');
+
+    // Setup : nouvelle activity + nouveau reviewer (Diane) qui review aussi REVIEWEE_ID
+    const ACTIVITY_G = 'act_scenarioG';
+    const REVIEWER_DIANE = 'user_diane_g';
+    await setupActivity(fbDb, { activityId: ACTIVITY_G, partnerId: PARTNER_ID });
+    await setupSession(fbDb, {
+      sessionId: 'sess_G1',
+      activityId: ACTIVITY_G,
+      endAtMs: threeDaysAgoMs,
+    });
+    await setupBooking(fbDb, {
+      bookingId: 'book_G1_diane',
+      userId: REVIEWER_DIANE,
+      sessionId: 'sess_G1',
+      activityId: ACTIVITY_G,
+    });
+    await setupBooking(fbDb, {
+      bookingId: 'book_G1_reviewee',
+      userId: REVIEWEE_ID,
+      sessionId: 'sess_G1',
+      activityId: ACTIVITY_G,
+    });
+
+    // Petit délai pour garantir createdAt DESC ordering distinct
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    // Diane review Charlie 4★ → published nominative
+    const dianeReview = await createReview({
+      activityId: ACTIVITY_G,
+      reviewerId: REVIEWER_DIANE,
+      revieweeId: REVIEWEE_ID,
+      rating: 4,
+      comment: 'Très bon participant, énergie positive',
+    });
+    assertEq(dianeReview.status, 'published', 'R18 setup : Diane 4★ → published');
+
+    // R18 : getReviewsByUser(REVIEWEE_ID) → published only (Bob 5★ R1 + Diane 4★ + R10 1★ pending->published + R17 2★ rejected NON inclus)
+    // Note: R1 a été softDelete (status=rejected) en R16. Bob's review N'EST PLUS published.
+    // R10 (1★ originally Bob → moderée publish) — mais c'était sur ACTIVITY_E reviewerId=REVIEWER_ID=Bob→Charlie
+    // Donc on s'attend à : R10 (Bob's 1★ moderé published) + Diane 4★ = 2 reviews published pour Charlie
+    const reviewsForCharlie = await getReviewsByUser(REVIEWEE_ID);
+    assertEq(reviewsForCharlie.length, 2, 'R18 getReviewsByUser(Charlie) → 2 reviews published (R10 Bob 1★ + Diane 4★)');
+    assertEq(
+      reviewsForCharlie.every((r) => r.status === 'published'),
+      true,
+      'R18 toutes les reviews retournées ont status=published (R16 rejected exclus, R17 rejected exclus, R9-pending exclus)',
+    );
+
+    // R19 : tri DESC par createdAt — Diane (plus récente) doit être avant Bob
+    if (reviewsForCharlie.length === 2) {
+      const firstMs = reviewsForCharlie[0].createdAt.toMillis();
+      const secondMs = reviewsForCharlie[1].createdAt.toMillis();
+      assertEq(
+        firstMs >= secondMs,
+        true,
+        'R19 tri createdAt DESC (plus récente en premier)',
+      );
+    }
   });
 
   // Cleanup

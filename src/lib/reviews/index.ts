@@ -15,8 +15,10 @@ export { createReview, type CreateReviewInput, type CreateReviewResult } from '.
 export {
   getReviewsByActivity,
   getMyReviews,
+  getReviewsByUser,
   getPendingReviewsForAdmin,
   type GetReviewsByActivityOptions,
+  type GetReviewsByUserOptions,
   type GetPendingReviewsForAdminOptions,
 } from './getReviews';
 export { editReview, type EditReviewInput } from './editReview';

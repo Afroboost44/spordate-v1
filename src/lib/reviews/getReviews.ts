@@ -61,6 +61,35 @@ export async function getMyReviews(userId: string): Promise<Review[]> {
   return snap.docs.map((d) => d.data() as Review);
 }
 
+export interface GetReviewsByUserOptions {
+  /** Limite résultats. Défaut 50. */
+  limit?: number;
+}
+
+/**
+ * Reviews REÇUES par un utilisateur (revieweeId == userId).
+ * Filtre status='published' uniquement (les pending/rejected ne sont jamais publiquement visibles).
+ * Tri createdAt DESC (plus récentes en premier — cohérent affichage profil).
+ *
+ * Usage : page profil utilisateur → "Avis reçus" via ReviewsList variant='profile'.
+ */
+export async function getReviewsByUser(
+  userId: string,
+  opts?: GetReviewsByUserOptions,
+): Promise<Review[]> {
+  const fbDb = getReviewsDb();
+  const lim = opts?.limit ?? 50;
+  const q = query(
+    collection(fbDb, 'reviews'),
+    where('revieweeId', '==', userId),
+    where('status', '==', 'published'),
+    orderBy('createdAt', 'desc'),
+    fbLimit(lim),
+  );
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => d.data() as Review);
+}
+
 export interface GetPendingReviewsForAdminOptions {
   /** Limite résultats. Défaut 100 (queue modération raisonnable). */
   limit?: number;

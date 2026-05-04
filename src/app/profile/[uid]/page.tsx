@@ -10,7 +10,9 @@ import {
 import { useRouter, useParams } from "next/navigation";
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { getUser } from "@/services/firestore";
-import type { UserProfile } from "@/types/firestore";
+import { getReviewsByUser } from "@/lib/reviews";
+import { ReviewsList } from "@/components/reviews/ReviewsList";
+import type { Review, UserProfile } from "@/types/firestore";
 import { Timestamp } from 'firebase/firestore';
 
 function getInitials(name: string): string {
@@ -41,14 +43,22 @@ function PublicProfileContent() {
   const uid = params.uid as string;
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!uid) return;
     (async () => {
       try {
-        const p = await getUser(uid);
+        const [p, r] = await Promise.all([
+          getUser(uid),
+          getReviewsByUser(uid).catch((err) => {
+            console.error('[PublicProfile] Reviews fetch failed (non-blocking)', err);
+            return [];
+          }),
+        ]);
         setProfile(p);
+        setReviews(r);
       } catch (err) {
         console.error('[PublicProfile] Error:', err);
       } finally {
@@ -159,6 +169,14 @@ function PublicProfileContent() {
             </div>
           </div>
         )}
+
+        {/* Reviews reçues (Phase 7 sub-chantier 1) */}
+        <div className="mb-8">
+          <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-3 font-light">
+            Avis reçus
+          </h3>
+          <ReviewsList reviews={reviews} variant="profile" />
+        </div>
 
         {/* Back to chat */}
         <Button
