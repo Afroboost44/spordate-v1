@@ -15,17 +15,10 @@
  * ⚠️ Caller responsibility : admin role validé service-side ET rule-side.
  */
 
-import {
-  collection,
-  doc,
-  getDoc,
-  serverTimestamp,
-  setDoc,
-  updateDoc,
-} from 'firebase/firestore';
-import type { Report, SanctionLevel, UserSanction } from '@/types/firestore';
-import { Timestamp } from 'firebase/firestore';
+import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
+import type { Report, SanctionLevel } from '@/types/firestore';
 import { ReportError, getReportsDb, isAdminRole } from './_internal';
+import { triggerAutoSanction } from './triggerAutoSanction';
 
 export interface SustainReportInput {
   reportId: string;
@@ -86,36 +79,16 @@ export async function sustainReport(input: SustainReportInput): Promise<SustainR
 
   await updateDoc(ref, update);
 
-  // 2. Manual sanction si demandée
+  // 2. Manual sanction si demandée — délégué à triggerAutoSanction (cohérence flow)
   let manualSanctionId: string | undefined;
   if (input.manualSanctionLevel) {
-    const sanctionRef = doc(collection(fbDb, 'userSanctions'));
-    manualSanctionId = sanctionRef.id;
-
-    const isWarning = input.manualSanctionLevel === 'warning';
-    const isPermanent = input.manualSanctionLevel === 'ban_permanent';
-    let endsAt: Timestamp | undefined;
-    if (!isWarning && !isPermanent) {
-      const days = input.manualSanctionLevel === 'suspension_7d' ? 7 : 30;
-      endsAt = Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000);
-    }
-
-    const payload: Record<string, unknown> = {
-      sanctionId: manualSanctionId,
+    manualSanctionId = await triggerAutoSanction({
       userId: report.reportedId,
       level: input.manualSanctionLevel,
-      reason: 'manual_admin' as UserSanction['reason'],
+      reason: 'manual_admin',
       triggeringReportIds: [input.reportId],
-      startsAt: serverTimestamp(),
-      appealable: !isWarning,
-      appealUsed: false,
-      isActive: true,
       createdBy: input.adminId,
-      createdAt: serverTimestamp(),
-    };
-    if (endsAt) payload.endsAt = endsAt;
-
-    await setDoc(sanctionRef, payload);
+    });
   }
 
   return { manualSanctionId };

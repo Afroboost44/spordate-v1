@@ -32,13 +32,13 @@ import {
   FREETEXT_MIN_LENGTH,
   RATE_LIMIT_PER_DAY,
   REPORT_WINDOW_DAYS,
-  _triggerSanctionStub,
   computeReportsThresholdAction,
   findLatestSharedPastSession,
   getDailyReportCountByReporter,
   getDistinctReportersAgainst,
   getReportsDb,
 } from './_internal';
+import { triggerAutoSanction } from './triggerAutoSanction';
 
 const VALID_CATEGORIES: ReportCategory[] = [
   'harassment_sexuel',
@@ -165,7 +165,7 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
 
   if (action.level !== null) {
     try {
-      sanctionId = await _triggerSanctionStub({
+      sanctionId = await triggerAutoSanction({
         userId: input.reportedId,
         reason: action.reason,
         level: action.level,
@@ -184,7 +184,7 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
       );
     } catch (err) {
       // Best-effort : report créé, sanction failed → admin la déclenchera manuellement
-      console.error('[createReport] _triggerSanctionStub failed (report still created)', {
+      console.error('[createReport] triggerAutoSanction failed (report still created)', {
         reportId,
         reportedId: input.reportedId,
         targetLevel: action.level,

@@ -27,6 +27,28 @@ export {
   type SustainReportInput,
   type SustainReportResult,
 } from './sustainReport';
+// Phase 7 sub-chantier 3 commit 3/5 — no-show + sanctions + appeals
+export {
+  triggerAutoSanction,
+  type TriggerAutoSanctionInput,
+} from './triggerAutoSanction';
+export {
+  markNoShow,
+  type MarkNoShowInput,
+  type MarkNoShowResult,
+  NO_SHOW_GRACE_MINUTES,
+} from './markNoShow';
+export {
+  getNoShowsForUser,
+  type GetNoShowsForUserOptions,
+} from './getNoShowsForUser';
+export { getActiveUserSanction } from './getActiveUserSanction';
+export { appealSanction, type AppealSanctionInput } from './appealSanction';
+export {
+  cancelNoShow,
+  type CancelNoShowInput,
+  NO_SHOW_CANCEL_WINDOW_HOURS,
+} from './cancelNoShow';
 
 // Errors + helpers + constants
 export {
@@ -39,6 +61,7 @@ export {
   FREETEXT_MIN_LENGTH,
   APPEAL_NOTE_MIN_LENGTH,
   computeReportsThresholdAction,
+  computeNoShowThresholdAction,
   findLatestSharedPastSession,
   getDistinctReportersAgainst,
   getDailyReportCountByReporter,

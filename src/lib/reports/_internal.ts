@@ -24,8 +24,6 @@ import {
   getDoc,
   getDocs,
   query,
-  serverTimestamp,
-  setDoc,
   where,
   type Firestore,
 } from 'firebase/firestore';
@@ -95,6 +93,29 @@ export function computeReportsThresholdAction(distinctReporterCount: number): {
   return { level: null, reason: 'reports_threshold' };
 }
 
+/**
+ * Threshold compute no-show (rolling 90j, count brut sur reportedId où category='no_show').
+ * Doctrine §D.5 :
+ *   1 → warning email
+ *   2 → warning + flag profil (admin voit le compteur ; service produit warning level)
+ *   3 → suspension_30d + refundDue (refund partner)
+ *   4+ → ban_permanent
+ *
+ * Note : 1er ET 2ème no-show produisent le même level='warning'. Le "flag" mentionné
+ * doctrine pour le 2ème = signal admin via getNoShowsForUser (count >=2 visible queue).
+ * Phase 9 polish pourra introduire un level intermédiaire si nécessaire.
+ */
+export function computeNoShowThresholdAction(noShowCount: number): {
+  level: SanctionLevel | null;
+  reason: SanctionReason;
+  refundDue: boolean;
+} {
+  if (noShowCount >= 4) return { level: 'ban_permanent', reason: 'no_show_threshold', refundDue: false };
+  if (noShowCount === 3) return { level: 'suspension_30d', reason: 'no_show_threshold', refundDue: true };
+  if (noShowCount >= 1) return { level: 'warning', reason: 'no_show_threshold', refundDue: false };
+  return { level: null, reason: 'no_show_threshold', refundDue: false };
+}
+
 // =====================================================================
 // Error codes (machine-parseable)
 // =====================================================================
@@ -110,7 +131,20 @@ export type ReportErrorCode =
   | 'report-not-found'
   | 'report-not-pending'
   | 'not-admin'
-  | 'invalid-decision';
+  | 'invalid-decision'
+  // No-show + sanctions specific (commit 3/5)
+  | 'not-partner'
+  | 'session-not-found'
+  | 'grace-period-active'
+  | 'not-confirmed-booker'
+  | 'duplicate-no-show'
+  | 'sanction-not-found'
+  | 'not-sanction-owner'
+  | 'not-appealable'
+  | 'appeal-already-used'
+  | 'appeal-note-too-short'
+  | 'cancel-window-closed'
+  | 'report-not-cancellable';
 
 export class ReportError extends Error {
   constructor(
@@ -269,57 +303,10 @@ export async function isAdminRole(userId: string): Promise<boolean> {
 }
 
 // =====================================================================
-// STUB Phase 7 commit 2/5 — auto-trigger sanction
+// Auto-trigger sanction extraction
 // =====================================================================
-
-/**
- * STUB Phase 7 commit 2/5 — création minimale UserSanction quand threshold atteint.
- * Sera remplacé/extrait dans commit 3/5 par triggerAutoSanction.ts complet
- * avec :
- *  - email userSanctionNotice via sendEmail (best-effort)
- *  - denorm preparation activeSanction* (commenté Phase 7 cf. Q3 — pas d'écriture
- *    users/{uid} client-side, en attente Phase 8 Cloud Function)
- *  - appeal flow setup (appealable, appealUsed=false initial)
- *
- * Retourne le sanctionId créé OU null si level==null (pas de sanction à créer).
- */
-export async function _triggerSanctionStub(opts: {
-  userId: string;
-  reason: SanctionReason;
-  level: SanctionLevel;
-  triggeringReportIds: string[];
-  refundDue?: boolean;
-}): Promise<string> {
-  const fbDb = getReportsDb();
-  const ref = doc(collection(fbDb, 'userSanctions'));
-  const sanctionId = ref.id;
-
-  const isWarning = opts.level === 'warning';
-  const isPermanent = opts.level === 'ban_permanent';
-
-  // endsAt computed côté client pour cosmétique (test predictable) — production
-  // pourrait basculer sur serverTimestamp + offset Cloud Function Phase 8.
-  let endsAt: Timestamp | undefined;
-  if (!isWarning && !isPermanent) {
-    const days = opts.level === 'suspension_7d' ? 7 : 30;
-    endsAt = Timestamp.fromMillis(Date.now() + days * 24 * 60 * 60 * 1000);
-  }
-
-  const payload: Record<string, unknown> = {
-    sanctionId,
-    userId: opts.userId,
-    level: opts.level,
-    reason: opts.reason,
-    triggeringReportIds: opts.triggeringReportIds,
-    startsAt: serverTimestamp(),
-    appealable: !isWarning, // warning level pas appealable doctrine §F
-    appealUsed: false,
-    isActive: true,
-    createdAt: serverTimestamp(),
-  };
-  if (endsAt) payload.endsAt = endsAt;
-  if (opts.refundDue === true) payload.refundDue = true;
-
-  await setDoc(ref, payload);
-  return sanctionId;
-}
+//
+// Phase 7 commit 2/5 contenait `_triggerSanctionStub` ici. Commit 3/5 a extrait
+// la logique vers `src/lib/reports/triggerAutoSanction.ts` (service public propre).
+// Les unused imports `serverTimestamp` + `setDoc` restent utilisés par les helpers
+// au-dessus (_internal.ts ne contient plus de write Firestore directement).
