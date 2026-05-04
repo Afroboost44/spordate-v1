@@ -11,6 +11,7 @@ import {
   collection, query, where, getDocs, orderBy, limit, onSnapshot, Timestamp
 } from 'firebase/firestore';
 import type { Session, Activity } from '@/types/firestore';
+import { CoInscribedWarning } from '@/components/partner/CoInscribedWarning';
 
 interface RecentSessionForCheckIn {
   sessionId: string;
@@ -121,6 +122,9 @@ export default function PartnerDashboardPage() {
         </h1>
         <p className="text-sm text-white/40 mt-1">Suivez vos performances en temps réel</p>
       </div>
+
+      {/* Phase 7 sub-chantier 4 commit 3/4 — warning co-inscrits bloqués (doctrine §9.sexies E) */}
+      {user?.uid && <CoInscribedWarning partnerId={user.uid} />}
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

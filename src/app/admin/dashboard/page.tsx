@@ -44,6 +44,8 @@ import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, query as fsQuery, where, getDocs, limit as fsLimit } from 'firebase/firestore';
 import { TandSReviewsPanel } from '@/components/admin/TandSReviewsPanel';
 import { TandSReportsPanel } from '@/components/admin/TandSReportsPanel';
+import { SanctionsTable } from '@/components/admin/SanctionsTable';
+import { AppealsTable } from '@/components/admin/AppealsTable';
 
 // Auth key
 const ADMIN_AUTH_KEY = 'spordate_admin_auth';
@@ -457,6 +459,14 @@ export default function AdminDashboard() {
           <TabsTrigger value="ts-reports" className="text-xs md:text-sm">
             <ShieldAlert className="mr-2 h-4 w-4" />
             T&amp;S Reports
+          </TabsTrigger>
+          <TabsTrigger value="ts-sanctions" className="text-xs md:text-sm">
+            <Shield className="mr-2 h-4 w-4" />
+            T&amp;S Sanctions
+          </TabsTrigger>
+          <TabsTrigger value="ts-appeals" className="text-xs md:text-sm">
+            <Shield className="mr-2 h-4 w-4" />
+            T&amp;S Appeals
           </TabsTrigger>
         </TabsList>
 
@@ -1071,6 +1081,16 @@ export default function AdminDashboard() {
         {/* ==================== T&S REPORTS QUEUE (sub-chantier 4 commit 2/4) ==================== */}
         <TabsContent value="ts-reports" className="space-y-6">
           <TandSReportsPanel adminUid={adminUid} />
+        </TabsContent>
+
+        {/* ==================== T&S SANCTIONS (sub-chantier 4 commit 3/4) ==================== */}
+        <TabsContent value="ts-sanctions" className="space-y-6">
+          <SanctionsTable adminUid={adminUid} />
+        </TabsContent>
+
+        {/* ==================== T&S APPEALS (sub-chantier 4 commit 3/4) ==================== */}
+        <TabsContent value="ts-appeals" className="space-y-6">
+          <AppealsTable adminUid={adminUid} />
         </TabsContent>
       </Tabs>
     </div>

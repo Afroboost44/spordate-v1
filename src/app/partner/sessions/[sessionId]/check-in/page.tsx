@@ -49,6 +49,7 @@ import {
   NoShowCheckInList,
   type NoShowParticipant,
 } from '@/components/reports/NoShowCheckInList';
+import { CoInscribedWarning } from '@/components/partner/CoInscribedWarning';
 import type { Activity, Booking, Report, Session, UserProfile } from '@/types/firestore';
 
 function formatSessionDate(session: Session | null): string {
@@ -316,6 +317,13 @@ function PartnerCheckInContent() {
           <p className="text-base text-white font-light">{activity.title || 'Session'}</p>
           <p className="text-xs text-white/50 font-light">{formatSessionDate(session)}</p>
         </div>
+
+        {/* Phase 7 sub-chantier 4 commit 3/4 — warning co-inscrits bloqués sur cette session */}
+        {user?.uid && (
+          <div className="mb-4">
+            <CoInscribedWarning partnerId={user.uid} sessionFilter={sessionId} />
+          </div>
+        )}
 
         {inGrace ? (
           <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-6 text-center">
