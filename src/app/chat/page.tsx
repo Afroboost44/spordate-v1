@@ -26,6 +26,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { ToastAction } from "@/components/ui/toast";
+import {
   getUserMatches,
   sendMessage,
   subscribeToMessages,
@@ -190,6 +200,33 @@ function ConversationList({
   );
 }
 
+/**
+ * Phase 8 SC2 commit 4/6 — "Ce flag est faux" mailto generator (Q8=A KISS).
+ * Pré-remplit subject + body avec contexte technique pour faciliter le tri admin.
+ */
+function generateFalseFlagMailto(args: {
+  chatId: string;
+  messageId: string;
+  escalationLevel: 'L2' | 'L3' | 'L4';
+}): string {
+  const subject = `Faux flag chat — ${args.escalationLevel}`;
+  const body = [
+    'Bonjour,',
+    '',
+    'Je pense que mon message a été flaggé incorrectement par le système de modération automatique anti-leak.',
+    '',
+    `Chat ID : ${args.chatId}`,
+    `Message ID : ${args.messageId}`,
+    `Date : ${new Date().toISOString()}`,
+    `Niveau escalation : ${args.escalationLevel}`,
+    '',
+    'Détails (optionnel) :',
+    '',
+    'Merci',
+  ].join('\n');
+  return `mailto:contact@spordateur.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+}
+
 // ——— Chat Window ———
 /** Phase 8 SC1 commit 4/5 — localStorage flag pour onboarding-bubble (1 fois par user). */
 const ONBOARDING_FLAG_KEY = 'spordateur_chat_onboarded_v1';
@@ -216,6 +253,9 @@ function ChatWindow({
   const [loadingMessages, setLoadingMessages] = useState(true);
   // Phase 8 SC1 commit 4/5 — onboarding-bubble doctrine §B.Q1 (1 fois par user)
   const [showOnboarding, setShowOnboarding] = useState(false);
+  // Phase 8 SC2 commit 4/6 — L3 modal rétroactif (Q2=B post-send, doctrine §B.Q2 laisse-faire)
+  const [showL3Dialog, setShowL3Dialog] = useState(false);
+  const [l3Context, setL3Context] = useState<{ messageId: string } | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -298,7 +338,9 @@ function ChatWindow({
     setInputValue('');
 
     try {
-      await sendMessage(match.matchId, currentUserId, text);
+      // Phase 8 SC2 commit 4/6 — capture escalationLevel + messageId pour handler UI
+      const result = await sendMessage(match.matchId, currentUserId, text);
+      handleEscalation(result.escalationLevel, result.messageId);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[Chat] Erreur envoi:', err);
@@ -326,6 +368,54 @@ function ChatWindow({
     } finally {
       setSending(false);
       inputRef.current?.focus();
+    }
+  };
+
+  // Phase 8 SC2 commit 4/6 — handler escalation post-send (doctrine §B L1-L4) :
+  //   L0 silent / L2 toast soft (Q11=A doctrine literal) /
+  //   L3 modal rétroactif (Q2=B post-send laisse-faire) /
+  //   L4 silent (admin email + flag account commit 5/6)
+  const handleEscalation = (
+    level: 'L0' | 'L2' | 'L3' | 'L4',
+    messageId: string,
+  ) => {
+    if (level === 'L0' || level === 'L4') {
+      // L0 silent doctrine §B ligne 567. L4 admin escalation manuelle (commit 5/6).
+      return;
+    }
+
+    if (level === 'L2') {
+      // Toast soft non-bloquant — wording doctrine literal Q11=A line 568
+      toast({
+        title: '💬 Astuce',
+        description:
+          'Le chat reste ouvert jusqu’à ta prochaine session — pas besoin de partager ton Insta.',
+        action: (
+          <ToastAction
+            altText="Ce flag est faux"
+            asChild
+          >
+            <a
+              href={generateFalseFlagMailto({
+                chatId: match.matchId,
+                messageId,
+                escalationLevel: 'L2',
+              })}
+              className="text-xs"
+            >
+              Ce flag est faux
+            </a>
+          </ToastAction>
+        ),
+        duration: 8000,
+      });
+      return;
+    }
+
+    if (level === 'L3') {
+      // Modal AlertDialog rétroactif post-send (doctrine §B.Q2 laisse-faire)
+      setL3Context({ messageId });
+      setShowL3Dialog(true);
     }
   };
 
@@ -421,6 +511,46 @@ function ChatWindow({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Phase 8 SC2 commit 4/6 — L3 modal rétroactif (Q2=B post-send, doctrine §B.Q2 laisse-faire)
+          Le message a été envoyé avant ce dialog (post-send). User informé que les futurs hits
+          escaladeront vers admin (L4). Action "Ce flag est faux" ouvre mailto. */}
+      <AlertDialog open={showL3Dialog} onOpenChange={setShowL3Dialog}>
+        <AlertDialogContent className="bg-black border border-zinc-800 text-white max-w-md">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white font-light text-lg">
+              Message flaggé
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400 font-light text-sm leading-relaxed pt-2">
+              Ton message a été flaggé comme tentative de partage de coordonnées
+              hors-plateforme. Il a été envoyé, mais{' '}
+              <span className="text-white">les futurs messages dans cette conversation
+              seront flaggés plus strictement</span> et pourront être escaladés vers la
+              modération admin.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+            {l3Context && (
+              <a
+                href={generateFalseFlagMailto({
+                  chatId: match.matchId,
+                  messageId: l3Context.messageId,
+                  escalationLevel: 'L3',
+                })}
+                className="text-xs text-white/50 hover:text-white/70 underline self-center mr-auto"
+              >
+                Ce flag est faux ?
+              </a>
+            )}
+            <AlertDialogAction
+              onClick={() => setShowL3Dialog(false)}
+              className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white font-light hover:opacity-90"
+            >
+              Compris
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Locked State */}
       {isLocked ? (
