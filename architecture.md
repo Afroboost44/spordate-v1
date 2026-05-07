@@ -1018,6 +1018,93 @@ Side effects post-batch (sendMessage L4 trigger if escalationLevel='L4' && !send
 
 **Prochain** : sub-chantier 3 — Suggestions IA next-activity (Genkit flow `next-activity-suggester` + UI bot card inline chat + cadence 1/72h + opt-out via aiSuggestionsOptIn SC0 + tests Genkit + emulator).
 
+### Sub-chantier 3 — Suggestions IA next-activity ✅ COMPLET (6 commits)
+
+- 1/6 `9e171f2` : Types `ChatMessage.type` += `'ai_suggestion'` + `ChatMessage.suggestions?: SuggestionCard[]` + nouvelle interface `SuggestionCard` (activityId, title, sport, city, nextSessionAt?, reason) + `Chat.lastSuggestionAt?: Timestamp` (cooldown 72h doctrine §D.Q2) + rules anti-spoof `chat/messages` create `senderId == auth.uid` (lock-down barrière Admin SDK Q9=A) + tests `CHAT14-CHAT16` (16/16 cumulés)
+- 2/6 `e7b433b` : `src/ai/flows/next-activity-suggester.ts` — flow Genkit Gemini Flash + cache 24h Map séparé (Q8=A) + DI seams `__setSuggestGenerateFnForTesting`/`__resetSuggestCacheForTesting`/`__setSuggestNowFnForTesting` + system prompt FR strict (4 few-shot examples) + filter activityId in catalog (anti-hallucination) + truncate reason ≤80 chars + slice top 3 + Q5=A defensive empty fallback + tests `SUG1-SUG10` (10/10 PASS first try)
+- 3/6 `887e7f1` : `src/app/runtime='nodejs'` — pipeline 12 étapes séquentielles avec abort early (validate → verify participant 403 → 72h cooldown silent skip → opt-out consensus → user.city read → activities catalog query LIMIT 50 → min 3 eligibility → last 30 messages reverse → Genkit flow → empty skip → hydrate SuggestionCard[] → batch atomic Admin SDK persist) + lazy Admin SDK init + tests `SAR1-SAR8` (11/11 PASS, sub-assertions SAR1+SAR7)
+- 4/6 `4dbb520` : Service helper `triggerSuggestionsIfEligible(chatId, userId)` exporté depuis `src/services/firestore.ts` — fetch POST `/api/suggest-activities` avec body + observabilité logs (persisted info, cooldown/optedOut/insufficientCatalog/aiNoMatch silent skip) + Q5=A best-effort silent (network error / 4xx / 5xx → no throw) + chat/page.tsx `useEffect([match.matchId, currentUserId, isLocked])` mount trigger + tests `SVC18-SVC20` (3 cas mock fetch /api/suggest-activities)
+- 5/6 `a0f4265` : `src/components/chat/SuggestionMessage.tsx` (nouveau, 145 lignes) — pure Component props-only, defensive null-guard, helper `formatNextSessionAt` FR ("Dim 12 mai · 14h30"), sub-component `SuggestionCardItem` (Link `/activities/{id}` + title truncate + sport·city + Calendar icon + reason italic + button "Réserver" gradient `#D91CD2`), main component bot avatar Sparkles 28×28 + bubble white/5 max-w 85% + header "🤖 Spordate · Suggestion" + cards stack vertical, charte stricte black/#D91CD2/white. chat/page.tsx render conditional `msg.type === 'ai_suggestion'` insertion entre system bubble et default text bubble.
+- 6/6 *(this commit)* : architecture.md sub-chantier 3 close-out + cumulative tests verification + scripts package.json review + doctrine compliance recap
+
+**Architecture résultante anti-leak SC2 + suggestions SC3** :
+
+```
+┌────────────────────────┐
+│ chat/page.tsx          │  Client Component
+│ ChatWindow useEffect   │  ↓ subscribeToMessages stream
+│ [match.matchId, …]     │  + handleSend / handleEscalation (SC2)
+└──────┬─────────────────┘  + render conditional ai_suggestion → SuggestionMessage
+       │
+       │ triggerSuggestionsIfEligible(chatId, userId)  [SC3 mount auto]
+       │ sendMessage(chatId, senderId, text)            [SC1 user input]
+       ↓
+┌────────────────────────┐
+│ services/firestore.ts  │  Shared client+server
+│ (best-effort silent)   │  • triggerSuggestions → fetch /api/suggest-activities
+└──────┬─────────────────┘  • sendMessage → L1 regex + fetch /api/anti-leak (SC2)
+       │
+       │ POST /api/suggest-activities    │ POST /api/anti-leak
+       │ POST /api/anti-leak             │
+       ↓                                 ↓
+┌────────────────────────┐  ┌────────────────────────┐
+│ /api/suggest-activities│  │ /api/anti-leak         │  Server-only routes
+│ runtime='nodejs'       │  │ runtime='nodejs'       │  (Genkit + firebase-admin
+│ Admin SDK pipeline :   │  │ Verify body + AiError  │   isolation hotfix SC2)
+│ - verify participant   │  │  → 429 ; autres → 500  │
+│ - 72h cooldown check   │  └──────┬─────────────────┘
+│ - opt-out consensus    │         │ classifyMessageL2(input)
+│ - user.city query      │         ↓
+│ - activities filter    │  ┌────────────────────────┐
+│ - last 30 messages     │  │ anti-leak-classifier   │  L2 IA hybride
+│ - Genkit flow          │  │ Cache 24h Map separate │  (regex L1 → IA L2 si
+│ - hydrate SuggestionCard│  │ wrapAiCall + Gemini    │   score=0.5 ambigu)
+│ - batch persist        │  └────────────────────────┘
+└──────┬─────────────────┘
+       │ suggestActivitiesL3(input)
+       ↓
+┌────────────────────────┐
+│ next-activity-suggester│  L3 IA suggestions
+│ Cache 24h Map separate │  • Hash chatHistory+catalog
+│ wrapAiCall + Gemini    │  • System prompt FR + 4 few-shot
+│ filter activityId in   │  • Output {suggestions: [{activityId, reason}]}
+│  catalog (anti-hallu)  │
+└────────────────────────┘
+       ↓ result
+       │
+       ↓ (back to /api/suggest-activities)
+   Admin SDK batch atomic :
+   ├─ chats/{chatId}/messages/{auto-id} senderId='system' type='ai_suggestion' suggestions: SuggestionCard[]
+   └─ chats/{chatId} update lastSuggestionAt: serverTimestamp
+       ↓
+   Subscribe stream client-side → chat/page render <SuggestionMessage> bot card
+```
+
+**Bilan sub-chantier 3** :
+- Doctrine §D.Q1 ✅ default-on (trigger automatique mount, opt-out consensus server-side)
+- Doctrine §D.Q2 ✅ cadence 1/72h (Chat.lastSuggestionAt enforce route)
+- Doctrine §D.Q3 ✅ gratuit Phase 8
+- Doctrine §D.Q4 ✅ inline bot card avec avatar Sparkles + label "Spordate · Suggestion" + cards quick-book
+- Doctrine §D consensus opt-out ✅ (read both `aiSuggestionsOptIn` server-side, abort si l'un === false)
+- Doctrine §C.Q1 ✅ Genkit + Gemini 2.5 Flash via wrapAiCall SC0 (rate limit 10/user/min)
+- Doctrine §C.Q2 ✅ logs cache hash SHA-256 (jamais contenu lisible)
+- Doctrine §C.Q3 ✅ FR uniquement (system prompt + few-shot + UI wording)
+- Q1=A trigger client + server cooldown ✅ / Q2=A persistence Admin SDK ✅ / Q3=A consensus opt-out ✅
+- Q4=A simple filter ✅ (catalog city + isActive, no ML scoring) / Q5=A defensive empty ✅
+- Q6=A structured suggestions array ✅ / Q7=A on mount immediate ✅ / Q8=A cache séparé ✅
+- Q9=A Admin SDK bypass ✅ (rule anti-spoof tient client) / Q10=A min 3 eligibility ✅ / Q11=A inline bot card ✅
+- Tests SC3 cumulés : 3 (CHAT14-16) + 10 (SUG1-10) + 11 (SAR1-8) + 3 (SVC18-20) = **27 assertions automated**
+- Phase 8 cumulé (SC0 + SC1 + SC2 + SC3) : ~152 assertions automated + UI smoke (Phase 7 base 372 préservée intégralement)
+- Latence target <200ms p95 ✅ regex SC1 ~1-5ms / fetch /api/anti-leak ~50-200ms / fetch /api/suggest-activities ~200-500ms (acceptable hors p95 critique car async post-mount)
+- Defense-in-depth :
+  - Rule client-side rejette `senderId='system'` (commit 1/6)
+  - Admin SDK route bypass = seul chemin légitime
+  - Anti-hallucination flow : `activityId in catalog` filter post-Gemini
+  - Idempotency cooldown 72h server-side
+  - Best-effort client-side : suggestions = nice-to-have, jamais blocking UX
+
+**Prochain** : sub-chantier 4 — Invite Individuel (Phase 8 doctrine §E) : flow paiement direct CHF par invité (E.Q1 Phase 8 = mode Individuel uniquement, modes Split/Gift Phase 9). Quick-book button "Réserver" depuis SuggestionCard pourra être rewired vers `/api/invites/[id]` flow SC4.
+
 ---
 
 ### A. Doctrine économique — T&S = pré-requis rétention
