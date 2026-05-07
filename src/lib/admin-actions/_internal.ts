@@ -44,6 +44,7 @@ export const ADMIN_ACTION_TYPES: AdminActionType[] = [
   'appeal_resolve_overturned',
   'sanction_manual_create',
   'leak_escalation_l4', // Phase 8 SC2 commit 5/6 — auto-escalation system
+  'auto_refund_partner_no_show', // Phase 8 SC5 c4/5 — refund auto level 3 partner no-show
 ];
 
 export const ADMIN_ACTION_TARGET_TYPES: AdminActionTargetType[] = [

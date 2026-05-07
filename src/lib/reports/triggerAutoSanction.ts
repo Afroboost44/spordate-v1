@@ -107,14 +107,63 @@ export async function triggerAutoSanction(
   }
 
   // Q3 décision : denorm UserProfile activeSanction* NON écrit Phase 7
-  // (rule users update reste owner+admin only). Cloud Function Phase 8 fera ce wire.
-  // Log info pour traçabilité audit Phase 7.
-  console.info('[triggerAutoSanction] sanction créée — denorm UserProfile différée Phase 8', {
+  // (rule users update reste owner+admin only). Cloud Function Phase 8 SC5 c2/5
+  // wire : functions/src/triggers/denorm-active-sanction.ts (onDocumentWritten).
+  console.info('[triggerAutoSanction] sanction créée — denorm UserProfile via CF Phase 8 SC5 c2/5', {
     sanctionId,
     userId: input.userId,
     level: input.level,
     reason: input.reason,
   });
+
+  // Phase 8 SC5 c4/5 — Stripe refund auto level 3 partner no-show (Q2=C).
+  // Best-effort fire-and-forget HTTP self-call : évite pull firebase-admin dans
+  // le bundle client (SanctionBanner → reports/index → triggerAutoSanction).
+  // L'endpoint /api/admin/refund-sanction/[sanctionId] accepte Bearer CRON_SECRET
+  // (system auth) en plus du Bearer admin ID token (Q2=C fallback).
+  // Skip si CRON_SECRET absent (dev/test sans env) — admin manual fallback toujours dispo.
+  if (input.refundDue === true) {
+    try {
+      const cronSecret = process.env.CRON_SECRET;
+      const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null);
+      if (cronSecret && baseUrl) {
+        // Fire-and-forget : sanction commit prioritaire, refund best-effort
+        fetch(`${baseUrl}/api/admin/refund-sanction/${sanctionId}`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${cronSecret}`,
+            'Content-Type': 'application/json',
+          },
+        })
+          .then(async (res) => {
+            const result = await res.json().catch(() => ({}));
+            console.info('[triggerAutoSanction] auto refund triggered', {
+              sanctionId,
+              status: res.status,
+              result,
+            });
+          })
+          .catch((err) => {
+            console.warn('[triggerAutoSanction] auto refund fetch failed (best-effort)', {
+              sanctionId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          });
+      } else {
+        console.info(
+          '[triggerAutoSanction] auto refund skip — CRON_SECRET ou base URL absent (admin manual fallback)',
+          { sanctionId, refundDue: true },
+        );
+      }
+    } catch (err) {
+      console.warn('[triggerAutoSanction] auto refund setup failed (best-effort)', {
+        sanctionId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 
   return sanctionId;
 }

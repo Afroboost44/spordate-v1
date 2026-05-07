@@ -303,6 +303,11 @@ export interface Booking {
   /** Phase 8 SC5 c2/5 — flag idempotency cron reviewReminder 48h post-session.
    *  True une fois email envoyé (ou tenté en mode dev loggedOnly). Anti-double-email. */
   reviewReminderSent?: boolean;
+  /** Phase 8 SC5 c4/5 — Stripe refund auto level 3 partner no-show.
+   *  Set quand refundForSanction() crée le refund Stripe avec succès. */
+  refundedAt?: Timestamp;
+  /** Phase 8 SC5 c4/5 — Montant remboursé (CHF centimes, cohérent stripe.refunds.create). */
+  refundedAmount?: number;
 }
 
 // ===================== CREDITS =====================
@@ -707,7 +712,8 @@ export type AdminActionType =
   | 'appeal_resolve_upheld'
   | 'appeal_resolve_overturned'
   | 'sanction_manual_create'
-  | 'leak_escalation_l4'; // Phase 8 SC2 commit 5/6 — auto-escalation system (adminId='system')
+  | 'leak_escalation_l4' // Phase 8 SC2 commit 5/6 — auto-escalation system (adminId='system')
+  | 'auto_refund_partner_no_show'; // Phase 8 SC5 c4/5 — refund auto level 3 partner no-show (adminId='system')
 
 export type AdminActionTargetType =
   | 'review'

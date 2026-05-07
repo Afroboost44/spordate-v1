@@ -40,7 +40,8 @@
     "test:reports:recompute-cancel": "firebase emulators:exec --only firestore 'npx tsx tests/reports/recompute-sanction.test.ts'",
     "test:admin:blocks": "firebase emulators:exec --only firestore 'npx tsx tests/admin/blocks-api.test.ts'",
     "test:cron:review-reminder": "firebase emulators:exec --only firestore 'npx tsx tests/cron/review-reminder.test.ts'",
-    "test:cron:purge": "firebase emulators:exec --only firestore 'npx tsx tests/cron/purge-old-data.test.ts'"
+    "test:cron:purge": "firebase emulators:exec --only firestore 'npx tsx tests/cron/purge-old-data.test.ts'",
+    "test:stripe:refund": "firebase emulators:exec --only firestore 'npx tsx tests/stripe/refund-sanction.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",
