@@ -294,6 +294,9 @@ export interface Booking {
   paymentIntentId?: string;
   /** Phase 2 (additif) — palier de prix actif au moment de la réservation (traçabilité). */
   tier?: PricingTierKind;
+  /** Phase 8 SC5 c2/5 — flag idempotency cron reviewReminder 48h post-session.
+   *  True une fois email envoyé (ou tenté en mode dev loggedOnly). Anti-double-email. */
+  reviewReminderSent?: boolean;
 }
 
 // ===================== CREDITS =====================
