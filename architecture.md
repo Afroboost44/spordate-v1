@@ -1205,6 +1205,188 @@ Inviteur A (chat / activity page)
 
 **Prochain** : sub-chantier 5 — Différé Phase 7 hardening + close-out final Phase 8 (cumul des items "Différé Phase 8" listés ci-dessus + close-out architecture.md global Phase 8 + retrospective doctrine §F).
 
+### Sub-chantier 5 — Différés Phase 7 hardening ✅ COMPLET (5 commits)
+
+- 1/5 `20e615a` : `recomputeSanctionAfterReportCancel.ts` (helper recompute level + finder sanction by triggering report) + `cancelNoShow.ts` extension (appel recompute si autoSuspensionApplied=true) + `/api/admin/blocks/route.ts` (GET Bearer + isAdminRole + Admin SDK listAllBlocks). Tests RC1-RC8 (28 assertions) + BLK-API1-BLK-API4 (8 assertions). Comble TODO `triggerAutoSanction.ts:112` + `cancelNoShow.ts:83` + Différé Phase 8 ligne 880.
+- 2/5 `4c6e3d6` : CF `denormActiveSanctionTrigger` `onDocumentWritten('userSanctions/{id}')` v2 (Q4=A) → denorm `users.{uid}.activeSanctionId/Level/EndsAt` Admin SDK. CF `reviewReminderCron` `onSchedule('every 60 minutes')` Europe/Zurich → trigger Vercel `/api/cron/review-reminder`. Endpoint cron : query bookings status='confirmed' + sessionDate within (-72h, -48h) + flag idempotency `Booking.reviewReminderSent` + sendEmail reviewReminder (Q3=A email seul). Tests RR1-RR5 + auth (11 assertions). Comble Différé Phase 8 lignes 881+885.
+- 3/5 `8f4ed43` : CF `purgeOldDataCron` `onSchedule('0 3 * * 5')` Europe/Zurich (Q7=A weekly Friday 03:00) → `/api/cron/purge-old-data`. Pipeline 2 étapes : (a) purge `adminActions/` createdAt < now-24mo batch delete max 500 (b) anonymise users `activeSanctionLevel='ban_permanent'` + sanction createdAt < now-24mo → PII null + `anonymizedAt` flag idempotency. Dry-run mode `?dryRun=true`. Tests PG1-PG6 + auth (16 assertions). Comble Différé Phase 8 lignes 882+883. Conservation 24mo doctrine LPD/nLPD/RGPD CGU §7.bis.
+- 4/5 `171dfd7` : `src/lib/stripe/refundForSanction.ts` (helper Stripe refund + idempotencyKey `refund-{sanctionId}-{bookingId}` Q8=A + lazy Stripe + DI seam mock + audit log adminAction `auto_refund_partner_no_show` adminId='system') + `refundAllForSanction(sanctionId)` orchestrator (read sanction + first triggeringReport.reporterId = partner + query bookings 30d window + per-booking refund best-effort). `/api/admin/refund-sanction/[sanctionId]/route.ts` POST dual-auth (Bearer CRON_SECRET system OR Bearer admin ID token — Q2=C robust + fallback). `triggerAutoSanction.ts` extend : fire-and-forget fetch self-call POST endpoint avec CRON_SECRET (évite cycle webpack client-bundle vs dynamic import firebase-admin). Idempotency double layer Firestore `Booking.refundedAt` + Stripe idempotency_key. Tests RF1-RF6 + auth (16 assertions). Comble Différé Phase 8 ligne 886.
+- 5/5 *(this commit)* : architecture.md sub-chantier 5 close-out + close-out final Phase 8 doctrine §F + cumulative tests verification + retrospective doctrine §F MVP rétention.
+
+**Architecture résultante hardening SC5 (CF + crons + helpers + endpoints)** :
+
+```
+┌────────────────────────────────────────────────────────────────────┐
+│  CLOUD FUNCTIONS (functions/src/) — Option β trigger Vercel        │
+│  Region : europe-west1, Timezone : Europe/Zurich                   │
+├────────────────────────────────────────────────────────────────────┤
+│ refreshPricingCron (Phase 6)   — every 15 min  → /api/cron/refresh │
+│ reviewReminderCron (SC5 c2/5)  — every 60 min  → /api/cron/review… │
+│ purgeOldDataCron   (SC5 c3/5)  — Friday 03:00  → /api/cron/purge…  │
+│ denormActiveSanctionTrigger    — onDocumentWritten userSanctions/{}│
+│   (SC5 c2/5 — Admin SDK denorm users.activeSanction*)              │
+└────────────────────────────────────────────────────────────────────┘
+                          │
+                          ↓ Bearer ${CRON_SECRET}
+┌────────────────────────────────────────────────────────────────────┐
+│  VERCEL ROUTES (Next.js App Router runtime='nodejs')               │
+├────────────────────────────────────────────────────────────────────┤
+│ /api/cron/review-reminder    — query bookings -72h..-48h           │
+│   → sendEmail reviewReminder + Booking.reviewReminderSent=true     │
+│                                                                    │
+│ /api/cron/purge-old-data     — purge adminActions > 24mo +         │
+│   anonymise users banned > 24mo (PII=null + anonymizedAt)          │
+│                                                                    │
+│ /api/admin/blocks            — GET Bearer admin → listAllBlocks    │
+│                                                                    │
+│ /api/admin/refund-sanction/[sanctionId]                            │
+│   POST dual-auth (CRON_SECRET system OR admin Bearer)              │
+│   → refundAllForSanction(sanctionId)                               │
+│     ↓ Stripe.refunds.create idempotencyKey                         │
+│     ↓ Booking.refundedAt + adminAction audit log                   │
+└────────────────────────────────────────────────────────────────────┘
+                          │
+                          ↓ on triggerAutoSanction(refundDue=true)
+                          ↓ fire-and-forget fetch self-call
+                          ↓ Bearer ${CRON_SECRET} (system path)
+                  /api/admin/refund-sanction/{sanctionId}
+```
+
+**Bilan votes SC5 doctrine** :
+- ✅ Q1=A CF Scheduler trigger Vercel (cohérent Phase 6 refreshPricingCron)
+- ✅ Q2=C auto par défaut + admin fallback dual-auth endpoint (robust + safety net)
+- ✅ Q3=A reviewReminder email seul Phase 8 (push web Phase 9 UX)
+- ✅ Q4=A CF `onDocumentWritten` v2 single trigger (gère create/update/delete)
+- ✅ Q5=C `cancelNoShow` recompute synchrone helper testable emulator (pas de CF)
+- ✅ Q6=A Bearer ID token + isAdminRole pattern (réutilise verifyAuth SC4)
+- ✅ Q7=A purge weekly Friday 03:00 Europe/Zurich (off-peak, low blast-radius)
+- ✅ Q8=A idempotencyKey shape `refund-{sanctionId}-{bookingId}` (collision-safe multi-bookings)
+
+**Tests SC5 cumulés** : 28 (recompute) + 8 (admin:blocks) + 11 (cron:review-reminder) + 16 (cron:purge) + 16 (stripe:refund) = **79 assertions automated**.
+
+**Tous les Différés Phase 7 fermés ✅** (lignes 880-886) :
+- ✅ `listAllBlocks` admin via Admin SDK endpoint (commit 1/5)
+- ✅ CF denorm `users.{uid}.activeSanction*` (commit 2/5)
+- ✅ Cron purge audit trail `/adminActions/` 24mo (commit 3/5)
+- ✅ Cron purge banlist PII 24mo (commit 3/5)
+- ✅ `cancelNoShow` recompute threshold (commit 1/5)
+- ✅ Push reminder 48h `reviewReminder` wire (commit 2/5, scope email)
+- ✅ Stripe API refund partner no-show level 3 (commit 4/5, auto + admin fallback)
+
+---
+
+## Phase 8 — CLOSE-OUT FINAL doctrine §F MVP rétention ✅
+
+**Période** : avril–mai 2026
+**Cumul** : 30 commits techniques + 2 hotfixes + 5 close-outs sub-chantiers + ce close-out final
+
+### Récap par sub-chantier
+
+| SC | Thème | Commits | Tests automated | Status |
+|----|-------|---------|-----------------|--------|
+| SC0 | Pré-flight Phase 8 (Genkit + opt-in IA + CGU §7.quater/quinquies) | 3 | 5 (rules profile + Genkit) | ✅ |
+| SC1 | Chat survival post-event + crédits + L1 regex anti-leak | 5 | 60 (chat:rules 16, chat:service 21+, regex 30) | ✅ |
+| SC2 | Anti-leak L2-L4 Genkit IA hybride + escalation | 5 + 2 hotfixes | 47 (alc 10, svc-leak 17, em-lk 3, alc-rules) | ✅ |
+| SC3 | Suggestions IA next-activity Genkit + bot card | 6 | 21 (sug 10, suggest:api 11) | ✅ |
+| SC4 | Invite Individuel paiement direct CHF (mode Individuel doctrine §E) | 6 | 39 (rules 6, service 10, api 8, email-webhook 15) + smoke manuel | ✅ |
+| SC5 | Hardening Phase 7 différés (admin + crons + CF + Stripe refund) | 5 | 79 (recompute 28, blocks 8, RR 11, purge 16, RF 16) | ✅ |
+| **Total** | | **30 + 2 hotfixes + 6 close-outs** | **~251+ assertions** | ✅ |
+
+(Tests email transverse `test:email` 39 + Phase 7 base 372 préservés intégralement, no-regression.)
+
+### Doctrine §F MVP rétention — ce qui a été livré
+
+**Pilier 1 — Chat post-event survival (SC1+SC2)** :
+- Chat ouvert tant que `credits >= 1` (rule + service §A doctrine)
+- Onboarding-bubble obligatoire 1ère entrée (CGU §7.quater disclosure)
+- Anti-leak L1 regex 6 patterns FR (silent log only — score + motive + hash SHA-256 anonyme)
+- Anti-leak L2-L4 IA hybride Genkit Gemini Flash (cache 24h) :
+  - L2 toast soft (literal Q11=A "pas besoin de partager ton Insta")
+  - L3 AlertDialog rétroactif (laisse-faire post-send Q2=B)
+  - L4 admin escalation (5+ hits / sender / chat) → email admin + audit log + flag profil
+- Latence p95 <200ms (regex pure ~1-5ms + Web Crypto SHA-256 ~1ms)
+
+**Pilier 2 — Suggestions IA next-activity (SC3)** :
+- Bot card SuggestionMessage dans chat (cooldown 72h doctrine §D)
+- Genkit Gemini Flash + cache + anti-hallucination filter (`activityId in catalog`)
+- Idempotency cooldown server-side + opt-out user `aiSuggestionsOptIn`
+- Best-effort UX (suggestions = nice-to-have, jamais blocking)
+
+**Pilier 3 — Invite Individuel paiement direct (SC4)** :
+- Mode Individuel doctrine §E (chacun paie sa part) — modes Split/Gift défer Phase 9
+- Pipeline complet : `<InviteButton>` modal → `/api/invites` Bearer + sendEmail + notif → `/invite/[id]` page status routing → `/api/checkout` mode='invite-accept' → Stripe → webhook `handleInviteAcceptPayment` (idempotency dual + runTransaction Booking + Invite + credits + notifs)
+- Anti-doublon doc-id pattern `${fromUserId}_${toUserId}_${sessionId}`
+- Expiration clamp Min(7j, sessionStart-1h)
+
+**Pilier 4 — Hardening Phase 7 différés (SC5)** :
+- Recompute sanction post-cancelNoShow (downgrade auto)
+- Admin endpoint listAllBlocks (Bearer + isAdminRole + Admin SDK)
+- CF denorm activeSanction (cosmétique fast-check banner)
+- Cron review-reminder 48h (template `reviewReminder` Resend, idempotency flag)
+- Cron purge adminActions/banlist 24mo (LPD/nLPD/RGPD)
+- Stripe refund auto level 3 + admin fallback (idempotency double layer)
+
+### Différé Phase 9 final consolidé
+
+**SC4 différés Phase 9** (cohérent doctrine §F MVP — pas de scope creep Phase 8) :
+- ⏭️ SuggestionMessage `<InviteButton>` extension — manque persistance `SuggestionCard.nextSessionId` Phase 9 polish
+- ⏭️ `/activities/[id]` dropdown matches invite trigger — server component + session selection complexity
+- ⏭️ Cron `expireInvitesIfDue()` deployment Cloud Functions Scheduler
+
+**Modes de paiement Phase 9** :
+- ⏭️ Mode Split (50/50 ou custom) doctrine §E.Q1 défer
+- ⏭️ Mode Gift (inviteur paye tout) défer
+- ⏭️ Stripe Connect destination splits + refund partner avancé (Phase 9 polish)
+
+**Items différés Phase 7 lignes 888-899** (UX + features avancées) restent Phase 9 :
+- ⏭️ Card session UI participants list complète + entry points block/report participants (Phase 7 wire seulement le partner)
+- ⏭️ Refactor admin auth Firebase Auth role-based (vs localStorage email actuel)
+- ⏭️ Admin UI queue `adminActions/` history + filtres + export CSV
+- ⏭️ IA-assistée Genkit pour modération reviews 1-2★ (volume > 10/jour)
+- ⏭️ Charte stricte appliquée admin dashboard (vs `bg-gray-900` exception actuelle)
+- ⏭️ Excuse pré-session ≥2h avant = no-show pas comptabilisé
+- ⏭️ Visibility réduite algo matching score reviews <3.5★
+- ⏭️ Detection patterns représailles cross-user reviews
+- ⏭️ Female-safety women-priority quota active (audienceType field)
+- ⏭️ Anonymisation soft delete user UI auto (vs cron 24mo seulement)
+
+**Polish Phase 9** :
+- ⏭️ Web Push API pour reviewReminder (au-delà email Q3=A)
+- ⏭️ Composite indexes Firestore `bookings: status+sessionDate` (volume scale-up)
+- ⏭️ Pagination cursor crons batch > 500 (volume scale-up)
+
+### Retrospective doctrine §F — KPIs cibles MVP rétention
+
+**KPI 1 — Engagement post-event** :
+- Taux chat actif post-completion (>1 message / chat / 7 jours)
+- Cible MVP : 30% chats actifs J+1, 15% J+7
+
+**KPI 2 — Conversion invite** :
+- Taux acceptance `/invite/[id]` (acceptedCount / sentCount)
+- Taux Stripe success post-acceptance
+- Cible MVP : 25% acceptance, 80% checkout success
+
+**KPI 3 — Suggestions IA clic-réservation** :
+- Taux click SuggestionMessage `<a href="/activities/[id]">`
+- Taux booking dans 24h post-click
+- Cible MVP : 10% CTR, 3% booking conversion
+
+**KPI 4 — Anti-leak escalation distribution** :
+- Volume L1 silent / L2 toast / L3 AlertDialog / L4 admin
+- Précision IA L2-L4 (faux positifs admin review)
+- Cible MVP : <2% L4 escalation rate, <5% faux positifs L2-L3
+
+**KPI 5 — Hardening T&S** :
+- Volume sanctions auto-recompute (cancelNoShow downgrade rate)
+- Volume refunds auto level 3 (Stripe API success rate, admin fallback rate)
+- Volume anonymisation banlist (24mo cohort size)
+
+### Conclusion Phase 8
+
+**Phase 8 = MVP rétention complet** : 4 piliers shipped + 7 items hardening Phase 7 fermés + zéro régression Phase 7 base 372 tests. Cumul : ~251+ assertions automated + smoke manuel SC4 + UI tests partielle. Vercel green sur 30+ déploiements consécutifs.
+
+**Prochaine phase** : **Phase 9** — UX avancée (Card session participants, admin auth refactor, Stripe Connect splits) + polish (web push, IA modération profile bios, female-safety quota actif).
+
 ---
 
 ### A. Doctrine économique — T&S = pré-requis rétention
