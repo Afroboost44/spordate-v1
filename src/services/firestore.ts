@@ -21,7 +21,7 @@ import type {
 } from '@/types/firestore';
 import { CREDIT_PACKAGES } from '@/types/firestore';
 import { scanMessageL1 } from '@/lib/anti-leak/regex';
-import { classifyMessageL2 } from '@/ai/flows/anti-leak-classifier';
+import type { AntiLeakInput, AntiLeakOutput } from '@/ai/types';
 
 // ===================== HELPERS =====================
 
@@ -581,6 +581,40 @@ async function sha256Hex(text: string): Promise<string> {
     .join('');
 }
 
+/**
+ * Phase 8 SC2 hotfix — Helper fetch /api/anti-leak (isolation Genkit server-only).
+ *
+ * Remplace l'import direct de classifyMessageL2 (qui tirait toute la chaîne Genkit
+ * dans le bundle client via webpack — fs/tls/net not found au build Vercel).
+ * Le route handler /api/anti-leak/route.ts encapsule l'appel Genkit côté serveur.
+ *
+ * Q5=A defensive : tout échec fetch (network, 4xx, 5xx, 429 rate limit) → fallback
+ * motive='ai-error' qui préserve le verdict L1 dans sendMessage().
+ */
+async function callAntiLeakL2API(input: AntiLeakInput): Promise<AntiLeakOutput> {
+  const fallback: AntiLeakOutput = {
+    riskScore: 0,
+    flagged: false,
+    technicalMotive: 'ai-error',
+  };
+
+  try {
+    const response = await fetch('/api/anti-leak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    if (!response.ok) {
+      console.warn('[sendMessage] /api/anti-leak non-OK status:', response.status);
+      return fallback;
+    }
+    return (await response.json()) as AntiLeakOutput;
+  } catch (err) {
+    console.warn('[sendMessage] /api/anti-leak fetch failed, fallback ai-error:', err);
+    return fallback;
+  }
+}
+
 // Phase 8 sub-chantier 1 commit 3/5 — DI seam pour tests emulator (cohérent
 // pattern __setSessionsDbForTesting). Utilisé UNIQUEMENT par tests/chat/service.test.ts.
 let _chatDbOverride: Firestore | null = null;
@@ -664,7 +698,9 @@ export async function sendMessage(
   let finalFlagged = scanL1.flagged;
 
   if (scanL1.score === 0.5) {
-    const scanL2 = await classifyMessageL2({
+    // Phase 8 SC2 hotfix : appel via /api/anti-leak (isolation Genkit server-only).
+    // Le helper fait un fetch et retourne la même shape AntiLeakOutput.
+    const scanL2 = await callAntiLeakL2API({
       messageContent: text,
       chatId,
       userId: senderId,

@@ -5,6 +5,20 @@ const isExport = process.env.NEXT_OUTPUT === 'export';
 const nextConfig: NextConfig = {
   // Static export for GitHub Pages preview
   ...(isExport ? { output: 'export', basePath: '/spordate-v1' } : {}),
+  // Phase 8 SC2 hotfix : isolation Genkit + dépendances Node-only côté serveur.
+  // Sans ça, webpack tente de bundler @grpc/grpc-js + @opentelemetry/sdk-node
+  // dans le client → "Module not found: 'fs'/'tls'/'net'" au build Vercel.
+  // Ces packages restent runtime serveur uniquement (route /api/anti-leak).
+  serverExternalPackages: [
+    'genkit',
+    '@genkit-ai/core',
+    '@genkit-ai/google-genai',
+    '@genkit-ai/next',
+    '@opentelemetry/sdk-node',
+    '@opentelemetry/exporter-trace-otlp-grpc',
+    '@grpc/grpc-js',
+    'firebase-admin',
+  ],
   typescript: {
     ignoreBuildErrors: true,
   },

@@ -49,11 +49,51 @@ import {
 import { readFileSync } from 'node:fs';
 
 import { __setChatDbForTesting, sendMessage } from '../../src/services/firestore';
-import {
-  __setGenerateFnForTesting,
-  __resetCacheForTesting,
-} from '../../src/ai/flows/anti-leak-classifier';
-import { __resetRateLimitForTesting } from '../../src/ai/genkit';
+import type { AntiLeakInput, AntiLeakOutput } from '../../src/ai/types';
+
+// Phase 8 SC2 hotfix — Genkit isolated server-only via /api/anti-leak.
+// Tests mock global.fetch au lieu de classifier DI seams (le classifier reste
+// testable directement par tests/anti-leak/classifier — couverture séparée).
+const _originalFetch = global.fetch;
+
+function mockApiFetch(response: AntiLeakOutput): { calls: number; lastBody: AntiLeakInput | null } {
+  const tracker = { calls: 0, lastBody: null as AntiLeakInput | null };
+  global.fetch = (async (url: unknown, options: unknown) => {
+    const urlStr = String(url);
+    const opts = options as { body?: string } | undefined;
+    if (urlStr.includes('/api/anti-leak')) {
+      tracker.calls++;
+      tracker.lastBody = opts?.body ? (JSON.parse(opts.body) as AntiLeakInput) : null;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => response,
+      } as Response;
+    }
+    return _originalFetch(url as RequestInfo, options as RequestInit);
+  }) as typeof global.fetch;
+  return tracker;
+}
+
+function mockApiFetchHttpError(status = 500): { calls: number } {
+  const tracker = { calls: 0 };
+  global.fetch = (async (url: unknown) => {
+    if (String(url).includes('/api/anti-leak')) {
+      tracker.calls++;
+      return {
+        ok: false,
+        status,
+        json: async () => ({ error: 'internal-error' }),
+      } as Response;
+    }
+    return _originalFetch(url as RequestInfo);
+  }) as typeof global.fetch;
+  return tracker;
+}
+
+function restoreFetch(): void {
+  global.fetch = _originalFetch;
+}
 
 /** Cast helper rules-unit-testing v4. */
 function asFirestore(rulesFs: unknown): Firestore {
@@ -457,27 +497,6 @@ async function main(): Promise<void> {
     return count;
   }
 
-  /** Helper : install mock IA response (single call). */
-  function mockIa(json: string): { calls: number; lastPrompt: string } {
-    const tracker = { calls: 0, lastPrompt: '' };
-    __setGenerateFnForTesting(async (prompt: string) => {
-      tracker.calls++;
-      tracker.lastPrompt = prompt;
-      return json;
-    });
-    return tracker;
-  }
-
-  /** Helper : install mock IA throwing error. */
-  function mockIaError(errorMsg: string): { calls: number } {
-    const tracker = { calls: 0 };
-    __setGenerateFnForTesting(async () => {
-      tracker.calls++;
-      throw new Error(errorMsg);
-    });
-    return tracker;
-  }
-
   await restockAliceCredits(30);
   pass('SC2 setup : alice credits = 30');
 
@@ -488,16 +507,20 @@ async function main(): Promise<void> {
   {
     await restockAliceCredits(30);
     await resetChatLeakBySender(MATCH_ACTIVE_ID);
-    __resetCacheForTesting();
-    __resetRateLimitForTesting();
-    const tracker = mockIa(JSON.stringify({ likely: 1, motive: 'phone', confidence: 0.92 }));
+    // Mock /api/anti-leak (Phase 8 SC2 hotfix — isolation Genkit server-only)
+    const tracker = mockApiFetch({
+      riskScore: 0.92,
+      flagged: true,
+      technicalMotive: 'ai-leak-likely',
+      reason: 'Détection IA: phone',
+    });
 
     const aliceCtx = env.authenticatedContext(ALICE_UID);
     __setChatDbForTesting(asFirestore(aliceCtx.firestore()));
     try {
       // Message ambigu : "079 123 45 67" seul → L1 score=0.5 (1 cat phone-ch)
       const result = await sendMessage(MATCH_ACTIVE_ID, ALICE_UID, '079 123 45 67');
-      assertEq(tracker.calls, 1, 'SVC9 IA invoquée 1× (ambigu score=0.5 doctrine §C)');
+      assertEq(tracker.calls, 1, 'SVC9 /api/anti-leak invoquée 1× (ambigu score=0.5 doctrine §C)');
       assertEq(result.scanFlagged, true, 'SVC9 flagged=true (IA confirme)');
       assertEq(result.scanMotive, 'ai-leak-likely', "SVC9 motive='ai-leak-likely'");
       assertEq(Math.round(result.scanScore * 100) / 100, 0.92, 'SVC9 scanScore=0.92 (IA confidence)');
@@ -517,15 +540,17 @@ async function main(): Promise<void> {
   {
     await restockAliceCredits(30);
     await resetChatLeakBySender(MATCH_ACTIVE_ID);
-    __resetCacheForTesting();
-    __resetRateLimitForTesting();
-    const tracker = mockIa(JSON.stringify({ likely: 0, motive: 'unknown', confidence: 0.85 }));
+    const tracker = mockApiFetch({
+      riskScore: 0.15,
+      flagged: false,
+      technicalMotive: 'ai-leak-unlikely',
+    });
 
     const aliceCtx = env.authenticatedContext(ALICE_UID);
     __setChatDbForTesting(asFirestore(aliceCtx.firestore()));
     try {
       const result = await sendMessage(MATCH_ACTIVE_ID, ALICE_UID, '079 123 45 67');
-      assertEq(tracker.calls, 1, 'SVC10 IA invoquée 1×');
+      assertEq(tracker.calls, 1, 'SVC10 /api/anti-leak invoquée 1×');
       assertEq(result.scanFlagged, false, 'SVC10 flagged=false (IA infirme — FP L1)');
       assertEq(result.scanMotive, 'ai-leak-unlikely', "SVC10 motive='ai-leak-unlikely'");
       assertEq(result.scanScore, 0, 'SVC10 scanScore=0 (downgrade)');
@@ -543,15 +568,14 @@ async function main(): Promise<void> {
   {
     await restockAliceCredits(30);
     await resetChatLeakBySender(MATCH_ACTIVE_ID);
-    __resetCacheForTesting();
-    __resetRateLimitForTesting();
-    const tracker = mockIaError('Gemini network unavailable');
+    // API HTTP error 500 → callAntiLeakL2API renvoie fallback ai-error
+    const tracker = mockApiFetchHttpError(500);
 
     const aliceCtx = env.authenticatedContext(ALICE_UID);
     __setChatDbForTesting(asFirestore(aliceCtx.firestore()));
     try {
       const result = await sendMessage(MATCH_ACTIVE_ID, ALICE_UID, '079 123 45 67');
-      assertEq(tracker.calls, 1, 'SVC11 IA invoquée 1× (avant fail)');
+      assertEq(tracker.calls, 1, 'SVC11 /api/anti-leak invoquée 1× (avant fail)');
       assertEq(result.scanMotive, 'ai-error', "SVC11 motive='ai-error' (Q5=A defensive)");
       assertEq(result.scanFlagged, true, 'SVC11 flagged préservé L1=true (preserve)');
       assertEq(Math.round(result.scanScore * 100) / 100, 0.5, 'SVC11 scanScore préservé L1=0.5');
@@ -568,14 +592,16 @@ async function main(): Promise<void> {
   {
     await restockAliceCredits(30);
     await resetChatLeakBySender(MATCH_ACTIVE_ID);
-    __resetCacheForTesting();
-    __resetRateLimitForTesting();
 
     const aliceCtx = env.authenticatedContext(ALICE_UID);
     __setChatDbForTesting(asFirestore(aliceCtx.firestore()));
 
-    // Mock IA : likely=1 pour tous les messages ambigu
-    __setGenerateFnForTesting(async () => JSON.stringify({ likely: 1, motive: 'phone', confidence: 0.9 }));
+    // Mock /api/anti-leak : likely=1 pour tous les messages ambigus
+    mockApiFetch({
+      riskScore: 0.9,
+      flagged: true,
+      technicalMotive: 'ai-leak-likely',
+    });
 
     try {
       // Message 1 → count=1, L2
@@ -604,12 +630,14 @@ async function main(): Promise<void> {
   {
     await restockAliceCredits(30);
     await resetChatLeakBySender(MATCH_ACTIVE_ID);
-    __resetCacheForTesting();
-    __resetRateLimitForTesting();
 
     const aliceCtx = env.authenticatedContext(ALICE_UID);
     __setChatDbForTesting(asFirestore(aliceCtx.firestore()));
-    __setGenerateFnForTesting(async () => JSON.stringify({ likely: 1, motive: 'phone', confidence: 0.9 }));
+    mockApiFetch({
+      riskScore: 0.9,
+      flagged: true,
+      technicalMotive: 'ai-leak-likely',
+    });
 
     try {
       const messages = ['079 111 22 33', '079 222 33 44', '079 333 44 55', '079 444 55 66', '079 555 66 77'];
@@ -635,16 +663,18 @@ async function main(): Promise<void> {
   {
     await restockAliceCredits(30);
     await resetChatLeakBySender(MATCH_ACTIVE_ID);
-    __resetCacheForTesting();
-    __resetRateLimitForTesting();
-    const tracker = mockIa(JSON.stringify({ likely: 1, motive: 'phone', confidence: 0.9 }));
+    const tracker = mockApiFetch({
+      riskScore: 0.9,
+      flagged: true,
+      technicalMotive: 'ai-leak-likely',
+    });
 
     const aliceCtx = env.authenticatedContext(ALICE_UID);
     __setChatDbForTesting(asFirestore(aliceCtx.firestore()));
     try {
-      // Multi-cat : phone-ch + email = score=0.8 (NOT 0.5 → IA pas appelée)
+      // Multi-cat : phone-ch + email = score=0.8 (NOT 0.5 → API pas appelée)
       const result = await sendMessage(MATCH_ACTIVE_ID, ALICE_UID, '079 111 22 33 et test@mail.com');
-      assertEq(tracker.calls, 0, 'SVC14 IA pas invoquée (score=0.8 multi-cat ≠ 0.5 ambigu)');
+      assertEq(tracker.calls, 0, 'SVC14 /api/anti-leak pas invoquée (score=0.8 multi-cat ≠ 0.5 ambigu)');
       assertEq(Math.round(result.scanScore * 100) / 100, 0.8, 'SVC14 scanScore=0.8 (L1 direct)');
       assertEq(result.scanFlagged, true, 'SVC14 flagged=true (L1 multi-cat)');
       assertEq(result.scanMotive, 'phone-ch', "SVC14 motive='phone-ch' (L1 priority)");
@@ -658,9 +688,7 @@ async function main(): Promise<void> {
   // Cleanup
   // ===================================================================
   __setChatDbForTesting(null); // reset DI seam
-  __setGenerateFnForTesting(null); // reset IA mock
-  __resetCacheForTesting();
-  __resetRateLimitForTesting();
+  restoreFetch(); // restore global.fetch (Phase 8 SC2 hotfix)
   await env.cleanup();
 
   console.log('');
