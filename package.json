@@ -29,6 +29,7 @@
     "test:genkit": "npx tsx src/ai/__tests__/genkit.test.ts",
     "test:chat:rules": "firebase emulators:exec --only firestore 'npx tsx tests/chat/rules.test.ts'",
     "test:anti-leak:regex": "npx tsx src/lib/anti-leak/__tests__/regex.test.ts",
+    "test:anti-leak:classifier": "npx tsx src/ai/flows/__tests__/anti-leak-classifier.test.ts",
     "test:chat:service": "firebase emulators:exec --only firestore 'npx tsx tests/chat/service.test.ts'"
   },
   "dependencies": {
