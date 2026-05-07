@@ -33,6 +33,7 @@ import {
   getDocs,
   query,
   where,
+  orderBy,
   type Firestore,
 } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
@@ -200,7 +201,14 @@ async function getScanLogsForChatViaAdmin(
   const out: Array<{ score: number; motive: string; messageHash: string }> = [];
   await env.withSecurityRulesDisabled(async (ctx) => {
     const fbDb = asFirestore(ctx.firestore());
-    const q = query(collection(fbDb, 'aiScanLogs'), where('chatId', '==', chatId));
+    // orderBy('createdAt', 'asc') critique : sans cet ordre Firestore retourne
+    // par doc-id (lexicographique sur auto-IDs random) → tests intermittents
+    // sur 'last log'. Cf. CHAT_RULES_TESTS commit 5/5 close-out.
+    const q = query(
+      collection(fbDb, 'aiScanLogs'),
+      where('chatId', '==', chatId),
+      orderBy('createdAt', 'asc'),
+    );
     const snap = await getDocs(q);
     snap.forEach((d) => {
       const data = d.data();

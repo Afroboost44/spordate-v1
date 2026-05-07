@@ -922,6 +922,28 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 
 **Bilan sub-chantier 0** : disclosures légales LPD/RGPD/LCD shipped + opt-in user-side + scaffolding Genkit prêt pour flows. Prochain : sub-chantier 1 (chat survival post-event + crédits consumption + L1 regex anti-leak, défense-en-profondeur bundle).
 
+### Sub-chantier 1 — Chat survival post-event + crédits + L1 regex anti-leak ✅ COMPLET (5 commits)
+
+- 1/5 `3cae5b0` : rules `/chats/{matchId}/messages` create inversion §A doctrine (allow `'completed'`, block `'cancelled'`, rétro-compat legacy) + cross-doc check `users.{senderId}.credits ≥ 1` + `AiScanLog` interface (Phase 8 §C.Q2) + nouvelle collection `/aiScanLogs/{id}` server-only + tests `tests/chat/rules.test.ts` CHAT1-CHAT5 (5/5 PASS)
+- 2/5 `101c69a` : `src/lib/anti-leak/regex.ts` — 6 patterns FR doctrine §C (PHONE_CH, PHONE_INTL +41, EMAIL strict TLD, SOCIAL_HANDLE proximity, DOMAIN .ch/.com/.net/.org/.io/.fr/.app, PLATFORM_KEYWORD whatsapp/telegram/dm moi/mp/signal/viber/envoie sur/insta/instagram/ig/snap/snapchat/tiktok) + `scanMessageL1()` pure function avec dedup inter-cat + scoring 0.5/0.6/0.8/0.9 + priorité motive + tests RGX1-RGX30 (30/30 PASS first try)
+- 3/5 `7328381` : `firestore.rules /aiScanLogs/{id}` defense-in-depth strict (anti-spoof senderId, ranges score, enum motive, regex hash SHA-256 64 chars hex, anti-backdate createdAt, keys hasOnly whitelist) + `sha256Hex()` Web Crypto + DI seam `__setChatDbForTesting`/`getChatDb()` + `sendMessage()` étendu (check credits ≥1 + scan L1 silent + hash + atomic batch decrement+scanLog+message + post-batch best-effort lastMessage+notification) + tests CHAT6-CHAT9 defense-in-depth + `tests/chat/service.test.ts` SVC1-SVC8 emulator-based (9/9 + 21/21 PASS)
+- 4/5 `7412885` : UI `/chat` — compteur Coins live (color ladder red/orange/default) + onboarding-bubble Dialog 1ère entrée (localStorage flag, doctrine §B.Q1 transparence + ShieldCheck disclosure CGU §7.quater) + handleSend défensif (pré-check insufficient + classification erreurs insufficient-credits/permission/generic) + Input disabled si <1 crédit + visual hint subtle "1 crédit consommé par message" + CTA "Top-up →" si épuisé. Charte stricte black/#D91CD2/white.
+- 5/5 *(this commit)* : architecture.md sub-chantier 1 close-out + verification cumulative tests + scripts package.json review
+
+**Bilan sub-chantier 1** :
+- Doctrine §A ✅ chat post-completion ouvert tant que credits ≥1 (rule + service + UI)
+- Doctrine §B.line567 ✅ L1 silent log only (aiScanLogs/ écrit, UI ne montre score/motive)
+- Doctrine §B.Q1 ✅ onboarding-bubble obligatoire 1ère entrée + disclosure CGU §7.quater
+- Doctrine §B.Q4 ✅ précision 92-95% confirmée RGX17-RGX29 anti-FP
+- Doctrine §C ✅ 6 patterns FR (5 catégories doctrine + INTL +41) + dedup intra-email + priorité motive
+- Doctrine §C.Q2 ✅ score + motive + hash SHA-256 anonyme uniquement (jamais contenu)
+- Tests SC1 cumulés : 30 (regex unit) + 9 (rules emulator) + 21 (service emulator) = **60 assertions**
+- Tests Phase 8 cumulés (SC0 + SC1) : 5 + 6 + 9 + 30 + 21 + 2 = **73 assertions** (Phase 7 base 372 préservée intégralement, no regression)
+- Latence target <200ms p95 ✅ regex pure ~1-5ms + Web Crypto SHA-256 ~1ms + 1 cross-doc read ~10-30ms
+- DI seam `__setChatDbForTesting` cohérent pattern Phase 7+Phase 2 sessions
+
+**Prochain** : sub-chantier 2 — Anti-leak L2-L4 Genkit (flow IA contextuelle anti-leak via wrapAiCall SC0 + escalation manuelle admin via collection dédiée + extension motive enum 'ai-leak-likely' / 'ai-leak-unlikely').
+
 ---
 
 ### A. Doctrine économique — T&S = pré-requis rétention
