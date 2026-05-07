@@ -16,7 +16,7 @@ export default function PrivacyPage() {
           Politique de Confidentialité
         </h1>
         <p className="text-sm text-gray-500 font-light mb-10">
-          Dernière mise à jour : 4 mai 2026 (refonte sections 2 / 5 / 7 / 8 — données T&amp;S, sous-traitants Hostinger+Resend, conservation, droits)
+          Dernière mise à jour : 7 mai 2026 (ajout sections 2 / 5 / 7 / 8 — données scan IA chat, sous-traitant Google Gemini, conservation logs, droit opposition suggestions IA — Phase 8)
         </p>
 
         <div className="space-y-8 text-gray-400 font-light leading-relaxed text-[15px]">
@@ -69,6 +69,15 @@ export default function PrivacyPage() {
               <span className="text-white">Données techniques :</span> adresse IP, type de navigateur,
               système d&apos;exploitation, pages consultées, horodatages — collectées automatiquement via
               des cookies techniques nécessaires au fonctionnement du service.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Données conversationnelles et scan IA (Phase 8) :</span>{' '}
+              contenu des messages chat (stocké dans la collection chat de Firestore), métadonnées
+              (horodatage, expéditeur, statut). Les messages font l&apos;objet d&apos;un scan
+              automatisé hybride (filtres techniques + analyse contextuelle IA Gemini) afin de
+              détecter les tentatives de partage de coordonnées (cf. CGU section 7.quater). Le
+              journal de scan ne contient pas les messages lisibles : uniquement un score de
+              risque, un motif technique et un hash anonyme conservés 30 jours.
             </p>
             <p className="mt-3">
               <span className="text-white">Données Trust &amp; Safety (Phase 7) :</span> signalements
@@ -142,6 +151,21 @@ export default function PrivacyPage() {
               suspensions, accusés d&apos;appel), confirmations de réservation, rappels de review 48h.
               Les contenus des e-mails sont stockés temporairement (logs Resend, durée &lt; 30 jours).
             </p>
+            <p className="mt-3">
+              <span className="text-white">Google AI — Gemini Flash via Genkit (Phase 8).</span>{' '}
+              Modèle d&apos;intelligence artificielle Gemini Flash de Google LLC, utilisé via la
+              bibliothèque Genkit (Firebase AI stack) pour deux finalités distinctes : (a) analyse
+              contextuelle des messages chat ambigus (Layer 2 de la modération automatisée — cf.
+              CGU section 7.quater) ; (b) génération de suggestions contextuelles d&apos;activités
+              dans le chat post-session (cf. CGU section 7.quinquies). Les requêtes sont traitées
+              sur l&apos;infrastructure Google Cloud (multi-region, principalement EU). Google LLC
+              est certifié selon le Swiss-U.S. Data Privacy Framework et conforme au RGPD ; les
+              transferts vers les États-Unis sont encadrés par les clauses contractuelles types
+              (SCC) reconnues par le PFPDT. Aucune donnée transmise via l&apos;API Gemini standard
+              n&apos;est utilisée par Google pour l&apos;entraînement de ses modèles (DPA Google
+              Cloud — pas de consentement fine-tuning). Phase 8 : usage limité à la langue
+              française ; allemand et italien planifiés Phase 10+.
+            </p>
           </section>
 
           <section>
@@ -186,7 +210,11 @@ export default function PrivacyPage() {
               — <span className="text-white">Traces d&apos;audit administratif (adminActions)</span> :
               24 mois pour conformité et traçabilité des décisions de modération ;
               — <span className="text-white">Logs Resend (e-mails sortants)</span> : durée
-              standard Resend (&lt; 30 jours).
+              standard Resend (&lt; 30 jours) ;
+              — <span className="text-white">Logs de scan IA chat (Phase 8)</span> : 30 jours
+              en hash anonyme (score de risque + motif technique + hash du message, jamais le
+              contenu lisible), puis purge automatique. Les messages chat eux-mêmes suivent la
+              durée standard de la collection chat (non modifiée par le scan).
             </p>
           </section>
 
@@ -218,6 +246,26 @@ export default function PrivacyPage() {
               Vous disposez d&apos;un droit d&apos;appel exerçable une seule fois par niveau de sanction
               (réponse à l&apos;e-mail ou écrit à contact@spordateur.com), avec un délai de réponse
               de notre équipe modération de 7 jours calendaires (Phase 7) — voir CGU section 7.bis.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Droit d&apos;opposition aux suggestions IA dans le chat
+              (Phase 8).</span> Les suggestions contextuelles d&apos;activités générées par IA
+              dans le chat sont activées par défaut sur la base d&apos;un intérêt légitime
+              prépondérant (art. 31 nLPD). Vous pouvez les désactiver à tout moment via le toggle
+              dédié dans la rubrique « Confidentialité » de{' '}
+              <Link href="/profile" className="text-[#D91CD2] hover:underline">votre profil</Link>.
+              Lorsqu&apos;un membre du chat désactive les suggestions, aucune suggestion n&apos;est
+              générée pour ce chat (consensus opt-out).
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Modération automatisée des messages — non
+              désactivable individuellement.</span> La modération automatisée des messages
+              (filtres techniques + analyse IA) constitue une mesure essentielle de sécurité et
+              de rétention plateforme : à ce titre, elle ne peut être désactivée individuellement
+              (intérêt légitime prépondérant — art. 31 nLPD). Les utilisateurs sont informés de
+              cette modération dès l&apos;inscription via les CGU (section 7.quater). Le journal
+              de scan n&apos;archive aucun contenu lisible (uniquement score, motif et hash
+              anonyme, conservation 30 jours).
             </p>
             <p className="mt-3">
               <span className="text-white">Droit à l&apos;effacement et anonymisation soft delete

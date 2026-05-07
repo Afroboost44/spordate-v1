@@ -16,7 +16,7 @@ export default function TermsPage() {
           Conditions Générales d&apos;Utilisation
         </h1>
         <p className="text-sm text-gray-500 font-light mb-10">
-          Dernière mise à jour : 4 mai 2026 (ajout sections 7.bis Sanctions Trust &amp; Safety + 7.ter Reviews publiques)
+          Dernière mise à jour : 7 mai 2026 (ajout sections 7.quater Modération chat IA + 7.quinquies Suggestions IA chat — Phase 8)
         </p>
 
         <div className="space-y-8 text-gray-400 font-light leading-relaxed text-[15px]">
@@ -222,6 +222,77 @@ export default function TermsPage() {
               fonctionnalité de la Plateforme n&apos;est conditionnée à la rédaction d&apos;une review.
               Pour encourager les reviews, un bonus de 5 crédits chat est offert pour toute review
               écrite après session.
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg text-white font-normal mb-3">7.quater Modération automatisée des messages chat (Phase 8)</h2>
+            <p>
+              <span className="text-white">Finalité — préservation de la rétention plateforme et sécurité.</span>{' '}
+              Les messages échangés dans le chat post-session sont automatiquement scannés par un
+              système hybride (filtres techniques + intelligence artificielle) afin de détecter les
+              tentatives de partage de coordonnées personnelles (numéros de téléphone, e-mails,
+              comptes de messagerie tiers). Cette modération vise à préserver la rétention sur la
+              Plateforme, prévenir les comportements de contournement (« match-and-leak ») et
+              garantir la sécurité des Utilisateurs dans un cadre régulé. Cette mesure est
+              divulguée publiquement (art. 31 nLPD intérêt légitime ; LCD Art. 3 transparence
+              des pratiques).
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Méthode hybride — Layer 1 filtres + Layer 2 IA.</span>{' '}
+              Layer 1 (filtres techniques déterministes) : détection en temps réel via expressions
+              régulières des patterns connus (formats de numéros suisses et internationaux,
+              adresses e-mail, handles Instagram, TikTok, WhatsApp, Telegram, Snapchat, etc.).
+              Layer 2 (analyse contextuelle par IA) : les messages ambigus sont analysés de manière
+              asynchrone par Google Gemini Flash via Genkit (sous-traitant détaillé en Politique
+              de Confidentialité, section 5). Phase 8 : langue française uniquement ; allemand et
+              italien planifiés en Phase 10+.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Conservation des logs scan — 30 jours, hashage anonyme.</span>{' '}
+              Les analyses produisent un journal interne contenant uniquement un score de risque,
+              un motif technique et un hash anonyme du message (jamais le contenu lisible). Ce
+              journal est conservé 30 jours puis purgé automatiquement. Aucun contenu de message
+              n&apos;est stocké en dehors de la collection chat elle-même (durée standard du chat).
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Limitation de débit IA.</span>{' '}
+              Pour prévenir les abus et maîtriser la charge, l&apos;analyse contextuelle Layer 2
+              est plafonnée à 10 appels par Utilisateur et par minute. Le dépassement de ce seuil
+              peut entraîner un délai temporaire de traitement des messages.
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Droit d&apos;opposition et opt-out.</span>{' '}
+              La modération automatisée des messages constitue une mesure essentielle de sécurité
+              et de rétention plateforme : à ce titre, elle ne peut être désactivée individuellement
+              (intérêt légitime prépondérant — art. 31 nLPD). En revanche, les{' '}
+              <span className="text-white">suggestions contextuelles d&apos;activités</span>{' '}
+              générées par IA dans le chat (cf. section 7.quinquies) sont désactivables à tout
+              moment via le toggle dédié dans{' '}
+              <Link href="/profile" className="text-[#D91CD2] hover:underline">votre profil</Link>{' '}
+              (rubrique Confidentialité).
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-lg text-white font-normal mb-3">7.quinquies Suggestions IA d&apos;activités dans le chat (Phase 8)</h2>
+            <p>
+              Afin d&apos;enrichir les conversations post-session et faciliter la planification de
+              nouvelles activités, la Plateforme propose des{' '}
+              <span className="text-white">suggestions automatiques d&apos;activités</span> dans
+              le chat (cadence maximale 1 suggestion toutes les 72 heures). Ces suggestions sont
+              générées par Google Gemini Flash via Genkit, à partir des 30 derniers messages du
+              chat et du profil sportif du groupe (sports pratiqués, villes).
+            </p>
+            <p className="mt-3">
+              <span className="text-white">Activation par défaut, opt-out à tout moment.</span>{' '}
+              Cette fonctionnalité est <span className="text-white">activée par défaut</span> pour
+              tous les Utilisateurs (intérêt légitime prépondérant — art. 31 nLPD ; les suggestions
+              favorisent la valeur d&apos;usage du service sans transfert nouveau de données). Tout
+              Utilisateur peut désactiver les suggestions IA à tout moment via le toggle dédié
+              dans <Link href="/profile" className="text-[#D91CD2] hover:underline">son profil</Link>{' '}
+              (rubrique Confidentialité). Lorsqu&apos;un membre du chat désactive les suggestions,
+              aucune suggestion n&apos;est générée pour ce chat (consensus opt-out).
             </p>
           </section>
 
