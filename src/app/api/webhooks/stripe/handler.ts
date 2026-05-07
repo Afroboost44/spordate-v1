@@ -52,6 +52,12 @@ export async function handlePaymentSuccess(session: Record<string, unknown>, str
     return handleSessionPayment(session, stripe);
   }
 
+  // Phase 8 SC4 commit 4/6 : invite-accept flow
+  // (B accepte invite A, paye sa part via Stripe checkout / mode='invite-accept')
+  if (meta.mode === 'invite-accept') {
+    return handleInviteAcceptPayment(session, stripe);
+  }
+
   const { db, FV } = await initAdmin();
   const userId = meta.userId;
   const packageId = meta.packageId || '';
@@ -391,6 +397,206 @@ async function handleSessionPayment(
     try { await processCommission(db, FV, userId, amountTotal, referralCode); }
     catch (e) { await logErr(db, FV, `Erreur affiliation session: ${e}`, stripeSessionId); }
   }
+}
+
+// =============================================================
+/**
+ * Phase 8 SC4 commit 4/6 — handleInviteAcceptPayment.
+ *
+ * Webhook Stripe consume metadata.mode='invite-accept' (route /api/checkout SC4 c3/6) :
+ * 1. Idempotency : transactions stripeSessionId déjà créée ? skip
+ * 2. Read invite via Admin SDK + verify status='pending' (idempotency replay-safe)
+ * 3. runTransaction atomique :
+ *    - Verify session bookable
+ *    - Recompute tier defensive
+ *    - Create Booking (userId=metadata.toUserId)
+ *    - Increment session.currentParticipants
+ *    - Match chat unlock if matchId
+ *    - Grant bundleCredits to toUserId
+ *    - Update invite : status='accepted', acceptedAt=now
+ *    - Create transaction record
+ * 4. Post-commit : createNotification fromUserId 'invite_accepted' (best-effort)
+ *
+ * @internal — exporté aussi pour les tests (tests/invites/email-webhook.test.ts).
+ */
+async function handleInviteAcceptPayment(
+  stripeCheckout: Record<string, unknown>,
+  stripe: InstanceType<typeof import('stripe').default>,
+): Promise<void> {
+  const { db, FV } = await initAdmin();
+  const meta = (stripeCheckout.metadata || {}) as Record<string, string>;
+
+  const inviteId = meta.inviteId;
+  const toUserId = meta.toUserId;
+  const fromUserId = meta.fromUserId;
+  const sessionId = meta.sessionId;
+  const activityId = meta.activityId;
+  const tierFromMeta = (meta.tier as PricingTierKind) || 'early';
+  const amountFromMeta = parseInt(meta.amount || '0');
+  const bundleCredits = parseInt(meta.bundleCredits || '50');
+  const stripeSessionId = stripeCheckout.id as string;
+  const paymentIntentId = (stripeCheckout.payment_intent as string) || '';
+  const amountTotal = (stripeCheckout.amount_total as number) || 0;
+
+  if (!inviteId || !toUserId || !fromUserId || !sessionId) {
+    await logErr(db, FV, 'Webhook invite-accept sans inviteId/toUserId/fromUserId/sessionId', stripeSessionId);
+    return;
+  }
+
+  // 1. Idempotency #1 — transaction stripeSessionId déjà créée ?
+  const existingTx = await db.collection('transactions').where('stripeSessionId', '==', stripeSessionId).limit(1).get();
+  if (!existingTx.empty) return;
+
+  // 2. Idempotency #2 — invite déjà accepté/refusé/expiré (replay-safe)
+  const inviteRef = db.collection('invites').doc(inviteId);
+  const inviteSnap = await inviteRef.get();
+  if (!inviteSnap.exists) {
+    await logErr(db, FV, `Invite ${inviteId} introuvable webhook invite-accept`, stripeSessionId);
+    return;
+  }
+  const inviteData = inviteSnap.data() as Record<string, unknown>;
+  if (inviteData.status !== 'pending') {
+    console.warn(`[handleInviteAcceptPayment] invite ${inviteId} status='${inviteData.status}' ≠ 'pending' (replay/race)`);
+    return;
+  }
+
+  // 3. Detect payment method
+  let pm = 'card';
+  const pmTypes = stripeCheckout.payment_method_types as string[] | undefined;
+  if (pmTypes?.includes('twint') && paymentIntentId) {
+    try {
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+      if (pi.payment_method_types?.includes('twint')) pm = 'twint';
+    } catch { /* ok */ }
+  }
+
+  // 4. Transaction atomique (cohérent handleSessionPayment SC1)
+  let bookingIdResult = '';
+  let sessionTitleForNotif = '';
+  let sessionStartAtForNotif: { toDate: () => Date } | null = null;
+  try {
+    await db.runTransaction(async (tx) => {
+      const sessionRef = db.collection('sessions').doc(sessionId);
+      const sessionSnap = await tx.get(sessionRef);
+      if (!sessionSnap.exists) throw new Error(`Session ${sessionId} introuvable`);
+      const session = sessionSnap.data() as unknown as Session;
+
+      if (!isSessionBookable(session, new Date())) {
+        throw new Error(
+          `Session non réservable (status=${session.status}, ${session.currentParticipants}/${session.maxParticipants})`,
+        );
+      }
+
+      const computed = computePricingTier(session, new Date());
+      if (computed.tier !== tierFromMeta || computed.price !== amountFromMeta) {
+        console.warn(
+          `[handleInviteAcceptPayment] Tier mismatch: meta=(${tierFromMeta}, ${amountFromMeta}) computed=(${computed.tier}, ${computed.price}). Using meta.`,
+        );
+      }
+
+      // Re-verify invite still pending (intra-transaction guarantee)
+      const inviteSnapTx = await tx.get(inviteRef);
+      if (!inviteSnapTx.exists || inviteSnapTx.data()?.status !== 'pending') {
+        throw new Error(`Invite ${inviteId} not pending in transaction (race)`);
+      }
+
+      // Create booking
+      const bookingRef = db.collection('bookings').doc();
+      bookingIdResult = bookingRef.id;
+      tx.set(bookingRef, {
+        bookingId: bookingRef.id,
+        userId: toUserId, userName: '',
+        matchId: '',
+        activityId, partnerId: session.partnerId, sport: session.sport,
+        ticketType: 'solo', sessionDate: session.startAt,
+        status: 'confirmed', transactionId: '',
+        amount: amountTotal, currency: 'CHF', creditsUsed: 0,
+        sessionId, paymentIntentId, tier: tierFromMeta,
+        createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
+      });
+
+      // Increment session participants + recompute tier/price/status
+      const newParticipants = session.currentParticipants + 1;
+      const { tier: newTier, price: newPrice } = computePricingTier(session, new Date(), newParticipants);
+      const newStatus: SessionStatus = newParticipants >= session.maxParticipants ? 'full' : 'open';
+      tx.update(sessionRef, {
+        currentParticipants: newParticipants,
+        currentTier: newTier,
+        currentPrice: newPrice,
+        status: newStatus,
+        updatedAt: FV.serverTimestamp(),
+      });
+
+      // Grant chatCreditsBundle au toUserId
+      tx.update(db.collection('users').doc(toUserId), {
+        credits: FV.increment(bundleCredits),
+        updatedAt: FV.serverTimestamp(),
+      });
+      const creditRef = db.collection('credits').doc();
+      tx.set(creditRef, {
+        creditId: creditRef.id, userId: toUserId,
+        type: 'purchase', amount: bundleCredits,
+        balance: 0,
+        description: `Bundle chat (invite acceptée) : ${session.title}`,
+        relatedId: bookingRef.id,
+        createdAt: FV.serverTimestamp(),
+      });
+
+      // Update invite : status='accepted', acceptedAt
+      tx.update(inviteRef, {
+        status: 'accepted',
+        acceptedAt: FV.serverTimestamp(),
+      });
+
+      // Transaction record
+      const txRef = db.collection('transactions').doc();
+      tx.set(txRef, {
+        transactionId: txRef.id, stripeSessionId,
+        stripePaymentIntentId: paymentIntentId,
+        userId: toUserId, type: 'invite_accept_purchase',
+        amount: amountTotal, currency: 'CHF', paymentMethod: pm,
+        status: 'succeeded', metadata: meta,
+        package: '', creditsGranted: bundleCredits,
+        sessionId, bookingId: bookingRef.id, inviteId,
+        createdAt: FV.serverTimestamp(), completedAt: FV.serverTimestamp(),
+      });
+
+      sessionTitleForNotif = session.title;
+      sessionStartAtForNotif = session.startAt as unknown as { toDate: () => Date };
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    await logErr(db, FV, `[handleInviteAcceptPayment] ${errMsg}`, stripeSessionId);
+    return;
+  }
+
+  // 5. Post-commit : notif fromUserId (best-effort)
+  try {
+    const dateStr = sessionStartAtForNotif ? formatNotifDate(sessionStartAtForNotif) : '';
+    const nRef = db.collection('notifications').doc();
+    await nRef.set({
+      notificationId: nRef.id, userId: fromUserId, type: 'invite_accepted',
+      title: 'Invitation acceptée !',
+      body: `${sessionTitleForNotif}${dateStr ? ` le ${dateStr}` : ''} — votre invitation a été acceptée.`,
+      data: { inviteId, toUserId, sessionId, bookingId: bookingIdResult },
+      isRead: false,
+      createdAt: FV.serverTimestamp(),
+    });
+  } catch { /* silent */ }
+
+  // 6. Notif toUserId (booking confirmed)
+  try {
+    const dateStr = sessionStartAtForNotif ? formatNotifDate(sessionStartAtForNotif) : '';
+    const nRef = db.collection('notifications').doc();
+    await nRef.set({
+      notificationId: nRef.id, userId: toUserId, type: 'booking',
+      title: 'Réservation confirmée',
+      body: `🎉 ${sessionTitleForNotif}${dateStr ? ` le ${dateStr}` : ''}. ${bundleCredits} crédits chat ajoutés.`,
+      data: { sessionId, bookingId: bookingIdResult, inviteId },
+      isRead: false,
+      createdAt: FV.serverTimestamp(),
+    });
+  } catch { /* silent */ }
 }
 
 // =============================================================

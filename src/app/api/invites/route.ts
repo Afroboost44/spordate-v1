@@ -23,16 +23,54 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
-import {
-  createInvite,
-  InviteError,
-  __setInvitesDbForTesting as _seamRef,
-} from '@/lib/invites/service';
+import { createInvite, InviteError } from '@/lib/invites/service';
+import { sendEmail } from '@/lib/email/sendEmail';
+import type { Timestamp } from 'firebase-admin/firestore';
 
 export const runtime = 'nodejs'; // firebase-admin requires Node.js
+// DI seam `__setInvitesDbForTesting` est exporté depuis '@/lib/invites/service'
+// (Next.js limite exports route à HTTP handlers + config — pas de re-export).
 
-// Re-export DI seam pour tests (cohérent SC1 chat service test pattern)
-export const __setInvitesDbForTesting = _seamRef;
+// =====================================================================
+// Lazy Admin SDK init (cohérent /api/checkout, /api/suggest-activities)
+// =====================================================================
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _adminDb: any = null;
+
+async function getAdminDb() {
+  if (_adminDb) return _adminDb;
+  const { initializeApp, getApps, cert } = await import('firebase-admin/app');
+  const { getFirestore } = await import('firebase-admin/firestore');
+  if (!getApps().length) {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+    } else {
+      initializeApp({
+        projectId:
+          process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+          process.env.GCLOUD_PROJECT ||
+          'spordateur-claude',
+      });
+    }
+  }
+  _adminDb = getFirestore();
+  return _adminDb;
+}
+
+/** Format FR date courte cohérent SuggestionMessage component (ex: "Sam 18 mai · 14h00"). */
+function formatSessionDateFR(ts: Timestamp | { toDate?: () => Date } | null | undefined): string {
+  if (!ts || typeof ts !== 'object') return '';
+  const date = typeof (ts as { toDate?: () => Date }).toDate === 'function'
+    ? (ts as { toDate: () => Date }).toDate()
+    : null;
+  if (!date) return '';
+  const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
+  const months = ['jan', 'fév', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
+  const hours = date.getHours().toString().padStart(2, '0');
+  const minutes = date.getMinutes().toString().padStart(2, '0');
+  return `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]} · ${hours}h${minutes !== '00' ? minutes : ''}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -68,9 +106,64 @@ export async function POST(request: NextRequest) {
       message,
     });
 
-    // 4-5. Best-effort notifications (template + in-app — wired commit 4/6)
-    // Phase 1 stub : skipped jusqu'au commit 4/6 (template inviteReceived).
-    // Le bot message client-side stream + page /invite/[id] suffisent pour SC4 c3/6.
+    // 4-5. Best-effort sendEmail + createNotification in-app (Phase 8 SC4 commit 4/6)
+    // Q5=C both notifications. Failure non-bloquant (cohérent pattern Phase 7 wires).
+    try {
+      const adminDb = await getAdminDb();
+      const [toUserSnap, fromUserSnap, activitySnap, sessionSnap] = await Promise.all([
+        adminDb.collection('users').doc(body.toUserId).get(),
+        adminDb.collection('users').doc(fromUserId).get(),
+        adminDb.collection('activities').doc(body.activityId).get(),
+        adminDb.collection('sessions').doc(body.sessionId).get(),
+      ]);
+      const toUserEmail = toUserSnap.data()?.email as string | undefined;
+      const toUserName = toUserSnap.data()?.displayName as string | undefined;
+      const fromUserName = (fromUserSnap.data()?.displayName as string | undefined) || 'Un membre Spordate';
+      const activityTitle = (activitySnap.data()?.title as string | undefined) || 'une activité';
+      const sessionDate = formatSessionDateFR(sessionSnap.data()?.startAt);
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
+
+      // 4. sendEmail inviteReceived (best-effort)
+      if (toUserEmail) {
+        try {
+          await sendEmail({
+            to: toUserEmail,
+            templateName: 'inviteReceived',
+            templateData: {
+              fromUserName,
+              toUserName,
+              activityTitle,
+              sessionDate,
+              inviteLink: `${baseUrl}/invite/${inviteId}`,
+              message,
+            },
+          });
+        } catch (err) {
+          console.warn('[/api/invites] sendEmail inviteReceived failed (non-bloquant)', err);
+        }
+      }
+
+      // 5. createNotification in-app (best-effort) pour toUserId
+      try {
+        const { FieldValue } = await import('firebase-admin/firestore');
+        const notifRef = adminDb.collection('notifications').doc();
+        await notifRef.set({
+          notificationId: notifRef.id,
+          userId: body.toUserId,
+          type: 'invite_received',
+          title: `${fromUserName} t'invite à ${activityTitle}`,
+          body: sessionDate || activityTitle,
+          data: { inviteId, fromUserId, fromUserName, activityTitle },
+          isRead: false,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      } catch (err) {
+        console.warn('[/api/invites] createNotification failed (non-bloquant)', err);
+      }
+    } catch (err) {
+      // Reads Admin SDK fail (rare) — skip notifs entirely
+      console.warn('[/api/invites] Admin SDK reads failed (notifs skipped)', err);
+    }
 
     return NextResponse.json({ inviteId, status: 'pending' }, { status: 200 });
   } catch (err) {

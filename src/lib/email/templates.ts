@@ -33,7 +33,8 @@ export type TemplateName =
   | 'partnerNoShowConfirmed' // T&S Phase 7 sub-chantier 3 commit 5/5 — confirm partner check-in
   | 'userSanctionOverturned' // T&S Phase 7 sub-chantier 5 commit 1/3 — admin a annulé sanction
   | 'appealResolved' // T&S Phase 7 sub-chantier 5 commit 1/3 — résultat appel (uphold/overturn)
-  | 'leakEscalationAdmin'; // Phase 8 SC2 commit 5/6 — alerte admin L4 anti-leak (5+ tentatives chat)
+  | 'leakEscalationAdmin' // Phase 8 SC2 commit 5/6 — alerte admin L4 anti-leak (5+ tentatives chat)
+  | 'inviteReceived'; // Phase 8 SC4 commit 4/6 — invitation activity reçue par toUserId
 
 /** SanctionLevel cohérent src/types/firestore.ts (utilisé par userSanctionNotice). */
 export type SanctionLevelEmail = 'warning' | 'suspension_7d' | 'suspension_30d' | 'ban_permanent';
@@ -146,6 +147,21 @@ export interface TemplateDataMap {
     motiveSummary?: string;
     /** ISO date du dernier hit. */
     lastFlaggedAt: string;
+  };
+  /** Phase 8 SC4 commit 4/6 — invitation activity reçue (doctrine §E mode Individuel). */
+  inviteReceived: {
+    /** Display name de l'inviteur (peut être vide si profil incomplet). */
+    fromUserName: string;
+    /** Display name destinataire (utilisé dans le greeting). */
+    toUserName?: string;
+    /** Title activity proposée (snapshot). */
+    activityTitle: string;
+    /** Date+heure session formatée FR (ex: 'Sam 18 mai à 14h00'). */
+    sessionDate: string;
+    /** Lien deep page invite (full URL : https://spordateur.com/invite/{id}). */
+    inviteLink: string;
+    /** Message optionnel inviter (Q1=A, max 200 chars). */
+    message?: string;
   };
 }
 
@@ -472,6 +488,34 @@ function renderLeakEscalationAdmin(d: TemplateDataMap['leakEscalationAdmin']) {
   return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
 }
 
+/**
+ * Phase 8 SC4 commit 4/6 — invitation activity reçue (doctrine §E mode Individuel).
+ *
+ * Subject : "{fromUserName} t'invite à {activityTitle} sur Spordate"
+ * Body : greeting + activity + session date + message? optional + CTA "Voir l'invitation"
+ *        → page /invite/[id] où user peut Accepter (Stripe) ou Décliner.
+ */
+function renderInviteReceived(d: TemplateDataMap['inviteReceived']) {
+  const fromLabel = d.fromUserName || 'Un membre Spordate';
+  const subject = `${fromLabel} t'invite à ${d.activityTitle} sur Spordate`;
+
+  const greeting = d.toUserName ? `Bonjour ${d.toUserName},` : 'Bonjour,';
+  const messageLine = d.message
+    ? p(`<em>« ${d.message} »</em>`, '100')
+    : '';
+
+  const body = `
+    ${h1(`Tu es invité·e !`)}
+    ${p(greeting)}
+    ${p(`<strong style="color:#ffffff;">${fromLabel}</strong> t'invite à participer à <strong style="color:#ffffff;">${d.activityTitle}</strong>.`)}
+    ${p(`<strong style="color:#ffffff;">Quand</strong> : ${d.sessionDate}`)}
+    ${messageLine}
+    ${ctaButton(`Voir l'invitation`, d.inviteLink)}
+    ${p(`Tu peux accepter (paiement direct ta part — Phase 8 mode Individuel) ou décliner depuis la page d'invitation. L'invitation expire automatiquement (max 7 jours, jamais après le début de la session).`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Invitation', bodyHtml: body }) };
+}
+
 // =====================================================================
 // Public renderTemplate (type-safe dispatch)
 // =====================================================================
@@ -507,6 +551,8 @@ export function renderTemplate<T extends TemplateName>(
       return renderAppealResolved(data as TemplateDataMap['appealResolved']);
     case 'leakEscalationAdmin':
       return renderLeakEscalationAdmin(data as TemplateDataMap['leakEscalationAdmin']);
+    case 'inviteReceived':
+      return renderInviteReceived(data as TemplateDataMap['inviteReceived']);
     default: {
       // Exhaustive check — TypeScript should error if a new TemplateName is added without case
       const _exhaustive: never = templateName;
