@@ -1105,6 +1105,106 @@ Side effects post-batch (sendMessage L4 trigger if escalationLevel='L4' && !send
 
 **Prochain** : sub-chantier 4 — Invite Individuel (Phase 8 doctrine §E) : flow paiement direct CHF par invité (E.Q1 Phase 8 = mode Individuel uniquement, modes Split/Gift Phase 9). Quick-book button "Réserver" depuis SuggestionCard pourra être rewired vers `/api/invites/[id]` flow SC4.
 
+### Sub-chantier 4 — Invite Individuel ✅ COMPLET (6 commits)
+
+- 1/6 `2fd4b66` : Types `Invite` + `InviteStatus` ('pending'|'accepted'|'declined'|'expired') + rules `/invites/{id}` defense-in-depth (anti-spoof fromUserId, anti self-invite, doc-id pattern Q10=B `${fromUserId}_${toUserId}_${sessionId}`, status='pending' initial, expiresAt > request.time, keys hasOnly, transitions strictes path a accept toUserId / path b decline toUserId, champs core immuables) + tests INV1-INV6 (6/6 PASS)
+- 2/6 `3b3d07f` : `src/lib/invites/service.ts` — 4 helpers : `createInvite()` (anti self-invite + lecture session pour clamp expiresAt = Min(now+7j, sessionStart-1h) Q3=C + doc-id pattern Q10=B + message? truncate 200 chars Q1=A) / `acceptInvite()` (status='pending' + toUserId match + not expired) / `declineInvite()` (path b) / `expireInvitesIfDue()` (Admin SDK batch cron Phase 9). `InviteError` typed avec 8 codes. DI seam `__setInvitesDbForTesting`. Tests INV-S1-INV-S8 (10/10 PASS)
+- 3/6 `6cec931` : Helper Bearer `verifyAuth` (lazy firebase-admin/auth + verifyIdToken + DI seam mock — hardening SC4). API routes `POST /api/invites` + `POST /api/invites/[id]/decline` runtime='nodejs'. Extension `/api/checkout` mode='invite-accept' (verify Bearer → load invite Admin SDK → status='pending' check + toUserId match + expiration + load session + recompute tier server-side anti-cheat → Stripe checkout avec metadata mode='invite-accept'). Error mapping HTTP propre 401/400/404/403/409/410/500. Tests INV-API1-INV-API6 (8/8 PASS)
+- 4/6 `c7d8eee` : Email template `inviteReceived` (charte stricte) + wire post-createInvite() (sendEmail Resend + createNotification in-app type='invite_received' Q5=C both, best-effort silent). Webhook Stripe extension `metadata.mode='invite-accept'` → `handleInviteAcceptPayment()` : idempotency dual layer (transactions + invite.status='pending') + runTransaction atomique (create Booking userId=toUserId + increment session participants + grant bundleCredits + update invite='accepted'+acceptedAt + transaction record type='invite_accept_purchase') + post-commit notifs fromUser 'invite_accepted' + toUser 'booking'. Tests EM-INV1-EM-INV3 (15/15 PASS)
+- 5/6 `beb9353` : `<InviteButton>` reusable client component (modal Dialog + textarea optional message 200 chars + Bearer auth fetch + error mapping HTTP). `<InviteActionsClient>` client island pour /invite/[id] (auth match check : non-auth / fromUserId / autre user / toUserId → 2 CTAs Accepter [Stripe redirect] / Refuser [router.refresh]). `/invite/[id]/page.tsx` Server Component Next.js 15 async params + lazy Admin SDK + `loadInviteData()` Promise.all (invite + fromUser + toUser + activity + session) + status routing (pending/accepted/declined/expired) + computed `isExpired` + generateMetadata dynamique + `notFound()`. Doc `tests/invites/SMOKE-MANUEL.md` (flow nominal + refus + expiration + edge cases anti-doublon + auth required + section Différé Phase 9)
+- 6/6 *(this commit)* : architecture.md sub-chantier 4 close-out + cumulative tests verification + scripts package.json review + bilan doctrine §E
+
+**Architecture résultante invite end-to-end** :
+
+```
+Inviteur A (chat / activity page)
+  ↓ <InviteButton> modal + textarea message? + getIdToken()
+  ↓ POST /api/invites Bearer auth + body {toUserId, activityId, sessionId, message?}
+  ↓
+┌────────────────────────────┐
+│ /api/invites POST          │  Server-only runtime='nodejs'
+│ verifyAuth → fromUserId    │  • createInvite() service (clamp expiresAt + doc-id pattern)
+│ Promise.all reads          │  • Best-effort sendEmail inviteReceived (Resend)
+│ (toUser/from/activity/sess)│  • Best-effort createNotification in-app
+└────────┬───────────────────┘
+         │ Returns {inviteId, status:'pending'}
+         ↓
+   Toast UI A : "Invitation envoyée"
+   B reçoit email + notification
+         │
+         ↓ B clique lien email
+┌────────────────────────────┐
+│ /invite/[id] (server)      │  Server Component Next.js 15
+│ Admin SDK loadInviteData() │  • Status routing pending/accepted/declined/expired
+│ generateMetadata           │  • Render activity card + CTAs
+└────────┬───────────────────┘
+         │ Si pending + auth.uid == toUserId
+         ↓
+┌────────────────────────────┐
+│ <InviteActionsClient>      │  Client island
+│ Accept → fetch /api/checkout│  • Bearer auth + getIdToken()
+│ Decline → router.refresh   │  • Toast feedback + error mapping
+└────────┬───────────────────┘
+         │ Click "Accepter et payer"
+         ↓ POST /api/checkout mode='invite-accept' Bearer + body {inviteId}
+┌────────────────────────────┐
+│ /api/checkout (extend SC4) │  Pipeline 8 étapes
+│ verifyAuth → toUserId      │  • Idempotency status='pending'
+│ Load invite Admin SDK      │  • Recompute tier server-side (anti-cheat)
+│ Stripe checkout creation   │  • metadata.mode='invite-accept'
+└────────┬───────────────────┘
+         │ Returns Stripe URL
+         ↓ Client redirect Stripe Checkout
+   B paye sa part CHF (mode 'session_purchase' équivalent + bundleCredits)
+         │
+         ↓ Stripe webhook → handlePaymentSuccess
+┌────────────────────────────┐
+│ /api/webhooks/stripe       │  Webhook (extension SC4)
+│ dispatch metadata.mode     │  • handleInviteAcceptPayment()
+│ idempotency dual layer     │  • Idempotency #1 transactions stripeSessionId
+│ runTransaction atomique    │  • Idempotency #2 invite.status='pending'
+└────────┬───────────────────┘  • Booking + Invite update + credits + notifs
+         │
+         ↓ Stripe redirect → /dashboard?status=success
+   A reçoit notif "B a accepté"
+   B reçoit notif "Réservation confirmée"
+   Booking créé status='confirmed' userId=B
+   Invite.status='accepted' acceptedAt=now
+```
+
+**Bilan sub-chantier 4** :
+- Doctrine §E.Q1 ✅ mode Individuel uniquement (Booking userId=toUserId, pas Stripe Connect splits)
+- Q1=A ✅ message? optional 200 chars compteur visible
+- Q2=C ⏭️ Both placements — SuggestionCard + activity page **différé Phase 9** (manque SuggestionCard.nextSessionId + server component complexity)
+- Q3=C ✅ expiresAt clamp Min(now+7j, sessionStart-1h) server-enforced
+- Q4=A ✅ pas de refund Phase 8 (Stripe Connect Phase 9)
+- Q5=C ✅ both notifications (Resend email + in-app /notifications)
+- Q6=A ✅ page dédiée /invite/[id] server component + status routing
+- Q7=B ⏭️ 2 actions distinctes Réserver+Inviter sur SuggestionCard **différé Phase 9** (pendance Q2=C nextSessionId)
+- Q8=A ✅ Reuse /api/checkout mode='invite-accept' (pattern cohérent SC1 session_purchase)
+- Q9=A ✅ explicit decline endpoint + `declinedAt` timestamp pour KPI Phase 9
+- Q10=B ✅ doc-id pattern strict `${fromUserId}_${toUserId}_${sessionId}` anti-doublon
+- Q11=A ✅ webhook extension `metadata.mode='invite-accept'` consume + idempotency dual + Booking + Invite + credits + notifs
+- Tests SC4 cumulés : 6 (rules) + 10 (service) + 8 (api) + 15 (email-webhook) = **39 assertions automated** + smoke manuel doc complète
+- Phase 8 cumulé (SC0+SC1+SC2+SC3+SC4) : **191+ assertions automated** + UI smoke (Phase 7 base 372 préservée intégralement)
+- Defense-in-depth : Bearer auth Phase 8 SC4 hardening (verifyAuth helper) + rule defense-in-depth /invites + idempotency dual webhook + InviteError typed mapping HTTP propre
+
+**Différé Phase 9** (cohérent doctrine §F Phase 8 = MVP rétention) :
+- ⏭️ SuggestionMessage SC3 wire `<InviteButton>` secondaire — manque `SuggestionCard.nextSessionId` persistence (current : seulement nextSessionAt Timestamp). Phase 9 polish : enrich SC3 API route 5 lignes + add InviteButton conditional rendering.
+- ⏭️ /activities/[id] invite trigger dropdown matches — server component + session selection logic. Phase 9 polish : client island `<ActivityInviteSection>` qui charge user.matches + dropdown otherUsers + InviteButton modal pre-rempli.
+- ⏭️ Cron `expireInvitesIfDue()` deployment — Phase 9 Cloud Functions Scheduler (pattern Phase 6 anti-cheat).
+- ⏭️ Refund logic si invité annule après accept — Phase 9 Stripe Connect destination splits.
+- ⏭️ Différé Phase 7 (cf. architecture.md §"Différé Phase 8" lignes 880-886) reste applicable Phase 9 :
+  - listAllBlocks admin via Admin SDK endpoint
+  - Cloud Function denorm `users.{uid}.activeSanction*` on userSanctions create/update
+  - Cron purge audit trail `/adminActions/` après 24mo
+  - Cron purge banlist PII après 24mo
+  - `cancelNoShow` recompute threshold automatique si sanction déclenchée par report annulé
+  - Push reminder 48h post-session (template `reviewReminder` wire)
+  - Stripe API automatisation refund partner no-show level 3
+
+**Prochain** : sub-chantier 5 — Différé Phase 7 hardening + close-out final Phase 8 (cumul des items "Différé Phase 8" listés ci-dessus + close-out architecture.md global Phase 8 + retrospective doctrine §F).
+
 ---
 
 ### A. Doctrine économique — T&S = pré-requis rétention
