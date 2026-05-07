@@ -9,7 +9,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Stripe from 'stripe';
 import { computePricingTier, isSessionBookable } from '@/services/firestore';
-import type { Session, Activity, PricingTierKind } from '@/types/firestore';
+import type { Session, Activity, PricingTierKind, Invite } from '@/types/firestore';
+import { verifyAuth } from '@/lib/auth/verifyAuth';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -98,6 +99,11 @@ export async function POST(request: NextRequest) {
     // Sinon (défaut, rétrocompatible) → flow 'package' existant.
     if (body?.mode === 'session') {
       return handleSessionMode(body);
+    }
+
+    // Phase 8 SC4 commit 3/6 : invite-accept flow (B accepte invitation A → Stripe checkout B)
+    if (body?.mode === 'invite-accept') {
+      return handleInviteAcceptMode(request, body);
     }
 
     const { packageId, userId, matchId, referralCode, partnerId } = body;
@@ -317,5 +323,163 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
     console.error('[Checkout session] Erreur:', error);
     const message = error instanceof Error ? error.message : 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+/**
+ * Phase 8 SC4 commit 3/6 — handleInviteAcceptMode.
+ *
+ * Pipeline : verify Bearer ID token → load invite via Admin SDK → verify status='pending'
+ * + auth.uid==invite.toUserId + not expired → load session pour pricing → recompute tier
+ * server-side (anti-cheat cohérent handleSessionMode) → Stripe checkout avec metadata
+ * mode='invite-accept' (webhook commit 4/6 consume → update Invite.status='accepted'
+ * + create Booking + notify fromUserId).
+ *
+ * Errors HTTP :
+ *   - missing Bearer → 401
+ *   - invalid input → 400
+ *   - invite not found → 404
+ *   - status != pending → 409 (idempotency)
+ *   - forbidden (auth ≠ toUserId) → 403
+ *   - expired → 410
+ *   - session-too-soon / session not bookable → 409
+ */
+async function handleInviteAcceptMode(
+  request: NextRequest,
+  body: { mode: string; inviteId?: unknown },
+): Promise<NextResponse> {
+  // Verify Bearer
+  const callerUid = await verifyAuth(request);
+  if (!callerUid) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  }
+
+  // Validate body
+  if (typeof body.inviteId !== 'string' || body.inviteId.length === 0) {
+    return NextResponse.json(
+      { error: 'invalid-input', detail: 'inviteId required' },
+      { status: 400 },
+    );
+  }
+  const inviteId = body.inviteId;
+
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return NextResponse.json({ error: 'Stripe non configuré' }, { status: 503 });
+  }
+
+  try {
+    const db = await getDb();
+
+    // Load invite
+    const inviteSnap = await db.collection('invites').doc(inviteId).get();
+    if (!inviteSnap.exists) {
+      return NextResponse.json({ error: 'invite-not-found' }, { status: 404 });
+    }
+    const invite = inviteSnap.data() as unknown as Invite;
+
+    // Status check (idempotency)
+    if (invite.status !== 'pending') {
+      return NextResponse.json(
+        { error: 'invalid-status', detail: `Invite status='${invite.status}', expected 'pending'` },
+        { status: 409 },
+      );
+    }
+
+    // Auth match check
+    if (invite.toUserId !== callerUid) {
+      return NextResponse.json(
+        { error: 'forbidden', detail: 'Only toUserId can accept this invite' },
+        { status: 403 },
+      );
+    }
+
+    // Expiration check
+    const expiresAtMs = invite.expiresAt.toMillis();
+    if (expiresAtMs <= Date.now()) {
+      return NextResponse.json({ error: 'expired' }, { status: 410 });
+    }
+
+    // Load session pour pricing (anti-cheat recompute)
+    if (!invite.sessionId) {
+      return NextResponse.json(
+        { error: 'invalid-input', detail: 'Invite has no sessionId' },
+        { status: 400 },
+      );
+    }
+    const sessionSnap = await db.collection('sessions').doc(invite.sessionId).get();
+    if (!sessionSnap.exists) {
+      return NextResponse.json({ error: 'session-not-found' }, { status: 404 });
+    }
+    const session = sessionSnap.data() as unknown as Session;
+
+    const now = new Date();
+    if (!isSessionBookable(session, now)) {
+      return NextResponse.json(
+        {
+          error: 'session-not-bookable',
+          detail: `status=${session.status}, ${session.currentParticipants}/${session.maxParticipants}`,
+        },
+        { status: 409 },
+      );
+    }
+    const { tier, price } = computePricingTier(session, now);
+
+    // Load activity pour title + chatCreditsBundle
+    const activitySnap = await db.collection('activities').doc(invite.activityId).get();
+    if (!activitySnap.exists) {
+      return NextResponse.json({ error: 'activity-not-found' }, { status: 404 });
+    }
+    const activity = activitySnap.data() as unknown as Activity;
+    const bundleCredits = activity.chatCreditsBundle ?? 50;
+
+    // Build Stripe checkout
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
+    const successUrl = `${baseUrl}/dashboard?status=success&inviteId=${inviteId}&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${baseUrl}/invite/${inviteId}?status=cancel`;
+
+    const tierLabel: Record<PricingTierKind, string> = {
+      early: 'Early Bird',
+      standard: 'Standard',
+      last_minute: 'Last Minute',
+    };
+
+    const stripeSession = await getStripe().checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: ['card', 'twint'],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      line_items: [
+        {
+          price_data: {
+            currency: 'chf',
+            product_data: {
+              name: session.title,
+              description: `${tierLabel[tier]} • Invite de ${invite.fromUserId.slice(0, 8)} • Inclut ${bundleCredits} crédits chat`,
+              images: ['https://spordateur.com/logo.png'],
+            },
+            unit_amount: price,
+          },
+          quantity: 1,
+        },
+      ],
+      metadata: {
+        mode: 'invite-accept',
+        inviteId,
+        toUserId: invite.toUserId,
+        fromUserId: invite.fromUserId,
+        sessionId: invite.sessionId,
+        activityId: invite.activityId,
+        partnerId: session.partnerId,
+        tier,
+        amount: String(price),
+        bundleCredits: String(bundleCredits),
+      },
+    });
+
+    return NextResponse.json({ sessionId: stripeSession.id, url: stripeSession.url });
+  } catch (err) {
+    console.error('[Checkout invite-accept] Erreur:', err);
+    const message = err instanceof Error ? err.message : 'Erreur serveur';
+    return NextResponse.json({ error: 'internal-error', detail: message }, { status: 500 });
   }
 }

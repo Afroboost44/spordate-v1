@@ -34,6 +34,7 @@
     "test:api:suggest": "firebase emulators:exec --only firestore 'npx tsx tests/api/suggest-activities.test.ts'",
     "test:invites:rules": "firebase emulators:exec --only firestore 'npx tsx tests/invites/rules.test.ts'",
     "test:invites:service": "firebase emulators:exec --only firestore 'npx tsx tests/invites/service.test.ts'",
+    "test:invites:api": "firebase emulators:exec --only firestore 'npx tsx tests/invites/api.test.ts'",
     "test:chat:service": "firebase emulators:exec --only firestore 'npx tsx tests/chat/service.test.ts'"
   },
   "dependencies": {
