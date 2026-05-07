@@ -21,6 +21,7 @@ import type {
 } from '@/types/firestore';
 import { CREDIT_PACKAGES } from '@/types/firestore';
 import { scanMessageL1 } from '@/lib/anti-leak/regex';
+import { classifyMessageL2 } from '@/ai/flows/anti-leak-classifier';
 
 // ===================== HELPERS =====================
 
@@ -601,23 +602,44 @@ function getChatDb(): Firestore {
 }
 
 /**
- * Phase 8 sub-chantier 1 commit 3/5 — sendMessage étendu avec :
- *   1. Check sender.credits ≥ 1 (defense-in-depth ; rule fait aussi check)
- *   2. Scan L1 anti-leak (silent log, doctrine §B ligne 567 "aucune UX")
- *   3. Atomic batch : decrement credit + create aiScanLog + create message
- *   4. Post-batch : update chat.lastMessage + notification (best-effort)
+ * Phase 8 sub-chantier 1 commit 3/5 + sub-chantier 2 commit 3/6 — sendMessage hybride.
  *
- * Returns enriched object avec scanScore + scanFlagged pour observabilité
- * (consommateur SC1 chat/page.tsx peut ignorer ; SC2 toast UI L2 utilisera).
+ * Pipeline :
+ *   1. Check sender.credits ≥ 1 (defense-in-depth ; rule fait aussi check) — SC1
+ *   2. Scan L1 regex anti-leak (silent log doctrine §B ligne 567) — SC1
+ *   3. Si scanL1.score === 0.5 (ambigu single-cat) → classifyMessageL2 IA hybride — SC2 :
+ *      - IA likely=1     → motive='ai-leak-likely', score=ai.confidence (refine)
+ *      - IA likely=0     → motive='ai-leak-unlikely', score=0, flagged=false (downgrade FP L1)
+ *      - IA error fallback → motive='ai-error', preserve L1 verdict (Q5=A defensive)
+ *   4. Read chat.leakBySender[senderId] courant + compute escalationLevel — SC2
+ *   5. Atomic batch : decrement credit + create aiScanLog (motive enrichi) +
+ *      create message + chat.leakBySender increment si flagged — SC1+SC2
+ *   6. Post-batch : update chat.lastMessage + notification (best-effort) — SC1
+ *
+ * EscalationLevel mapping (count APRÈS increment) :
+ *   - L0 : pas flagged OU count ∈ {2, 4, ≥6} (silent, log seul)
+ *   - L2 : count == 1 (toast soft 1er hit doctrine §B)
+ *   - L3 : count == 3 (modal post-send rétroactif, doctrine §B Q2=B)
+ *   - L4 : count == 5 (admin email — wired commit 5/6 ; flagged=true ne propage pas si motive=ai-error)
  *
  * @throws 'insufficient-credits' si solde < 1.
  * @throws Error firestore si batch rejette (rule cancelled session, etc.).
+ * @throws AiError 'rate-limit-exceeded' si Gemini quota atteint (10/user/min, propagation classifier).
  */
+export type EscalationLevel = 'L0' | 'L2' | 'L3' | 'L4';
+
 export async function sendMessage(
   chatId: string,
   senderId: string,
   text: string,
-): Promise<{ messageId: string; scanScore: number; scanFlagged: boolean }> {
+): Promise<{
+  messageId: string;
+  scanScore: number;
+  scanFlagged: boolean;
+  scanMotive: string;
+  escalationLevel: EscalationLevel;
+  leakCountAfter: number;
+}> {
   const fbDb = getChatDb();
 
   // Vérifier que le chat est débloqué (Phase 1 préservé) — read inline via fbDb
@@ -633,11 +655,55 @@ export async function sendMessage(
   if (senderCredits < 1) throw new Error('insufficient-credits');
 
   // Phase 8 SC1 — scan L1 anti-leak (silent log only, doctrine §B)
-  const scanResult = scanMessageL1(text);
+  const scanL1 = scanMessageL1(text);
   const messageHash = await sha256Hex(text);
 
-  // Atomic batch : 3 writes (credits, scanLog, message). Atomicité Firestore garantie
-  // — si rule rejette n'importe quelle write, le batch entier est rollbacké.
+  // Phase 8 SC2 — Layer 2 IA refinement (uniquement si L1 ambigu score=0.5, Q4=A doctrine §C)
+  let finalScore = scanL1.score;
+  let finalMotive: string = scanL1.motive;
+  let finalFlagged = scanL1.flagged;
+
+  if (scanL1.score === 0.5) {
+    const scanL2 = await classifyMessageL2({
+      messageContent: text,
+      chatId,
+      userId: senderId,
+    });
+
+    if (scanL2.technicalMotive === 'ai-error') {
+      // Q5=A defensive : preserve L1 verdict, log motif technique 'ai-error'
+      finalMotive = 'ai-error';
+      // finalScore + finalFlagged stay as L1
+    } else if (scanL2.flagged) {
+      // IA confirme leak → refine motive + score
+      finalMotive = 'ai-leak-likely';
+      finalScore = scanL2.riskScore;
+      finalFlagged = true;
+    } else {
+      // IA downgrade (false positive L1) → motive 'ai-leak-unlikely'
+      finalMotive = 'ai-leak-unlikely';
+      finalScore = 0;
+      finalFlagged = false;
+    }
+  }
+
+  // Phase 8 SC2 — read chat.leakBySender[senderId] courant pour compute escalationLevel
+  const chatSnap = await getDoc(doc(fbDb, 'chats', chatId));
+  const currentLeakCount =
+    ((chatSnap.data()?.leakBySender as Record<string, number> | undefined)?.[senderId] ?? 0);
+  const newLeakCount = finalFlagged ? currentLeakCount + 1 : currentLeakCount;
+
+  // Phase 8 SC2 — escalation level mapping (doctrine §B L1-L4)
+  let escalationLevel: EscalationLevel = 'L0';
+  if (finalFlagged) {
+    if (newLeakCount === 1) escalationLevel = 'L2';
+    else if (newLeakCount === 3) escalationLevel = 'L3';
+    else if (newLeakCount >= 5) escalationLevel = 'L4';
+    // count ∈ {2, 4} → L0 silent (log seul)
+  }
+
+  // Atomic batch : 4 writes potentielles. Atomicité Firestore garantie — si rule
+  // rejette n'importe quelle write, le batch entier est rollbacké (cf. SVC7 SC1).
   const batch = writeBatch(fbDb);
 
   batch.update(doc(fbDb, 'users', senderId), {
@@ -650,8 +716,8 @@ export async function sendMessage(
     scanLogId: scanLogRef.id,
     chatId,
     senderId,
-    score: scanResult.score,
-    motive: scanResult.motive,
+    score: finalScore,
+    motive: finalMotive,
     messageHash,
     createdAt: serverTimestamp(),
   });
@@ -665,6 +731,13 @@ export async function sendMessage(
     readBy: [senderId],
     createdAt: serverTimestamp(),
   });
+
+  // Phase 8 SC2 — increment chat.leakBySender[senderId] si flagged (rule self-only enforce)
+  if (finalFlagged) {
+    batch.update(doc(fbDb, 'chats', chatId), {
+      [`leakBySender.${senderId}`]: increment(1),
+    });
+  }
 
   await batch.commit();
 
@@ -701,8 +774,11 @@ export async function sendMessage(
 
   return {
     messageId: msgRef.id,
-    scanScore: scanResult.score,
-    scanFlagged: scanResult.flagged,
+    scanScore: finalScore,
+    scanFlagged: finalFlagged,
+    scanMotive: finalMotive,
+    escalationLevel,
+    leakCountAfter: newLeakCount,
   };
 }
 
