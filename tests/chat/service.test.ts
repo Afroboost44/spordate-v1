@@ -48,7 +48,11 @@ import {
 } from 'firebase/firestore';
 import { readFileSync } from 'node:fs';
 
-import { __setChatDbForTesting, sendMessage } from '../../src/services/firestore';
+import {
+  __setChatDbForTesting,
+  sendMessage,
+  triggerSuggestionsIfEligible,
+} from '../../src/services/firestore';
 import type { AntiLeakInput, AntiLeakOutput } from '../../src/ai/types';
 
 // Phase 8 SC2 hotfix — Genkit isolated server-only via /api/anti-leak.
@@ -93,6 +97,39 @@ function mockApiFetchHttpError(status = 500): { calls: number } {
 
 function restoreFetch(): void {
   global.fetch = _originalFetch;
+}
+
+// Phase 8 SC3 commit 4/6 — Helpers mock fetch /api/suggest-activities.
+function mockSuggestApiFetch(response: Record<string, unknown>): { calls: number; lastBody: { chatId?: string; userId?: string } | null } {
+  const tracker = { calls: 0, lastBody: null as { chatId?: string; userId?: string } | null };
+  global.fetch = (async (url: unknown, options: unknown) => {
+    const urlStr = String(url);
+    const opts = options as { body?: string } | undefined;
+    if (urlStr.includes('/api/suggest-activities')) {
+      tracker.calls++;
+      tracker.lastBody = opts?.body ? JSON.parse(opts.body) : null;
+      return {
+        ok: true,
+        status: 200,
+        json: async () => response,
+        text: async () => JSON.stringify(response),
+      } as Response;
+    }
+    return _originalFetch(url as RequestInfo, options as RequestInit);
+  }) as typeof global.fetch;
+  return tracker;
+}
+
+function mockSuggestApiFetchNetworkError(): { calls: number } {
+  const tracker = { calls: 0 };
+  global.fetch = (async (url: unknown) => {
+    if (String(url).includes('/api/suggest-activities')) {
+      tracker.calls++;
+      throw new Error('Network error simulated');
+    }
+    return _originalFetch(url as RequestInfo);
+  }) as typeof global.fetch;
+  return tracker;
 }
 
 /** Cast helper rules-unit-testing v4. */
@@ -841,6 +878,73 @@ async function main(): Promise<void> {
   }
 
   // ===================================================================
+  // SVC18-SVC20 — triggerSuggestionsIfEligible (Phase 8 SC3 commit 4/6)
+  // ===================================================================
+  section('SVC18 triggerSuggestions happy path → no throw, fetch called');
+  {
+    restoreFetch();
+    const tracker = mockSuggestApiFetch({
+      suggestions: [{ activityId: 'act_yoga', title: 'Yoga', sport: 'yoga', city: 'Lausanne', reason: 'test' }],
+      persisted: true,
+      messageId: 'msg_test_18',
+    });
+
+    let threw = false;
+    try {
+      await triggerSuggestionsIfEligible('chat_svc18', ALICE_UID);
+    } catch {
+      threw = true;
+    }
+
+    if (!threw && tracker.calls === 1 && tracker.lastBody?.chatId === 'chat_svc18' && tracker.lastBody?.userId === ALICE_UID) {
+      pass('SVC18 happy path : fetch /api/suggest-activities appelé 1× avec chatId+userId, no throw');
+    } else {
+      fail('SVC18', { threw, tracker });
+    }
+  }
+
+  section('SVC19 triggerSuggestions cooldownActive → silent skip, no throw');
+  {
+    restoreFetch();
+    const tracker = mockSuggestApiFetch({
+      suggestions: [],
+      cooldownActive: true,
+    });
+
+    let threw = false;
+    try {
+      await triggerSuggestionsIfEligible('chat_svc19', ALICE_UID);
+    } catch {
+      threw = true;
+    }
+
+    if (!threw && tracker.calls === 1) {
+      pass('SVC19 cooldownActive=true → silent skip, no throw au caller');
+    } else {
+      fail('SVC19', { threw, tracker });
+    }
+  }
+
+  section('SVC20 triggerSuggestions network error → silent catch, no throw');
+  {
+    restoreFetch();
+    const tracker = mockSuggestApiFetchNetworkError();
+
+    let threw = false;
+    try {
+      await triggerSuggestionsIfEligible('chat_svc20', ALICE_UID);
+    } catch {
+      threw = true;
+    }
+
+    if (!threw && tracker.calls === 1) {
+      pass('SVC20 fetch throw network error → silent catch, no throw au caller (Q5=A defensive)');
+    } else {
+      fail('SVC20', { threw, tracker });
+    }
+  }
+
+  // ===================================================================
   // Cleanup
   // ===================================================================
   __setChatDbForTesting(null); // reset DI seam
@@ -848,7 +952,7 @@ async function main(): Promise<void> {
   await env.cleanup();
 
   console.log('');
-  console.log('====== Résumé Chat service (SVC1-SVC17) ======');
+  console.log('====== Résumé Chat service (SVC1-SVC20) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);

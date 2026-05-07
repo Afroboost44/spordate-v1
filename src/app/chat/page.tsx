@@ -42,6 +42,7 @@ import {
   markMessagesRead,
   getUser,
   unlockChat,
+  triggerSuggestionsIfEligible,
 } from '@/services/firestore';
 import { getMutualBlockSet } from '@/lib/blocks';
 import { ReportButton } from '@/components/reports/ReportButton';
@@ -317,6 +318,15 @@ function ChatWindow({
     };
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
+  }, [match.matchId, currentUserId, isLocked]);
+
+  // Phase 8 SC3 commit 4/6 — trigger IA suggestions au mount du chat (doctrine §D.Q1
+  // default-on). Le serveur /api/suggest-activities enforce 72h cooldown + opt-out
+  // consensus + min 3 catalog → idempotent, peut être appelé à chaque mount sans risque
+  // spam. Best-effort silent (Q5=A) : suggestions = nice-to-have, jamais blocking UX.
+  useEffect(() => {
+    if (isLocked) return;
+    triggerSuggestionsIfEligible(match.matchId, currentUserId).catch(() => {});
   }, [match.matchId, currentUserId, isLocked]);
 
   const handleSend = async (e: React.FormEvent) => {

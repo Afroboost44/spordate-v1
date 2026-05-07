@@ -616,6 +616,49 @@ async function callAntiLeakL2API(input: AntiLeakInput): Promise<AntiLeakOutput> 
   }
 }
 
+/**
+ * Phase 8 SC3 commit 4/6 — Helper fetch /api/suggest-activities.
+ *
+ * Trigger automatique au mount d'un chat (cf. ChatWindow useEffect commit 4/6).
+ * Le serveur enforce 72h cooldown + opt-out consensus + min 3 catalog → idempotent.
+ *
+ * Doctrine §D.Q1 default-on : appel sans demander confirmation user. L'utilisateur
+ * peut désactiver via /profile aiSuggestionsOptIn (consensus opt-out server-side).
+ *
+ * Q5=A defensive : tout échec fetch (network, 4xx, 5xx, 429 rate limit) → silent
+ * skip + log warn (suggestions = nice-to-have, jamais blocking UX).
+ */
+export async function triggerSuggestionsIfEligible(chatId: string, userId: string): Promise<void> {
+  try {
+    const response = await fetch('/api/suggest-activities', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chatId, userId }),
+    });
+    if (!response.ok) {
+      // 4xx / 5xx — silent skip (UX cohérent : suggestions opt-in nice-to-have)
+      console.warn(`[triggerSuggestions] /api/suggest-activities ${response.status}`, await response.text().catch(() => ''));
+      return;
+    }
+    // Parse pour observabilité (logs analyse Phase 9). Tous les statuts non-erreur sont OK.
+    const data = (await response.json().catch(() => ({}))) as {
+      persisted?: boolean;
+      cooldownActive?: boolean;
+      optedOut?: boolean;
+      insufficientCatalog?: boolean;
+      aiNoMatch?: boolean;
+    };
+    if (data.persisted) {
+      console.info('[triggerSuggestions] bot message créé (subscribeToMessages stream va le rendre)');
+    } else if (data.cooldownActive || data.optedOut || data.insufficientCatalog || data.aiNoMatch) {
+      // Silent skip OK doctrine §D.Q2/§D.Q1/§D.Q4 — UX inchangé
+    }
+  } catch (err) {
+    // Network error / fetch fail / parse error — silent skip
+    console.warn('[triggerSuggestions] fetch failed (silent skip)', err);
+  }
+}
+
 // Phase 8 sub-chantier 1 commit 3/5 — DI seam pour tests emulator (cohérent
 // pattern __setSessionsDbForTesting). Utilisé UNIQUEMENT par tests/chat/service.test.ts.
 let _chatDbOverride: Firestore | null = null;
