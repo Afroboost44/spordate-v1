@@ -33,6 +33,7 @@
     "test:next-activity-suggester": "npx tsx src/ai/flows/__tests__/next-activity-suggester.test.ts",
     "test:api:suggest": "firebase emulators:exec --only firestore 'npx tsx tests/api/suggest-activities.test.ts'",
     "test:invites:rules": "firebase emulators:exec --only firestore 'npx tsx tests/invites/rules.test.ts'",
+    "test:invites:service": "firebase emulators:exec --only firestore 'npx tsx tests/invites/service.test.ts'",
     "test:chat:service": "firebase emulators:exec --only firestore 'npx tsx tests/chat/service.test.ts'"
   },
   "dependencies": {
