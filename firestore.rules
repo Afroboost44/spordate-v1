@@ -471,10 +471,16 @@ service cloud.firestore {
       // Read : admin only (doctrine §H — audit privé admin team)
       allow read: if isAdmin();
 
-      // Create : admin only + adminId == auth.uid (anti-spoofing)
-      // + actionType enum + targetType enum + createdAt == request.time + keys hasOnly
-      // (Q4 strict defense-in-depth cohérent autres rules T&S)
-      allow create: if isAdmin()
+      // Create : 2 paths
+      //   (a) Admin actions normales (Phase 7) : isAdmin() + adminId == auth.uid + enum strict
+      //   (b) Auto-escalation L4 anti-leak (Phase 8 SC2 commit 5/6) :
+      //       any auth user + adminId='system' + actionType='leak_escalation_l4'
+      //       + targetType='user' + targetId == auth.uid (self-flag uniquement, anti-spoof)
+      //       Rationale : event système déclenché par sendMessage du sender lui-même
+      //       (pas un humain admin). Defense-in-depth via constraints strictes.
+      allow create: if (
+        // Path (a) — admin humain
+        isAdmin()
         && request.resource.data.adminId == request.auth.uid
         && request.resource.data.actionType in [
              'review_publish',
@@ -499,7 +505,25 @@ service cloud.firestore {
              'reason',
              'metadata',
              'createdAt'
-           ]);
+           ])
+      ) || (
+        // Path (b) — auto-escalation L4 anti-leak (Phase 8 SC2)
+        isAuth()
+        && request.resource.data.adminId == 'system'
+        && request.resource.data.actionType == 'leak_escalation_l4'
+        && request.resource.data.targetType == 'user'
+        && request.resource.data.targetId == request.auth.uid
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.keys().hasOnly([
+             'actionId',
+             'adminId',
+             'actionType',
+             'targetType',
+             'targetId',
+             'metadata',
+             'createdAt'
+           ])
+      );
 
       // Update : jamais (audit immuable doctrine §H)
       allow update: if false;

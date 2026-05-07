@@ -43,12 +43,14 @@ export const ADMIN_ACTION_TYPES: AdminActionType[] = [
   'appeal_resolve_upheld',
   'appeal_resolve_overturned',
   'sanction_manual_create',
+  'leak_escalation_l4', // Phase 8 SC2 commit 5/6 — auto-escalation system
 ];
 
 export const ADMIN_ACTION_TARGET_TYPES: AdminActionTargetType[] = [
   'review',
   'report',
   'sanction',
+  'user', // Phase 8 SC2 commit 5/6 — target user pour leak_escalation_l4
 ];
 
 // =====================================================================

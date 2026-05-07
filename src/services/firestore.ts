@@ -22,6 +22,7 @@ import type {
 import { CREDIT_PACKAGES } from '@/types/firestore';
 import { scanMessageL1 } from '@/lib/anti-leak/regex';
 import type { AntiLeakInput, AntiLeakOutput } from '@/ai/types';
+import { sendEmail } from '@/lib/email/sendEmail';
 
 // ===================== HELPERS =====================
 
@@ -685,7 +686,10 @@ export async function sendMessage(
   // Phase 8 SC1 — check credits sender ≥ 1 (defense côté service ; rule renforce)
   const senderSnap = await getDoc(doc(fbDb, 'users', senderId));
   if (!senderSnap.exists()) throw new Error('Utilisateur expéditeur non trouvé');
-  const senderCredits = (senderSnap.data().credits as number | undefined) ?? 0;
+  const senderData = senderSnap.data();
+  const senderCredits = (senderData.credits as number | undefined) ?? 0;
+  // Phase 8 SC2 commit 5/6 — leakFlagged pour idempotency L4 escalation (anti re-trigger)
+  const senderLeakFlagged = (senderData.leakFlagged as boolean | undefined) ?? false;
   if (senderCredits < 1) throw new Error('insufficient-credits');
 
   // Phase 8 SC1 — scan L1 anti-leak (silent log only, doctrine §B)
@@ -805,6 +809,53 @@ export async function sendMessage(
       });
     } catch (err) {
       console.warn('[sendMessage] notification create failed (non-bloquant)', err);
+    }
+  }
+
+  // Phase 8 SC2 commit 5/6 — L4 admin escalation (best-effort, idempotent via senderLeakFlagged)
+  // Trigger uniquement quand sender CROISE L4 (pas leakFlagged) → 1 email, 1 audit
+  // Pas de re-trigger sur count=6,7,... (sauf si admin reset leakFlagged manuellement)
+  if (escalationLevel === 'L4' && !senderLeakFlagged) {
+    // 1. Update sender.leakFlagged=true (rule allows owner self-update)
+    try {
+      await updateDoc(doc(fbDb, 'users', senderId), { leakFlagged: true });
+    } catch (err) {
+      console.warn('[sendMessage L4] update leakFlagged failed (non-bloquant)', err);
+    }
+
+    // 2. Audit log adminActions/ avec adminId='system' (path b rule Phase 8 SC2)
+    try {
+      const auditRef = doc(collection(fbDb, 'adminActions'));
+      await setDoc(auditRef, {
+        actionId: auditRef.id,
+        adminId: 'system',
+        actionType: 'leak_escalation_l4',
+        targetType: 'user',
+        targetId: senderId,
+        metadata: { chatId, leakCount: newLeakCount, motive: finalMotive },
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('[sendMessage L4] adminAction audit failed (non-bloquant)', err);
+    }
+
+    // 3. Email admin (best-effort — log-only en absence RESEND_API_KEY/client-side)
+    try {
+      const adminEmail = process.env.ADMIN_LEAK_EMAIL || 'contact@spordateur.com';
+      await sendEmail({
+        to: adminEmail,
+        templateName: 'leakEscalationAdmin',
+        templateData: {
+          userId: senderId,
+          userName: senderData.displayName as string | undefined,
+          chatId,
+          leakCount: newLeakCount,
+          motiveSummary: finalMotive,
+          lastFlaggedAt: new Date().toISOString(),
+        },
+      });
+    } catch (err) {
+      console.warn('[sendMessage L4] sendEmail leakEscalationAdmin failed (non-bloquant)', err);
     }
   }
 

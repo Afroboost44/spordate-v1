@@ -32,7 +32,8 @@ export type TemplateName =
   | 'noShowWarningNotice' // T&S Phase 7 sub-chantier 3 commit 5/5 — notif no-show 1-4
   | 'partnerNoShowConfirmed' // T&S Phase 7 sub-chantier 3 commit 5/5 — confirm partner check-in
   | 'userSanctionOverturned' // T&S Phase 7 sub-chantier 5 commit 1/3 — admin a annulé sanction
-  | 'appealResolved'; // T&S Phase 7 sub-chantier 5 commit 1/3 — résultat appel (uphold/overturn)
+  | 'appealResolved' // T&S Phase 7 sub-chantier 5 commit 1/3 — résultat appel (uphold/overturn)
+  | 'leakEscalationAdmin'; // Phase 8 SC2 commit 5/6 — alerte admin L4 anti-leak (5+ tentatives chat)
 
 /** SanctionLevel cohérent src/types/firestore.ts (utilisé par userSanctionNotice). */
 export type SanctionLevelEmail = 'warning' | 'suspension_7d' | 'suspension_30d' | 'ban_permanent';
@@ -130,6 +131,21 @@ export interface TemplateDataMap {
     decision: 'upheld' | 'overturned';
     /** Note admin motivant la décision (audit + transparency). Optionnelle. */
     adminNote?: string;
+  };
+  /** Phase 8 SC2 commit 5/6 — alerte admin L4 anti-leak (doctrine §B.Q3 escalation manuelle). */
+  leakEscalationAdmin: {
+    /** Auth uid de l'utilisateur ayant atteint 5+ tentatives leak dans un chat. */
+    userId: string;
+    /** Display name de l'utilisateur (snapshot — peut être vide si profil incomplet). */
+    userName?: string;
+    /** Doc-id du chat parent (= matchId). */
+    chatId: string;
+    /** Compteur cumulatif après ce hit (≥ 5 quand l'email est déclenché). */
+    leakCount: number;
+    /** Résumé des motifs détectés (FR, ex: "phone-ch×3, ai-leak-likely×2"). Optionnel. */
+    motiveSummary?: string;
+    /** ISO date du dernier hit. */
+    lastFlaggedAt: string;
   };
 }
 
@@ -429,6 +445,33 @@ function renderAppealResolved(d: TemplateDataMap['appealResolved']) {
   return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
 }
 
+/**
+ * Phase 8 SC2 commit 5/6 — alerte admin L4 anti-leak (doctrine §B.Q3 escalation manuelle).
+ *
+ * Déclenché par sendMessage quand un user atteint 5 tentatives leak dans un chat (compteur
+ * Chat.leakBySender). Email envoyé à ADMIN_LEAK_EMAIL (default contact@spordateur.com).
+ * Pas d'action automatique (anti-quarantine) — admin review manuel via aiScanLogs/ + UI Phase 9.
+ */
+function renderLeakEscalationAdmin(d: TemplateDataMap['leakEscalationAdmin']) {
+  const userLabel = d.userName ? `${d.userName} (${d.userId})` : d.userId;
+  const subject = `🚨 Anti-leak L4 — user ${d.userId} (${d.leakCount} hits)`;
+
+  const motiveLine = d.motiveSummary
+    ? p(`<strong style="color:#ffffff;">Motifs détectés</strong> : ${d.motiveSummary}`)
+    : '';
+
+  const body = `
+    ${h1(`Anti-leak L4 — escalation`)}
+    ${p(`L'utilisateur <strong style="color:#ffffff;">${userLabel}</strong> a atteint <strong style="color:#D91CD2;">${d.leakCount} tentatives anti-leak</strong> dans le chat <strong style="color:#ffffff;">${d.chatId}</strong>.`)}
+    ${p(`Date du dernier hit : <strong style="color:#ffffff;">${d.lastFlaggedAt}</strong>.`)}
+    ${motiveLine}
+    ${p(`<strong style="color:#ffffff;">Compte flaggé automatiquement</strong> (UserProfile.leakFlagged=true). Action manuelle recommandée :`)}
+    ${p(`1. Review de la collection <strong style="color:#D91CD2;">aiScanLogs/</strong> pour ce chatId (Firebase Console → query par senderId).<br/>2. Si pattern abusif confirmé, considérer warn/suspend via admin dashboard T&S (Phase 7 sub-chantier 4).<br/>3. Si faux positifs IA, signaler pour tuning prompt (issue interne).`)}
+    ${p(`Cet email est généré automatiquement par le système anti-leak Phase 8 doctrine §B.Q3 (escalation manuelle, pas d'auto-quarantine — biais algorithmique = risque LCD).`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
+}
+
 // =====================================================================
 // Public renderTemplate (type-safe dispatch)
 // =====================================================================
@@ -462,6 +505,8 @@ export function renderTemplate<T extends TemplateName>(
       return renderUserSanctionOverturned(data as TemplateDataMap['userSanctionOverturned']);
     case 'appealResolved':
       return renderAppealResolved(data as TemplateDataMap['appealResolved']);
+    case 'leakEscalationAdmin':
+      return renderLeakEscalationAdmin(data as TemplateDataMap['leakEscalationAdmin']);
     default: {
       // Exhaustive check — TypeScript should error if a new TemplateName is added without case
       const _exhaustive: never = templateName;

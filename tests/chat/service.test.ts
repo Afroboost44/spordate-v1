@@ -249,6 +249,48 @@ async function getCreditsViaAdmin(env: RulesTestEnvironment, uid: string): Promi
   return credits;
 }
 
+async function getAdminActionsForUserViaAdmin(
+  env: RulesTestEnvironment,
+  targetId: string,
+  actionType: string,
+): Promise<Array<{ adminId: string; metadata: Record<string, unknown> | null }>> {
+  const out: Array<{ adminId: string; metadata: Record<string, unknown> | null }> = [];
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const fbDb = asFirestore(ctx.firestore());
+    const q = query(
+      collection(fbDb, 'adminActions'),
+      where('targetId', '==', targetId),
+      where('actionType', '==', actionType),
+    );
+    const snap = await getDocs(q);
+    snap.forEach((d) => {
+      const data = d.data();
+      out.push({
+        adminId: data.adminId as string,
+        metadata: (data.metadata as Record<string, unknown> | undefined) ?? null,
+      });
+    });
+  });
+  return out;
+}
+
+async function getUserLeakFlaggedViaAdmin(env: RulesTestEnvironment, uid: string): Promise<boolean> {
+  let flagged = false;
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const fbDb = asFirestore(ctx.firestore());
+    const snap = await getDoc(doc(fbDb, 'users', uid));
+    flagged = (snap.data()?.leakFlagged as boolean | undefined) ?? false;
+  });
+  return flagged;
+}
+
+async function setUserLeakFlaggedViaAdmin(env: RulesTestEnvironment, uid: string, flagged: boolean): Promise<void> {
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const fbDb = asFirestore(ctx.firestore());
+    await setDoc(doc(fbDb, 'users', uid), { leakFlagged: flagged }, { merge: true });
+  });
+}
+
 async function getScanLogsForChatViaAdmin(
   env: RulesTestEnvironment,
   chatId: string,
@@ -685,6 +727,120 @@ async function main(): Promise<void> {
   }
 
   // ===================================================================
+  // SVC15 escalation L4 trigger : leakFlagged + adminActions audit (commit 5/6)
+  // ===================================================================
+  section('SVC15 L4 trigger → leakFlagged=true + adminAction audit');
+  {
+    await restockAliceCredits(30);
+    await resetChatLeakBySender(MATCH_ACTIVE_ID);
+    await setUserLeakFlaggedViaAdmin(env, ALICE_UID, false);
+    // Track delta plutôt qu'absolu (tests précédents ont pu créer des audits)
+    const auditsBefore = await getAdminActionsForUserViaAdmin(env, ALICE_UID, 'leak_escalation_l4');
+
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    __setChatDbForTesting(asFirestore(aliceCtx.firestore()));
+    mockApiFetch({ riskScore: 0.9, flagged: true, technicalMotive: 'ai-leak-likely' });
+
+    try {
+      // 5 messages flagged → 5ème déclenche L4 + side effects
+      const messages = ['079 111 22 33', '079 222 33 44', '079 333 44 55', '079 444 55 66', '079 555 66 77'];
+      let lastResult;
+      for (const msg of messages) {
+        lastResult = await sendMessage(MATCH_ACTIVE_ID, ALICE_UID, msg);
+      }
+      assertEq(lastResult?.escalationLevel, 'L4', "SVC15 5ème message escalationLevel='L4'");
+
+      // Verify side effects post-L4 (delta = +1 nouvelle audit)
+      const flagged = await getUserLeakFlaggedViaAdmin(env, ALICE_UID);
+      assertEq(flagged, true, 'SVC15 alice.leakFlagged=true (Q7=A boolean)');
+
+      const auditsAfter = await getAdminActionsForUserViaAdmin(env, ALICE_UID, 'leak_escalation_l4');
+      assertEq(
+        auditsAfter.length - auditsBefore.length,
+        1,
+        'SVC15 +1 entry adminActions/ leak_escalation_l4 (delta vs avant test)',
+      );
+      // Vérifier le plus récent (dernière entry par order de création — auditsAfter contient tout)
+      const latest = auditsAfter[auditsAfter.length - 1];
+      assertEq(latest.adminId, 'system', "SVC15 adminAction.adminId='system' (auto-escalation)");
+      assertEq(
+        (latest.metadata?.chatId as string) === MATCH_ACTIVE_ID,
+        true,
+        'SVC15 adminAction.metadata.chatId match',
+      );
+      assertEq(
+        (latest.metadata?.leakCount as number) === 5,
+        true,
+        'SVC15 adminAction.metadata.leakCount=5',
+      );
+    } catch (e) {
+      fail('SVC15 sendMessage threw', e);
+    }
+  }
+
+  // ===================================================================
+  // SVC16 idempotency : leakFlagged déjà true → no re-trigger sur count>=6
+  // ===================================================================
+  section('SVC16 idempotency — count=6 sans re-trigger (leakFlagged déjà true)');
+  {
+    await restockAliceCredits(30);
+    await resetChatLeakBySender(MATCH_ACTIVE_ID);
+    await setUserLeakFlaggedViaAdmin(env, ALICE_UID, true); // pré-flagged
+    // Track delta vs absolu
+    const auditsBefore = await getAdminActionsForUserViaAdmin(env, ALICE_UID, 'leak_escalation_l4');
+
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    __setChatDbForTesting(asFirestore(aliceCtx.firestore()));
+    mockApiFetch({ riskScore: 0.9, flagged: true, technicalMotive: 'ai-leak-likely' });
+
+    try {
+      // 5 messages flagged — 5ème devrait être L4 mais sender déjà flagged → no side effect
+      const messages = ['079 111 22 33', '079 222 33 44', '079 333 44 55', '079 444 55 66', '079 555 66 77'];
+      for (const msg of messages) {
+        await sendMessage(MATCH_ACTIVE_ID, ALICE_UID, msg);
+      }
+      // Verify : 0 nouvelle entry adminAction (delta == 0)
+      const auditsAfter = await getAdminActionsForUserViaAdmin(env, ALICE_UID, 'leak_escalation_l4');
+      assertEq(
+        auditsAfter.length - auditsBefore.length,
+        0,
+        'SVC16 0 nouvelle audit adminAction (idempotent — leakFlagged préexistant)',
+      );
+    } catch (e) {
+      fail('SVC16 sendMessage threw', e);
+    }
+  }
+
+  // ===================================================================
+  // SVC17 counts 1-4 (sub-threshold) → no L4 trigger même si flagged
+  // ===================================================================
+  section('SVC17 sub-threshold counts 1-4 → no L4 side effect');
+  {
+    await restockAliceCredits(30);
+    await resetChatLeakBySender(MATCH_ACTIVE_ID);
+    await setUserLeakFlaggedViaAdmin(env, ALICE_UID, false);
+
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    __setChatDbForTesting(asFirestore(aliceCtx.firestore()));
+    mockApiFetch({ riskScore: 0.9, flagged: true, technicalMotive: 'ai-leak-likely' });
+
+    try {
+      // 4 messages flagged uniquement (count atteint 4, pas L4)
+      const messages = ['079 111 22 33', '079 222 33 44', '079 333 44 55', '079 444 55 66'];
+      let lastResult;
+      for (const msg of messages) {
+        lastResult = await sendMessage(MATCH_ACTIVE_ID, ALICE_UID, msg);
+      }
+      assertEq(lastResult?.escalationLevel, 'L0', "SVC17 4ème message escalationLevel='L0' (silent count=4)");
+
+      const flagged = await getUserLeakFlaggedViaAdmin(env, ALICE_UID);
+      assertEq(flagged, false, 'SVC17 alice.leakFlagged reste false (sub-threshold)');
+    } catch (e) {
+      fail('SVC17 sendMessage threw', e);
+    }
+  }
+
+  // ===================================================================
   // Cleanup
   // ===================================================================
   __setChatDbForTesting(null); // reset DI seam
@@ -692,7 +848,7 @@ async function main(): Promise<void> {
   await env.cleanup();
 
   console.log('');
-  console.log('====== Résumé Chat service (SVC1-SVC14) ======');
+  console.log('====== Résumé Chat service (SVC1-SVC17) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);
