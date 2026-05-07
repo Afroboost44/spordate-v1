@@ -25,7 +25,8 @@
     "test:reports:co-inscribed": "firebase emulators:exec --only firestore 'npx tsx tests/reports/co-inscribed.test.ts'",
     "test:admin-actions": "firebase emulators:exec --only firestore 'npx tsx tests/admin-actions/service.test.ts'",
     "test:admin-actions:rules": "firebase emulators:exec --only firestore 'npx tsx tests/admin-actions/rules.test.ts'",
-    "test:profile:rules": "firebase emulators:exec --only firestore 'npx tsx tests/profile/rules.test.ts'"
+    "test:profile:rules": "firebase emulators:exec --only firestore 'npx tsx tests/profile/rules.test.ts'",
+    "test:genkit": "npx tsx src/ai/__tests__/genkit.test.ts"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",

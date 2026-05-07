@@ -115,3 +115,35 @@ Avant toute modification, Claude doit :
 2. Lire `architecture.md` pour comprendre la structure.
 3. Faire un `npm run type-check` après chaque modification.
 4. Ne jamais lancer `git push` sans validation explicite de l'utilisateur.
+
+## 10. Troubleshooting Git Auth
+
+**Pattern récurrent** : sur cette machine, le compte gh actif drift régulièrement vers
+`sambassi` entre les sessions, alors que le repo `Afroboost44/spordate-v1` exige les
+credentials du compte `Afroboost44`. Symptôme : `git push` retourne `403 Permission to
+Afroboost44/spordate-v1.git denied to sambassi`.
+
+**Fix préventif avant chaque push** :
+
+```bash
+# 1. Vérifier l'état actuel
+gh auth status
+# → si "Active account: true" est sur sambassi, switch :
+
+# 2. Switcher vers Afroboost44
+gh auth switch -u Afroboost44
+
+# 3. Confirmer
+gh auth status   # doit lister Afroboost44 en "Active account: true"
+git push origin main
+```
+
+**Pourquoi ça drift** : les deux comptes `sambassi` et `Afroboost44` sont stockés dans
+le keyring gh. `gh auth git-credential` retourne les creds du compte actif — si c'est
+`sambassi`, git envoie le mauvais token. Le credential helper local pointe correctement
+sur `gh` (`~/.gitconfig` : `credential.https://github.com.helper=!gh auth git-credential`),
+le bug est uniquement au niveau de l'active account.
+
+**Anti-pattern à éviter** : ne PAS supprimer `sambassi` du keyring (il sert pour
+d'autres repos). Ne PAS clear l'osxkeychain GitHub (impact transverse). Le `gh auth
+switch -u Afroboost44` préventif avant push est la solution propre.

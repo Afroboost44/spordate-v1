@@ -910,6 +910,20 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 
 **Prochaine phase** : **Phase 8** — Chat post-event + retention + IA + invite Individuel (cf. ledger phase ci-dessous, §F invitation réciproque). Ouvre nouvelle stratosphère engagement utilisateur après le solid floor T&S Phase 7.
 
+---
+
+## Phase 8 — En cours (mai 2026)
+
+### Sub-chantier 0 — Pré-flight Phase 8 ✅ COMPLET (3 commits)
+
+- 1/3 `d54c7a9` : CGU §7.quater (modération chat IA L1+L2 + logs 30j hashés + rate limit 10/user/min) + §7.quinquies (suggestions IA chat cadence 72h + opt-out via /profile + consensus opt-out) + Privacy §2 §5 §7 §8 (sub-processor Google Gemini + droit opposition + non-désactivabilité modération)
+- 2/3 `ab46dd9` : `UserProfile.aiSuggestionsOptIn?: boolean` (additif, undefined === true) + helper `updateUserAiOptIn` + section /profile "Confidentialité" (Card + Switch + lien /privacy + reminder modération non-désactivable) + tests rules `tests/profile/rules.test.ts` AI1-AI2 (2/2 PASS)
+- 3/3 *(this commit)* : `src/ai/genkit.ts` étendu (rate limiter per-user 10/min sliding window 60s, `AiError` typée, `checkRateLimit` + `wrapAiCall` + DI seams `__set*ForTesting`) + `src/ai/types.ts` (interfaces `AntiLeakInput/Output`, `SuggestionInput/Output` pour flows sub-chantiers 2-3) + tests `src/ai/__tests__/genkit.test.ts` G1-G3 (3/3 PASS) + CLAUDE.md §10 Troubleshooting Git Auth + close-out architecture.md
+
+**Bilan sub-chantier 0** : disclosures légales LPD/RGPD/LCD shipped + opt-in user-side + scaffolding Genkit prêt pour flows. Prochain : sub-chantier 1 (chat survival post-event + crédits consumption + L1 regex anti-leak, défense-en-profondeur bundle).
+
+---
+
 ### A. Doctrine économique — T&S = pré-requis rétention
 
 **Règle** : sans T&S structurée, la rétention femmes est compromise. Femmes ≈ 50% des users cibles. Une mauvaise expérience non gérée → quitte la plateforme + word-of-mouth négatif → spirale.
