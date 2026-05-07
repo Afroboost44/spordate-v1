@@ -36,7 +36,9 @@
     "test:invites:service": "firebase emulators:exec --only firestore 'npx tsx tests/invites/service.test.ts'",
     "test:invites:api": "firebase emulators:exec --only firestore 'npx tsx tests/invites/api.test.ts'",
     "test:invites:webhook": "firebase emulators:exec --only firestore 'npx tsx tests/invites/email-webhook.test.ts'",
-    "test:chat:service": "firebase emulators:exec --only firestore 'npx tsx tests/chat/service.test.ts'"
+    "test:chat:service": "firebase emulators:exec --only firestore 'npx tsx tests/chat/service.test.ts'",
+    "test:reports:recompute-cancel": "firebase emulators:exec --only firestore 'npx tsx tests/reports/recompute-sanction.test.ts'",
+    "test:admin:blocks": "firebase emulators:exec --only firestore 'npx tsx tests/admin/blocks-api.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",

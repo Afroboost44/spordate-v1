@@ -21,6 +21,10 @@
 import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import type { Report } from '@/types/firestore';
 import { ReportError, getReportsDb } from './_internal';
+import {
+  findActiveSanctionTriggeredByReport,
+  recomputeSanctionAfterReportCancel,
+} from './recomputeSanctionAfterReportCancel';
 
 /** Fenêtre undo pour partner après mark no-show (24h). */
 export const NO_SHOW_CANCEL_WINDOW_HOURS = 24;
@@ -76,19 +80,49 @@ export async function cancelNoShow(input: CancelNoShowInput): Promise<void> {
     });
   }
 
-  // Phase 7 edge case : si une sanction avait été déclenchée par ce report,
-  // elle reste active (pas de recompute). Log warning pour admin traitement.
-  if ((report as Report).autoSuspensionApplied === true) {
-    console.warn(
-      '[cancelNoShow] sanction auto déclenchée par ce report — reste active. Admin doit overturn manuellement (Phase 8 polish : recompute threshold).',
-      { reportId: input.reportId, reportedId: report.reportedId },
-    );
-  }
-
   await updateDoc(ref, {
     status: 'dismissed',
     decision: 'dismiss',
     decisionNote: `partner cancel within ${NO_SHOW_CANCEL_WINDOW_HOURS}h`,
     resolvedAt: serverTimestamp(),
   });
+
+  // Phase 8 SC5 c1/5 — comble TODO Phase 7 (recompute threshold automatique).
+  // Si une sanction avait été déclenchée par ce report : recompute level avec
+  // triggeringReportIds[] minus reportId. Best-effort : fail silent si lookup
+  // ou recompute throw (sanction reste alors active, fallback admin overturn manual).
+  if ((report as Report).autoSuspensionApplied === true) {
+    try {
+      const triggered = await findActiveSanctionTriggeredByReport(
+        report.reportedId,
+        input.reportId,
+      );
+      if (triggered) {
+        const result = await recomputeSanctionAfterReportCancel({
+          sanctionId: triggered.sanctionId,
+          cancelledReportId: input.reportId,
+        });
+        console.info('[cancelNoShow] recompute sanction', {
+          reportId: input.reportId,
+          sanctionId: triggered.sanctionId,
+          before: triggered.level,
+          result,
+        });
+      } else {
+        console.info(
+          '[cancelNoShow] autoSuspensionApplied=true mais aucune sanction active triggered par ce report (déjà overturn ou expired)',
+          { reportId: input.reportId, reportedId: report.reportedId },
+        );
+      }
+    } catch (err) {
+      console.warn(
+        '[cancelNoShow] recompute sanction failed (best-effort, sanction reste active)',
+        {
+          reportId: input.reportId,
+          reportedId: report.reportedId,
+          error: err instanceof Error ? err.message : String(err),
+        },
+      );
+    }
+  }
 }

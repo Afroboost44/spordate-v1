@@ -49,6 +49,14 @@ export {
   type CancelNoShowInput,
   NO_SHOW_CANCEL_WINDOW_HOURS,
 } from './cancelNoShow';
+// Phase 8 SC5 c1/5 — recompute sanction after no-show report cancel
+export {
+  recomputeSanctionAfterReportCancel,
+  findActiveSanctionTriggeredByReport,
+  type RecomputeSanctionInput,
+  type RecomputeSanctionResult,
+  type RecomputeReason,
+} from './recomputeSanctionAfterReportCancel';
 // Phase 7 sub-chantier 4 commit 1/4 — admin actions
 export {
   getPendingReports,
