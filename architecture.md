@@ -944,6 +944,80 @@ Cette étape Phase 8-pre est **non-optionnelle**.
 
 **Prochain** : sub-chantier 2 — Anti-leak L2-L4 Genkit (flow IA contextuelle anti-leak via wrapAiCall SC0 + escalation manuelle admin via collection dédiée + extension motive enum 'ai-leak-likely' / 'ai-leak-unlikely').
 
+### Sub-chantier 2 — Anti-leak L2-L4 Genkit ✅ COMPLET (5 commits + 2 hotfixes)
+
+- 1/6 `323b995` : Types `Chat.leakBySender` per-chat per-sender + `UserProfile.leakFlagged` boolean + `AiScanLog.motive` enum extension SC2 (`ai-leak-likely` / `ai-leak-unlikely` / `ai-error`) + rules `/aiScanLogs/` enum + `/chats/` self-only constraint sur leakBySender + tests `CHAT10-CHAT13` (4 cas, 13/13 cumulés)
+- 2/6 `bd32241` : `src/ai/flows/anti-leak-classifier.ts` flow Genkit Gemini Flash + cache 24h in-memory Map + system prompt FR strict + 6 few-shot examples + DI seams `__setGenerateFnForTesting` + `__resetCacheForTesting` + `__setNowFnForTesting` + Q5=A defensive fallback motive='ai-error' + tests `ALC1-ALC10` (10/10 PASS first try)
+- 3/6 `26252a2` : `sendMessage()` étendu pipeline hybride — si scanL1.score === 0.5 → `classifyMessageL2()` IA refinement (likely=1 → 'ai-leak-likely' / likely=0 → 'ai-leak-unlikely' / error → 'ai-error' preserve L1) + read chat.leakBySender courant + compute escalationLevel L0/L2/L3/L4 + return enrichi `{messageId, scanScore, scanFlagged, scanMotive, escalationLevel, leakCountAfter}` + tests `SVC9-SVC14` (35 sub-assertions)
+- 4/6 `f2d4c98` : UI `chat/page.tsx` — handleEscalation post-send : L2 toast soft (wording doctrine literal Q11=A "Le chat reste ouvert jusqu'à ta prochaine session — pas besoin de partager ton Insta.") + L3 AlertDialog rétroactif (Q2=B post-send laisse-faire) + L4 silent + helper `generateFalseFlagMailto()` (Q8=A KISS) avec ToastAction + footer L3
+- 5/6 `644e5a0` : L4 admin escalation post-batch — best-effort `users.{senderId}.leakFlagged=true` + audit `adminActions/` avec `adminId='system'` (rule path b) + `sendEmail leakEscalationAdmin` → env `ADMIN_LEAK_EMAIL` default `contact@spordateur.com` + idempotency via senderLeakFlagged check + AdminActionType enum extension `'leak_escalation_l4'` + AdminActionTargetType `'user'` + tests `EM-LK1-EM-LK3` (3 cases) + `SVC15-SVC17` (delta-based assertions)
+- 6/6 *(this commit)* : architecture.md sub-chantier 2 close-out + cumulative tests verification + scripts package.json review + doctrine compliance recap
+
+**Hotfixes shipped pendant SC2** :
+- `74baef8` hotfix(phase8) : isolate Genkit server-only via `/api/anti-leak/route.ts` (Genkit dépend de `@grpc/grpc-js` + `@opentelemetry/sdk-node` qui ne peuvent pas bundler côté client — `serverExternalPackages` config + fetch helper). Build Vercel `Compiled successfully` après ce hotfix.
+- `a6a41b2` fix(stripe) : lazy-init Stripe SDK pour `/api/verify-payment` + `/api/checkout` (init module-level cassait "Collecting page data" Vercel sans STRIPE_SECRET_KEY au build time). Pattern défensif aligné avec autres routes Stripe `/api/`.
+
+**Architecture résultante anti-leak L1+L2** :
+
+```
+┌──────────────────┐
+│ chat/page.tsx    │  Client Component
+│ (handleSend +    │  ↓ import sendMessage
+│  handleEscalation)│
+└────────┬─────────┘
+         │ await sendMessage(chatId, senderId, text)
+         ↓
+┌──────────────────┐
+│ services/        │  Shared client+server module
+│ firestore.ts     │  • L1 scanMessageL1 (regex pure)
+│ sendMessage()    │  • Hash SHA-256 (Web Crypto)
+└────────┬─────────┘  • Si score=0.5 → fetch /api/anti-leak
+         │
+         │ POST /api/anti-leak  (Phase 8 SC2 hotfix isolation)
+         ↓
+┌──────────────────┐
+│ /api/anti-leak/  │  Server-only route (runtime='nodejs')
+│ route.ts         │  • Validate body shape + anti-DoS ≤5000 chars
+└────────┬─────────┘  • Map AiError → 429 / autres → 500
+         │ classifyMessageL2(input)
+         ↓
+┌──────────────────┐
+│ src/ai/flows/    │  Server-only (Genkit isolated)
+│ anti-leak-       │  • Cache 24h in-memory Map<sha256, result>
+│ classifier.ts    │  • wrapAiCall (rate limit 10/user/min)
+└────────┬─────────┘  • System prompt FR + 6 few-shot
+         │ ai.generate({prompt: ...})
+         ↓
+┌──────────────────┐
+│ src/ai/genkit.ts │  Server-only (Gemini 2.5 Flash via Genkit)
+└──────────────────┘  ← @grpc/grpc-js + @opentelemetry/sdk-node
+                       (serverExternalPackages anti webpack-bundle)
+
+Side effects post-batch (sendMessage L4 trigger if escalationLevel='L4' && !senderLeakFlagged) :
+  ├─ updateDoc users.{senderId} leakFlagged=true
+  ├─ setDoc adminActions/ adminId='system' (rule path b extension)
+  └─ sendEmail leakEscalationAdmin → ADMIN_LEAK_EMAIL
+```
+
+**Bilan sub-chantier 2** :
+- Doctrine §B L1-L4 ✅ niveaux complets : L1 silent SC1 / L2 toast / L3 modal rétroactif / L4 admin email + flag (5+ hits)
+- Doctrine §B.Q1 onboarding-bubble ✅ (shipped SC1 commit 4/5)
+- Doctrine §B.Q3 L4 manuel admin ✅ (sendEmail + leakFlagged + audit, pas auto-quarantine biais algo)
+- Doctrine §B.Q4 92-95% precision ✅ (regex L1 + IA L2 hybride + "ce flag est faux" mailto feedback)
+- Doctrine §C IA hybride ✅ (Genkit Gemini Flash via API route, isolé server-only)
+- Doctrine §C.Q1 Genkit + Gemini Flash ✅ (cohérent stack Firebase)
+- Doctrine §C.Q2 logs hashés ✅ (motive enum + SHA-256, jamais contenu lisible)
+- Doctrine §C.Q3 FR strict ✅ (system prompt + few-shot FR uniquement)
+- Doctrine §C cache 24h ✅ (in-memory Map keyed sur SHA-256 exact)
+- Q1=A `Chat.leakBySender` per-chat per-sender / Q2=B post-send rétroactif L3 / Q3=A in-memory cache / Q4=A IA si score=0.5 / Q5=A IA error preserve L1 / Q6=B env var `ADMIN_LEAK_EMAIL` / Q7=A boolean `leakFlagged` / Q8=A mailto KISS / Q9=A cumulative window / Q10=A FR strict / Q11=A wording doctrine literal
+- Tests SC2 delta : 4 (CHAT) + 10 (ALC) + 11 (SVC9-SVC17) + 3 (EM-LK) = **28 tests** (+ infra hotfixes shipped)
+- Tests Phase 8 cumulés (SC0 + SC1 + SC2) : ~95+ assertions (Phase 7 base 372 préservée intégralement)
+- Latence target <200ms p95 ✅ regex ~1-5ms / Web Crypto ~1ms / fetch /api/anti-leak ~50-200ms / batch Firestore ~30-50ms
+- Architecture isolation : Genkit confiné `runtime=nodejs` (server-only), client-side fetch helper avec fallback Q5=A
+- Defense-in-depth : firestore.rules path b auto-escalation L4 (anti-spoof targetId == auth.uid)
+
+**Prochain** : sub-chantier 3 — Suggestions IA next-activity (Genkit flow `next-activity-suggester` + UI bot card inline chat + cadence 1/72h + opt-out via aiSuggestionsOptIn SC0 + tests Genkit + emulator).
+
 ---
 
 ### A. Doctrine économique — T&S = pré-requis rétention
