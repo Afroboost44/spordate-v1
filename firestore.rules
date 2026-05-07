@@ -146,6 +146,10 @@ service cloud.firestore {
           && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
         allow create: if isAuth()
           && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+          // Phase 8 SC3 commit 1/6 (anti-spoof) : senderId doit être l'auteur authentifié.
+          // Empêche un client de créer un faux bot message senderId='system' (Q9=A — seul Admin SDK
+          // serveur peut écrire senderId='system' via /api/suggest-activities, bypass des rules).
+          && request.resource.data.senderId == request.auth.uid
           && get(/databases/$(database)/documents/matches/$(chatId)).data.chatUnlocked == true
           // Phase 8 sub-chantier 1 (inversion §A doctrine "chat reste ouvert post-event") :
           // - autoriser create si session.status='completed' (était bloqué Phase 1)

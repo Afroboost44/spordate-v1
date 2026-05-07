@@ -470,15 +470,45 @@ export interface Chat {
    *  Doctrine §B "dans la conv". Cumulative all-time SC2 (rolling Phase 9 si scale).
    *  Self-only update : un sender ne peut incrémenter QUE son propre compteur (rule defense-in-depth). */
   leakBySender?: Record<string, number>;
+  // ----- Phase 8 sub-chantier 3 (additif) — Suggestions IA next-activity cooldown -----
+  /** Phase 8 SC3 (additif). Timestamp dernière suggestion bot IA générée pour ce chat.
+   *  Cadence max 1/72h (doctrine §D.Q2). Server-side check via /api/suggest-activities.
+   *  Update via Admin SDK bypass (cohérent senderId='system' bot messages, Q9=A). */
+  lastSuggestionAt?: Timestamp;
 }
 
 export interface ChatMessage {
   messageId: string;
+  /** Auth uid de l'expéditeur, OU `'system'` pour bot messages Phase 8 SC3
+   *  (suggestions IA next-activity, créées via Admin SDK serveur uniquement). */
   senderId: string;
   text: string;
-  type: 'text' | 'image' | 'system';
+  /** Phase 8 SC3 (additif) : `'ai_suggestion'` pour bot messages avec suggestions structurées.
+   *  `'text'`/`'image'`/`'system'` = SC1 messages users. */
+  type: 'text' | 'image' | 'system' | 'ai_suggestion';
   readBy: string[];
   createdAt: Timestamp;
+  /** Phase 8 SC3 (additif). Présent uniquement si type === 'ai_suggestion' — 1-3 cards
+   *  avec activityId/title/sport/city/nextSessionAt/reason. Doctrine §D.Q4 inline bot card.
+   *  Persisté via Admin SDK serveur (Q9=A) — client lit uniquement. */
+  suggestions?: SuggestionCard[];
+}
+
+/** Phase 8 SC3 (additif). Card suggestion bot IA pour next-activity (1-3 par message).
+ *  Snapshot dénormalisé au moment de la génération (rendu rapide client). */
+export interface SuggestionCard {
+  /** Doc-id de l'Activity proposée. Validation existence côté serveur Phase 8 SC3 commit 3/6. */
+  activityId: string;
+  /** Title dénormalisé (snapshot, peut désync si activity edited Phase 9). */
+  title: string;
+  /** Sport dénormalisé (filtrage sport-affinity §D doctrine). */
+  sport: string;
+  /** City dénormalisée (filtrage city-affinity §D doctrine). */
+  city: string;
+  /** Timestamp prochaine session disponible (optional — null si activity sans session schedulée). */
+  nextSessionAt?: Timestamp;
+  /** Justification courte FR affichée dans la card (doctrine §D.Q3 FR uniquement). */
+  reason: string;
 }
 
 // ===================== AI SCAN LOGS (Phase 8 sub-chantier 1) =====================

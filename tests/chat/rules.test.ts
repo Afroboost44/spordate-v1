@@ -29,6 +29,11 @@
  *   CHAT11 : create aiScanLog motive='ai-fake-not-in-enum' → REJET (enum strict après extension SC2)
  *   CHAT12 : update chat.leakBySender[alice] par alice (self) → SUCCESS
  *   CHAT13 : update chat.leakBySender[bob] par alice (spoof) → REJET (anti-spoof self-only)
+ *
+ * Phase 8 SC3 commit 1/6 — anti-spoof bot messages + lastSuggestionAt cooldown :
+ *   CHAT14 : create ChatMessage senderId='system' par auth user → REJET (anti-spoof, Q9=A Admin SDK only)
+ *   CHAT15 : update chat.lastSuggestionAt par participant alice → SUCCESS
+ *   CHAT16 : update chat.lastSuggestionAt par non-participant charlie → REJET
  */
 
 import {
@@ -475,12 +480,72 @@ async function main(): Promise<void> {
   }
 
   // ===================================================================
+  // Phase 8 SC3 commit 1/6 — Anti-spoof bot messages + lastSuggestionAt (CHAT14-CHAT16)
+  // ===================================================================
+  section('Phase 8 SC3 — anti-spoof bot + lastSuggestionAt (CHAT14-CHAT16)');
+
+  // CHAT14 : create ChatMessage senderId='system' par alice (auth user) → REJET
+  // (anti-spoof : Admin SDK seul peut écrire senderId='system' via /api/suggest-activities)
+  {
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    const msgRef = doc(fbDb, 'chats', MATCH_COMPLETED_ID, 'messages', 'msg_chat14');
+    try {
+      await assertFails(
+        setDoc(msgRef, {
+          messageId: 'msg_chat14',
+          senderId: 'system', // ❌ spoof — alice n'est pas 'system'
+          text: '🤖 Spordate · Suggestion',
+          type: 'ai_suggestion',
+          readBy: [ALICE_UID],
+          createdAt: serverTimestamp(),
+        }),
+      );
+      passManually("CHAT14 create senderId='system' par auth user → REJET (anti-spoof, Admin SDK only)");
+    } catch (e) {
+      failManually('CHAT14 (expected fail anti-spoof bot)', e);
+    }
+  }
+
+  // CHAT15 : update chat.lastSuggestionAt par alice (participant) → SUCCESS
+  {
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    try {
+      await assertSucceeds(
+        updateDoc(doc(fbDb, 'chats', MATCH_COMPLETED_ID), {
+          lastSuggestionAt: serverTimestamp(),
+        }),
+      );
+      passManually('CHAT15 update chat.lastSuggestionAt par participant alice → SUCCESS');
+    } catch (e) {
+      failManually('CHAT15 (expected success participant update)', e);
+    }
+  }
+
+  // CHAT16 : update chat.lastSuggestionAt par charlie (non-participant) → REJET
+  {
+    const charlieCtx = env.authenticatedContext(CHARLIE_UID);
+    const fbDb = asFirestore(charlieCtx.firestore());
+    try {
+      await assertFails(
+        updateDoc(doc(fbDb, 'chats', MATCH_COMPLETED_ID), {
+          lastSuggestionAt: serverTimestamp(),
+        }),
+      );
+      passManually('CHAT16 update chat.lastSuggestionAt par non-participant charlie → REJET');
+    } catch (e) {
+      failManually('CHAT16 (expected fail non-participant)', e);
+    }
+  }
+
+  // ===================================================================
   // Cleanup
   // ===================================================================
   await env.cleanup();
 
   console.log('');
-  console.log('====== Résumé Chat rules (CHAT1-CHAT13) ======');
+  console.log('====== Résumé Chat rules (CHAT1-CHAT16) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);
