@@ -14,8 +14,16 @@ import type { Session, Activity, PricingTierKind } from '@/types/firestore';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// Static Stripe init (loaded once at module level — no dynamic import)
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
+// Phase 8 SC2 hotfix-2 — lazy-init Stripe pour éviter crash module-load au build
+// Vercel "Collecting page data" si STRIPE_SECRET_KEY absent (cohérent verify-payment fix).
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error('STRIPE_SECRET_KEY not configured');
+  _stripe = new Stripe(key);
+  return _stripe;
+}
 
 // Lazy Firebase Admin + package cache
 let _db: FirebaseFirestore.Firestore | null = null;
@@ -171,7 +179,7 @@ export async function POST(request: NextRequest) {
       }];
     }
 
-    const session = await stripe.checkout.sessions.create(sessionParams as never);
+    const session = await getStripe().checkout.sessions.create(sessionParams as never);
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error: unknown) {
     console.error('[Checkout] Erreur:', error);
@@ -271,7 +279,7 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
       last_minute: 'Last Minute',
     };
 
-    const stripeSession = await stripe.checkout.sessions.create({
+    const stripeSession = await getStripe().checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card', 'twint'],
       success_url: successUrl,

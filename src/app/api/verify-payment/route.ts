@@ -9,7 +9,17 @@ import Stripe from 'stripe';
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
 
-const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!, { apiVersion: '2026-02-25.clover' });
+// Phase 8 SC2 hotfix-2 — lazy-init Stripe pour éviter crash module-load au build
+// Vercel "Collecting page data" si STRIPE_SECRET_KEY absent. Pattern cohérent
+// /api/checkout/status (line 14) + /api/boost-checkout (line 36) + /api/stripe-connect (line 15).
+let _stripe: Stripe | null = null;
+function getStripe(): Stripe {
+  if (_stripe) return _stripe;
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) throw new Error('STRIPE_SECRET_KEY not configured');
+  _stripe = new Stripe(key, { apiVersion: '2026-02-25.clover' });
+  return _stripe;
+}
 
 const PACKAGE_CREDITS: Record<string, number> = {
   test_1chf: 1,
@@ -32,7 +42,7 @@ export async function POST(req: NextRequest) {
     console.log('[VerifyPayment] Verifying session:', sessionId, 'for user:', userId);
 
     // Retrieve the Stripe checkout session
-    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    const session = await getStripe().checkout.sessions.retrieve(sessionId);
 
     if (session.payment_status !== 'paid') {
       console.log('[VerifyPayment] Payment not completed:', session.payment_status);
