@@ -6,8 +6,10 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
   Send, ArrowLeft, Lock, MessageCircle,
-  Loader2, CreditCard, CheckCheck, Check, PartyPopper, User, ChevronRight
+  Loader2, CreditCard, CheckCheck, Check, PartyPopper, User, ChevronRight,
+  Coins, ShieldCheck
 } from "lucide-react";
+import Link from 'next/link';
 import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from '@/lib/utils';
 import { AuthGuard } from '@/components/auth/AuthGuard';
@@ -15,6 +17,14 @@ import { useAuth } from '@/context/AuthContext';
 import { useCredits } from '@/hooks/useCredits';
 import BackButton from '@/components/BackButton';
 import { useToast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   getUserMatches,
   sendMessage,
@@ -181,26 +191,59 @@ function ConversationList({
 }
 
 // ——— Chat Window ———
+/** Phase 8 SC1 commit 4/5 — localStorage flag pour onboarding-bubble (1 fois par user). */
+const ONBOARDING_FLAG_KEY = 'spordateur_chat_onboarded_v1';
+
 function ChatWindow({
   match,
   otherUser,
   currentUserId,
+  credits,
   onBack,
 }: {
   match: Match;
   otherUser: { uid: string; displayName: string; photoURL: string };
   currentUserId: string;
+  /** Phase 8 SC1 — solde crédits live (cf. useCredits) — 1 crédit/message texte. */
+  credits: number;
   onBack: () => void;
 }) {
   const router = useRouter();
+  const { toast } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(true);
+  // Phase 8 SC1 commit 4/5 — onboarding-bubble doctrine §B.Q1 (1 fois par user)
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isLocked = !match.chatUnlocked;
+  // Phase 8 SC1 — defense UX : input désactivé si crédits insuffisants (rule re-rejette aussi)
+  const insufficientCredits = credits < 1;
+  const lowCredits = credits < 5 && credits >= 1;
+
+  // Phase 8 SC1 commit 4/5 — show onboarding 1 fois (localStorage flag)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (isLocked) return;
+    try {
+      const onboarded = window.localStorage.getItem(ONBOARDING_FLAG_KEY);
+      if (!onboarded) setShowOnboarding(true);
+    } catch {
+      // localStorage indisponible (mode navigation privée etc.) — skip silencieusement
+    }
+  }, [isLocked]);
+
+  const handleOnboardingDismiss = () => {
+    setShowOnboarding(false);
+    try {
+      window.localStorage.setItem(ONBOARDING_FLAG_KEY, '1');
+    } catch {
+      /* ignore */
+    }
+  };
 
   // Subscribe to real-time messages
   useEffect(() => {
@@ -241,14 +284,45 @@ function ChatWindow({
     const text = inputValue.trim();
     if (!text || sending || isLocked) return;
 
+    // Phase 8 SC1 — defense UX (rule re-rejette si bypass)
+    if (insufficientCredits) {
+      toast({
+        title: 'Crédits épuisés',
+        description: 'Top-up nécessaire pour continuer la conversation.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSending(true);
     setInputValue('');
 
     try {
       await sendMessage(match.matchId, currentUserId, text);
     } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
       console.error('[Chat] Erreur envoi:', err);
       setInputValue(text); // Restore on error
+      // Phase 8 SC1 — handle insufficient-credits explicit + autres erreurs
+      if (message.includes('insufficient-credits')) {
+        toast({
+          title: 'Crédits épuisés',
+          description: 'Top-up nécessaire pour continuer la conversation.',
+          variant: 'destructive',
+        });
+      } else if (message.toLowerCase().includes('permission')) {
+        toast({
+          title: 'Envoi refusé',
+          description: 'La session est annulée — chat en lecture seule.',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Échec envoi message',
+          description: 'Réessayez dans un instant.',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setSending(false);
       inputRef.current?.focus();
@@ -285,6 +359,24 @@ function ChatWindow({
           </div>
           <ChevronRight className="h-4 w-4 text-gray-600 flex-shrink-0" />
         </button>
+        {/* Phase 8 SC1 commit 4/5 — compteur crédits live (1 crédit/message texte) */}
+        {!isLocked && (
+          <Link
+            href="/payment"
+            title="1 crédit consommé par message texte. Top-up via /payment."
+            className={cn(
+              'flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-light flex-shrink-0 transition-colors',
+              insufficientCredits
+                ? 'border-red-500/40 text-red-400 hover:bg-red-500/10'
+                : lowCredits
+                  ? 'border-orange-500/40 text-orange-400 hover:bg-orange-500/10'
+                  : 'border-zinc-800 text-gray-400 hover:text-white hover:border-zinc-700',
+            )}
+          >
+            <Coins className="h-3.5 w-3.5" />
+            <span>{credits}</span>
+          </Link>
+        )}
         {/* Phase 7 sub-chantier 3 commit 4/5 : entry point report (variant 'chat') */}
         <ReportButton
           variant="chat"
@@ -293,6 +385,42 @@ function ChatWindow({
           currentUserId={currentUserId}
         />
       </div>
+
+      {/* Phase 8 SC1 commit 4/5 — onboarding-bubble 1ère entrée chat post-session
+          (doctrine §B.Q1 obligatoire : transparence modération chat) */}
+      <Dialog open={showOnboarding} onOpenChange={(open) => { if (!open) handleOnboardingDismiss(); }}>
+        <DialogContent className="bg-black border border-zinc-800 text-white max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-white font-light text-lg flex items-center gap-2">
+              <MessageCircle className="h-5 w-5 text-[#D91CD2]" />
+              Bienvenue dans le chat post-session
+            </DialogTitle>
+            <DialogDescription className="text-gray-400 font-light text-sm leading-relaxed pt-2 space-y-3">
+              <span className="block">
+                Tu disposes de <span className="text-white font-medium">{credits} crédits</span> pour échanger
+                avec {otherUser.displayName} (1 crédit par message texte). Top-up disponible à tout moment via{' '}
+                <Link href="/payment" className="text-[#D91CD2] hover:underline">/payment</Link>.
+              </span>
+              <span className="block flex items-start gap-2 pt-1">
+                <ShieldCheck className="h-4 w-4 text-[#D91CD2] flex-shrink-0 mt-0.5" />
+                <span className="text-xs text-white/50">
+                  Les messages sont scannés automatiquement (motifs anti-leak — partage de coordonnées).
+                  Cette modération est obligatoire — voir{' '}
+                  <Link href="/terms" className="text-white/70 hover:underline">CGU §7.quater</Link>.
+                </span>
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              onClick={handleOnboardingDismiss}
+              className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white font-light hover:opacity-90 w-full"
+            >
+              Compris
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Locked State */}
       {isLocked ? (
@@ -417,16 +545,16 @@ function ChatWindow({
             <div className="flex items-center gap-2">
               <Input
                 ref={inputRef}
-                placeholder="Votre message..."
+                placeholder={insufficientCredits ? 'Crédits épuisés — top-up requis' : 'Votre message...'}
                 className="flex-1 bg-zinc-900 border-zinc-800 text-white placeholder:text-gray-600 font-light h-10 rounded-xl focus-visible:ring-[#D91CD2]/30"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
-                disabled={sending}
+                disabled={sending || insufficientCredits}
               />
               <Button
                 type="submit"
                 size="icon"
-                disabled={!inputValue.trim() || sending}
+                disabled={!inputValue.trim() || sending || insufficientCredits}
                 className="h-10 w-10 rounded-xl bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white hover:opacity-90 disabled:opacity-30 flex-shrink-0"
               >
                 {sending ? (
@@ -435,6 +563,20 @@ function ChatWindow({
                   <Send className="h-4 w-4" />
                 )}
               </Button>
+            </div>
+            {/* Phase 8 SC1 commit 4/5 — visual hint subtle 1 crédit/message + CTA top-up */}
+            <div className="flex items-center justify-between mt-2 px-1">
+              <span className="text-[11px] text-white/30 font-light">
+                {insufficientCredits ? '0 crédit · envoi désactivé' : '1 crédit consommé par message'}
+              </span>
+              {insufficientCredits && (
+                <Link
+                  href="/payment"
+                  className="text-[11px] text-[#D91CD2] hover:underline font-light"
+                >
+                  Top-up →
+                </Link>
+              )}
             </div>
           </form>
         </>
@@ -627,6 +769,7 @@ function ChatPageContent() {
             match={selectedConvo.match}
             otherUser={selectedConvo.otherUser}
             currentUserId={currentUserId}
+            credits={creditCount}
             onBack={handleBack}
           />
         ) : (
