@@ -10,7 +10,7 @@
  * Phase 8 SC5 :
  *   - reviewReminderCron (c2/5) : scheduler 60 min review reminder 48h post-session
  *   - denormActiveSanctionTrigger (c2/5) : onWrite userSanctions → denorm users.activeSanction*
- *   - purgeOldDataCron (c3/5 à venir) : weekly Friday 03:00 → purge adminActions + anonymise banlist
+ *   - purgeOldDataCron (c3/5) : weekly Friday 03:00 → purge adminActions + anonymise banlist > 24mo
  *
  * Phase 9 (différé) :
  *   - notifyChatOpening : trigger T-2h avant session.startAt
@@ -20,4 +20,5 @@
 
 export { refreshPricingCron } from './scheduler/refresh-pricing';
 export { reviewReminderCron } from './scheduler/review-reminder';
+export { purgeOldDataCron } from './scheduler/purge-old-data';
 export { denormActiveSanctionTrigger } from './triggers/denorm-active-sanction';

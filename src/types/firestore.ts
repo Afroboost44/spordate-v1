@@ -52,6 +52,12 @@ export interface UserProfile {
    *  = risque LCD si auto-quarantine). Reset manuel admin via Firebase Console SC2 ;
    *  UI admin tab dédiée Phase 9. Boolean simple ; count denorm Phase 9 si scale. */
   leakFlagged?: boolean;
+  // ----- Phase 8 SC5 c3/5 / Banlist anonymization (additif) -----
+  /** Phase 8 SC5 c3/5 (additif). Timestamp d'anonymisation PII pour les users bannis
+   *  permanent depuis > 24 mois (doctrine LPD/nLPD : conservation limitée).
+   *  Si défini : displayName/email/photoURL/phoneNumber ont été nullifiés.
+   *  Idempotency : cron purge skip si déjà set. */
+  anonymizedAt?: Timestamp;
 }
 
 export interface SportEntry {
