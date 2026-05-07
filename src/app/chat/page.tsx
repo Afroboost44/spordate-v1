@@ -35,6 +35,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ToastAction } from "@/components/ui/toast";
+import { SuggestionMessage } from "@/components/chat/SuggestionMessage";
 import {
   getUserMatches,
   sendMessage,
@@ -625,6 +626,9 @@ function ChatWindow({
                           {msg.text}
                         </span>
                       </div>
+                    ) : msg.type === 'ai_suggestion' ? (
+                      // Phase 8 SC3 commit 5/6 — bot card inline doctrine §D.Q4
+                      <SuggestionMessage message={msg} />
                     ) : (
                       <div
                         className={cn(
