@@ -32,6 +32,7 @@
     "test:anti-leak:classifier": "npx tsx src/ai/flows/__tests__/anti-leak-classifier.test.ts",
     "test:next-activity-suggester": "npx tsx src/ai/flows/__tests__/next-activity-suggester.test.ts",
     "test:api:suggest": "firebase emulators:exec --only firestore 'npx tsx tests/api/suggest-activities.test.ts'",
+    "test:invites:rules": "firebase emulators:exec --only firestore 'npx tsx tests/invites/rules.test.ts'",
     "test:chat:service": "firebase emulators:exec --only firestore 'npx tsx tests/chat/service.test.ts'"
   },
   "dependencies": {

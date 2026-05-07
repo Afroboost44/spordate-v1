@@ -741,6 +741,44 @@ export interface Block {
   createdAt: Timestamp;
 }
 
+// ===================== INVITES (Phase 8 sub-chantier 4) =====================
+// Invitation 1-on-1 mode Individuel — doctrine §E.Q1 Phase 8 uniquement.
+// User A (fromUserId) invite User B (toUserId) à payer/réserver une session activity.
+// B accepte → Stripe checkout B (paye sa part) → Booking créé par webhook.
+// B refuse → status='declined', A peut inviter autre.
+// Modes Split/Gift = Phase 9.
+//
+// Doc-id pattern strict : `${fromUserId}_${toUserId}_${sessionId}` (anti-doublon Q10=B)
+// — un user peut être invité à une session par un même inviteur 1× max.
+
+export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired';
+
+export interface Invite {
+  /** Doc ID Firestore — pattern `${fromUserId}_${toUserId}_${sessionId}`. */
+  inviteId: string;
+  /** Inviteur (auth uid). Immuable post-création. */
+  fromUserId: string;
+  /** Invité (auth uid). Immuable. Doit être ≠ fromUserId. */
+  toUserId: string;
+  /** Activity proposée (lecture title/sport/city/etc côté UI). Immuable. */
+  activityId: string;
+  /** Session spécifique si applicable (sinon activity générique). Immuable. */
+  sessionId?: string;
+  /** Status courant — transitions strictes côté rule + service. */
+  status: InviteStatus;
+  /** Expiration : Min(7 jours, sessionStart - 1h) — Q3=C cohérent SC1 cancel policy.
+   *  Cron Phase 9 ou expireInvitesIfDue() check à chaque accept tentative. */
+  expiresAt: Timestamp;
+  /** Q1=A optional message inviter (UX nice — "Tu m'accompagnes ?"). Max 200 chars. */
+  message?: string;
+  /** Server timestamp create. Immuable. */
+  createdAt: Timestamp;
+  /** Set quand status passe à 'accepted' (via webhook Stripe SC4 commit 4/6). */
+  acceptedAt?: Timestamp;
+  /** Set quand status passe à 'declined' (via /api/invites/[id]/decline). */
+  declinedAt?: Timestamp;
+}
+
 // ===================== NOTIFICATIONS =====================
 export type NotificationType = 'match' | 'message' | 'booking' | 'payment' | 'system' | 'promo';
 

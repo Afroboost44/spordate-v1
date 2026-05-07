@@ -109,6 +109,79 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // === INVITES (Phase 8 sub-chantier 4 — Invite Individuel doctrine §E) ===
+    // Doc-id pattern strict : `${fromUserId}_${toUserId}_${sessionId}` (anti-doublon Q10=B).
+    // Create : auth uid == fromUserId + status='pending' initial + immutable fields + doc-id pattern.
+    // Read : participants seulement (fromUserId OR toUserId) — privacy.
+    // Update : transitions strictes status pending → accepted (toUserId) | declined (toUserId)
+    //          | expired (Admin SDK only, via /api/invites cron Phase 9). Champs core immuables.
+    // Delete : interdit (audit trail Phase 9 KPIs).
+    match /invites/{inviteId} {
+      allow read: if isAuth()
+        && (resource.data.fromUserId == request.auth.uid
+            || resource.data.toUserId == request.auth.uid
+            || isAdmin());
+
+      // Create : strict defense-in-depth (Phase 8 SC4 commit 1/6)
+      allow create: if isAuth()
+        // Anti-spoof : fromUserId == auth.uid
+        && request.resource.data.fromUserId == request.auth.uid
+        // Anti self-invite : fromUserId ≠ toUserId
+        && request.resource.data.fromUserId != request.resource.data.toUserId
+        // Status initial = 'pending' uniquement
+        && request.resource.data.status == 'pending'
+        // toUserId + activityId + sessionId présents et type string
+        && request.resource.data.toUserId is string
+        && request.resource.data.toUserId.size() > 0
+        && request.resource.data.activityId is string
+        && request.resource.data.activityId.size() > 0
+        // sessionId obligatoire pour anti-doublon doc-id (Q10=B)
+        && request.resource.data.sessionId is string
+        && request.resource.data.sessionId.size() > 0
+        // Doc-id pattern strict : `${fromUserId}_${toUserId}_${sessionId}`
+        && inviteId == request.resource.data.fromUserId + '_' + request.resource.data.toUserId + '_' + request.resource.data.sessionId
+        // expiresAt présent + > now (anti-backdate / anti-already-expired)
+        && request.resource.data.expiresAt is timestamp
+        && request.resource.data.expiresAt > request.time
+        // createdAt = server time (anti-backdate)
+        && request.resource.data.createdAt == request.time
+        // Keys whitelist (Phase 8 SC4 commit 1/6)
+        && request.resource.data.keys().hasOnly([
+             'inviteId',
+             'fromUserId',
+             'toUserId',
+             'activityId',
+             'sessionId',
+             'status',
+             'expiresAt',
+             'message',
+             'createdAt'
+           ]);
+
+      // Update : transitions strictes (toUserId only pour accept/decline)
+      // Champs core (fromUserId, toUserId, activityId, sessionId, createdAt) immuables.
+      allow update: if isAuth()
+        && resource.data.status == 'pending'
+        && resource.data.fromUserId == request.resource.data.fromUserId
+        && resource.data.toUserId == request.resource.data.toUserId
+        && resource.data.activityId == request.resource.data.activityId
+        && resource.data.sessionId == request.resource.data.sessionId
+        && resource.data.createdAt == request.resource.data.createdAt
+        && (
+          // Path (a) : toUserId accepts → status='accepted' + acceptedAt
+          (request.auth.uid == resource.data.toUserId
+            && request.resource.data.status == 'accepted'
+            && request.resource.data.acceptedAt == request.time)
+          ||
+          // Path (b) : toUserId declines → status='declined' + declinedAt
+          (request.auth.uid == resource.data.toUserId
+            && request.resource.data.status == 'declined'
+            && request.resource.data.declinedAt == request.time)
+        );
+
+      allow delete: if false;
+    }
+
     // === PAYOUTS ===
     match /payouts/{payoutId} {
       allow read: if isAuth()
