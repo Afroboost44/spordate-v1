@@ -20,6 +20,7 @@ import type {
   Session, SessionStatus, PricingTier, PricingTierKind,
 } from '@/types/firestore';
 import { CREDIT_PACKAGES } from '@/types/firestore';
+import { scanMessageL1 } from '@/lib/anti-leak/regex';
 
 // ===================== HELPERS =====================
 
@@ -566,15 +567,97 @@ export async function processPayoutAdmin(payoutId: string, adminId: string, appr
 
 // ===================== CHAT =====================
 
-export async function sendMessage(chatId: string, senderId: string, text: string): Promise<string> {
-  if (!db) throw new Error('Firestore non initialisé');
+/**
+ * Phase 8 sub-chantier 1 commit 3/5 — SHA-256 hex anonymisé du contenu message.
+ * Utilise Web Crypto API (Node 20+ + browsers modernes). Cohérent doctrine §C.Q2
+ * "hash anonyme du message uniquement" + Privacy §7 (commit d54c7a9).
+ */
+async function sha256Hex(text: string): Promise<string> {
+  const data = new TextEncoder().encode(text);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
 
-  // Vérifier que le chat est débloqué
-  const match = await getMatch(chatId);
-  if (!match?.chatUnlocked) throw new Error('Chat verrouillé — réserve une activité pour débloquer');
+// Phase 8 sub-chantier 1 commit 3/5 — DI seam pour tests emulator (cohérent
+// pattern __setSessionsDbForTesting). Utilisé UNIQUEMENT par tests/chat/service.test.ts.
+let _chatDbOverride: Firestore | null = null;
 
-  const msgRef = doc(collection(db, 'chats', chatId, 'messages'));
-  await setDoc(msgRef, {
+/**
+ * @internal — utilisé UNIQUEMENT par les tests pour injecter un Firestore
+ * connecté à l'emulator (cf. tests/chat/service.test.ts).
+ * Ne JAMAIS appeler depuis le code de production.
+ */
+export function __setChatDbForTesting(testDb: Firestore | null): void {
+  _chatDbOverride = testDb;
+}
+
+/** Récupère le Firestore actif pour les fonctions Chat (test override OU prod global). */
+function getChatDb(): Firestore {
+  const fbDb = _chatDbOverride ?? db;
+  if (!fbDb) throw new Error('Firestore non initialisé');
+  return fbDb;
+}
+
+/**
+ * Phase 8 sub-chantier 1 commit 3/5 — sendMessage étendu avec :
+ *   1. Check sender.credits ≥ 1 (defense-in-depth ; rule fait aussi check)
+ *   2. Scan L1 anti-leak (silent log, doctrine §B ligne 567 "aucune UX")
+ *   3. Atomic batch : decrement credit + create aiScanLog + create message
+ *   4. Post-batch : update chat.lastMessage + notification (best-effort)
+ *
+ * Returns enriched object avec scanScore + scanFlagged pour observabilité
+ * (consommateur SC1 chat/page.tsx peut ignorer ; SC2 toast UI L2 utilisera).
+ *
+ * @throws 'insufficient-credits' si solde < 1.
+ * @throws Error firestore si batch rejette (rule cancelled session, etc.).
+ */
+export async function sendMessage(
+  chatId: string,
+  senderId: string,
+  text: string,
+): Promise<{ messageId: string; scanScore: number; scanFlagged: boolean }> {
+  const fbDb = getChatDb();
+
+  // Vérifier que le chat est débloqué (Phase 1 préservé) — read inline via fbDb
+  const matchSnap = await getDoc(doc(fbDb, 'matches', chatId));
+  if (!matchSnap.exists()) throw new Error('Match non trouvé');
+  const match = matchSnap.data() as Match;
+  if (!match.chatUnlocked) throw new Error('Chat verrouillé — réserve une activité pour débloquer');
+
+  // Phase 8 SC1 — check credits sender ≥ 1 (defense côté service ; rule renforce)
+  const senderSnap = await getDoc(doc(fbDb, 'users', senderId));
+  if (!senderSnap.exists()) throw new Error('Utilisateur expéditeur non trouvé');
+  const senderCredits = (senderSnap.data().credits as number | undefined) ?? 0;
+  if (senderCredits < 1) throw new Error('insufficient-credits');
+
+  // Phase 8 SC1 — scan L1 anti-leak (silent log only, doctrine §B)
+  const scanResult = scanMessageL1(text);
+  const messageHash = await sha256Hex(text);
+
+  // Atomic batch : 3 writes (credits, scanLog, message). Atomicité Firestore garantie
+  // — si rule rejette n'importe quelle write, le batch entier est rollbacké.
+  const batch = writeBatch(fbDb);
+
+  batch.update(doc(fbDb, 'users', senderId), {
+    credits: increment(-1),
+    updatedAt: serverTimestamp(),
+  });
+
+  const scanLogRef = doc(collection(fbDb, 'aiScanLogs'));
+  batch.set(scanLogRef, {
+    scanLogId: scanLogRef.id,
+    chatId,
+    senderId,
+    score: scanResult.score,
+    motive: scanResult.motive,
+    messageHash,
+    createdAt: serverTimestamp(),
+  });
+
+  const msgRef = doc(collection(fbDb, 'chats', chatId, 'messages'));
+  batch.set(msgRef, {
     messageId: msgRef.id,
     senderId,
     text,
@@ -583,18 +666,44 @@ export async function sendMessage(chatId: string, senderId: string, text: string
     createdAt: serverTimestamp(),
   });
 
-  // MAJ le chat principal
-  const otherUser = match.userIds.find(id => id !== senderId) || '';
-  await updateDoc(getDocRef('chats', chatId), {
-    lastMessage: text,
-    lastMessageAt: serverTimestamp(),
-    [`unreadCount.${otherUser}`]: increment(1),
-  });
+  await batch.commit();
 
-  // Notification à l'autre utilisateur
-  await createNotification(otherUser, 'message', 'Nouveau message', text.substring(0, 50), { chatId });
+  // Post-batch (cross-collection updates indépendants — best-effort cohérent Phase 7)
+  const otherUser = match.userIds.find((id) => id !== senderId) || '';
+  try {
+    await updateDoc(doc(fbDb, 'chats', chatId), {
+      lastMessage: text,
+      lastMessageAt: serverTimestamp(),
+      [`unreadCount.${otherUser}`]: increment(1),
+    });
+  } catch (err) {
+    console.warn('[sendMessage] update chat.lastMessage failed (non-bloquant)', err);
+  }
 
-  return msgRef.id;
+  // Notification inline (utilise fbDb pour respecter le DI seam test)
+  if (otherUser) {
+    try {
+      const notifRef = doc(collection(fbDb, 'notifications'));
+      await setDoc(notifRef, {
+        notificationId: notifRef.id,
+        userId: otherUser,
+        type: 'message',
+        title: 'Nouveau message',
+        body: text.substring(0, 50),
+        data: { chatId },
+        read: false,
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('[sendMessage] notification create failed (non-bloquant)', err);
+    }
+  }
+
+  return {
+    messageId: msgRef.id,
+    scanScore: scanResult.score,
+    scanFlagged: scanResult.flagged,
+  };
 }
 
 export function subscribeToMessages(chatId: string, callback: (messages: ChatMessage[]) => void): Unsubscribe {

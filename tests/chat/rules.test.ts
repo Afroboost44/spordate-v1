@@ -18,8 +18,11 @@
  *   CHAT4 : create message non-participant (charlie), credits=10 → REJET (rule participants préservée)
  *   CHAT5 : create message legacy match sans sessionId, credits=10 → SUCCESS (rétro-compat Phase 1)
  *
- * CREATE rules /aiScanLogs/ (nouvelle collection Phase 8 commit 1/5) :
- *   CHAT6 : create aiScanLog client-side (alice) → REJET (server-only via Admin SDK)
+ * CREATE rules /aiScanLogs/ (Phase 8 commit 1/5 + commit 3/5 defense-in-depth) :
+ *   CHAT6 : create aiScanLog valid payload (alice senderId == auth.uid) → SUCCESS
+ *   CHAT7 : create aiScanLog senderId spoofé (alice envoie pour bob) → REJET
+ *   CHAT8 : create aiScanLog motive invalide ('ai-fake-motive') → REJET
+ *   CHAT9 : create aiScanLog messageHash format invalide → REJET
  */
 
 import {
@@ -282,30 +285,102 @@ async function main(): Promise<void> {
   }
 
   // ===================================================================
-  // CREATE rules /aiScanLogs/{id} (CHAT6)
+  // CREATE rules /aiScanLogs/{id} (CHAT6-CHAT9 defense-in-depth Phase 8 commit 3/5)
   // ===================================================================
-  section('CREATE rules /aiScanLogs/{id} : server-only (CHAT6)');
+  section('CREATE rules /aiScanLogs/{id} : defense-in-depth (CHAT6-CHAT9)');
 
-  // CHAT6 : alice tente create aiScanLog client-side → REJET (server-only)
+  /** Hex 64 chars valide pour messageHash SHA-256. */
+  const VALID_HASH = 'a'.repeat(64);
+
+  // CHAT6 : alice crée aiScanLog avec senderId == auth.uid + payload valide → SUCCESS
   {
     const aliceCtx = env.authenticatedContext(ALICE_UID);
     const fbDb = asFirestore(aliceCtx.firestore());
     const scanRef = doc(fbDb, 'aiScanLogs', 'scan_chat6');
     try {
-      await assertFails(
+      await assertSucceeds(
         setDoc(scanRef, {
           scanLogId: 'scan_chat6',
           chatId: MATCH_COMPLETED_ID,
           senderId: ALICE_UID,
-          score: 0,
-          motive: 'clean',
-          messageHash: 'fake_hash',
+          score: 0.5,
+          motive: 'phone-ch',
+          messageHash: VALID_HASH,
           createdAt: serverTimestamp(),
         }),
       );
-      passManually('CHAT6 create aiScanLog client-side → REJET (server-only via Admin SDK)');
+      passManually('CHAT6 create aiScanLog valid payload (alice senderId == auth.uid) → SUCCESS');
     } catch (e) {
-      failManually('CHAT6 (expected fail server-only)', e);
+      failManually('CHAT6 (expected success)', e);
+    }
+  }
+
+  // CHAT7 : alice tente créer scanLog avec senderId=BOB (spoofing) → REJET
+  {
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    const scanRef = doc(fbDb, 'aiScanLogs', 'scan_chat7');
+    try {
+      await assertFails(
+        setDoc(scanRef, {
+          scanLogId: 'scan_chat7',
+          chatId: MATCH_COMPLETED_ID,
+          senderId: BOB_UID, // spoof
+          score: 0,
+          motive: 'clean',
+          messageHash: VALID_HASH,
+          createdAt: serverTimestamp(),
+        }),
+      );
+      passManually('CHAT7 create aiScanLog senderId spoofé (bob ≠ auth.uid alice) → REJET');
+    } catch (e) {
+      failManually('CHAT7 (expected fail anti-spoof)', e);
+    }
+  }
+
+  // CHAT8 : motive invalide hors enum → REJET
+  {
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    const scanRef = doc(fbDb, 'aiScanLogs', 'scan_chat8');
+    try {
+      await assertFails(
+        setDoc(scanRef, {
+          scanLogId: 'scan_chat8',
+          chatId: MATCH_COMPLETED_ID,
+          senderId: ALICE_UID,
+          score: 0.5,
+          motive: 'ai-fake-motive', // hors enum SC1
+          messageHash: VALID_HASH,
+          createdAt: serverTimestamp(),
+        }),
+      );
+      passManually('CHAT8 create aiScanLog motive hors enum SC1 → REJET');
+    } catch (e) {
+      failManually('CHAT8 (expected fail enum)', e);
+    }
+  }
+
+  // CHAT9 : messageHash format invalide (pas SHA-256 hex 64 chars) → REJET
+  {
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    const scanRef = doc(fbDb, 'aiScanLogs', 'scan_chat9');
+    try {
+      await assertFails(
+        setDoc(scanRef, {
+          scanLogId: 'scan_chat9',
+          chatId: MATCH_COMPLETED_ID,
+          senderId: ALICE_UID,
+          score: 0,
+          motive: 'clean',
+          messageHash: 'too_short_hash', // pas 64 chars hex
+          createdAt: serverTimestamp(),
+        }),
+      );
+      passManually('CHAT9 create aiScanLog messageHash format invalide → REJET');
+    } catch (e) {
+      failManually('CHAT9 (expected fail format)', e);
     }
   }
 
@@ -315,7 +390,7 @@ async function main(): Promise<void> {
   await env.cleanup();
 
   console.log('');
-  console.log('====== Résumé Chat rules (CHAT1-CHAT6) ======');
+  console.log('====== Résumé Chat rules (CHAT1-CHAT9) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);

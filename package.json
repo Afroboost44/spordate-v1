@@ -28,7 +28,8 @@
     "test:profile:rules": "firebase emulators:exec --only firestore 'npx tsx tests/profile/rules.test.ts'",
     "test:genkit": "npx tsx src/ai/__tests__/genkit.test.ts",
     "test:chat:rules": "firebase emulators:exec --only firestore 'npx tsx tests/chat/rules.test.ts'",
-    "test:anti-leak:regex": "npx tsx src/lib/anti-leak/__tests__/regex.test.ts"
+    "test:anti-leak:regex": "npx tsx src/lib/anti-leak/__tests__/regex.test.ts",
+    "test:chat:service": "firebase emulators:exec --only firestore 'npx tsx tests/chat/service.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",
