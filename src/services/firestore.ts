@@ -100,6 +100,19 @@ export async function updateUser(uid: string, data: Partial<UserProfile>): Promi
   });
 }
 
+/**
+ * Phase 8 sub-chantier 0 (additif). Helper typé pour le toggle `aiSuggestionsOptIn`.
+ *
+ * Sucre syntaxique sur `updateUser(uid, { aiSuggestionsOptIn })` : évite le cast
+ * `Partial<UserProfile>` côté UI (cohérent ergonomie services). Self-only enforcé
+ * par firestore.rules `/users/{uid}` update isOwner ; `false` = opt-out explicite,
+ * `true` = recevoir suggestions, `undefined` (jamais écrit ici) = opt-in implicite
+ * doctrine §D.Q1.
+ */
+export async function updateUserAiOptIn(uid: string, optIn: boolean): Promise<void> {
+  await updateUser(uid, { aiSuggestionsOptIn: optIn });
+}
+
 export async function updateUserCredits(uid: string, amount: number, type: CreditType, description: string, relatedId = ''): Promise<number> {
   if (!db) throw new Error('Firestore non initialisé');
 

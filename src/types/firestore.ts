@@ -38,6 +38,13 @@ export interface UserProfile {
   activeSanctionLevel?: 'warning' | 'suspension_7d' | 'suspension_30d' | 'ban_permanent';
   /** Phase 7 sub-chantier 3 (additif). Fin sanction courante. null pour warning + ban_permanent. */
   activeSanctionEndsAt?: Timestamp;
+  // ----- Phase 8 sub-chantier 0 / IA suggestions opt-in (additif) -----
+  /** Phase 8 sub-chantier 0 (additif). Opt-out user sur les suggestions IA dans le chat post-event.
+   *  Default-on (doctrine §D.Q1) : `undefined === true` (opt-in implicite cohérent intérêt légitime nLPD Art. 31).
+   *  `true` ou absent = recevoir suggestions ; `false` = opt-out explicite via /profile (Confidentialité).
+   *  Consensus opt-out : si un seul membre du chat est `false`, aucune suggestion n'est générée pour ce chat.
+   *  Cf. CGU section 7.quinquies + Privacy section 8 (Phase 8 disclosures, commit `d54c7a9`). */
+  aiSuggestionsOptIn?: boolean;
 }
 
 export interface SportEntry {

@@ -7,14 +7,15 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle, Gift, Copy, CreditCard, TrendingUp, ArrowRight, LogOut
+  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle, Gift, Copy, CreditCard, TrendingUp, ArrowRight, LogOut, Shield
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
-import { updateUser, getUser } from "@/services/firestore";
+import { updateUser, updateUserAiOptIn, getUser } from "@/services/firestore";
 import type { UserProfile, SportEntry } from "@/types/firestore";
+import { Switch } from "@/components/ui/switch";
 import { DANCE_ACTIVITIES, DANCE_LEVELS } from "@/types/firestore";
 import type { DanceCategory, DanceLevel } from "@/types/firestore";
 import BackButton from '@/components/BackButton';
@@ -64,6 +65,11 @@ export default function ProfilePage() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('other');
 
+  // Phase 8 sub-chantier 0 — toggle suggestions IA chat (default-on doctrine §D.Q1).
+  // undefined === true (opt-in implicite). false === opt-out explicite.
+  const [aiSuggestionsOptIn, setAiSuggestionsOptIn] = useState<boolean>(true);
+  const [isAiOptInSaving, setIsAiOptInSaving] = useState(false);
+
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [profileComplete, setProfileComplete] = useState(false);
@@ -111,6 +117,9 @@ export default function ProfilePage() {
 
           setPhotos(userProfile.photoURL ? [userProfile.photoURL] : []);
           setProfileComplete(userProfile.onboardingComplete || false);
+
+          // Phase 8 — undefined === true (opt-in implicite doctrine §D.Q1).
+          setAiSuggestionsOptIn(userProfile.aiSuggestionsOptIn !== false);
         } else {
           // Fallback to localStorage
           const stored = localStorage.getItem('spordate_user_profile');
@@ -181,6 +190,36 @@ export default function ProfilePage() {
 
   const removePhoto = (index: number) => {
     setPhotos(prev => prev.filter((_, i) => i !== index));
+  };
+
+  // Phase 8 sub-chantier 0 — toggle handler avec optimistic update + rollback on error.
+  // Self-only enforcé par firestore.rules /users/{uid} (commit 1/3 disclosed CGU+Privacy).
+  const handleAiOptInToggle = async (checked: boolean) => {
+    if (!user) return;
+    const previous = aiSuggestionsOptIn;
+    setAiSuggestionsOptIn(checked); // optimistic
+    setIsAiOptInSaving(true);
+    try {
+      await updateUserAiOptIn(user.uid, checked);
+      await refreshProfile();
+      toast({
+        title: checked ? 'Suggestions IA activées' : 'Suggestions IA désactivées',
+        description: checked
+          ? 'Vous recevrez occasionnellement des suggestions d’activités dans le chat.'
+          : 'Aucune suggestion ne sera générée pour vos chats.',
+        className: 'bg-green-600 text-white',
+      });
+    } catch (err) {
+      console.error('Erreur toggle aiSuggestionsOptIn:', err);
+      setAiSuggestionsOptIn(previous); // rollback
+      toast({
+        title: 'Échec de la sauvegarde',
+        description: 'Réessayez dans un instant.',
+        variant: 'destructive',
+      });
+    } finally {
+      setIsAiOptInSaving(false);
+    }
   };
 
   // Save profile to Firestore
@@ -582,6 +621,50 @@ export default function ProfilePage() {
               Mon dashboard
               <ArrowRight className="h-4 w-4" />
             </Link>
+          </CardContent>
+        </Card>
+
+        {/* SECTION CONFIDENTIALITÉ — Phase 8 sub-chantier 0 (commit 2/3) */}
+        <Card className="bg-white/5 border-white/10">
+          <CardHeader>
+            <CardTitle className="text-base font-medium text-white flex items-center gap-2">
+              <Shield className="h-4 w-4 text-[#D91CD2]" />
+              Confidentialité
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-start justify-between gap-4 py-2">
+              <div className="flex-1 min-w-0">
+                <label htmlFor="ai-opt-in-toggle" className="text-sm font-medium text-white cursor-pointer">
+                  Suggestions IA dans le chat
+                </label>
+                <p className="text-xs text-white/40 mt-1 leading-relaxed">
+                  Activées par défaut. Recevoir au maximum 1 suggestion d&apos;activité toutes les 72 h
+                  dans les chats post-session, générée par Google Gemini Flash. Désactivable à tout moment.{' '}
+                  <Link href="/privacy" className="text-[#D91CD2] hover:underline">
+                    En savoir plus
+                  </Link>
+                  .
+                </p>
+              </div>
+              <Switch
+                id="ai-opt-in-toggle"
+                checked={aiSuggestionsOptIn}
+                onCheckedChange={handleAiOptInToggle}
+                disabled={isAiOptInSaving}
+                className="mt-1 data-[state=checked]:bg-[#D91CD2] flex-shrink-0"
+              />
+            </div>
+            <div className="pt-2 border-t border-white/5">
+              <p className="text-[11px] text-white/30 leading-relaxed">
+                La modération automatisée des messages (filtres + IA) constitue une mesure de sécurité
+                essentielle et n&apos;est pas désactivable individuellement.{' '}
+                <Link href="/terms" className="text-white/50 hover:text-white/70 underline">
+                  Voir CGU section 7.quater
+                </Link>
+                .
+              </p>
+            </div>
           </CardContent>
         </Card>
 
