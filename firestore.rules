@@ -138,16 +138,30 @@ service cloud.firestore {
         allow create: if isAuth()
           && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
           && get(/databases/$(database)/documents/matches/$(chatId)).data.chatUnlocked == true
-          // Phase 1 (additif) : verrouillage temporel basé sur la session liée.
-          // Si le match n'a pas de sessionId (legacy) → comportement inchangé.
-          // Sinon → refuser le create si la session est 'completed' ou 'cancelled'.
+          // Phase 8 sub-chantier 1 (inversion §A doctrine "chat reste ouvert post-event") :
+          // - autoriser create si session.status='completed' (était bloqué Phase 1)
+          // - garder le block si session.status='cancelled' (chat fermé sur annulation)
+          // - rétro-compat legacy match sans sessionId (comportement inchangé Phase 1)
           && (
             !('sessionId' in get(/databases/$(database)/documents/matches/$(chatId)).data)
             || get(/databases/$(database)/documents/matches/$(chatId)).data.sessionId == ''
-            || !(get(/databases/$(database)/documents/sessions/$(get(/databases/$(database)/documents/matches/$(chatId)).data.sessionId)).data.status in ['completed', 'cancelled'])
-          );
+            || get(/databases/$(database)/documents/sessions/$(get(/databases/$(database)/documents/matches/$(chatId)).data.sessionId)).data.status != 'cancelled'
+          )
+          // Phase 8 sub-chantier 1 (additif §A modèle crédits) :
+          // - check credits sender ≥ 1 (defense-in-depth ; consume effectif côté service).
+          //   Texte=1 crédit (doctrine §A). Photo/vidéo defer Phase 9.
+          //   Q7=A reco : cross-doc get accepté pour defense-in-depth, +1 read/message.
+          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.credits >= 1;
         allow update, delete: if false;
       }
+    }
+
+    // === AI SCAN LOGS (Phase 8 sub-chantier 1 — server-only) ===
+    // Doctrine §C.Q2 : logs anti-leak L1 + L2 IA = score + motif + hash anonyme.
+    // Pas de contenu lisible. Purge cron Phase 9 +30j. Lecture admin Phase 9+.
+    match /aiScanLogs/{scanLogId} {
+      allow read: if isAdmin();
+      allow write: if false;
     }
 
     // === NOTIFICATIONS (anyone can create for partner requests, owner reads, admin manages) ===

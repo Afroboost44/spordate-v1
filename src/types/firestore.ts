@@ -467,6 +467,31 @@ export interface ChatMessage {
   createdAt: Timestamp;
 }
 
+// ===================== AI SCAN LOGS (Phase 8 sub-chantier 1) =====================
+// Anti-leak L1 silent log : trace minimaliste de chaque message scanné.
+// Doctrine §C.Q2 : score + motif technique + hash anonyme uniquement, jamais
+// le contenu lisible. Conservation 30j puis purge cron Phase 9. Lecture admin only.
+// Cf. Privacy §7 (commit d54c7a9 SC0 commit 1/3).
+export interface AiScanLog {
+  /** Document ID — généré Firestore, dénormalisé pour query simplifiée. */
+  scanLogId: string;
+  /** Doc-id du chat parent (= matchId). */
+  chatId: string;
+  /** Auth uid de l'expéditeur (pour analyse cross-cutting admin Phase 8+). */
+  senderId: string;
+  /** Score de risque ∈ [0,1]. SC1 binaire 0|1 (regex hit/no hit). SC2 score IA continu. */
+  score: number;
+  /** Catégorie technique non-public (FR uniquement Phase 8 doctrine §C.Q3).
+   *  SC1 : 'phone-ch'|'phone-intl'|'email'|'handle'|'domain'|'keyword'|'clean'.
+   *  SC2 : 'ai-leak-likely'|'ai-leak-unlikely'|'ai-error'. */
+  motive: string;
+  /** Hash SHA-256 du contenu textuel (anonymisation LPD §C.Q2). Jamais stocker
+   *  contenu lisible — permet tuning false-positive sans risque privacy. */
+  messageHash: string;
+  /** Timestamp création (purge automatique +30j cron Phase 9). */
+  createdAt: Timestamp;
+}
+
 // ===================== REVIEWS (Phase 7 T&S) =====================
 // Reviews publiques post-session avec anonymisation graduée selon note.
 // 5/4/3★ → publication auto, nominative.
