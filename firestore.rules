@@ -129,7 +129,16 @@ service cloud.firestore {
     match /chats/{chatId} {
       allow read: if isAuth() && request.auth.uid in resource.data.participants;
       allow create: if isAuth() && request.auth.uid in request.resource.data.participants;
-      allow update: if isAuth() && request.auth.uid in resource.data.participants;
+      // Phase 8 SC2 commit 1/6 — anti-leak self-only update sur leakBySender :
+      // si leakBySender est touché, la diff ne peut contenir QUE auth.uid.
+      // Empêche un participant d'incrémenter le compteur de l'autre (anti-spoof).
+      // Si leakBySender pas dans diff → comportement Phase 1 inchangé (lastMessage etc.).
+      allow update: if isAuth()
+        && request.auth.uid in resource.data.participants
+        && (
+          !('leakBySender' in request.resource.data.diff(resource.data).affectedKeys())
+          || request.resource.data.leakBySender.diff(resource.data.get('leakBySender', {})).affectedKeys().hasOnly([request.auth.uid])
+        );
       allow delete: if false;
 
       match /messages/{messageId} {
@@ -176,8 +185,11 @@ service cloud.firestore {
         && request.resource.data.score is number
         && request.resource.data.score >= 0
         && request.resource.data.score <= 1
-        // Motive enum L1 SC1 (SC2 ajoutera 'ai-leak-likely', etc.)
-        && request.resource.data.motive in ['phone-ch', 'phone-intl', 'email', 'handle', 'domain', 'keyword', 'clean']
+        // Motive enum SC1 (regex L1) + SC2 (IA L2 hybride) — doctrine §C.Q2 traçabilité tuning
+        && request.resource.data.motive in [
+          'phone-ch', 'phone-intl', 'email', 'handle', 'domain', 'keyword', 'clean',
+          'ai-leak-likely', 'ai-leak-unlikely', 'ai-error'
+        ]
         // messageHash format SHA-256 hex (64 chars)
         && request.resource.data.messageHash is string
         && request.resource.data.messageHash.size() == 64

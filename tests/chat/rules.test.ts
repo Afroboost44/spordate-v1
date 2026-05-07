@@ -23,6 +23,12 @@
  *   CHAT7 : create aiScanLog senderId spoofé (alice envoie pour bob) → REJET
  *   CHAT8 : create aiScanLog motive invalide ('ai-fake-motive') → REJET
  *   CHAT9 : create aiScanLog messageHash format invalide → REJET
+ *
+ * Phase 8 SC2 commit 1/6 — extension enum motive + leakBySender self-only :
+ *   CHAT10 : create aiScanLog motive='ai-leak-likely' (SC2 IA) → SUCCESS
+ *   CHAT11 : create aiScanLog motive='ai-fake-not-in-enum' → REJET (enum strict après extension SC2)
+ *   CHAT12 : update chat.leakBySender[alice] par alice (self) → SUCCESS
+ *   CHAT13 : update chat.leakBySender[bob] par alice (spoof) → REJET (anti-spoof self-only)
  */
 
 import {
@@ -35,6 +41,7 @@ import {
   Timestamp,
   doc,
   setDoc,
+  updateDoc,
   serverTimestamp,
   type Firestore,
 } from 'firebase/firestore';
@@ -385,12 +392,95 @@ async function main(): Promise<void> {
   }
 
   // ===================================================================
+  // Phase 8 SC2 commit 1/6 — Extension enum motive IA + leakBySender (CHAT10-CHAT13)
+  // ===================================================================
+  section('Phase 8 SC2 — enum IA + leakBySender (CHAT10-CHAT13)');
+
+  // CHAT10 : create aiScanLog motive='ai-leak-likely' (SC2 IA) → SUCCESS
+  {
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    const scanRef = doc(fbDb, 'aiScanLogs', 'scan_chat10');
+    try {
+      await assertSucceeds(
+        setDoc(scanRef, {
+          scanLogId: 'scan_chat10',
+          chatId: MATCH_COMPLETED_ID,
+          senderId: ALICE_UID,
+          score: 0.7,
+          motive: 'ai-leak-likely', // SC2 enum extension
+          messageHash: VALID_HASH,
+          createdAt: serverTimestamp(),
+        }),
+      );
+      passManually("CHAT10 create aiScanLog motive='ai-leak-likely' (SC2 enum extension) → SUCCESS");
+    } catch (e) {
+      failManually('CHAT10 (expected success SC2 IA enum)', e);
+    }
+  }
+
+  // CHAT11 : motive 'ai-fake-not-in-enum' → REJET (extension enum SC2 reste stricte)
+  {
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    const scanRef = doc(fbDb, 'aiScanLogs', 'scan_chat11');
+    try {
+      await assertFails(
+        setDoc(scanRef, {
+          scanLogId: 'scan_chat11',
+          chatId: MATCH_COMPLETED_ID,
+          senderId: ALICE_UID,
+          score: 0.7,
+          motive: 'ai-fake-not-in-enum',
+          messageHash: VALID_HASH,
+          createdAt: serverTimestamp(),
+        }),
+      );
+      passManually("CHAT11 motive 'ai-fake-not-in-enum' (SC2 enum strict) → REJET");
+    } catch (e) {
+      failManually('CHAT11 (expected fail SC2 enum strict)', e);
+    }
+  }
+
+  // CHAT12 : update chat.leakBySender[alice] par alice (self) → SUCCESS
+  {
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    try {
+      await assertSucceeds(
+        updateDoc(doc(fbDb, 'chats', MATCH_COMPLETED_ID), {
+          [`leakBySender.${ALICE_UID}`]: 1,
+        }),
+      );
+      passManually('CHAT12 update chat.leakBySender[alice] par alice (self) → SUCCESS');
+    } catch (e) {
+      failManually('CHAT12 (expected success self-update)', e);
+    }
+  }
+
+  // CHAT13 : update chat.leakBySender[bob] par alice (spoof) → REJET
+  {
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    try {
+      await assertFails(
+        updateDoc(doc(fbDb, 'chats', MATCH_COMPLETED_ID), {
+          [`leakBySender.${BOB_UID}`]: 1,
+        }),
+      );
+      passManually('CHAT13 update chat.leakBySender[bob] par alice (spoof) → REJET');
+    } catch (e) {
+      failManually('CHAT13 (expected fail anti-spoof self-only)', e);
+    }
+  }
+
+  // ===================================================================
   // Cleanup
   // ===================================================================
   await env.cleanup();
 
   console.log('');
-  console.log('====== Résumé Chat rules (CHAT1-CHAT9) ======');
+  console.log('====== Résumé Chat rules (CHAT1-CHAT13) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);

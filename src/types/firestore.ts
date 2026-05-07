@@ -45,6 +45,13 @@ export interface UserProfile {
    *  Consensus opt-out : si un seul membre du chat est `false`, aucune suggestion n'est générée pour ce chat.
    *  Cf. CGU section 7.quinquies + Privacy section 8 (Phase 8 disclosures, commit `d54c7a9`). */
   aiSuggestionsOptIn?: boolean;
+  // ----- Phase 8 sub-chantier 2 / Anti-leak L4 admin escalation (additif) -----
+  /** Phase 8 SC2 (additif). Flag levé à `true` quand l'utilisateur a déclenché L4 admin
+   *  (5+ hits anti-leak dans une conv) → email admin envoyé + flag pour review manuelle.
+   *  Doctrine §B.Q3 "L4 escalation manuelle Phase 8" (volume faible attendu, biais algo
+   *  = risque LCD si auto-quarantine). Reset manuel admin via Firebase Console SC2 ;
+   *  UI admin tab dédiée Phase 9. Boolean simple ; count denorm Phase 9 si scale. */
+  leakFlagged?: boolean;
 }
 
 export interface SportEntry {
@@ -456,6 +463,13 @@ export interface Chat {
   lastMessage: string;
   lastMessageAt: Timestamp;
   unreadCount: Record<string, number>;
+  // ----- Phase 8 sub-chantier 2 (additif) — anti-leak escalation per-chat per-sender -----
+  /** Phase 8 SC2 (additif). Compteur cumulatif des hits anti-leak par sender dans ce chat.
+   *  Key = senderId, value = count flagged messages (regex L1 OU IA L2 confirmé).
+   *  Triggers UI : 1 → L2 toast soft / 3 → L3 modal rétroactif / 5 → L4 admin email.
+   *  Doctrine §B "dans la conv". Cumulative all-time SC2 (rolling Phase 9 si scale).
+   *  Self-only update : un sender ne peut incrémenter QUE son propre compteur (rule defense-in-depth). */
+  leakBySender?: Record<string, number>;
 }
 
 export interface ChatMessage {
@@ -482,8 +496,10 @@ export interface AiScanLog {
   /** Score de risque ∈ [0,1]. SC1 binaire 0|1 (regex hit/no hit). SC2 score IA continu. */
   score: number;
   /** Catégorie technique non-public (FR uniquement Phase 8 doctrine §C.Q3).
-   *  SC1 : 'phone-ch'|'phone-intl'|'email'|'handle'|'domain'|'keyword'|'clean'.
-   *  SC2 : 'ai-leak-likely'|'ai-leak-unlikely'|'ai-error'. */
+   *  Enum SC1+SC2 :
+   *  - L1 regex SC1 : 'phone-ch' | 'phone-intl' | 'email' | 'handle' | 'domain' | 'keyword'
+   *  - L2 IA SC2     : 'ai-leak-likely' | 'ai-leak-unlikely' | 'ai-error' (fail fallback)
+   *  - clean         : aucun match (motive par défaut). */
   motive: string;
   /** Hash SHA-256 du contenu textuel (anonymisation LPD §C.Q2). Jamais stocker
    *  contenu lisible — permet tuning false-positive sans risque privacy. */
