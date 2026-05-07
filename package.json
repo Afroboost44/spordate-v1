@@ -30,6 +30,7 @@
     "test:chat:rules": "firebase emulators:exec --only firestore 'npx tsx tests/chat/rules.test.ts'",
     "test:anti-leak:regex": "npx tsx src/lib/anti-leak/__tests__/regex.test.ts",
     "test:anti-leak:classifier": "npx tsx src/ai/flows/__tests__/anti-leak-classifier.test.ts",
+    "test:next-activity-suggester": "npx tsx src/ai/flows/__tests__/next-activity-suggester.test.ts",
     "test:chat:service": "firebase emulators:exec --only firestore 'npx tsx tests/chat/service.test.ts'"
   },
   "dependencies": {

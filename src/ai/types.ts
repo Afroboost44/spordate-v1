@@ -43,25 +43,52 @@ export interface AntiLeakOutput {
 }
 
 // ===================== SUGGESTIONS NEXT-ACTIVITY (Layer Genkit) =====================
+//
+// Phase 8 SC3 commit 2/6 — flow next-activity-suggester pré-requis :
+// L'API route /api/suggest-activities (commit 3/6) hydrate ces types depuis
+// Firestore (chat history last 30 + activities catalog filtered city+future)
+// avant d'invoquer suggestActivitiesL3().
 
-/** Input du flow next-activity-suggester (sub-chantier 3 à venir). */
-export interface SuggestionInput {
-  /** Doc-id du chat (lecture des 30 derniers messages côté flow). */
-  chatId: string;
-  /** Auth uids des participants — agrégat profile sportif + villes pour ranking. */
-  participantUids: string[];
-  /** Timestamp dernière activity bookée par le groupe (anti-doublon suggestion). */
-  lastActivityAt?: Timestamp;
+/** Message minimaliste pour contexte du flow (last 30 messages chat). */
+export interface SuggestionChatMessage {
+  senderId: string;
+  text: string;
+  createdAt: Timestamp;
 }
 
-/** Output du flow next-activity-suggester — 1 à 3 activités. */
+/** Activity candidate pré-filtrée server-side (city + future + isActive). */
+export interface SuggestionCatalogEntry {
+  activityId: string;
+  title: string;
+  sport: string;
+  city: string;
+  partnerId: string;
+  /** Prochaine session schedulée (filtrage doctrine §D "future"). */
+  nextSessionAt?: Timestamp;
+}
+
+/** Input du flow next-activity-suggester (Phase 8 SC3 commit 2/6).
+ *  Note : chatHistory + activitiesCatalog sont pré-fetchés par /api/suggest-activities
+ *  serveur-side ; le flow ne lit PAS Firestore directement (isolation SC2 hotfix). */
+export interface SuggestionInput {
+  /** Last 30 messages du chat (FR uniquement Phase 8 doctrine §D.Q3). */
+  chatHistory: SuggestionChatMessage[];
+  /** Auth uids des 2 participants (1+ accepté ; identité pour rate limit). */
+  participantUids: string[];
+  /** Activities pré-filtrées city + future + isActive (doctrine §D filter). */
+  activitiesCatalog: SuggestionCatalogEntry[];
+  /** Auth uid utilisé pour rate limiter wrapAiCall (typically participantUids[0]). */
+  rateLimitUserId: string;
+}
+
+/** Output du flow next-activity-suggester — 0 à 3 activités sélectionnées par IA.
+ *  Note : title/sport/city sont hydratés server-side par l'API route (commit 3/6)
+ *  avant persistence ChatMessage.suggestions[] (cf. types/firestore.ts SuggestionCard). */
 export interface SuggestionOutput {
   suggestions: Array<{
-    /** Doc-id de l'activity proposée (validation existence côté serveur). */
+    /** Doc-id de l'activity proposée (issue du catalog input). */
     activityId: string;
-    /** Titre dénormalisé pour rendu rapide (snapshot moment génération). */
-    title: string;
-    /** Justification courte (FR) affichée dans la card bot du chat. */
+    /** Justification courte FR ≤ 80 chars (affichée dans card bot). */
     reason: string;
   }>;
 }
