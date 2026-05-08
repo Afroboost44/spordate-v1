@@ -32,6 +32,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail } from '@/lib/email/sendEmail';
+import { sendPushNotification } from '@/lib/notifications/sendPushNotification';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -195,17 +196,42 @@ export async function POST(req: NextRequest) {
             : `${baseUrl}/dashboard?action=review`;
 
           if (!dryRun) {
-            await sendEmail({
-              to: userEmail,
-              templateName: 'reviewReminder',
-              templateData: {
-                userName,
-                sessionTitle: activityTitle,
-                partnerName,
-                reviewLink,
-                creditsBonus: REVIEW_BONUS_CREDITS,
-              },
-            });
+            // Phase 9 SC3 c2/5 — push-first, email-fallback (Q3=B)
+            // Si user.fcmToken set + opt-in (default-on) → push, sinon email fallback
+            const userData = userSnap.data();
+            const fcmToken = userData?.fcmToken as string | undefined;
+            const pushOptIn = (userData?.pushNotificationsEnabled as boolean | undefined) !== false; // default-on cohérent aiSuggestionsOptIn
+            let pushDelivered = false;
+            if (fcmToken && pushOptIn) {
+              try {
+                const r = await sendPushNotification({
+                  fcmToken,
+                  title: `Comment s'est passé ${activityTitle} ?`,
+                  body: `30 secondes pour partager ton ressenti. +${REVIEW_BONUS_CREDITS} crédits chat bonus.`,
+                  clickUrl: reviewLink,
+                  data: { activityId: booking.activityId || '', bookingId: bdoc.id },
+                });
+                if (r.ok) {
+                  pushDelivered = true;
+                }
+              } catch (err) {
+                console.warn('[/api/cron/review-reminder] sendPushNotification threw (fallback email)', err);
+              }
+            }
+            if (!pushDelivered) {
+              // Fallback email (legacy comportement)
+              await sendEmail({
+                to: userEmail,
+                templateName: 'reviewReminder',
+                templateData: {
+                  userName,
+                  sessionTitle: activityTitle,
+                  partnerName,
+                  reviewLink,
+                  creditsBonus: REVIEW_BONUS_CREDITS,
+                },
+              });
+            }
             await bdoc.ref.update({ reviewReminderSent: true });
           }
           sent++;

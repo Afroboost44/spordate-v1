@@ -28,6 +28,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail } from '@/lib/email/sendEmail';
+import { sendPushNotification } from '@/lib/notifications/sendPushNotification';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -163,19 +164,53 @@ async function processBatch(opts: ProcessBatchOptions): Promise<BatchResult> {
         const sessionDateStr = formatSessionDateFR(booking.sessionDate);
 
         if (!opts.dryRun) {
-          await sendEmail({
-            to: userEmail,
-            templateName: opts.templateName,
-            templateData: {
-              userName,
-              sessionTitle: activityTitle,
-              partnerName,
-              sessionDate: sessionDateStr,
-              sessionAddress,
-              sessionLink,
-            },
-          });
-          // Flag idempotency même si sendEmail throw — best-effort cohérent SC5 c2/5
+          // Phase 9 SC3 c2/5 — push-first, email-fallback (Q3=B)
+          const userData = userSnap.data();
+          const fcmToken = userData?.fcmToken as string | undefined;
+          const pushOptIn = (userData?.pushNotificationsEnabled as boolean | undefined) !== false;
+          let pushDelivered = false;
+          if (fcmToken && pushOptIn) {
+            try {
+              const isJMinus1 = opts.flagField === 'reminderJMinus1Sent';
+              const r = await sendPushNotification({
+                fcmToken,
+                title: isJMinus1 ? `Demain : ${activityTitle}` : `Dans 1h : ${activityTitle}`,
+                body: isJMinus1
+                  ? `${sessionDateStr} avec ${partnerName}`
+                  : `${sessionDateStr}${sessionAddress ? ` — ${sessionAddress}` : ''}`,
+                clickUrl: sessionLink,
+                data: {
+                  bookingId: bdoc.id,
+                  sessionId: booking.sessionId || '',
+                  reminderKind: isJMinus1 ? 'jMinus1' : 'tMinus0',
+                },
+              });
+              if (r.ok) {
+                pushDelivered = true;
+              }
+            } catch (err) {
+              console.warn(
+                `[/api/cron/session-reminders ${opts.flagField}] sendPushNotification threw (fallback email)`,
+                err,
+              );
+            }
+          }
+          if (!pushDelivered) {
+            // Fallback email (legacy comportement)
+            await sendEmail({
+              to: userEmail,
+              templateName: opts.templateName,
+              templateData: {
+                userName,
+                sessionTitle: activityTitle,
+                partnerName,
+                sessionDate: sessionDateStr,
+                sessionAddress,
+                sessionLink,
+              },
+            });
+          }
+          // Flag idempotency (cohérent SC5 c2/5 — anti-double-reminder même si fail)
           await bdoc.ref.update({ [opts.flagField]: true });
         }
         sent++;
