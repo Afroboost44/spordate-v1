@@ -57,10 +57,17 @@ service cloud.firestore {
     }
 
     // === ACTIVITIES (public read, partner CRUD) ===
+    // Phase 9 SC6 c1/4 — audienceType enum validation (Q1=A whitelist)
+    function validAudienceType(data) {
+      return !('audienceType' in data)
+        || data.audienceType in ['all', 'women-only', 'men-only', 'mixed-priority-women'];
+    }
     match /activities/{activityId} {
       allow read: if true;
-      allow create: if isAuth();
-      allow update: if isAuth() && (resource.data.partnerId == request.auth.uid || isAdmin());
+      allow create: if isAuth() && validAudienceType(request.resource.data);
+      allow update: if isAuth()
+        && (resource.data.partnerId == request.auth.uid || isAdmin())
+        && validAudienceType(request.resource.data);
       allow delete: if isAuth() && (resource.data.partnerId == request.auth.uid || isAdmin());
     }
 

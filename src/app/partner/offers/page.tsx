@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { AudienceTypeSelector } from "@/components/partner/AudienceTypeSelector";
+import type { AudienceType } from "@/lib/audience";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
@@ -37,6 +39,7 @@ interface Activity {
   isActive: boolean;
   imageUrl: string;
   images?: string[];
+  audienceType?: AudienceType;
 }
 
 const SPORTS = [
@@ -68,6 +71,7 @@ export default function PartnerOffersPage() {
   const [formSchedule, setFormSchedule] = useState('');
   const [formMax, setFormMax] = useState('10');
   const [formImages, setFormImages] = useState<string[]>(['', '', '']);
+  const [formAudienceType, setFormAudienceType] = useState<AudienceType>('all');
 
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
@@ -95,6 +99,7 @@ export default function PartnerOffersPage() {
   const resetForm = () => {
     setFormName(''); setFormDesc(''); setFormSport(''); setFormPrice(''); setFormDuration('60');
     setFormCity(''); setFormAddress(''); setFormSchedule(''); setFormMax('10'); setFormImages(['', '', '']);
+    setFormAudienceType('all');
   };
 
   const openCreate = () => { setEditing(null); resetForm(); setOpen(true); };
@@ -108,6 +113,7 @@ export default function PartnerOffersPage() {
       ? [...act.images, '', '', ''].slice(0, 3)
       : [act.imageUrl || '', '', ''];
     setFormImages(imgs);
+    setFormAudienceType(act.audienceType ?? 'all');
     setOpen(true);
   };
 
@@ -124,6 +130,7 @@ export default function PartnerOffersPage() {
         maxParticipants: parseInt(formMax) || 10,
         images: filteredImages,
         imageUrl: filteredImages[0] || '',
+        audienceType: formAudienceType,
         partnerId: user.uid, isActive: true, updatedAt: serverTimestamp(),
       };
       if (editing) {
@@ -329,6 +336,8 @@ export default function PartnerOffersPage() {
                 <Label className="text-white/50">Horaires *</Label>
                 <Input value={formSchedule} onChange={e => setFormSchedule(e.target.value)} placeholder="Mar 19h, Jeu 19h, Sam 10h" className="bg-[#1A1A1A] border-white/10 h-12" required />
               </div>
+              {/* Phase 9 SC6 c1/4 — Audience type selector (Q1=A enum) */}
+              <AudienceTypeSelector value={formAudienceType} onChange={setFormAudienceType} disabled={saving} />
             </div>
             <DialogFooter className="gap-2">
               <DialogClose asChild><Button type="button" variant="outline" className="border-white/10">Annuler</Button></DialogClose>
