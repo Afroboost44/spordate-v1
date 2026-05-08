@@ -159,6 +159,8 @@ export async function createReview(input: CreateReviewInput): Promise<CreateRevi
     activityId: input.activityId,
     reviewerId: input.reviewerId,
     revieweeId: input.revieweeId,
+    // Phase 9 SC4 c4/6 — sessionId persisté pour heuristique représailles cross-user
+    sessionId: sharedSession.sessionId,
     rating: input.rating,
     comment: input.comment,
     creditsAwarded: false,
@@ -186,6 +188,27 @@ export async function createReview(input: CreateReviewInput): Promise<CreateRevi
 
   // 7. Write
   await setDoc(ref, payload);
+
+  // Phase 9 SC4 c4/6 — Heuristique détection représailles cross-user (Q5=A 24h same-session).
+  // Fire-and-forget POST /api/reviews/[id]/check-retaliation (server-only Admin SDK
+  // pour bypass rules + adminAction silent Q6=A). Pattern cohérent SC4 c2/6 moderate-review.
+  if (typeof fetch !== 'undefined') {
+    void fetch(`/api/reviews/${reviewId}/check-retaliation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        reviewerId: input.reviewerId,
+        revieweeId: input.revieweeId,
+        sessionId: sharedSession.sessionId,
+        createdAtMs: nowMs,
+      }),
+    }).catch((err) => {
+      console.warn('[createReview] fire-and-forget retaliation check failed (non-blocking)', {
+        reviewId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
 
   // 8. Si auto-publish → award bonus (best effort, déclenche aussi email reviewBonusGranted)
   let bonusAwarded = false;

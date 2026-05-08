@@ -632,6 +632,17 @@ export interface Review {
     modelVersion: string;
     scoredAt: Timestamp;
   };
+
+  // ----- Phase 9 SC4 c4/6 — Détection représailles cross-user (additif) -----
+  /** SessionId de la session partagée pour cette review. Persisté pour permettre
+   *  la query cross-user same-session (Q5=A heuristique 24h). */
+  sessionId?: string;
+  /** True si cross-review détectée même session within 24h (Q5=A). */
+  flaggedAsRetaliation?: boolean;
+  /** Delta ms entre prior cross-review et this review (audit). */
+  retaliationDeltaMs?: number;
+  /** ReviewId du suspect (review prior cross-user same session). */
+  retaliationSuspectReviewId?: string;
 }
 
 // ===================== REPORTS + SANCTIONS (Phase 7 T&S sub-chantier 3) =====================
@@ -754,7 +765,8 @@ export type AdminActionType =
   | 'sanction_manual_create'
   | 'leak_escalation_l4' // Phase 8 SC2 commit 5/6 — auto-escalation system (adminId='system')
   | 'auto_refund_partner_no_show' // Phase 8 SC5 c4/5 — refund auto level 3 partner no-show (adminId='system')
-  | 'auto_refund_invite'; // Phase 9 SC2 c5/6 — refund auto invite Split/Gift décliné/expiré (adminId='system')
+  | 'auto_refund_invite' // Phase 9 SC2 c5/6 — refund auto invite Split/Gift décliné/expiré (adminId='system')
+  | 'review_retaliation_flag'; // Phase 9 SC4 c4/6 — heuristique cross-user same-session within 24h (adminId='system')
 
 export type AdminActionTargetType =
   | 'review'
