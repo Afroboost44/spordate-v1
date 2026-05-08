@@ -41,6 +41,7 @@ import {
 } from './_internal';
 import { NO_SHOW_CANCEL_WINDOW_HOURS } from './cancelNoShow';
 import { triggerAutoSanction } from './triggerAutoSanction';
+import { EXCUSE_WINDOW_HOURS_BEFORE_SESSION } from '@/lib/excuses';
 
 /** Grâce 30 min après session.endAt avant marquage no-show (doctrine §D.5). */
 export const NO_SHOW_GRACE_MINUTES = 30;
@@ -129,6 +130,52 @@ export async function markNoShow(input: MarkNoShowInput): Promise<MarkNoShowResu
     throw new ReportError('not-confirmed-booker', {
       userId: input.userId,
       sessionId: input.sessionId,
+    });
+  }
+
+  // 4.bis Phase 9 SC5 c2/4 — Excuse pré-session check (Q1=A 2h grace).
+  // Si user a déposé une excuse ≥ EXCUSE_WINDOW_HOURS_BEFORE_SESSION (2h) avant
+  // session.startAt → markNoShow skip (no report created, no threshold compute).
+  // Best-effort : si query Firestore fail (rules / network) → continue normal flow
+  // (graceful degradation — partner peut toujours marquer no-show, doctrine cohérente).
+  try {
+    const excusesSnap = await getDocs(
+      query(
+        collection(fbDb, 'excuses'),
+        where('userId', '==', input.userId),
+        where('sessionId', '==', input.sessionId),
+      ),
+    );
+    if (!excusesSnap.empty) {
+      const excuse = excusesSnap.docs[0].data();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const excuseCreatedAtMs = (excuse.createdAt as any)?.toMillis?.();
+      if (typeof excuseCreatedAtMs === 'number') {
+        const sessionStartMs = session.startAt.toMillis();
+        const excuseLeadMs = sessionStartMs - excuseCreatedAtMs;
+        const windowMs = EXCUSE_WINDOW_HOURS_BEFORE_SESSION * 60 * 60 * 1000;
+        if (excuseLeadMs >= windowMs) {
+          // Excuse valide → user-excused (audit trail préservé via /excuses/{id})
+          throw new ReportError('user-excused', {
+            userId: input.userId,
+            sessionId: input.sessionId,
+            excuseId: excuse.excuseId,
+            excuseLeadMs,
+            windowMs,
+          });
+        }
+        // Excuse trop tardive (< 2h avant) : ignored — markNoShow normal flow.
+        // L'excuse reste persistée dans /excuses/ pour audit, mais ne protège pas.
+      }
+    }
+  } catch (err) {
+    // Re-throw ReportError 'user-excused' (intentional flow control)
+    if (err instanceof ReportError && err.code === 'user-excused') throw err;
+    // Best-effort silent : autres erreurs (rules, network) → continue normal markNoShow
+    console.warn('[markNoShow] excuse pre-check failed (non-blocking, continue normal flow)', {
+      sessionId: input.sessionId,
+      userId: input.userId,
+      error: err instanceof Error ? err.message : String(err),
     });
   }
 

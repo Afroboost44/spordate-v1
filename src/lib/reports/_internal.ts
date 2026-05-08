@@ -149,7 +149,9 @@ export type ReportErrorCode =
   // Admin actions (sub-chantier 4 commit 1/4)
   | 'not-sanction-active'
   | 'appeal-not-filed'
-  | 'appeal-already-resolved';
+  | 'appeal-already-resolved'
+  // Phase 9 SC5 c2/4 — excuse pré-session ≥ 2h avant session.startAt → markNoShow skip
+  | 'user-excused';
 
 export class ReportError extends Error {
   constructor(
