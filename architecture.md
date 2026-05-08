@@ -1811,7 +1811,139 @@ API /api/notifications/* (SC3 c4) :
 - ⏭️ A/B test push title/body wording (engagement metrics)
 - ⏭️ Analytics push delivery rate (Firebase Cloud Messaging dashboard)
 
-### Phase 9 progression (20 commits techniques + 3 close-outs)
+### Sub-chantier 4 — Admin queue + IA modération étendue + détection représailles ✅ COMPLET (6 commits)
+
+- 1/6 `ac8cfb1` : Admin UI queue `/adminActions/` history tab dans dashboard (5e tab T&S après reviews/reports/sanctions/appeals) + `<AdminActionsHistoryPanel>` filtres date/type/admin/target combinables (Q1=C date toujours-on, autres optionnels) + cursor pagination "Charger plus" pageSize=100 + export CSV cap 5000 rows (Q2=C Vercel timeout safe) + helpers pure `formatAdminActionsCsv` (RFC 4180) + `fetchAllAdminActionsForExport` (loop pagination) + extension `getAdminActions` avec `cursorAfter?: AdminAction` option + tests AQ1-AQ5 + bonus (16 assertions). Charte stricte SC0 c2 : bg-zinc-950 + #D91CD2 accents.
+- 2/6 `c1c7fa4` : Genkit flow `runReviewModerator` (Gemini 2.5 Flash + cache 24h hash exact + rate limit `wrapAiCall` 10/user/min + system prompt FR strict civility/factuality + fallback Gemini error → motive='ai-error' recommendation='borderline') + `Review.aiSuggestion?: {civility, factuality, recommendation, motive, modelVersion, scoredAt}` field additif + extension `createReview` post-write fire-and-forget POST `/api/reviews/[id]/moderate` (server-only Genkit + Admin SDK update) + DI seam `__setReviewModeratorGenerateFnForTesting` + tests MR1-MR5 + bonus (10 assertions). Pattern API route cohérent `/api/anti-leak` SC2 hotfix isolation Genkit du client bundle.
+- 3/6 `87481aa` : Helpers pure `aiBadgeProps` + `prefilledReason` + `mismatchWarning` extraits dans `src/lib/reviews/aiBadgeHelpers.ts` (Q8=A tests verify content sans RTL) + extension `<TandSReviewsPanel>` badge IA recommendation (data-testid `ai-badge-{publish|reject|borderline}` + couleurs sémantiques green/red/amber + label `IA: publish 0.92` (max civility/factuality) + tooltip multi-line motive + civility + factuality + modelVersion + scoredAt) + extension `<ReviewModerationActionsDialog>` reason prefill `(IA suggestion: motive)` si admin choix === IA recommendation + warning subtle `AlertTriangle` "L'IA suggérait : X" si mismatch (Q3=A admin keep final decision) + graceful degradation reviews pré-Phase 9 SC4 c2/6 → no badge + tests AQ-IA1-AQ-IA3 + bonus (20 assertions).
+- 4/6 `95b3757` : Heuristique détection représailles cross-user `src/lib/reviews/retaliationDetector.ts` avec `detectRetaliation` (query reviews/ where reviewerId=revieweeId AND revieweeId=reviewerId AND createdAt > now-24h, client-side filter sessionId — Q5=A 24h same-session) + `applyRetaliationFlag` (Admin SDK update review + adminAction silent Q6=A `adminId='system'`) + idempotency `flaggedAsRetaliation=true` skip 2nd run + defensive self-review (reviewerId == revieweeId) → not flagged + `Review.sessionId` + `flaggedAsRetaliation?` + `retaliationDeltaMs?` + `retaliationSuspectReviewId?` fields + `AdminActionType += 'review_retaliation_flag'` + extension `createReview` persist sessionId + post-write fire-and-forget POST `/api/reviews/[id]/check-retaliation` + composite index `reviews: reviewerId+revieweeId+createdAt DESC` + tests RV1-RV4 + 4 bonus (18 assertions).
+- 5/6 `c0ced9f` : Genkit flow `runProfileBioModerator` (Gemini 2.5 Flash + cache 24h + system prompt FR strict toxicity/profanity/contactLeak + fallback Gemini error → recommendation='approve' permissif Phase 9 + early-return empty bio → 0 call) + `UserProfile.bioModeration?: {toxicity, profanity, contactLeak, recommendation, motive, modelVersion, scoredAt}` field + `AdminActionType += 'profile_bio_flag'` + extension `updateUser` Q4=B fire-and-forget POST `/api/users/[id]/moderate-bio` (server-only Genkit + Admin SDK update + si flag → adminAction silent Q7=A `adminId='system'`) + Q7=A bio reste visible (no UX disruption Phase 9) + tests PB1-PB4 + bonus (13 assertions).
+- 6/6 *(this commit)* : architecture.md SC4 close-out + cumulative tests Phase 9 SC0+SC1+SC2+SC3+SC4 + retrospective Q1-Q8 doctrine SC4 appliquée.
+
+**Architecture résultante SC4 admin queue + IA modération + retaliation end-to-end** :
+
+```
+ADMIN DASHBOARD (5 tabs T&S après SC4 c1) :
+  /admin/dashboard
+    ├ ts-reviews   (existing Phase 7 + SC4 c3 badge IA + reason prefill)
+    ├ ts-reports   (existing Phase 7)
+    ├ ts-sanctions (existing Phase 7)
+    ├ ts-appeals   (existing Phase 7)
+    └ ts-history   (NEW SC4 c1 — <AdminActionsHistoryPanel>)
+         ↓ Filtres Q1=C : date always-on + actionType / targetType / adminId combinables
+         ↓ Cursor pagination "Charger plus" (pageSize=100, cohérent SC0 c1)
+         ↓ Export CSV Q2=C : fetchAllAdminActionsForExport (loop 500/page jusqu'à cap 5000)
+            → formatAdminActionsCsv RFC 4180 → Blob download
+
+REVIEWS MODÉRATION IA PIPELINE (rating ≤ 2) :
+  Client : createReview(input) [client SDK]
+    ↓ setDoc reviews/{id} avec sessionId additif (SC4 c4)
+    ↓ Email reviewPendingModeration (best-effort)
+    ↓ Fire-and-forget #1 : POST /api/reviews/[id]/moderate (SC4 c2)
+       ↓ Server (nodejs runtime) :
+       ↓ runReviewModerator (Genkit Gemini Flash + cache 24h hash exact)
+          → JSON strict {civility, factuality, recommendation: publish|reject|borderline, motive}
+          → Q5 fallback : Gemini error / JSON malformed → recommendation='borderline' motive='ai-error'
+       ↓ Admin SDK update reviews/{id}.aiSuggestion = {...}
+    ↓ Fire-and-forget #2 : POST /api/reviews/[id]/check-retaliation (SC4 c4)
+       ↓ Server (nodejs runtime) Admin SDK :
+       ↓ detectRetaliation(input) :
+          query reviews where reviewerId=revieweeId AND revieweeId=reviewerId
+          AND createdAt within 24h before current
+          → client-side filter sessionId === input.sessionId (Q5=A same-session)
+       ↓ Si retaliation détectée :
+          ↓ applyRetaliationFlag :
+             - Admin SDK update review.flaggedAsRetaliation=true + retaliationDeltaMs + retaliationSuspectReviewId
+             - logAdminAction type='review_retaliation_flag' adminId='system' (Q6=A silent)
+
+REVIEWS QUEUE ADMIN (SC4 c3 IA badge) :
+  <TandSReviewsPanel> :
+    ↓ Render badge IA (data-testid="ai-badge-{recommendation}") :
+       - publish → green-500/20
+       - reject  → red-500/20
+       - borderline → amber-500/20
+       - Label : "IA: {recommendation} {max(civility, factuality).toFixed(2)}"
+       - Tooltip multi-line : motive + civility + factuality + modelVersion + scoredAt
+    ↓ Click "Publier" / "Rejeter" → <ReviewModerationActionsDialog>
+       ↓ useEffect prefillReason :
+          - Si admin choix === aiSuggestion.recommendation → reason="(IA suggestion: motive)"
+          - Si mismatch → warning AlertTriangle "L'IA suggérait : X" (Q3=A admin keep final)
+          - Borderline → never prefill, never warning (admin tranche librement)
+
+USER PROFILE BIO MODÉRATION IA (SC4 c5) :
+  Client : updateUser(uid, {bio, ...})
+    ↓ updateDoc users/{uid} (legacy)
+    ↓ Q4=B fire-and-forget POST /api/users/[id]/moderate-bio si bio in payload + non-empty
+       ↓ Server (nodejs runtime) :
+       ↓ runProfileBioModerator (Genkit Gemini Flash + cache 24h)
+          → JSON strict {toxicity, profanity, contactLeak, recommendation: approve|flag, motive}
+          → Fallback Gemini error → recommendation='approve' (Phase 9 permissif)
+          → Empty bio → early-return approve (0 Gemini call)
+       ↓ Admin SDK update users/{uid}.bioModeration = {...}
+       ↓ Si recommendation='flag' (au moins 1 score ≥ 0.3) :
+          → logAdminAction type='profile_bio_flag' targetType='user' adminId='system' silent (Q7=A)
+          → Bio reste visible publique (no UX disruption Phase 9)
+```
+
+**Bilan SC4 Phase 9 — votes Q1-Q8 doctrine SC4 appliqués (8/8)** :
+- ✅ Q1=C date toujours active + filtres combinables (UX simple + power-user audit)
+- ✅ Q2=C export ALL filter pages cap 5000 (Vercel timeout safe sur volumes)
+- ✅ Q3=A admin keep final decision (IA = suggestion visible, no auto-action Phase 9)
+- ✅ Q4=B fire-and-forget client-side post-`updateUser` / post-`createReview` (cohérent /api/anti-leak SC2 hotfix)
+- ✅ Q5=A heuristique 24h same-session (cross-user reviews timing)
+- ✅ Q6=A silent log adminAction représailles (`adminId='system'`, no email Phase 9 — admin investigue manuellement)
+- ✅ Q7=A bio flag silent + admin queue (bio reste visible — no UX disruption)
+- ✅ Q8=A tests verify content via pure helpers extraits (no RTL infra requise — `aiBadgeHelpers` testés directement)
+
+**Tests SC4 cumulés** :
+- AQ1-AQ5 + bonus (history-csv) : 16 assertions
+- MR1-MR5 + bonus (moderate-review-ia) : 10 assertions
+- AQ-IA1-AQ-IA3 + bonus (admin-queue-ai-badge) : 20 assertions
+- RV1-RV4 + 4 bonus (retaliation-detector) : 18 assertions
+- PB1-PB4 + bonus (moderate-bio-ia) : 13 assertions
+- **SC4 total : 77 nouvelles assertions automated**
+
+**Cumul routes Vercel API Phase 8+9 (23 routes — extension SC4 +4)** :
+- Phase 8 SC2 : `/api/anti-leak`
+- Phase 8 SC3 : `/api/suggest-activities`
+- Phase 8 SC4 : `/api/invites` + `/api/invites/[id]/decline` + `/api/checkout` + `/api/webhooks/stripe` + page `/invite/[id]`
+- Phase 8 SC5 : `/api/admin/blocks` + `/api/cron/review-reminder` + `/api/cron/purge-old-data` + `/api/admin/refund-sanction/[sanctionId]`
+- Phase 9 SC1 : `/api/sessions/[sessionId]/participants` + `/api/users/me/matches` + `/api/cron/expire-invites`
+- Phase 9 SC2 : `/api/invites/[id]/accept-gift` + extension `/api/checkout` mode='invite-prepay'
+- Phase 9 SC3 : `/api/cron/session-reminders` + `/api/notifications` + `/api/notifications/[id]`
+- **Phase 9 SC4 (NEW)** : `/api/reviews/[id]/moderate` + `/api/reviews/[id]/check-retaliation` + `/api/users/[id]/moderate-bio` + admin tab `ts-history`
+
+**Cumul Cloud Functions (6 CF déployables — inchangé SC4)** :
+- `refreshPricingCron` (Phase 6)
+- `reviewReminderCron` (Phase 8 SC5 c2 + extended SC3 c2 push-first)
+- `denormActiveSanctionTrigger` (Phase 8 SC5 c2)
+- `purgeOldDataCron` (Phase 8 SC5 c3)
+- `expireInvitesCron` (Phase 9 SC1 c4 + extended SC2 c5 refund auto)
+- `sessionRemindersCron` (Phase 9 SC3 c1 + extended SC3 c2 push-first)
+
+**Nouveaux helpers/flows SC4 cumul** :
+- `src/ai/flows/review-moderator.ts` (Genkit Gemini Flash IA review modération)
+- `src/ai/flows/profile-bio-moderator.ts` (Genkit Gemini Flash IA bio modération)
+- `src/lib/reviews/retaliationDetector.ts` (heuristique cross-user same-session 24h + Admin SDK)
+- `src/lib/reviews/aiBadgeHelpers.ts` (pure UI helpers Q8=A testables sans RTL)
+- `src/lib/admin-actions/exportCsv.ts` (RFC 4180 + pagination loop cap 5000)
+- `src/components/admin/AdminActionsHistoryPanel.tsx` (queue history admin tab)
+
+**Nouveaux composite index Firestore SC4 cumul** :
+- `reviews: reviewerId+revieweeId+createdAt DESC` (cross-user same-session query 24h)
+- À déployer prod via `firebase deploy --only firestore:indexes` (Phase 9 SC4 close-out)
+
+**Différé Phase 10 documenté** :
+- ⏭️ Email admin immédiat sur retaliation détectée (Q6=A defer Phase 10 si volume justifie analytics)
+- ⏭️ Auto-publish si IA confidence > 0.95 + civility > 0.9 (Q3=A defer — admin keep final Phase 9)
+- ⏭️ Bio profile UI gating (Q7=A defer — Phase 9 visible, Phase 10 si volume scale-up)
+- ⏭️ Multi-langue Genkit prompts DE/IT (§C.Q3 FR uniquement Phase 9)
+- ⏭️ RTL infra tests UI components (Q8=A pure helpers extraits Phase 9 — Phase 10 polish smoke RTL si besoin)
+- ⏭️ Onwrite Cloud Function trigger pour bio scan (Q4=B fire-and-forget Phase 9 ; CF onWrite Phase 10 si scale)
+- ⏭️ Multi-device tokens FCM cleanup (cohérent SC3 c5 différé)
+- ⏭️ Composite index secondaire reviews avec sessionId si volume scale-up
+
+### Phase 9 progression (24 commits techniques + 4 close-outs)
 
 | SC | Thème | Commits | Tests automated |
 |----|-------|---------|-----------------|
@@ -1819,15 +1951,16 @@ API /api/notifications/* (SC3 c4) :
 | SC1 | Card session participants + invite cleanup (4 SC4 close-out items + UI) | 5 (incl. close-out) | 45 |
 | SC2 | Stripe Connect Split/Gift + refund post-accept | 6 (incl. close-out) | 88 |
 | SC3 | Email rappels J-1/T-0 + Web Push reviewReminder | 5 (incl. close-out) | 70 |
-| **Cumul Phase 9** | | **18 + 3 close-outs** | **218** |
+| SC4 | Admin queue history + IA modération étendue + détection représailles | 6 (incl. close-out) | 77 |
+| **Cumul Phase 9** | | **23 + 4 close-outs** | **295** |
 
-**Tests Phase 9 final cumulés** : 218 nouvelles assertions automated.
+**Tests Phase 9 final cumulés** : 295 nouvelles assertions automated.
 **Phase 8 cumul 251+ tests préservé** intégralement (zéro régression mesurée).
 **Phase 7 base 372 tests préservé** intégralement (zéro régression mesurée).
 
-**Vercel green** sur 20+ déploiements consécutifs Phase 9.
+**Vercel green** sur 25+ déploiements consécutifs Phase 9.
 
-**Reste sub-chantiers Phase 9** : SC4 (Admin queue history + IA modération étendue), SC5 (UX no-show + matching algo), SC6 (Female-safety quota + anonymisation soft delete), SC7 (close-out final Phase 9).
+**Reste sub-chantiers Phase 9** : SC5 (UX no-show + matching algo), SC6 (Female-safety quota + anonymisation soft delete), SC7 (close-out final Phase 9).
 
 ---
 
