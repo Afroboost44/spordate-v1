@@ -677,6 +677,20 @@ export default function ProfilePage() {
                 .
               </p>
             </div>
+
+            {/* Phase 9 SC6 c3/4 — RGPD/nLPD Art. 17 droit à l'effacement */}
+            <div className="pt-2 border-t border-white/5">
+              <Link
+                href="/profile/delete"
+                className="inline-flex items-center gap-2 text-sm text-red-400 hover:text-red-300 underline"
+              >
+                Supprimer mon compte
+              </Link>
+              <p className="text-[11px] text-white/30 mt-1 leading-relaxed">
+                Conformité RGPD Art. 17 / nLPD Art. 19 — délai de grâce 30 jours avant
+                anonymisation définitive.
+              </p>
+            </div>
           </CardContent>
         </Card>
 

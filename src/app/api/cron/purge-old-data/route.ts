@@ -212,6 +212,66 @@ export async function POST(req: NextRequest) {
       console.warn('[/api/cron/purge-old-data] banlist query failed (non-bloquant)', err);
     }
 
+    // ---------------------------------------------------------------
+    // 5. Phase 9 SC6 c3/4 — Soft delete user-initiated purge.
+    // Query users.softDeleteScheduledPurgeAt < now AND anonymizedAt == null.
+    // Anonymise PII same pattern banlist + clear denorm rating fields.
+    // ---------------------------------------------------------------
+    let softDeletedAnonymized = 0;
+    let softDeletePages = 0;
+    let softDeleteTruncated = false;
+    try {
+      const nowTs = Timestamp.fromMillis(Date.now());
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let lastDoc: any = null;
+      while (softDeletePages < maxPages) {
+        let pageQuery = db
+          .collection('users')
+          .where('softDeleteScheduledPurgeAt', '<', nowTs)
+          .orderBy('softDeleteScheduledPurgeAt', 'asc')
+          .limit(pageSize);
+        if (lastDoc) pageQuery = pageQuery.startAfter(lastDoc);
+        const snap = await pageQuery.get();
+        if (snap.empty) break;
+        softDeletePages++;
+
+        for (const userDoc of snap.docs) {
+          const user = userDoc.data();
+          // Idempotency : skip si déjà anonymisé (cron banlist 24mo SC5 c3 OU run précédent)
+          if (user.anonymizedAt) continue;
+          if (!user.softDeletedAt) continue; // sanity check
+
+          try {
+            if (!dryRun) {
+              await userDoc.ref.update({
+                displayName: null,
+                email: null,
+                photoURL: null,
+                phoneNumber: null,
+                bio: null,
+                // Clear denorm rating fields (cohérent SC5 c3 averageRatingAsReviewee)
+                averageRatingAsReviewee: 0,
+                reviewCountAsReviewee: 0,
+                anonymizedAt: FieldValue.serverTimestamp(),
+              });
+            }
+            softDeletedAnonymized++;
+          } catch (err) {
+            console.warn('[/api/cron/purge-old-data] per-user soft-delete anonymize failed', {
+              userId: userDoc.id,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+        }
+
+        if (snap.size < pageSize) break;
+        lastDoc = snap.docs[snap.docs.length - 1];
+      }
+      if (softDeletePages >= maxPages) softDeleteTruncated = true;
+    } catch (err) {
+      console.warn('[/api/cron/purge-old-data] soft-delete query failed (non-bloquant)', err);
+    }
+
     return NextResponse.json(
       {
         adminActionsDeleted,
@@ -220,6 +280,9 @@ export async function POST(req: NextRequest) {
         usersAnonymized,
         usersPages,
         usersTruncated,
+        softDeletedAnonymized,
+        softDeletePages,
+        softDeleteTruncated,
         dryRun,
         pageSize,
         maxPages,

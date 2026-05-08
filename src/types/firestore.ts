@@ -87,6 +87,18 @@ export interface UserProfile {
   averageRatingAsReviewee?: number;
   /** Phase 9 SC5 c3/4 (additif). Nombre de reviews published reçues. Anti-faux-positif Q4=B. */
   reviewCountAsReviewee?: number;
+
+  // ----- Phase 9 SC6 c3/4 — Soft delete UI RGPD/nLPD Art. 17 (additif) -----
+  /** Phase 9 SC6 c3/4 (additif). Timestamp à laquelle user a déclenché la suppression de compte.
+   *  Si présent : compte en cours de suppression (grace period 30j Q5=A — restaurable via UI).
+   *  Set par softDeleteUser service ; cleared par restoreSoftDeletedUser pendant grace.
+   *  Cf. architecture.md ligne 899 + §H — RGPD/nLPD Art. 17 droit à l'effacement. */
+  softDeletedAt?: Timestamp;
+  /** Phase 9 SC6 c3/4 (additif). Timestamp = softDeletedAt + 30j → cron purge-old-data anonymise PII.
+   *  Indexed pour query cron efficient (composite index users: softDeleteScheduledPurgeAt+anonymizedAt). */
+  softDeleteScheduledPurgeAt?: Timestamp;
+  /** Phase 9 SC6 c3/4 (additif). Raison libre user (max 500 chars, optionnelle, audit). */
+  softDeleteReason?: string;
 }
 
 export interface SportEntry {

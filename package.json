@@ -64,7 +64,8 @@
     "test:reports:no-show-excuse": "firebase emulators:exec --only firestore 'npx tsx tests/reports/no-show-excuse.test.ts'",
     "test:matching:compute-score": "firebase emulators:exec --only firestore 'npx tsx tests/matching/compute-match-score.test.ts'",
     "test:audience:helpers": "npx tsx tests/audience/audience-helpers.test.ts",
-    "test:audience:book-session": "firebase emulators:exec --only firestore 'npx tsx tests/audience/book-session-enforcement.test.ts'"
+    "test:audience:book-session": "firebase emulators:exec --only firestore 'npx tsx tests/audience/book-session-enforcement.test.ts'",
+    "test:users:soft-delete": "firebase emulators:exec --only firestore 'npx tsx tests/users/soft-delete.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",
