@@ -1389,6 +1389,111 @@ Inviteur A (chat / activity page)
 
 ---
 
+## Phase 9 — En cours (mai 2026)
+
+### Sub-chantier 0 — Foundation polish ✅ COMPLET (2 commits)
+
+- 1/X `d998cd8` : `src/app/admin/layout.tsx` AdminGuard layout (`useAuth` + role='admin' check + redirect /admin/login). Cleanup `localStorage` residuel `admin/dashboard/page.tsx` + `admin/sports/page.tsx` (Q2=B server-side defense-in-depth — cohérent verifyAuth + isAdminRole API routes existing). `firestore.indexes.json` extension : composite index `bookings: status+sessionDate` (volume scale-up Phase 8 launch). Pagination cursor crons SC5 c2-c3 : `pageSize=500` + `maxPages=10` + `startAfter` cursor + `truncated` flag dans response (review-reminder + purge-old-data routes refactorées). Tests RR5 update assertion (600 → 600 sur 2 pages) + RR6 nouveau (1100 → 1000 truncated maxPages=2). 15 assertions cron + 16 purge régression + 47 no-show régression Phase 7.
+- 2/X `b35fcc8` : Charte stricte admin dashboard refactor UI (~40 patterns migrés). Background swap (`bg-[#05090e]→bg-black`, `bg-[#0f1115]→bg-zinc-950`, `bg-gray-900→bg-zinc-950`), borders (`border-gray-800→border-zinc-800`), accents (`text-cyan-400→text-[#D91CD2]`), CTAs (`bg-cyan-600→from-[#7B1FA2] to-[#D91CD2]`), info badges (`bg-blue-500/20→bg-[#D91CD2]/15`). Couleurs sémantiques admin **préservées intentionnellement** (amber/red/green status pour at-a-glance triage admin). 9 fichiers admin migrés + `tests/admin/SMOKE-CHARTE.md` smoke checklist visuelle.
+
+**Bilan SC0 Phase 9** :
+- ✅ Refactor admin auth Firebase Auth role-based (Différé Phase 9 ligne 891 fermé)
+- ✅ Composite indexes Firestore `bookings: status+sessionDate` (Différé Phase 9 polish fermé)
+- ✅ Pagination cursor crons batch > 500 (Différé Phase 9 polish fermé)
+- ✅ Charte stricte appliquée admin dashboard (Différé Phase 9 ligne 894 fermé)
+
+### Sub-chantier 1 — Card session participants + invite cleanup ✅ COMPLET (5 commits)
+
+- 1/5 `2115dd6` : `/api/sessions/[sessionId]/participants/route.ts` (GET Bearer + 5 paths d'accès gradés : past-public, partner, admin, confirmed-participant, 403). `<ParticipantsList>` client island fetch + skeleton + silent hide 403. `<SessionParticipantCard>` Avatar + badge "Toi" self / `<BlockButton>` + `<ReportButton>` chat variant other. Wire dans `/sessions/[sessionId]/page.tsx`. Privacy doctrine §F : PII minimisation `{uid, displayName, photoURL?}` + visibilité gradée (anti-stalking sessions futures). Tests SP1-SP6 + 404 (12 assertions).
+- 2/5 `848106f` : `SuggestionCard.nextSessionId?: string` + `SuggestionCatalogEntry.nextSessionId?: string`. `/api/suggest-activities` extension : per-activity Promise.all query `sessions/` future (`startAt > now ORDER BY startAt ASC LIMIT 1`) + fallback legacy `schedule[]` field + best-effort silent. `<SuggestionMessage>` refactor : props `viewerUid`/`otherUserId`/`otherUserName` + helper exporté `shouldShowInviteButton` + Q7=B 2 actions distinctes (Réserver primary + InviteButton secondary conditional). `chat/page.tsx` passe props depuis context. Tests SI1-SI5 + bonus null cases (10 assertions).
+- 3/5 `92e91f0` : `/api/users/me/matches/route.ts` (GET Bearer + Admin SDK matches accepted + filter blocks bidirectionnel + skip `anonymizedAt` Phase 8 SC5 c3/5 banlist). `<ActivityInviteSection>` client island chips dropdown matches + InviteButton primary conditional. `getNextFutureSessionForActivity()` helper Server Component. Wire dans `/activities/[id]/page.tsx`. Tests AI1-AI5 + bonus status filter (10 assertions).
+- 4/5 `311f0ff` : CF Scheduler `expireInvitesCron` `onSchedule('every 60 minutes')` Europe/Zurich → trigger Vercel `/api/cron/expire-invites` Bearer CRON_SECRET. Cursor pagination (pageSize=500, maxPages=10, startAfter) + Admin SDK batch update `status='pending' → 'expired'` (bypass rules — la rule update n'a pas de path 'expired'). Best-effort batch failure handling + dry-run mode. Tests EI1-EI5 + auth (13 assertions).
+- 5/5 *(this commit)* : architecture.md SC0+SC1 close-out + cumulative tests Phase 9 + retrospective.
+
+**Architecture résultante invite triggers cumul Phase 8+9** :
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ENTRY POINTS INVITE (Phase 8 SC4 + Phase 9 SC1 c2/c3)       │
+├─────────────────────────────────────────────────────────────┤
+│ Chat post-event SuggestionMessage (SC3 cooldown 72h)        │
+│   → SuggestionCardItem [Réserver]  [Inviter X]              │
+│                                       ↓ (si nextSessionId)  │
+│                                       ↓ + viewer ≠ other    │
+│                                       <InviteButton>        │
+│                                                             │
+│ /activities/[id] page (SC1 c3/5)                            │
+│   → <ActivityInviteSection> client island                   │
+│        ↓ fetch /api/users/me/matches Bearer                 │
+│        ↓ chips otherUser → select                           │
+│        ↓ [Inviter X] <InviteButton>                         │
+│                                                             │
+│ /sessions/[sessionId] page (SC1 c1/5)                       │
+│   → <ParticipantsList> client island                        │
+│        ↓ fetch /api/sessions/[id]/participants Bearer       │
+│        ↓ <SessionParticipantCard> per participant           │
+│             ├─ self → badge "Toi"                           │
+│             └─ other → <BlockButton> + <ReportButton>       │
+└─────────────────────────────────────────────────────────────┘
+                          │
+                          ↓ <InviteButton> (Phase 8 SC4)
+                          ↓ POST /api/invites Bearer
+                          ↓
+┌─────────────────────────────────────────────────────────────┐
+│ INVITE LIFECYCLE (Phase 8 SC4 + Phase 9 SC1 c4)             │
+├─────────────────────────────────────────────────────────────┤
+│ /api/invites POST (SC4) → invite created status='pending'   │
+│   ↓ sendEmail + notif → toUser                              │
+│ /invite/[id] page → InviteActionsClient                     │
+│   ↓ Accept → /api/checkout invite-accept → Stripe → webhook │
+│   ↓ Decline → /api/invites/[id]/decline                     │
+│                                                             │
+│ Expiration auto :                                           │
+│ CF Scheduler expireInvitesCron (every 60 min, Phase 9 c4/5) │
+│   ↓ Bearer CRON_SECRET                                      │
+│   ↓ POST /api/cron/expire-invites                           │
+│       ↓ Cursor pagination 500/page × 10 max                 │
+│       ↓ batch update status='pending'+expiresAt<=now → 'expired'│
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Bilan SC1 Phase 9** :
+- ✅ Card session UI participants list complète + entry points block/report (Différé Phase 9 ligne 890 fermé)
+- ✅ SuggestionMessage `<InviteButton>` + nextSessionId persistence (Différé SC4 close-out ligne 1332 fermé)
+- ✅ /activities/[id] dropdown matches invite trigger (Différé SC4 close-out ligne 1333 fermé)
+- ✅ Cron `expireInvitesIfDue()` deployment CF Scheduler (Différé SC4 close-out ligne 1334 fermé)
+- ✅ **Tous items SC4 close-out différés Phase 9 fermés (3/3)**
+
+**Tests Phase 9 cumulés (SC0 + SC1)** :
+- SC0 c1/X : 15 (cron review-reminder RR1-RR6 + auth) + 16 (cron purge PG1-PG6 régression) + 47 (no-show régression Phase 7)
+- SC1 c1/5 : 12 (sessions participants SP1-SP6 + 404)
+- SC1 c2/5 : 10 (chat suggestion-invite SI1-SI5 + bonus)
+- SC1 c3/5 : 10 (activities invite-section AI1-AI5 + bonus)
+- SC1 c4/5 : 13 (cron expire-invites EI1-EI5 + auth)
+- **Phase 9 cumul nouvelles assertions : 60 automated** (15+12+10+10+13)
+- + Phase 8 cumul 251+ assertions préservé (zéro régression)
+- + Phase 7 base 372 tests préservé intégralement
+
+**Cumul Cloud Functions déployables** :
+| CF | Phase | Schedule | Purpose |
+|---|---|---|---|
+| `refreshPricingCron` | Phase 6 | every 15 min | Anti-cheat pricing tier+price recompute |
+| `reviewReminderCron` | Phase 8 SC5 c2/5 | every 60 min | Email reviewReminder 48h post-session |
+| `denormActiveSanctionTrigger` | Phase 8 SC5 c2/5 | onWrite userSanctions | Denorm `users.{uid}.activeSanction*` |
+| `purgeOldDataCron` | Phase 8 SC5 c3/5 | weekly Friday 03:00 | Purge adminActions + anonymise banlist > 24mo |
+| `expireInvitesCron` | Phase 9 SC1 c4/5 | every 60 min | Batch invites pending expirés → 'expired' |
+
+**Cumul routes Vercel API Phase 8+9 (15 routes)** :
+- SC2 : `/api/anti-leak`
+- SC3 : `/api/suggest-activities`
+- SC4 : `/api/invites` + `/api/invites/[id]/decline` + extension `/api/checkout` + `/api/webhooks/stripe` + page `/invite/[id]`
+- SC5 : `/api/admin/blocks` + `/api/cron/review-reminder` + `/api/cron/purge-old-data` + `/api/admin/refund-sanction/[sanctionId]`
+- Phase 9 SC1 : `/api/sessions/[sessionId]/participants` + `/api/users/me/matches` + `/api/cron/expire-invites`
+
+**Reste sub-chantiers Phase 9** : SC2 (Stripe Connect Split/Gift + refund post-accept), SC3 (Email rappels J-1/T-0 + Web Push), SC4 (Admin queue history + IA modération étendue), SC5 (UX no-show + matching algo), SC6 (Female-safety quota + anonymisation soft delete), SC7 (close-out final Phase 9).
+
+---
+
 ### A. Doctrine économique — T&S = pré-requis rétention
 
 **Règle** : sans T&S structurée, la rétention femmes est compromise. Femmes ≈ 50% des users cibles. Une mauvaise expérience non gérée → quitte la plateforme + word-of-mouth négatif → spirale.
