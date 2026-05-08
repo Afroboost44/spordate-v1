@@ -34,7 +34,9 @@ export type TemplateName =
   | 'userSanctionOverturned' // T&S Phase 7 sub-chantier 5 commit 1/3 — admin a annulé sanction
   | 'appealResolved' // T&S Phase 7 sub-chantier 5 commit 1/3 — résultat appel (uphold/overturn)
   | 'leakEscalationAdmin' // Phase 8 SC2 commit 5/6 — alerte admin L4 anti-leak (5+ tentatives chat)
-  | 'inviteReceived'; // Phase 8 SC4 commit 4/6 — invitation activity reçue par toUserId
+  | 'inviteReceived' // Phase 8 SC4 commit 4/6 — invitation activity reçue par toUserId (mode 'individual')
+  | 'inviteReceivedSplit' // Phase 9 SC2 c2/6 — invitation mode='split' (inviter paye part, invité paye reste)
+  | 'inviteReceivedGift'; // Phase 9 SC2 c2/6 — invitation mode='gift' (inviter paye 100%, invité confirme)
 
 /** SanctionLevel cohérent src/types/firestore.ts (utilisé par userSanctionNotice). */
 export type SanctionLevelEmail = 'warning' | 'suspension_7d' | 'suspension_30d' | 'ban_permanent';
@@ -162,6 +164,32 @@ export interface TemplateDataMap {
     inviteLink: string;
     /** Message optionnel inviter (Q1=A, max 200 chars). */
     message?: string;
+  };
+  /** Phase 9 SC2 c2/6 — invitation mode='split' (inviter paye une part, invité paye le reste). */
+  inviteReceivedSplit: {
+    fromUserName: string;
+    toUserName?: string;
+    activityTitle: string;
+    sessionDate: string;
+    inviteLink: string;
+    message?: string;
+    /** Montant inviter en CHF (display, ex: '12.50'). */
+    inviterAmountChf: string;
+    /** Montant invité en CHF (display, ex: '12.50'). */
+    inviteeAmountChf: string;
+    /** Total session CHF (display, ex: '25.00'). */
+    totalAmountChf: string;
+  };
+  /** Phase 9 SC2 c2/6 — invitation mode='gift' (inviter paye 100%, invité confirme). */
+  inviteReceivedGift: {
+    fromUserName: string;
+    toUserName?: string;
+    activityTitle: string;
+    sessionDate: string;
+    inviteLink: string;
+    message?: string;
+    /** Total session CHF (display, ex: '25.00'). */
+    totalAmountChf: string;
   };
 }
 
@@ -517,6 +545,51 @@ function renderInviteReceived(d: TemplateDataMap['inviteReceived']) {
 }
 
 // =====================================================================
+// Phase 9 SC2 c2/6 — modes Split + Gift email templates
+// =====================================================================
+
+function renderInviteReceivedSplit(d: TemplateDataMap['inviteReceivedSplit']) {
+  const fromLabel = d.fromUserName || 'Un membre Spordate';
+  const subject = `${fromLabel} t'invite à ${d.activityTitle} — partagez la note`;
+
+  const greeting = d.toUserName ? `Bonjour ${d.toUserName},` : 'Bonjour,';
+  const messageLine = d.message ? p(`<em>« ${d.message} »</em>`, '100') : '';
+
+  const body = `
+    ${h1(`Tu es invité·e !`)}
+    ${p(greeting)}
+    ${p(`<strong style="color:#ffffff;">${fromLabel}</strong> t'invite à participer à <strong style="color:#ffffff;">${d.activityTitle}</strong> et partage la note avec toi.`)}
+    ${p(`<strong style="color:#ffffff;">Quand</strong> : ${d.sessionDate}`)}
+    ${p(`<strong style="color:#ffffff;">Sa part</strong> : ${d.inviterAmountChf} CHF (déjà payée par ${fromLabel})`)}
+    ${p(`<strong style="color:#D91CD2;">Ta part à régler</strong> : ${d.inviteeAmountChf} CHF — Total session ${d.totalAmountChf} CHF`)}
+    ${messageLine}
+    ${ctaButton(`Accepter et payer ma part (${d.inviteeAmountChf} CHF)`, d.inviteLink)}
+    ${p(`Tu peux accepter ou décliner depuis la page d'invitation. Si tu décline ou laisse expirer (max 7 jours), ${fromLabel} sera remboursé·e automatiquement.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Invitation Split', bodyHtml: body }) };
+}
+
+function renderInviteReceivedGift(d: TemplateDataMap['inviteReceivedGift']) {
+  const fromLabel = d.fromUserName || 'Un membre Spordate';
+  const subject = `${fromLabel} t'offre ${d.activityTitle} — c'est cadeau !`;
+
+  const greeting = d.toUserName ? `Bonjour ${d.toUserName},` : 'Bonjour,';
+  const messageLine = d.message ? p(`<em>« ${d.message} »</em>`, '100') : '';
+
+  const body = `
+    ${h1(`Tu reçois un cadeau ! 🎁`)}
+    ${p(greeting)}
+    ${p(`<strong style="color:#ffffff;">${fromLabel}</strong> t'offre une session <strong style="color:#ffffff;">${d.activityTitle}</strong>.`)}
+    ${p(`<strong style="color:#ffffff;">Quand</strong> : ${d.sessionDate}`)}
+    ${p(`<strong style="color:#D91CD2;">C'est cadeau</strong> : tu n'as rien à payer (${d.totalAmountChf} CHF déjà réglés par ${fromLabel}).`)}
+    ${messageLine}
+    ${ctaButton(`Accepter le cadeau`, d.inviteLink)}
+    ${p(`Tu peux accepter ou décliner depuis la page d'invitation. Si tu décline ou laisse expirer (max 7 jours), ${fromLabel} sera remboursé·e automatiquement.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Cadeau', bodyHtml: body }) };
+}
+
+// =====================================================================
 // Public renderTemplate (type-safe dispatch)
 // =====================================================================
 
@@ -553,6 +626,10 @@ export function renderTemplate<T extends TemplateName>(
       return renderLeakEscalationAdmin(data as TemplateDataMap['leakEscalationAdmin']);
     case 'inviteReceived':
       return renderInviteReceived(data as TemplateDataMap['inviteReceived']);
+    case 'inviteReceivedSplit':
+      return renderInviteReceivedSplit(data as TemplateDataMap['inviteReceivedSplit']);
+    case 'inviteReceivedGift':
+      return renderInviteReceivedGift(data as TemplateDataMap['inviteReceivedGift']);
     default: {
       // Exhaustive check — TypeScript should error if a new TemplateName is added without case
       const _exhaustive: never = templateName;

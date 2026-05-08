@@ -28,7 +28,8 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Invite, Session } from '@/types/firestore';
+import type { Invite, InviteMode, Session } from '@/types/firestore';
+import { computeSplitAmounts, SplitMathError } from './splitMath';
 
 // =====================================================================
 // Constants
@@ -75,7 +76,11 @@ export type InviteErrorCode =
   | 'not-found'
   | 'invalid-status'
   | 'forbidden'
-  | 'expired';
+  | 'expired'
+  // Phase 9 SC2 c2/6 — modes Split/Gift
+  | 'invalid-mode'
+  | 'invalid-split-ratio'
+  | 'invalid-total-cents';
 
 export class InviteError extends Error {
   public readonly code: InviteErrorCode;
@@ -109,6 +114,15 @@ export interface CreateInviteInput {
   activityId: string;
   sessionId: string;
   message?: string;
+  // Phase 9 SC2 c2/6 — modes Split/Gift
+  /** Mode invite (default 'individual' si absent — Phase 8 SC4 legacy compat). */
+  mode?: InviteMode;
+  /** Ratio inviter [0.1, 0.9] (Q5=A) — required pour mode='split'. */
+  splitInviterRatio?: number;
+  /** Total session price CHF centimes (server-recomputed anti-cheat).
+   *  Requis pour mode!='individual' (calcul split amounts).
+   *  Caller responsibility : passer la valeur server-computed (cohérent /api/checkout pattern). */
+  totalCents?: number;
 }
 
 /**
@@ -170,6 +184,38 @@ export async function createInvite(input: CreateInviteInput): Promise<string> {
   };
   if (message) {
     payload.message = message.slice(0, INVITE_MESSAGE_MAX_LEN);
+  }
+
+  // Phase 9 SC2 c2/6 — modes Split/Gift : compute amounts + persist
+  const mode: InviteMode = input.mode ?? 'individual';
+  if (mode !== 'individual') {
+    if (!input.totalCents || input.totalCents <= 0) {
+      throw new InviteError(
+        'invalid-total-cents',
+        `totalCents requis et > 0 pour mode=${mode}`,
+      );
+    }
+    try {
+      const splitAmounts = computeSplitAmounts({
+        totalCents: input.totalCents,
+        mode,
+        splitInviterRatio: input.splitInviterRatio,
+      });
+      payload.mode = mode;
+      payload.splitInviterAmountCents = splitAmounts.inviterCents;
+      payload.splitInviteeAmountCents = splitAmounts.inviteeCents;
+    } catch (err) {
+      if (err instanceof SplitMathError) {
+        if (err.code === 'invalid-ratio' || err.code === 'ratio-required') {
+          throw new InviteError('invalid-split-ratio', err.message);
+        }
+        if (err.code === 'invalid-mode') {
+          throw new InviteError('invalid-mode', err.message);
+        }
+        throw new InviteError('invalid-input', err.message);
+      }
+      throw err;
+    }
   }
 
   await setDoc(doc(fbDb, 'invites', inviteId), payload);

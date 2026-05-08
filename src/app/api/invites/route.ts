@@ -96,14 +96,59 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3. Call service
+    // 3. Phase 9 SC2 c2/6 — parse mode + splitInviterRatio + resolve totalCents server-side
     const message = typeof body.message === 'string' ? body.message : undefined;
+    const requestedMode = body.mode as string | undefined;
+    let mode: 'individual' | 'split' | 'gift' = 'individual';
+    if (requestedMode === 'split' || requestedMode === 'gift' || requestedMode === 'individual') {
+      mode = requestedMode;
+    } else if (requestedMode !== undefined) {
+      return NextResponse.json(
+        { error: 'invalid-mode', detail: `mode must be 'individual'|'split'|'gift' (reçu: ${requestedMode})` },
+        { status: 400 },
+      );
+    }
+    const splitInviterRatio =
+      typeof body.splitInviterRatio === 'number' ? body.splitInviterRatio : undefined;
+
+    // Resolve totalCents server-side via session.currentPrice (anti-cheat — pattern /api/checkout)
+    let totalCents: number | undefined;
+    if (mode !== 'individual') {
+      try {
+        const adminDb = await getAdminDb();
+        const sessionSnap = await adminDb.collection('sessions').doc(body.sessionId).get();
+        if (!sessionSnap.exists) {
+          return NextResponse.json(
+            { error: 'session-not-found', detail: `Session ${body.sessionId} introuvable` },
+            { status: 404 },
+          );
+        }
+        const sessionData = sessionSnap.data();
+        totalCents = sessionData?.currentPrice as number | undefined;
+        if (!totalCents || totalCents <= 0) {
+          return NextResponse.json(
+            { error: 'invalid-total-cents', detail: 'Session.currentPrice non disponible pour mode Split/Gift' },
+            { status: 400 },
+          );
+        }
+      } catch (err) {
+        console.warn('[/api/invites] totalCents resolve failed', err);
+        return NextResponse.json(
+          { error: 'internal-error', detail: 'totalCents resolve failed' },
+          { status: 500 },
+        );
+      }
+    }
+
     const inviteId = await createInvite({
       fromUserId,
       toUserId: body.toUserId,
       activityId: body.activityId,
       sessionId: body.sessionId,
       message,
+      mode,
+      splitInviterRatio,
+      totalCents,
     });
 
     // 4-5. Best-effort sendEmail + createNotification in-app (Phase 8 SC4 commit 4/6)
@@ -123,23 +168,60 @@ export async function POST(request: NextRequest) {
       const sessionDate = formatSessionDateFR(sessionSnap.data()?.startAt);
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
 
-      // 4. sendEmail inviteReceived (best-effort)
+      // 4. sendEmail (mode-aware Phase 9 SC2 c2/6 — best-effort)
       if (toUserEmail) {
+        const inviteLink = `${baseUrl}/invite/${inviteId}`;
         try {
-          await sendEmail({
-            to: toUserEmail,
-            templateName: 'inviteReceived',
-            templateData: {
-              fromUserName,
-              toUserName,
-              activityTitle,
-              sessionDate,
-              inviteLink: `${baseUrl}/invite/${inviteId}`,
-              message,
-            },
-          });
+          if (mode === 'split' && totalCents) {
+            // Re-compute amounts pour template (cohérent service)
+            const { computeSplitAmounts } = await import('@/lib/invites/splitMath');
+            const amounts = computeSplitAmounts({ totalCents, mode: 'split', splitInviterRatio });
+            await sendEmail({
+              to: toUserEmail,
+              templateName: 'inviteReceivedSplit',
+              templateData: {
+                fromUserName,
+                toUserName,
+                activityTitle,
+                sessionDate,
+                inviteLink,
+                message,
+                inviterAmountChf: (amounts.inviterCents / 100).toFixed(2),
+                inviteeAmountChf: (amounts.inviteeCents / 100).toFixed(2),
+                totalAmountChf: (totalCents / 100).toFixed(2),
+              },
+            });
+          } else if (mode === 'gift' && totalCents) {
+            await sendEmail({
+              to: toUserEmail,
+              templateName: 'inviteReceivedGift',
+              templateData: {
+                fromUserName,
+                toUserName,
+                activityTitle,
+                sessionDate,
+                inviteLink,
+                message,
+                totalAmountChf: (totalCents / 100).toFixed(2),
+              },
+            });
+          } else {
+            // mode === 'individual' (default + legacy compat Phase 8 SC4)
+            await sendEmail({
+              to: toUserEmail,
+              templateName: 'inviteReceived',
+              templateData: {
+                fromUserName,
+                toUserName,
+                activityTitle,
+                sessionDate,
+                inviteLink,
+                message,
+              },
+            });
+          }
         } catch (err) {
-          console.warn('[/api/invites] sendEmail inviteReceived failed (non-bloquant)', err);
+          console.warn('[/api/invites] sendEmail invite (mode-aware) failed (non-bloquant)', err);
         }
       }
 
@@ -165,13 +247,27 @@ export async function POST(request: NextRequest) {
       console.warn('[/api/invites] Admin SDK reads failed (notifs skipped)', err);
     }
 
-    return NextResponse.json({ inviteId, status: 'pending' }, { status: 200 });
+    return NextResponse.json(
+      {
+        inviteId,
+        status: 'pending',
+        mode,
+        // Phase 9 SC2 c2/6 — Stripe checkout pre-pay URL pour modes Split/Gift sera
+        // ajoutée par commit 3/6 (extension /api/checkout mode='invite-prepay').
+        // Pour ce commit, on persiste l'invite avec montants ; le client (commit 5/6)
+        // déclenchera le pre-pay checkout séparément si mode!='individual'.
+      },
+      { status: 200 },
+    );
   } catch (err) {
     if (err instanceof InviteError) {
       const status =
         err.code === 'invalid-input' ||
         err.code === 'self-invite-forbidden' ||
-        err.code === 'session-too-soon'
+        err.code === 'session-too-soon' ||
+        err.code === 'invalid-mode' ||
+        err.code === 'invalid-split-ratio' ||
+        err.code === 'invalid-total-cents'
           ? 400
           : err.code === 'session-not-found'
             ? 404
