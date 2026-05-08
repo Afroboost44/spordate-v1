@@ -1943,7 +1943,113 @@ USER PROFILE BIO MODÉRATION IA (SC4 c5) :
 - ⏭️ Multi-device tokens FCM cleanup (cohérent SC3 c5 différé)
 - ⏭️ Composite index secondaire reviews avec sessionId si volume scale-up
 
-### Phase 9 progression (24 commits techniques + 4 close-outs)
+### Sub-chantier 5 — UX no-show excuse pré-session + matching algo visibility ✅ COMPLET (4 commits)
+
+- 1/4 `d3d4d87` : Types `Excuse` interface + `Booking.excusedAt?` field additif + collection `/excuses/{id}` + service `createExcuse` (validate booking confirmed + window 2h Q1=A + anti-doublon idempotency + best-effort update Booking.excusedAt) + `ExcuseError` typed (`'invalid-input' | 'session-not-found' | 'not-confirmed-booker' | 'window-closed' | 'already-excused' | 'reason-too-long'`) + DI seam `__setExcusesDbForTesting` + firestore.rules `/excuses/{id}` (Q6=A owner-only create + immuable update/delete cohérent /adminActions/ §H + Booking update extension owner allowed mais `diff.affectedKeys().hasOnly(['excusedAt'])` defense-in-depth) + composite index `excuses: userId+sessionId+createdAt DESC` + tests EX1-EX4 + bonus rules anti-spoof + boundary 2h ±1ms + reason 300 chars boundary (14 assertions).
+- 2/4 `df3fe64` : Extension `markNoShow` pre-create excuse check (query `/excuses/` where `userId+sessionId` LIMIT 1, `excuseLeadMs >= EXCUSE_WINDOW_HOURS_BEFORE_SESSION × 3600_000` → throw `ReportError('user-excused')`, sinon excuse tardive ignored mais préservée Firestore audit) + `ReportErrorCode += 'user-excused'` + best-effort silent si Firestore query fail (graceful degradation — partner peut toujours marquer no-show) + tests NS-EX1-NS-EX5 + 4 bonus (11 assertions). Régression Phase 7 markNoShow 47/47 PASS.
+- 3/4 `e985cfd` : Pure helper `computeMatchScore` extracted from inline `/discovery` (sport common +30 / level same +20 / sport diff level +10 / city same +15 cap 100) + Phase 9 SC5 multiplier `× 0.7` (Q2=B modéré) si `applyRatingPenalty` (default true) AND `reviewCount >= 3` (Q4=B anti-FP) AND `averageRating < 3.5` (Q3=A threshold) + opts `applyRatingPenalty?: boolean = true` (Q5=B testabilité + admin override) + helpers `recomputeRevieweeAverageRating` Admin SDK + `UserProfile.averageRatingAsReviewee?` + `reviewCountAsReviewee?` denorm fields + extension `awardReviewBonus` post-publish fire-and-forget POST `/api/users/[id]/recompute-rating` (server-side Admin SDK bypass rules — cohérent SC4 c2/6 moderate-review pattern) + tests MS1-MS4 + 6 bonus (11 assertions).
+- 4/4 *(this commit)* : architecture.md SC5 close-out + cumulative tests Phase 9 SC0+SC1+SC2+SC3+SC4+SC5 + retrospective Q1-Q8 doctrine SC5 appliquée.
+
+**Architecture résultante SC5 no-show excuse + matching algo end-to-end** :
+
+```
+USER CRÉE EXCUSE PRÉ-SESSION (≥ 2h avant) :
+  Client : createExcuse({userId, sessionId, reason?})
+    ↓ Validation : reason ≤ 300 chars + session existe + booking status='confirmed'
+    ↓ Window check (Q1=A) : session.startAt - now >= 2 × 3600_000 ms
+       (sinon throw 'window-closed' — boundary inclusive 2h exact OK)
+    ↓ Anti-doublon : query /excuses/ where userId+sessionId LIMIT 1
+       (sinon throw 'already-excused' — idempotency)
+    ↓ setDoc /excuses/{excuseId} (immuable audit trail)
+    ↓ Best-effort updateDoc bookings/{bookingId}.excusedAt = serverTimestamp()
+       (rule autorise diff.affectedKeys().hasOnly(['excusedAt']) — defense-in-depth)
+
+PARTNER MARQUE NO-SHOW POST-SESSION :
+  markNoShow({partnerId, sessionId, userId})
+    ↓ Validations : session ended + grace 30min + partner authorized + booking confirmed
+    ↓ Phase 9 SC5 c2/4 — Excuse pre-check (Q1=A 2h grace) :
+       query /excuses/ where userId+sessionId LIMIT 1
+       ↓ Si excuse trouvée AND excuseLeadMs >= 2h × 3600_000 :
+          → throw ReportError('user-excused') (no report, no threshold compute)
+       ↓ Si excuse tardive (<2h) :
+          → continue normal flow (excuse ignored mais préservée Firestore audit)
+       ↓ Best-effort silent si query fail (graceful degradation)
+    ↓ Continue normal flow Phase 7 si pas d'excuse OR tardive :
+       create report category='no_show' source='partner_no_show'
+       compute threshold rolling 90j → triggerAutoSanction si level !== null
+       sendEmail noShowWarningNotice (user) + partnerNoShowConfirmed (partner)
+
+ALGO MATCHING DISCOVERY :
+  computeMatchScore(myProfile, candidate, opts?)
+    ↓ Pure function (no Firestore calls — caller pré-charge denorm fields)
+    ↓ Sport scoring : +30 par sport commun + 20 same level OU +10 diff level
+    ↓ City scoring : +15 si même ville
+    ↓ Cap 100 (avant pénalité)
+    ↓ Phase 9 SC5 c3/4 — multiplier × 0.7 (Q2=B + Q3=A + Q4=B) :
+       Si applyRatingPenalty (default true)
+       AND candidate.reviewCountAsReviewee >= 3 (Q4=B anti-FP)
+       AND candidate.averageRatingAsReviewee < 3.5 (Q3=A threshold)
+       → score = round(score × 0.7) (Q2=B modéré, visibilité réduite pas exclusion)
+       Sinon graceful degradation (undefined OR min reviews not met → score inchangé)
+
+HOOK PUBLISH REVIEW (recompute denorm) :
+  awardReviewBonus(reviewId) [client SDK runtime]
+    ↓ Phase 1 : runTransaction set creditsAwarded=true (anti-double idempotency)
+    ↓ Phase 9 SC5 c3/4 — Fire-and-forget POST /api/users/[reviewee]/recompute-rating
+       (avant early-return idempotent pour catch re-publish via moderateReview SC4 c2/6) :
+       ↓ Server (nodejs runtime) Admin SDK :
+       ↓ recomputeRevieweeAverageRating(revieweeId) :
+          query reviews where revieweeId=X AND status='published'
+          → average + count
+          → update users/{revieweeId}.averageRatingAsReviewee + reviewCountAsReviewee
+       ↓ Best-effort silent — never throw (caller fire-and-forget)
+    ↓ Phase 2 : addCredits +5 chat credits au reviewer
+    ↓ Phase 3 : sendEmail reviewBonusGranted (best-effort)
+```
+
+**Bilan SC5 Phase 9 — votes Q1-Q8 doctrine SC5 appliqués (8/8)** :
+- ✅ Q1=A `EXCUSE_WINDOW_HOURS_BEFORE_SESSION=2` hardcoded (KISS Phase 9 — env var Phase 10 si volume)
+- ✅ Q2=B multiplier `× 0.7` modéré (visibilité réduite, pas exclusion stricte)
+- ✅ Q3=A threshold `3.5★` cohérent doctrine architecture.md ligne 896
+- ✅ Q4=B anti-faux-positif min 3 reviews avant pénalité
+- ✅ Q5=B `opts.applyRatingPenalty` pour testabilité + admin override (default true Phase 9)
+- ✅ Q6=A owner-only authoring excuse (`request.resource.data.userId == auth.uid` rule + anti-spoof tested)
+- ✅ Q7=B silent log Phase 9 (no email partner sur excuse — Phase 10 polish si volume justifie)
+- ✅ Q8=A tests verify content (audit trail + boundary edge cases + idempotency anti-doublon)
+
+**Tests SC5 cumulés** :
+- EX1-EX4 + bonus (excuse créatif) : 14 assertions
+- NS-EX1-NS-EX5 + 4 bonus (no-show excuse pre-check) : 11 assertions
+- MS1-MS4 + 6 bonus (compute match score) : 11 assertions
+- **SC5 total : 36 nouvelles assertions automated**
+
+**Cumul routes Vercel API Phase 8+9 (24 routes — extension SC5 +1)** :
+- **Phase 9 SC5 (NEW)** : `/api/users/[id]/recompute-rating` (Admin SDK denorm rating)
+
+**Cumul Cloud Functions (6 CF déployables — inchangé SC5)** :
+- `refreshPricingCron`, `reviewReminderCron`, `denormActiveSanctionTrigger`, `purgeOldDataCron`, `expireInvitesCron`, `sessionRemindersCron`
+
+**Nouveaux composite indexes Firestore SC5 cumul** :
+- `excuses: userId+sessionId+createdAt DESC` (anti-doublon query + sort)
+- À déployer prod via `firebase deploy --only firestore:indexes` (Phase 9 SC5 close-out)
+
+**Nouveaux helpers/services SC5 cumul** :
+- `src/lib/excuses/_internal.ts` (constants + ExcuseError + DI seam)
+- `src/lib/excuses/createExcuse.ts` (service createExcuse client SDK + best-effort)
+- `src/lib/matching/computeMatchScore.ts` (pure function extracted + multiplier rating)
+- `src/lib/matching/recomputeRating.ts` (Admin SDK helper + DI seam)
+- `src/app/api/users/[id]/recompute-rating/route.ts` (server-only POST endpoint)
+
+**Différé Phase 10 documenté** :
+- ⏭️ Env var `SPORDATE_EXCUSE_WINDOW_HOURS` configurable (Q1=A KISS Phase 9 → param Phase 10 si volume)
+- ⏭️ Per-activity override `Activity.excuseWindowHours?` (Q1=C defer Phase 10)
+- ⏭️ UI excuse user-facing inline button + modal (Q5=B defer SC5 backend-only Phase 9 — frontend Phase 10)
+- ⏭️ Email notification partner sur excuse (Q7=B defer Phase 10 si polish)
+- ⏭️ Multiplier `× 0.5` strict (Q2=A) si Phase 10 metrics montrent 0.7 trop permissif
+- ⏭️ Threshold `4.0★` (Q3=B) si Phase 10 metrics montrent 3.5 trop permissif
+- ⏭️ Cloud Function onWrite trigger pour denorm averageRating (Q4=B fire-and-forget Phase 9 ; CF Phase 10 si scale)
+
+### Phase 9 progression (27 commits techniques + 5 close-outs)
 
 | SC | Thème | Commits | Tests automated |
 |----|-------|---------|-----------------|
@@ -1952,15 +2058,16 @@ USER PROFILE BIO MODÉRATION IA (SC4 c5) :
 | SC2 | Stripe Connect Split/Gift + refund post-accept | 6 (incl. close-out) | 88 |
 | SC3 | Email rappels J-1/T-0 + Web Push reviewReminder | 5 (incl. close-out) | 70 |
 | SC4 | Admin queue history + IA modération étendue + détection représailles | 6 (incl. close-out) | 77 |
-| **Cumul Phase 9** | | **23 + 4 close-outs** | **295** |
+| SC5 | UX no-show excuse pré-session + matching algo visibility | 4 (incl. close-out) | 36 |
+| **Cumul Phase 9** | | **27 + 5 close-outs** | **331** |
 
-**Tests Phase 9 final cumulés** : 295 nouvelles assertions automated.
+**Tests Phase 9 final cumulés** : 331 nouvelles assertions automated.
 **Phase 8 cumul 251+ tests préservé** intégralement (zéro régression mesurée).
-**Phase 7 base 372 tests préservé** intégralement (zéro régression mesurée).
+**Phase 7 base 372 tests préservé** intégralement (markNoShow legacy 47/47 PASS).
 
-**Vercel green** sur 25+ déploiements consécutifs Phase 9.
+**Vercel green** sur 30+ déploiements consécutifs Phase 9.
 
-**Reste sub-chantiers Phase 9** : SC5 (UX no-show + matching algo), SC6 (Female-safety quota + anonymisation soft delete), SC7 (close-out final Phase 9).
+**Reste sub-chantiers Phase 9** : SC6 (Female-safety quota + anonymisation soft delete), SC7 (close-out final Phase 9).
 
 ---
 
