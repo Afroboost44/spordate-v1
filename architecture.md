@@ -2201,6 +2201,228 @@ CRON PURGE AUTO POST-GRACE (SC6 c3) :
 
 ---
 
+## Phase 9 — CLOSE-OUT FINAL ✅ COMPLET
+
+**Période** : mai 2026
+**Cumul** : 32 commits techniques + 6 close-outs sub-chantiers + ce close-out final
+
+### A. Récap par sub-chantier
+
+| SC | Thème | Commits | Tests | Status |
+|----|-------|---------|-------|--------|
+| SC0 | Foundation polish (admin auth Firebase + composite indexes + cursor pagination + charte stricte admin) | 2 | 31 | ✅ |
+| SC1 | Card session participants + invite cleanup (UI participants + SuggestionMessage InviteButton + dropdown matches + cron expire-invites) | 5 (incl. close-out) | 45 | ✅ |
+| SC2 | Stripe Connect Split/Gift + refund post-accept (modes Individual/Split/Gift + helper splitMath + Stripe Connect destination charges + webhook handlers + UI mode selection + refund auto on decline/expire) | 6 (incl. close-out) | 88 | ✅ |
+| SC3 | Email rappels J-1/T-0 + Web Push reviewReminder (templates + cron + helper sendPushNotification + UI opt-in + Service Worker FCM + UX badge unread/dismiss) | 5 (incl. close-out) | 70 | ✅ |
+| SC4 | Admin queue history + IA modération étendue + détection représailles (admin tab history + filtres + export CSV + Genkit moderateReview + IA badge UI + retaliation detector + Genkit moderateProfileBio) | 6 (incl. close-out) | 77 | ✅ |
+| SC5 | UX no-show excuse pré-session + matching algo visibility (Excuse type + service + cron purge + computeMatchScore extension reviews <3.5★) | 4 (incl. close-out) | 36 | ✅ |
+| SC6 | Female-safety quota + anonymisation soft delete UI (audienceType helpers + bookSession enforcement + UI 'Supprimer mon compte' RGPD/nLPD) | 4 (incl. close-out) | 48 | ✅ |
+| **Total** | | **32 commits + 6 close-outs + ce close-out final** | **395 assertions** | ✅ |
+
+### B. Architecture résultante Phase 9 — pipeline end-to-end
+
+```
+USER FLOW (post-Phase 9) :
+  Discovery /discovery
+    ↓ computeMatchScore(myProfile, candidate) — pure function (SC5 c3)
+       Sport common +30 / level +20 / city +15 (cap 100)
+       × 0.7 si reviewCount≥3 AND averageRating<3.5 (Q2=B + Q3=A + Q4=B)
+    ↓ Match accepted → /chat unlock
+  Booking /sessions/[id] OR via /invite/[id] (Split/Gift mode SC2)
+    ↓ bookSession service (SC6 c2) — pre-tx audience check :
+       assertCanBookActivity(gender, audienceType) → throw 'gender-required' / 'gender-mismatch'
+    ↓ /api/checkout server defense-in-depth → HTTP 412 si bypass
+    ↓ Stripe Checkout → webhook handleSessionPayment / handleInviteAcceptPayment / handleInvitePrepayPayment (SC2)
+       Stripe Connect destination charge si Split/Gift (transfer_data.destination)
+    ↓ runTransaction atomic Booking + currentParticipants++ + tier recompute + match.chatUnlocked
+  Chat /chat (Phase 8)
+    ↓ Anti-leak L1 regex + L2 IA Genkit (cache 24h) + L3 toast / L4 admin escalation
+    ↓ SuggestionMessage IA next-activity (cooldown 72h) + InviteButton secondary (SC1)
+    ↓ Crédits chat decrement (50 bundle)
+  Reviews /activities/[id]/review (post-session)
+    ↓ createReview rating ≤ 2 → status='pending' anonymized=true
+       Fire-and-forget /api/reviews/[id]/moderate (SC4 c2) → review.aiSuggestion (Genkit)
+       Fire-and-forget /api/reviews/[id]/check-retaliation (SC4 c4) → flaggedAsRetaliation si cross-user same-session 24h
+       Fire-and-forget /api/users/[reviewee]/recompute-rating (SC5 c3) → averageRatingAsReviewee denorm
+    ↓ Rating ≥ 3 → auto-publish + awardReviewBonus +5 crédits chat
+  Reports / no-show :
+    ↓ markNoShow partner (SC5 c2) → pre-check /excuses/ → throw 'user-excused' si excuse ≥2h avant
+    ↓ Threshold rolling 90j → triggerAutoSanction warning/suspension/ban
+  Notifications :
+    ↓ Web Push FCM (Service Worker /firebase-messaging-sw.js)
+    ↓ Email Resend fallback (Q3=B push-first)
+    ↓ /notifications page Firestore-backed + dismiss + mark-all-read (SC3 c4)
+  Profile /profile :
+    ↓ Section Confidentialité : aiSuggestionsOptIn (Phase 8 SC0) + pushNotificationsEnabled (SC3 c3)
+    ↓ Lien "Supprimer mon compte" → /profile/delete (SC6 c3 RGPD/nLPD Art. 17)
+       softDeleteUser → softDeletedAt + scheduledPurgeAt=+30j (Q5=A grace)
+       Restore inline pendant grace (Q7=A reversibility)
+
+ADMIN FLOW (post-Phase 9) :
+  /admin/dashboard → 5 tabs T&S :
+    ↓ ts-reviews : <TandSReviewsPanel> + badge IA suggestion (publish/reject/borderline) + reason prefill
+    ↓ ts-reports : queue reports actionnés admin
+    ↓ ts-sanctions : queue sanctions actives + appeals
+    ↓ ts-appeals : queue appeals actives
+    ↓ ts-history NEW SC4 c1 : <AdminActionsHistoryPanel> filtres date/type/admin/target + cursor pagination + export CSV cap 5000
+
+BACKGROUND FLOW (post-Phase 9) — 6 CF Schedulers :
+  ↓ refreshPricingCron every 15 min — anti-cheat tier recompute (Phase 6)
+  ↓ reviewReminderCron every 60 min — email reminder 48h post-session (Phase 8 SC5 + extended SC3 c2 push-first)
+  ↓ denormActiveSanctionTrigger onWrite userSanctions — denorm activeSanction* fields (Phase 8 SC5)
+  ↓ purgeOldDataCron weekly Friday 03:00 — anonymise PII banlist 24mo (SC5 c3) + soft delete >30j (SC6 c3 Step 5)
+  ↓ expireInvitesCron every 60 min — pending → expired (Phase 9 SC1 c4) + refund auto (SC2 c5)
+  ↓ sessionRemindersCron every 60 min — J-1 / T-0 push-first (Phase 9 SC3)
+```
+
+### C. Bilan KPIs cibles MVP rétention (doctrine §F)
+
+| KPI | Cible MVP | Mesure |
+|---|---|---|
+| **Engagement post-event** | 30% chats actifs J+1, 15% J+7 | Track lastMessageAt sur /chats |
+| **Conversion invite** | 25% acceptance, 80% checkout success | Track Invite.status='accepted' / Stripe webhook success |
+| **Suggestions IA** | 10% CTR, 3% booking conversion | Track click SuggestionMessage + booking dans 24h post-click |
+| **Anti-leak** | <2% L4 escalation, <5% faux positifs L2-L3 | Volume aiScanLogs/ + admin review feedback |
+| **T&S sanctions** | Volume auto-recompute downgrade rate | Track autoSuspensionApplied + cancelled rate |
+| **Refunds Stripe** | API success rate, admin fallback rate | Track adminAction auto_refund_invite/auto_refund_partner_no_show |
+| **Représailles flagged** | <1% reviews flaggées (volume ratio) | Track adminAction review_retaliation_flag |
+| **Female-safety** | Ratio women bookings + audienceType usage | Track Booking.userId gender + activity.audienceType |
+| **RGPD soft delete** | Taux soft delete + grace restore rate | Track UserProfile.softDeletedAt + restore vs purge |
+
+### D. Cumul routes Vercel API + Cloud Functions + helpers Phase 8+9 final
+
+**24 routes Vercel API** :
+- Phase 8 : `/api/anti-leak`, `/api/suggest-activities`, `/api/invites`, `/api/invites/[id]/decline`, `/api/checkout`, `/api/webhooks/stripe`, page `/invite/[id]`, `/api/admin/blocks`, `/api/cron/review-reminder`, `/api/cron/purge-old-data`, `/api/admin/refund-sanction/[sanctionId]`
+- Phase 9 SC1 : `/api/sessions/[sessionId]/participants`, `/api/users/me/matches`, `/api/cron/expire-invites`
+- Phase 9 SC2 : `/api/invites/[id]/accept-gift` (+ extension `/api/checkout` mode='invite-prepay')
+- Phase 9 SC3 : `/api/cron/session-reminders`, `/api/notifications`, `/api/notifications/[id]`
+- Phase 9 SC4 : `/api/reviews/[id]/moderate`, `/api/reviews/[id]/check-retaliation`, `/api/users/[id]/moderate-bio` (+ admin tab `ts-history`)
+- Phase 9 SC5 : `/api/users/[id]/recompute-rating`
+- Phase 9 SC6 : page `/profile/delete` (no API route — services client SDK + extension cron purge-old-data Step 5)
+
+**6 CF Schedulers déployables** :
+| CF | Phase | Schedule |
+|---|---|---|
+| `refreshPricingCron` | 6 | every 15 min |
+| `reviewReminderCron` | 8 SC5 c2 (extended SC3 c2 push-first) | every 60 min |
+| `denormActiveSanctionTrigger` | 8 SC5 c2 | onWrite userSanctions |
+| `purgeOldDataCron` | 8 SC5 c3 (extended SC6 c3 soft delete Step 5) | weekly Friday 03:00 |
+| `expireInvitesCron` | 9 SC1 c4 (extended SC2 c5 refund auto) | every 60 min |
+| `sessionRemindersCron` | 9 SC3 c1 (extended SC3 c2 push-first) | every 60 min |
+
+**Genkit flows** :
+- `anti-leak-classifier` (Phase 8 SC2)
+- `next-activity-suggester` (Phase 8 SC3)
+- `review-moderator` (Phase 9 SC4 c2)
+- `profile-bio-moderator` (Phase 9 SC4 c5)
+
+**Helpers Phase 9 cumul** :
+- SC1 : `<ParticipantsList>`, `<SessionParticipantCard>`, `<InviteSection>`, `expireInvitesIfDue`
+- SC2 : `splitMath`, `sharedStripe`, `connectHelpers`, `refundForInvite`, `<InviteButton>` modal
+- SC3 : `sendPushNotification`, `registerPush`, `markRead`, `<NotificationBadge>`, `<NotificationsList>`, `<PushOptInSwitch>`, Service Worker FCM
+- SC4 : `aiBadgeHelpers`, `retaliationDetector`, `exportCsv`, `<AdminActionsHistoryPanel>`
+- SC5 : `createExcuse`, `computeMatchScore` extracted, `recomputeRating`
+- SC6 : `audience` (`isAllowedByAudience`/`assertCanBookActivity`/`AudienceError`), `softDelete` (`softDeleteUser`/`restoreSoftDeletedUser`/helpers), `<AudienceTypeSelector>`, `<DeleteAccountActions>`
+
+**Composite indexes Firestore Phase 9 cumul** :
+- `bookings: status+sessionDate` (SC0 c1 cron review-reminder)
+- `reviews: reviewerId+revieweeId+createdAt DESC` (SC4 c4 retaliation)
+- `excuses: userId+sessionId+createdAt DESC` (SC5 c1)
+- `users: softDeleteScheduledPurgeAt ASC` (SC6 c3)
+- + indexes admin actions Phase 7 SC5 c2 (préservés)
+
+### E. Cumulative tests final Phase 7+8+9
+
+**Phase 9 SC0-SC6** : 395 nouvelles assertions automated
+- SC0: 31 / SC1: 45 / SC2: 88 / SC3: 70 / SC4: 77 / SC5: 36 / SC6: 48
+
+**Phase 8 cumul SC0-SC5** : 251+ assertions préservé intégralement (zéro régression mesurée à chaque close-out SC).
+
+**Phase 7 base** : 372 tests préservé intégralement (markNoShow legacy 47/47, reviews 64/64 vérifiés à chaque SC concernant ces zones).
+
+**Cumul total Phase 7+8+9** : ~**1018 tests automated** (372 Phase 7 + 251 Phase 8 + 395 Phase 9).
+
+### F. Différé Phase 10 consolidé (TOUS sub-chantiers SC0-SC6)
+
+**Polish UX** :
+- ⏭️ Multi-langue Genkit prompts DE/IT (§C.Q3 FR uniquement Phase 9 cumulé)
+- ⏭️ Spordate+ premium subscription (quotas IA illimités, suggestions raffinées, cohort analytics persos)
+- ⏭️ RTL infra tests UI components (Q8=A pure helpers extraits Phase 9 cohérent)
+- ⏭️ Web push iOS PWA installé < 16.4 (Q6=A silent fallback Phase 9)
+- ⏭️ UI excuse user-facing inline button + modal (SC5 backend-only Phase 9)
+- ⏭️ Hard delete option vs soft delete (SC6 Phase 9 = soft delete uniquement)
+- ⏭️ UI feedback survey reason multi-choice + free text (SC6 Phase 9 = free text uniquement)
+- ⏭️ Email notification user 7 jours avant purge soft delete (SC6 grace 30j)
+- ⏭️ Dashboard admin liste users soft-deleted en grace (SC6 cron silent Phase 9)
+
+**Scaling** :
+- ⏭️ Multi-device tokens FCM subcollection (SC3 c5 single token Phase 9)
+- ⏭️ Auto-cleanup tokens FCM 'token-not-registered' (SC3 c2 signal already typed)
+- ⏭️ VAPID key build-time injection dans `firebase-messaging-sw.js` (SC3 c3 hardcoded Phase 9)
+- ⏭️ Notification grouping batch (SC3 Q7=A 1 notif/session Phase 9)
+- ⏭️ A/B test push title/body wording + analytics push delivery rate FCM dashboard
+- ⏭️ Cloud Function onWrite trigger pour denorm averageRating (SC5 c3 fire-and-forget Phase 9)
+- ⏭️ Cloud Function onWrite trigger pour bio scan (SC4 c5 fire-and-forget Phase 9)
+- ⏭️ Cloud Function onWrite trigger pour retaliation flag (SC4 c4 API route Phase 9)
+
+**Doctrine evolution** :
+- ⏭️ Email admin immédiat sur retaliation détectée (Q6=A defer SC4 c4 si volume justifie)
+- ⏭️ Auto-publish IA confidence > 0.95 + civility > 0.9 (Q3=A admin keep final Phase 9)
+- ⏭️ Bio profile UI gating (Q7=A defer SC4 c5 — Phase 9 visible)
+- ⏭️ Multiplier × 0.5 strict (SC5 Q2=A) si metrics montrent 0.7 trop permissif
+- ⏭️ Threshold 4.0★ (SC5 Q3=B) si metrics montrent 3.5 trop permissif
+- ⏭️ Matching boost mixed-priority-women × 1.3 (SC6 Q2=C SC6 c3 skipped Phase 9)
+- ⏭️ Env var `SPORDATE_EXCUSE_WINDOW_HOURS` configurable (SC5 Q1=A KISS Phase 9)
+- ⏭️ Per-activity override `Activity.excuseWindowHours?` (SC5 Q1=C)
+
+**Stripe Connect** :
+- ⏭️ Defer post-accept refund (SC2 Q3=C — focus refund auto pre-accept Phase 9)
+- ⏭️ Stripe Connect Connect tooling (Stripe Dashboard partner onboarding API)
+- ⏭️ Composite index secondaire reviews avec sessionId si volume scale-up
+
+**Estimate scope Phase 10** : ~10-20h dev équivalent (polish + features avancées sur top de la base Phase 9 stable). Priorisation à valider selon launch metrics.
+
+### G. Retrospective transverse Phase 9
+
+**Patterns réutilisables identifiés (consolidés Phase 8+9)** :
+1. **DI seam pattern** : `__set*ForTesting(testDb)` partout — testabilité emulator unifiée. Réutilisé 15+ modules.
+2. **Admin SDK + verifyAuth Bearer pattern** : isolation côté server (rules bypass + Bearer auth). Cohérent SC4-SC6 routes.
+3. **Idempotency dual layer** : Firestore flag + Stripe idempotencyKey (SC2/SC3/SC4-SC5-SC6 webhook handlers + cron purge).
+4. **Genkit cache 24h hash exact** : pattern shared SC2 anti-leak + SC3 suggester + SC4 review-moderator + SC4 profile-bio-moderator. ~80% cache hit estimé sur volumes répétés.
+5. **Cursor pagination cohérent SC0 c1** : pageSize=500, maxPages=10, startAfter, truncated flag — réutilisé 4 crons + 2 routes admin.
+6. **Fire-and-forget client → server API route** : pattern SC4 c2 moderate-review + SC4 c4 check-retaliation + SC4 c5 moderate-bio + SC5 c3 recompute-rating. Best-effort, jamais block UX.
+7. **Pure helpers Q8=A testables sans RTL** : `aiBadgeHelpers` (SC4 c3), `computeMatchScore` (SC5 c3), `audience` (SC6 c1) — testabilité directe sans infra UI complexe.
+
+**Doctrine §F MVP rétention KPIs cibles à monitorer post-launch** :
+- Tracker via `analytics/global` collection + Mixpanel/PostHog Phase 10
+- Réviser thresholds (3.5★, 0.7 multiplier, 24h window représailles, 30j grace soft delete) après 2-3 mois données
+
+**Lessons learned (Phase 9 vs Phase 8 patterns évolution)** :
+1. **Server-side isolation Genkit**: Phase 8 SC2 hotfix /api/anti-leak isolation est devenu standard Phase 9 SC4 (review-moderator + profile-bio-moderator) — aucun pull firebase-admin/genkit dans client bundle.
+2. **Confirme votes doctrine §F** : Q3=A admin keep final decision (Phase 9 SC4) cohérent avec Q11=A "literal toast" (Phase 8 anti-leak L2). Pattern : IA = signal admin, jamais auto-action.
+3. **Boundary inclusive testing** : tests `+1ms past` / `exact boundary` sur 4 zones (excuse 2h, retaliation 24h, soft delete 30j, rating threshold 3.5) — défense contre off-by-one regressions.
+4. **Defense-in-depth schema** : rules whitelist enum (audienceType, AdminActionType) + service helper validation + tests anti-spoof rules-unit-testing — 3 couches sécurité.
+5. **RGPD/nLPD compliance** : SC6 c3 ship soft delete user-facing UI = obligation légale Suisse satisfait, pas un nice-to-have.
+
+### H. Conclusion Phase 9
+
+**Phase 9 = polish + UX avancée + scaling + RGPD compliance complet** :
+- ✅ 7 sub-chantiers shippés (SC0-SC6) en série, chacun avec tests + close-out + doctrine retrospective
+- ✅ 32 commits techniques + 6 close-outs sub-chantiers + ce close-out final = **38 commits Phase 9**
+- ✅ 395 nouvelles assertions automated (cumul total Phase 7+8+9 ~1018 tests)
+- ✅ Vercel green sur 35+ déploiements consécutifs (zéro régression mesurée à chaque close-out)
+- ✅ RGPD/nLPD compliance complet pour launch (SC6 c3 soft delete)
+- ✅ 24 routes Vercel API + 6 CF Schedulers + 4 Genkit flows + 30+ pure helpers réutilisables
+- ✅ Site **prêt pour launch beta**.
+
+### I. Pointer Phase 10
+
+**Phase 10** : Spordate+ premium subscription + multilingue DE/IT + autres polish items consolidés ci-dessus (G).
+
+Cf. ligne 2434+ section "10. Journal des phases de la mission Sessions" — Phase 10+ entry à finaliser post-Phase 9 launch metrics review.
+
+---
+
 ### A. Doctrine économique — T&S = pré-requis rétention
 
 **Règle** : sans T&S structurée, la rétention femmes est compromise. Femmes ≈ 50% des users cibles. Une mauvaise expérience non gérée → quitte la plateforme + word-of-mouth négatif → spirale.
