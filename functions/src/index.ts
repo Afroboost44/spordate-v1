@@ -12,13 +12,16 @@
  *   - denormActiveSanctionTrigger (c2/5) : onWrite userSanctions → denorm users.activeSanction*
  *   - purgeOldDataCron (c3/5) : weekly Friday 03:00 → purge adminActions + anonymise banlist > 24mo
  *
- * Phase 9 (différé) :
+ * Phase 9 SC1 :
+ *   - expireInvitesCron (c4/5) : scheduler 60 min batch invites pending expirés → 'expired'
+ *
+ * Phase 9+ (différé) :
  *   - notifyChatOpening : trigger T-2h avant session.startAt
  *   - sendDailyDigest  : daily summary partner emails
- *   - expireInvitesIfDue : scheduler horaire batch invites pending expirés
  */
 
 export { refreshPricingCron } from './scheduler/refresh-pricing';
 export { reviewReminderCron } from './scheduler/review-reminder';
 export { purgeOldDataCron } from './scheduler/purge-old-data';
+export { expireInvitesCron } from './scheduler/expire-invites';
 export { denormActiveSanctionTrigger } from './triggers/denorm-active-sanction';
