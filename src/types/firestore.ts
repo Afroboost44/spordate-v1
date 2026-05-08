@@ -863,8 +863,16 @@ export interface Notification {
   title: string;
   body: string;
   data: Record<string, string>;
+  /** Legacy boolean (Phase 1). Phase 9 SC3 c4/5 ajoute `readAt` Timestamp ;
+   *  `isRead` reste maintenu pour compat lecture (dérivé : `isRead = readAt != null`). */
   isRead: boolean;
   createdAt: Timestamp;
+
+  // ----- Phase 9 SC3 c4/5 — UX polish badge unread + dismiss flow (additif) -----
+  /** Timestamp lecture (set via markNotificationRead/markAll). `null`/absent = unread. */
+  readAt?: Timestamp | null;
+  /** Soft-delete user (dismiss). Doc reste en Firestore pour audit, masqué côté UI. */
+  dismissedAt?: Timestamp | null;
 }
 
 // ===================== ERROR LOGS =====================

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
 import { Menu, Bell, Languages, LogOut, Crown, Shield, Building } from 'lucide-react';
+import { NotificationBadge } from '@/components/notifications/NotificationBadge';
 import { useLanguage } from '@/context/LanguageContext';
 import {
   DropdownMenu,
@@ -127,18 +128,7 @@ export default function Header() {
                         {user.displayName}
                       </span>
                     )}
-                    <Button variant="ghost" size="icon" asChild>
-                        <Link href="/notifications">
-                            <div className="relative">
-                                <Bell className="h-5 w-5"/>
-                                <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
-                                  <span className="relative inline-flex rounded-full h-2 w-2 bg-rose-500"></span>
-                                </span>
-                            </div>
-                            <span className="sr-only">Notifications</span>
-                        </Link>
-                    </Button>
+                    <NotificationBadge />
                     {isPartner && (
                       <Button variant="ghost" asChild className="flex items-center gap-2 text-[#A855F7] hover:text-[#A855F7]/80">
                         <Link href="/partner/offers">
