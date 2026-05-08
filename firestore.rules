@@ -68,7 +68,15 @@ service cloud.firestore {
     match /bookings/{bookingId} {
       allow read: if isAuth() && (resource.data.userId == request.auth.uid || isAdmin());
       allow create: if isAuth();
-      allow update: if isAdmin();
+      // Update : admin OR owner setting only `excusedAt` (Phase 9 SC5 c1/4 — denorm fast-check
+      // pour UI ; source-of-truth = /excuses/{id} doc via createExcuse anti-spoof rule).
+      allow update: if isAdmin()
+        || (
+          isAuth()
+          && resource.data.userId == request.auth.uid
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['excusedAt'])
+          && request.resource.data.excusedAt == request.time
+        );
       allow delete: if false;
     }
 
@@ -657,6 +665,39 @@ service cloud.firestore {
       // Delete par blocker uniquement (réversibilité doctrine §9.sexies E)
       allow delete: if isAuth()
         && resource.data.blockerId == request.auth.uid;
+    }
+
+    // === EXCUSES (Phase 9 SC5 — UX no-show grace pré-session) ===
+    // Doctrine architecture.md ligne 895 + 2096 : excuse créée ≥ 2h avant session.startAt
+    // = no-show NOT comptabilisé (markNoShow skip threshold). Audit trail immuable.
+    // Q6=A : owner-only authoring (anti-spoofing userId == auth.uid).
+    match /excuses/{excuseId} {
+      // Read : owner OU admin (queue audit) — pas exposé publiquement
+      allow read: if isAuth()
+        && (resource.data.userId == request.auth.uid || isAdmin());
+
+      // Create : owner only (Q6=A) — anti-spoofing userId
+      // Defense-in-depth :
+      // - userId == auth.uid (anti-spoofing)
+      // - createdAt == request.time (anti-backdate)
+      // - reason is string + ≤ 300 chars (cohérent EXCUSE_REASON_MAX_LENGTH)
+      // - Keys whitelist (anti-injection champs additionnels)
+      allow create: if isAuth()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.userId is string
+        && request.resource.data.userId.size() > 0
+        && request.resource.data.sessionId is string
+        && request.resource.data.sessionId.size() > 0
+        && request.resource.data.bookingId is string
+        && request.resource.data.bookingId.size() > 0
+        && request.resource.data.reason is string
+        && request.resource.data.reason.size() <= 300
+        && request.resource.data.createdAt == request.time
+        && request.resource.data.keys().hasOnly(['excuseId', 'userId', 'sessionId', 'bookingId', 'reason', 'createdAt']);
+
+      // Update / Delete : jamais (audit trail immuable, doctrine §9.sexies H pattern)
+      allow update: if false;
+      allow delete: if false;
     }
 
   }

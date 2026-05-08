@@ -341,6 +341,30 @@ export interface Booking {
    *  - Mode 'gift' (Phase 9 SC2) : paidByUserId === inviter, userId === invitee (A paye pour B)
    *  Utilisé pour traceability + refund routing (Phase 10 polish post-accept refund). */
   paidByUserId?: string;
+
+  // ----- Phase 9 SC5 c1/4 — Excuse pré-session (additif) -----
+  /** Phase 9 SC5 c1/4 (additif). Timestamp de l'excuse créée ≥2h avant `session.startAt`.
+   *  Si présent : `markNoShow` skip threshold compute (Q5=A doctrine architecture.md ligne 895).
+   *  Source-of-truth = doc /excuses/{id} ; ce flag est le denorm fast-check dans Booking. */
+  excusedAt?: Timestamp;
+}
+
+// ===================== EXCUSES (Phase 9 SC5 — UX no-show grace pré-session) =====================
+// Doctrine architecture.md ligne 895 + 2096 : excuse créée ≥2h avant session.startAt =
+// no-show NOT comptabilisé (markNoShow skip threshold). Audit trail immuable (no update/delete).
+export interface Excuse {
+  /** Doc-id Firestore — dénormalisé. */
+  excuseId: string;
+  /** User qui s'excuse (= booking owner, anti-spoofing rule). */
+  userId: string;
+  /** Session concernée (denorm pour anti-doublon query). */
+  sessionId: string;
+  /** Booking de référence (denorm pour update Booking.excusedAt). */
+  bookingId: string;
+  /** Raison libre 0-300 chars (optionnelle, audit). */
+  reason: string;
+  /** Server timestamp à la création — anti-backdate via rule. */
+  createdAt: Timestamp;
 }
 
 // ===================== CREDITS =====================
