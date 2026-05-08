@@ -36,7 +36,9 @@ export type TemplateName =
   | 'leakEscalationAdmin' // Phase 8 SC2 commit 5/6 — alerte admin L4 anti-leak (5+ tentatives chat)
   | 'inviteReceived' // Phase 8 SC4 commit 4/6 — invitation activity reçue par toUserId (mode 'individual')
   | 'inviteReceivedSplit' // Phase 9 SC2 c2/6 — invitation mode='split' (inviter paye part, invité paye reste)
-  | 'inviteReceivedGift'; // Phase 9 SC2 c2/6 — invitation mode='gift' (inviter paye 100%, invité confirme)
+  | 'inviteReceivedGift' // Phase 9 SC2 c2/6 — invitation mode='gift' (inviter paye 100%, invité confirme)
+  | 'sessionReminderJMinus1' // Phase 9 SC3 c1/5 — rappel J-1 (24h avant session) Q1=B window 18-30h
+  | 'sessionReminderTMinus0'; // Phase 9 SC3 c1/5 — rappel T-0 (1h avant session) Q2=A window 30-90min
 
 /** SanctionLevel cohérent src/types/firestore.ts (utilisé par userSanctionNotice). */
 export type SanctionLevelEmail = 'warning' | 'suspension_7d' | 'suspension_30d' | 'ban_permanent';
@@ -190,6 +192,27 @@ export interface TemplateDataMap {
     message?: string;
     /** Total session CHF (display, ex: '25.00'). */
     totalAmountChf: string;
+  };
+  /** Phase 9 SC3 c1/5 — rappel J-1 (24h avant session). Q1=B window 18-30h. */
+  sessionReminderJMinus1: {
+    userName: string;
+    sessionTitle: string;
+    partnerName: string;
+    /** Date+heure session formatée FR (ex: 'Sam 18 mai · 14h00'). */
+    sessionDate: string;
+    /** Adresse session (display). */
+    sessionAddress?: string;
+    /** Lien deep page session (full URL). */
+    sessionLink: string;
+  };
+  /** Phase 9 SC3 c1/5 — rappel T-0 (1h avant session). Q2=A window 30-90min. */
+  sessionReminderTMinus0: {
+    userName: string;
+    sessionTitle: string;
+    partnerName: string;
+    sessionDate: string;
+    sessionAddress?: string;
+    sessionLink: string;
   };
 }
 
@@ -590,6 +613,48 @@ function renderInviteReceivedGift(d: TemplateDataMap['inviteReceivedGift']) {
 }
 
 // =====================================================================
+// Phase 9 SC3 c1/5 — Session reminders J-1 + T-0
+// =====================================================================
+
+function renderSessionReminderJMinus1(d: TemplateDataMap['sessionReminderJMinus1']) {
+  const subject = `Demain : ${d.sessionTitle} avec ${d.partnerName}`;
+  const greeting = d.userName ? `Bonjour ${d.userName},` : 'Bonjour,';
+  const addressLine = d.sessionAddress
+    ? p(`<strong style="color:#ffffff;">Lieu</strong> : ${d.sessionAddress}`)
+    : '';
+
+  const body = `
+    ${h1(`C'est demain !`)}
+    ${p(greeting)}
+    ${p(`Petit rappel : ta session <strong style="color:#ffffff;">${d.sessionTitle}</strong> avec ${d.partnerName} a lieu demain.`)}
+    ${p(`<strong style="color:#ffffff;">Quand</strong> : ${d.sessionDate}`)}
+    ${addressLine}
+    ${ctaButton(`Voir les détails`, d.sessionLink)}
+    ${p(`Si tu ne peux plus venir, préviens-nous au plus vite — un partenaire peut prendre ta place.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Rappel', bodyHtml: body }) };
+}
+
+function renderSessionReminderTMinus0(d: TemplateDataMap['sessionReminderTMinus0']) {
+  const subject = `Dans 1h : ${d.sessionTitle}`;
+  const greeting = d.userName ? `Salut ${d.userName} !` : 'Salut !';
+  const addressLine = d.sessionAddress
+    ? p(`<strong style="color:#ffffff;">Lieu</strong> : ${d.sessionAddress}`)
+    : '';
+
+  const body = `
+    ${h1(`Ça commence dans 1h !`)}
+    ${p(greeting)}
+    ${p(`Ta session <strong style="color:#ffffff;">${d.sessionTitle}</strong> avec ${d.partnerName} démarre dans environ 1h.`)}
+    ${p(`<strong style="color:#D91CD2;">${d.sessionDate}</strong>`)}
+    ${addressLine}
+    ${ctaButton(`Voir les détails`, d.sessionLink)}
+    ${p(`Pense à arriver 5-10 minutes en avance pour t'installer.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Imminent', bodyHtml: body }) };
+}
+
+// =====================================================================
 // Public renderTemplate (type-safe dispatch)
 // =====================================================================
 
@@ -630,6 +695,10 @@ export function renderTemplate<T extends TemplateName>(
       return renderInviteReceivedSplit(data as TemplateDataMap['inviteReceivedSplit']);
     case 'inviteReceivedGift':
       return renderInviteReceivedGift(data as TemplateDataMap['inviteReceivedGift']);
+    case 'sessionReminderJMinus1':
+      return renderSessionReminderJMinus1(data as TemplateDataMap['sessionReminderJMinus1']);
+    case 'sessionReminderTMinus0':
+      return renderSessionReminderTMinus0(data as TemplateDataMap['sessionReminderTMinus0']);
     default: {
       // Exhaustive check — TypeScript should error if a new TemplateName is added without case
       const _exhaustive: never = templateName;

@@ -15,6 +15,9 @@
  * Phase 9 SC1 :
  *   - expireInvitesCron (c4/5) : scheduler 60 min batch invites pending expirés → 'expired'
  *
+ * Phase 9 SC3 :
+ *   - sessionRemindersCron (c1/5) : scheduler 60 min rappels J-1 + T-0 (email + push Phase 9 SC3 c2)
+ *
  * Phase 9+ (différé) :
  *   - notifyChatOpening : trigger T-2h avant session.startAt
  *   - sendDailyDigest  : daily summary partner emails
@@ -24,4 +27,5 @@ export { refreshPricingCron } from './scheduler/refresh-pricing';
 export { reviewReminderCron } from './scheduler/review-reminder';
 export { purgeOldDataCron } from './scheduler/purge-old-data';
 export { expireInvitesCron } from './scheduler/expire-invites';
+export { sessionRemindersCron } from './scheduler/session-reminders';
 export { denormActiveSanctionTrigger } from './triggers/denorm-active-sanction';

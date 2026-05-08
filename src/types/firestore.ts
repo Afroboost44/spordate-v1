@@ -303,6 +303,12 @@ export interface Booking {
   /** Phase 8 SC5 c2/5 — flag idempotency cron reviewReminder 48h post-session.
    *  True une fois email envoyé (ou tenté en mode dev loggedOnly). Anti-double-email. */
   reviewReminderSent?: boolean;
+  /** Phase 9 SC3 c1/5 — flag idempotency cron session-reminders J-1 (24h avant session).
+   *  Set après envoi email/push best-effort. Q1=B window 18-30h. Anti-double-reminder. */
+  reminderJMinus1Sent?: boolean;
+  /** Phase 9 SC3 c1/5 — flag idempotency cron session-reminders T-0 (1h avant session).
+   *  Set après envoi email/push best-effort. Q2=A window 30-90min. Anti-double-reminder. */
+  reminderTMinus0Sent?: boolean;
   /** Phase 8 SC5 c4/5 — Stripe refund auto level 3 partner no-show.
    *  Set quand refundForSanction() crée le refund Stripe avec succès. */
   refundedAt?: Timestamp;
