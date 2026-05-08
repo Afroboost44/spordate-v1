@@ -22,6 +22,7 @@ import {
   limit as fbLimit,
   orderBy,
   query,
+  startAfter,
   where,
 } from 'firebase/firestore';
 import type { AdminAction, AdminActionTargetType, AdminActionType } from '@/types/firestore';
@@ -42,6 +43,10 @@ export interface GetAdminActionsOptions {
   limit?: number;
   /** Override pour tests time-travel. Défaut new Date(). */
   now?: Date;
+  /** Phase 9 SC4 c1/6 — pagination cursor : exclude docs <= cursorAfter.createdAt
+   *  pour fetch la "page suivante". Caller passe le dernier item de la page
+   *  précédente. Ignoré si fallback unsorted déclenché (index missing). */
+  cursorAfter?: AdminAction;
 }
 
 export async function getAdminActions(
@@ -70,6 +75,9 @@ export async function getAdminActions(
 
   try {
     constraints.push(orderBy('createdAt', 'desc'));
+    if (opts.cursorAfter?.createdAt) {
+      constraints.push(startAfter(opts.cursorAfter.createdAt));
+    }
     constraints.push(fbLimit(lim));
     const snap = await getDocs(query(collection(fbDb, 'adminActions'), ...constraints));
     return snap.docs.map((d) => d.data() as AdminAction);

@@ -48,6 +48,7 @@ import { TandSReviewsPanel } from '@/components/admin/TandSReviewsPanel';
 import { TandSReportsPanel } from '@/components/admin/TandSReportsPanel';
 import { SanctionsTable } from '@/components/admin/SanctionsTable';
 import { AppealsTable } from '@/components/admin/AppealsTable';
+import { AdminActionsHistoryPanel } from '@/components/admin/AdminActionsHistoryPanel';
 
 // Phase 9 SC0 c1/X — auth via AuthContext + AdminGuard layout (vs localStorage residual).
 const AUTHORIZED_EMAIL = ADMIN_EMAIL;
@@ -413,6 +414,11 @@ export default function AdminDashboard() {
           <TabsTrigger value="ts-appeals" className="text-xs md:text-sm">
             <Shield className="mr-2 h-4 w-4" />
             T&amp;S Appeals
+          </TabsTrigger>
+          {/* Phase 9 SC4 c1/6 — Audit trail history */}
+          <TabsTrigger value="ts-history" className="text-xs md:text-sm">
+            <Shield className="mr-2 h-4 w-4" />
+            T&amp;S History
           </TabsTrigger>
         </TabsList>
 
@@ -1037,6 +1043,11 @@ export default function AdminDashboard() {
         {/* ==================== T&S APPEALS (sub-chantier 4 commit 3/4) ==================== */}
         <TabsContent value="ts-appeals" className="space-y-6">
           <AppealsTable adminUid={adminUid} />
+        </TabsContent>
+
+        {/* Phase 9 SC4 c1/6 — Audit trail history (queue /adminActions/) */}
+        <TabsContent value="ts-history" className="space-y-6">
+          <AdminActionsHistoryPanel />
         </TabsContent>
       </Tabs>
     </div>

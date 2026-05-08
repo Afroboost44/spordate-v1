@@ -17,6 +17,16 @@ export {
   type GetAdminActionsOptions,
 } from './getAdminActions';
 
+// Phase 9 SC4 c1/6 — CSV export helpers admin queue history
+export {
+  formatAdminActionsCsv,
+  fetchAllAdminActionsForExport,
+  CSV_HEADERS,
+  EXPORT_CAP_DEFAULT,
+  EXPORT_PAGE_SIZE,
+  type FetchAllExportResult,
+} from './exportCsv';
+
 // Errors + constants
 export {
   AdminActionError,
