@@ -1501,6 +1501,56 @@ export async function getUpcomingSessions(filters?: SessionFilters): Promise<Ses
 }
 
 /**
+ * Phase 9 SC1 c3/5 — Récupère la prochaine session future pour une activity.
+ *
+ * Utilisé par /activities/[id] page Server Component pour résoudre
+ * `nextSessionId` à passer à `<ActivityInviteSection>` (wire InviteButton SC4).
+ *
+ * Query : sessions where activityId=X AND startAt > now ORDER BY startAt ASC LIMIT 1.
+ * Fallback : si l'index composite n'est pas encore déployé, query sans orderBy +
+ * tri client-side (cohérent pattern getUpcomingSessions).
+ */
+export async function getNextFutureSessionForActivity(
+  activityId: string,
+): Promise<Session | null> {
+  if (!activityId) return null;
+  const fbDb = getSessionsDb();
+  const nowTs = Timestamp.fromMillis(Date.now());
+
+  try {
+    const q = query(
+      collection(fbDb, 'sessions'),
+      where('activityId', '==', activityId),
+      where('startAt', '>', nowTs),
+      orderBy('startAt', 'asc'),
+      limit(1),
+    );
+    const snap = await getDocs(q);
+    return snap.empty ? null : (snap.docs[0].data() as Session);
+  } catch (err) {
+    console.warn('[getNextFutureSessionForActivity] Index pas prêt, fallback:', err);
+    try {
+      const q2 = query(
+        collection(fbDb, 'sessions'),
+        where('activityId', '==', activityId),
+        limit(20),
+      );
+      const snap = await getDocs(q2);
+      const nowMs = Date.now();
+      const futures = snap.docs
+        .map((d) => d.data() as Session)
+        .filter((s) => s.startAt && s.startAt.toMillis() > nowMs);
+      if (futures.length === 0) return null;
+      futures.sort((a, b) => a.startAt.toMillis() - b.startAt.toMillis());
+      return futures[0];
+    } catch (err2) {
+      console.error('[getNextFutureSessionForActivity] Fallback échoué:', err2);
+      return null;
+    }
+  }
+}
+
+/**
  * Liste des sessions terminées (status='completed'), triées par endAt DESC.
  * Pour la section "Ils l'ont vécu" (social proof).
  *

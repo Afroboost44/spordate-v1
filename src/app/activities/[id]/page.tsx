@@ -29,10 +29,11 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, Building2, MapPin } from 'lucide-react';
 import type { Metadata } from 'next';
-import { getActivity } from '@/services/firestore';
+import { getActivity, getNextFutureSessionForActivity } from '@/services/firestore';
 import { getReviewsByActivity, getReviewerProfiles } from '@/lib/reviews';
 import { ReviewsList } from '@/components/reviews/ReviewsList';
 import { ReviewTrigger } from '@/components/reviews/ReviewTrigger';
+import { ActivityInviteSection } from '@/components/activities/ActivityInviteSection';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -85,6 +86,12 @@ export default async function ActivityDetailPage({ params }: PageProps) {
   const reviewerProfiles = await getReviewerProfiles(reviews).catch((err) => {
     console.error('[ActivityDetailPage] getReviewerProfiles failed', err);
     return new Map();
+  });
+
+  // Phase 9 SC1 c3/5 — résoudre prochaine session future pour wire InviteSection
+  const nextSession = await getNextFutureSessionForActivity(id).catch((err) => {
+    console.error('[ActivityDetailPage] getNextFutureSessionForActivity failed', err);
+    return null;
   });
 
   return (
@@ -144,6 +151,12 @@ export default async function ActivityDetailPage({ params }: PageProps) {
             </p>
           </section>
         )}
+
+        {/* Phase 9 SC1 c3/5 — Inviter un match (client island, silent hide si non-eligible) */}
+        <ActivityInviteSection
+          activityId={id}
+          sessionId={nextSession?.sessionId}
+        />
 
         {/* Reviews section */}
         <section

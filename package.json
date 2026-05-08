@@ -43,7 +43,8 @@
     "test:cron:purge": "firebase emulators:exec --only firestore 'npx tsx tests/cron/purge-old-data.test.ts'",
     "test:stripe:refund": "firebase emulators:exec --only firestore 'npx tsx tests/stripe/refund-sanction.test.ts'",
     "test:sessions:participants": "firebase emulators:exec --only firestore 'npx tsx tests/sessions/participants-list.test.ts'",
-    "test:chat:suggestion-invite": "firebase emulators:exec --only firestore 'npx tsx tests/chat/suggestion-invite.test.ts'"
+    "test:chat:suggestion-invite": "firebase emulators:exec --only firestore 'npx tsx tests/chat/suggestion-invite.test.ts'",
+    "test:activities:invite-section": "firebase emulators:exec --only firestore 'npx tsx tests/activities/invite-section.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",
