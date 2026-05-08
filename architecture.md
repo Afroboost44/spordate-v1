@@ -1654,22 +1654,180 @@ INVITE DECLINE / EXPIRE (Q6=A retain-not-trap) :
 - `src/lib/stripe/refundForInvite.ts` (refund auto + idempotency dual)
 - `src/app/api/invites/[id]/accept-gift/route.ts` (gift accept atomic Booking)
 
-### Phase 9 progression (16 commits techniques + 2 close-outs)
+### Sub-chantier 3 — Email rappels J-1/T-0 + Web Push reviewReminder ✅ COMPLET (5 commits)
+
+- 1/5 `4120576` : Email templates `sessionReminderJMinus1` + `sessionReminderTMinus0` (charte cohérente Phase 8 SC4-SC5) + Cloud Function `sessionRemindersCron` (every 60min Europe/Zurich) + endpoint `/api/cron/session-reminders` (Bearer + Admin SDK + dual-window J-1 / T-0 + cursor pagination Q9 cohérent SC0 c1) + flags idempotency `Booking.sessionReminderJMinus1Sent` / `sessionReminderTMinus0Sent` + tests SR1-SR5 (21 assertions) — Q1=B 18-30h tolérant lag, Q2=A T-0 30-90min sweet spot.
+- 2/5 `b33d4aa` : Helper `sendPushNotification` (firebase-admin/messaging + DI seam `__setMessagingForTesting`) + extension `/api/cron/review-reminder` push-first/email-fallback (Q3=B) + extension `/api/cron/session-reminders` push-first/email-fallback (Q3=B) + tests PUSH1-PUSH4 (20 assertions). Q3=B push si `User.fcmToken` set + `pushNotificationsEnabled !== false` (default-on cohérent aiSuggestionsOptIn Phase 8 SC0) — sinon ou push fail → email Resend fallback. Static import (vs dynamic) pour DI seam test mock.
+- 3/5 `15255ca` : UI opt-in/opt-out push (`<PushOptInSwitch>` /profile section Confidentialité Q5=A) + `User.pushNotificationsEnabled?: boolean` field (default-on `undefined === true`) + Service Worker dédié `public/firebase-messaging-sw.js` (Q4=A scope `/` global, importScripts gstatic 11.9.1, `onBackgroundMessage` → `showNotification` avec tag/renotify dedup, `notificationclick` → focus tab existante OU `openWindow(clickUrl)`) + helper client `registerPushNotifications` / `unregisterPushNotifications` / `isPushSupported` (Q6=A silent fallback Safari iOS <16.4) + token persistence `users/{uid}.fcmToken` via `getToken({vapidKey: NEXT_PUBLIC_FIREBASE_VAPID_KEY})` + tests POI1-POI5 (10 assertions).
+- 4/5 `d4f301c` : UX polish notifications badge unread + dismiss flow + `Notification.readAt?` + `Notification.dismissedAt?` (legacy `isRead` préservé compat) + helpers `markNotificationRead` / `markAllNotificationsRead` / `dismissNotification` + DI seam `__setNotificationsDbForTesting` + `NotificationError` typed (`forbidden` / `not-found` / `invalid-input`) + `safeGetDoc` rules→forbidden mapping (no info leak) + `<NotificationBadge>` realtime onSnapshot dans header + `<NotificationsList>` Firestore-backed avec dismiss "X" + clickUrl deeplinks + "Tout marquer comme lu" button + replace mock `/notifications/page.tsx` + endpoints `PATCH /api/notifications/[id]` + `POST /api/notifications` (mark-all-read) + tests UN1-UN5 + 7 bonus (19 assertions).
+- 5/5 *(this commit)* : architecture.md SC3 close-out + cumulative tests Phase 9 SC0+SC1+SC2+SC3 + retrospective Q1-Q8 doctrine §F appliquée.
+
+**Architecture résultante notifications Phase 9 SC3 end-to-end** :
+
+```
+EMAIL RAPPELS J-1 / T-0 (SC3 c1) :
+  CF Schedulers (Europe/Zurich) :
+    - reviewReminderCron       every 60min
+    - sessionRemindersCron     every 60min
+  ↓ HTTPS POST + Authorization: Bearer ${CRON_SECRET}
+  /api/cron/{review-reminder | session-reminders} (server, Admin SDK)
+    ↓ Pagination cursor pageSize=500 maxPages=10 (cohérent SC0 c1)
+    ↓ Per booking eligible :
+       ↓ Load user (fcmToken + pushNotificationsEnabled)
+       ↓ Push-first (Q3=B) :
+          IF user.fcmToken && (user.pushNotificationsEnabled !== false)
+             → sendPushNotification({fcmToken, title, body, clickUrl, data})
+                ↓ firebase-admin/messaging.send({token, notification, webpush.fcmOptions.link})
+                ↓ Si ok → mark pushDelivered=true
+             SI push fail (token invalid, FCM error) → fallback email
+          ELSE → fallback email
+       ↓ Fallback email (legacy comportement Q3=B fallback) :
+          sendEmail({to, templateName: 'reviewReminder' | 'sessionReminderJMinus1' | 'sessionReminderTMinus0', templateData})
+             ↓ Resend API (existing Phase 8 SC5)
+       ↓ Update Booking flag idempotency :
+          - reviewReminderSent=true (Q7=A 1 notif/session)
+          - sessionReminderJMinus1Sent=true
+          - sessionReminderTMinus0Sent=true
+
+SERVICE WORKER FCM (SC3 c3) :
+  public/firebase-messaging-sw.js (Q4=A scope `/` global) :
+    importScripts(gstatic firebase-app-compat + firebase-messaging-compat 11.9.1)
+    firebase.initializeApp({apiKey/projectId/...})  ← public Web SDK config
+    messaging.onBackgroundMessage((payload) ⇒ {
+      self.registration.showNotification(payload.notification.title, {
+        body, icon: '/icons/icon-192.png',
+        data: payload.data,
+        tag: payload.data.bookingId ?? payload.data.activityId,  ← dedup anti-doublon
+        renotify: true,
+      })
+    })
+    self.addEventListener('notificationclick', (event) ⇒ {
+      event.notification.close();
+      const url = event.notification.data?.clickUrl;
+      event.waitUntil(
+        clients.matchAll({type:'window'}).then(matched ⇒ {
+          for (const client of matched) {
+            if (client.url.includes(url) && 'focus' in client) return client.focus();
+          }
+          if (url && clients.openWindow) return clients.openWindow(url);
+        })
+      );
+    });
+
+CLIENT UI (SC3 c3 + c4) :
+  /profile section "Confidentialité" (Q5=A — cohérent Phase 8 SC0 aiSuggestionsOptIn) :
+    <PushOptInSwitch uid={user.uid} initialEnabled={pushNotificationsEnabled !== false} />
+       ↓ Toggle ON :
+          ↓ navigator.serviceWorker.register('/firebase-messaging-sw.js', {scope: '/'})
+          ↓ Notification.requestPermission()
+          ↓ getToken({vapidKey: NEXT_PUBLIC_FIREBASE_VAPID_KEY, serviceWorkerRegistration})
+          ↓ updateDoc users/{uid} : {fcmToken, pushNotificationsEnabled: true}
+          ↓ Toast success
+       ↓ Toggle OFF :
+          ↓ updateDoc users/{uid} : {fcmToken: deleteField(), pushNotificationsEnabled: false}
+          ↓ deleteToken(messaging) (revoke côté Firebase, best-effort)
+       ↓ Q6=A : si !isPushSupported() (Safari iOS <16.4, no PushManager) → toggle disabled silently + tooltip
+
+  Header (cohérent ghost-town anti-pattern) :
+    <NotificationBadge> :
+       ↓ onSnapshot /notifications where userId=uid + isRead==false (filtre dismissedAt client-side)
+       ↓ Pastille bg-[#D91CD2] count (max '9+') si > 0 → Bell normal sinon
+       ↓ Click → /notifications
+
+  /notifications page (replace mock Phase 1) :
+    <NotificationsList> :
+       ↓ onSnapshot /notifications where userId=uid orderBy createdAt desc (filter dismissedAt client-side)
+       ↓ Per notif card : icon by type + title + body + relative time + "X" dismiss
+       ↓ Click body si clickUrl → router.push (best-effort markRead avant nav)
+       ↓ "Tout marquer comme lu" button top → POST /api/notifications {action:'mark-all-read'}
+       ↓ Auto best-effort markRead on click via PATCH /api/notifications/[id] {action:'mark-read'}
+
+API /api/notifications/* (SC3 c4) :
+  PATCH /api/notifications/[id] Bearer + verifyAuth :
+    Body : {action: 'mark-read' | 'dismiss'}
+    ↓ verifyAuth → uid
+    ↓ markNotificationRead(id, uid) OU dismissNotification(id, uid)
+       ↓ safeGetDoc → si rules permission-denied → throw NotificationError 'forbidden' (no info leak)
+       ↓ Verify ownership (notification.userId === uid)
+       ↓ updateDoc readAt | dismissedAt = serverTimestamp()
+    ↓ HTTP 200 / 401 / 403 / 404 (NotificationError → mapped status)
+
+  POST /api/notifications Bearer + verifyAuth :
+    Body : {action: 'mark-all-read'}
+    ↓ markAllNotificationsRead(uid) → batch update isRead==false → readAt + isRead=true
+    ↓ Return {processed: count}
+```
+
+**Bilan SC3 Phase 9 — votes Q1-Q8 doctrine §F MVP rétention appliqués** :
+- ✅ Q1=B J-1 window 18-30h (cron horaire tolérant lag — cohérent runtime CF every 60min)
+- ✅ Q2=A T-0 1h sweet spot (window 30-90min — précision sweet spot pré-session)
+- ✅ Q3=B push si `fcmToken` + `pushNotificationsEnabled !== false` / email fallback si absent OU push fail
+- ✅ Q4=A SW scope `/` global (un SW unique pour toutes les notifs Spordate)
+- ✅ Q5=A page profil section Confidentialité (cohérent pattern Phase 8 SC0 `aiSuggestionsOptIn`)
+- ✅ Q6=A silent fallback browsers non-supportés (Safari iOS <16.4 toggle disabled tooltip)
+- ✅ Q7=A 1 notification par session (KISS Phase 9 — flags idempotency Booking ; batching différé Phase 10)
+- ✅ Q8=C tests verify content (subject + body templateName + flag persisted + idempotency 2nd run)
+
+**Tests SC3 cumulés** :
+- SR1-SR5 (session-reminders) : 21 assertions
+- PUSH1-PUSH4 (send-push-notification) : 20 assertions
+- POI1-POI5 + bonus (push-opt-in) : 10 assertions
+- UN1-UN5 + 7 bonus (markRead) : 19 assertions
+- **SC3 total : 70 nouvelles assertions automated**
+
+**Cumul routes Vercel API Phase 8+9 (19 routes — extension SC3 +3)** :
+- Phase 8 SC2 : `/api/anti-leak`
+- Phase 8 SC3 : `/api/suggest-activities`
+- Phase 8 SC4 : `/api/invites` + `/api/invites/[id]/decline` + `/api/checkout` + `/api/webhooks/stripe` + page `/invite/[id]`
+- Phase 8 SC5 : `/api/admin/blocks` + `/api/cron/review-reminder` + `/api/cron/purge-old-data` + `/api/admin/refund-sanction/[sanctionId]`
+- Phase 9 SC1 : `/api/sessions/[sessionId]/participants` + `/api/users/me/matches` + `/api/cron/expire-invites`
+- Phase 9 SC2 : `/api/invites/[id]/accept-gift` + extension `/api/checkout` mode='invite-prepay'
+- **Phase 9 SC3 (NEW)** : `/api/cron/session-reminders` + `/api/notifications` + `/api/notifications/[id]`
+
+**Cumul Cloud Functions (6 CF déployables — extension SC3 c1 +1)** :
+| CF | Phase | Schedule |
+|---|---|---|
+| `refreshPricingCron` | 6 | every 15 min |
+| `reviewReminderCron` | 8 SC5 c2 (extended SC3 c2 push-first) | every 60 min |
+| `denormActiveSanctionTrigger` | 8 SC5 c2 | onWrite userSanctions |
+| `purgeOldDataCron` | 8 SC5 c3 | weekly Friday 03:00 |
+| `expireInvitesCron` | 9 SC1 c4 (extended SC2 c5 refund auto) | every 60 min |
+| **`sessionRemindersCron`** (NEW) | 9 SC3 c1 (extended SC3 c2 push-first) | every 60 min |
+
+**Nouveaux helpers SC3 cumul** :
+- `src/lib/notifications/sendPushNotification.ts` (firebase-admin/messaging + DI seam)
+- `src/lib/notifications/registerPush.ts` (client SDK getToken/deleteToken + isPushSupported)
+- `src/lib/notifications/markRead.ts` (markRead/markAllRead/dismiss + NotificationError + safeGetDoc)
+- `src/components/profile/PushOptInSwitch.tsx` (Switch UI charte Q5=A)
+- `src/components/notifications/NotificationBadge.tsx` (header realtime onSnapshot)
+- `src/components/notifications/NotificationsList.tsx` (Firestore-backed liste + dismiss + mark-all-read)
+- `public/firebase-messaging-sw.js` (Service Worker FCM background, Q4=A scope `/`)
+
+**Différé Phase 10 documenté** :
+- ⏭️ Multi-device tokens (subcollection `users/{uid}/fcmTokens/{tokenId}` vs single field `fcmToken`)
+- ⏭️ Auto-cleanup tokens FCM error `messaging/registration-token-not-registered` (signal already typed dans helper)
+- ⏭️ Notification grouping batch (Q7=A KISS Phase 9 — 1 notif/session unifié Phase 10)
+- ⏭️ VAPID key build-time injection dans `firebase-messaging-sw.js` (current : config publique hardcoded)
+- ⏭️ A/B test push title/body wording (engagement metrics)
+- ⏭️ Analytics push delivery rate (Firebase Cloud Messaging dashboard)
+
+### Phase 9 progression (20 commits techniques + 3 close-outs)
 
 | SC | Thème | Commits | Tests automated |
 |----|-------|---------|-----------------|
 | SC0 | Foundation polish (admin auth + indexes + cursor + charte) | 2 | 31 |
 | SC1 | Card session participants + invite cleanup (4 SC4 close-out items + UI) | 5 (incl. close-out) | 45 |
 | SC2 | Stripe Connect Split/Gift + refund post-accept | 6 (incl. close-out) | 88 |
-| **Cumul Phase 9** | | **13 + 2 close-outs** | **148** |
+| SC3 | Email rappels J-1/T-0 + Web Push reviewReminder | 5 (incl. close-out) | 70 |
+| **Cumul Phase 9** | | **18 + 3 close-outs** | **218** |
 
-**Tests Phase 9 final cumulés** : 148 nouvelles assertions automated.
+**Tests Phase 9 final cumulés** : 218 nouvelles assertions automated.
 **Phase 8 cumul 251+ tests préservé** intégralement (zéro régression mesurée).
 **Phase 7 base 372 tests préservé** intégralement (zéro régression mesurée).
 
-**Vercel green** sur 16+ déploiements consécutifs Phase 9.
+**Vercel green** sur 20+ déploiements consécutifs Phase 9.
 
-**Reste sub-chantiers Phase 9** : SC3 (Email rappels J-1/T-0 + Web Push), SC4 (Admin queue history + IA modération étendue), SC5 (UX no-show + matching algo), SC6 (Female-safety quota + anonymisation soft delete), SC7 (close-out final Phase 9).
+**Reste sub-chantiers Phase 9** : SC4 (Admin queue history + IA modération étendue), SC5 (UX no-show + matching algo), SC6 (Female-safety quota + anonymisation soft delete), SC7 (close-out final Phase 9).
 
 ---
 
