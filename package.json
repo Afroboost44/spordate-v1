@@ -48,7 +48,8 @@
     "test:cron:expire-invites": "firebase emulators:exec --only firestore 'npx tsx tests/cron/expire-invites.test.ts'",
     "test:invites:split-math": "npx tsx tests/invites/split-math.test.ts",
     "test:invites:email-split-gift": "npx tsx tests/invites/email-split-gift.test.ts",
-    "test:invites:checkout-split": "firebase emulators:exec --only firestore 'npx tsx tests/invites/checkout-split.test.ts'"
+    "test:invites:checkout-split": "firebase emulators:exec --only firestore 'npx tsx tests/invites/checkout-split.test.ts'",
+    "test:invites:webhook-split-gift": "firebase emulators:exec --only firestore 'npx tsx tests/invites/webhook-split-gift.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",

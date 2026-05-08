@@ -58,6 +58,12 @@ export async function handlePaymentSuccess(session: Record<string, unknown>, str
     return handleInviteAcceptPayment(session, stripe);
   }
 
+  // Phase 9 SC2 commit 4/6 : invite-prepay flow
+  // (A pré-paye sa part Split/Gift via Stripe Connect destination charge / mode='invite-prepay')
+  if (meta.mode === 'invite-prepay') {
+    return handleInvitePrepayPayment(session, stripe);
+  }
+
   const { db, FV } = await initAdmin();
   const userId = meta.userId;
   const packageId = meta.packageId || '';
@@ -500,6 +506,12 @@ async function handleInviteAcceptPayment(
         throw new Error(`Invite ${inviteId} not pending in transaction (race)`);
       }
 
+      // Phase 9 SC2 c4/6 — denorm paidByUserId (Q2=C) :
+      //   - 'split' : paidByUserId === toUserId (B paye sa part, A's prepay séparé)
+      //   - 'individual' (Phase 8 SC4 legacy) : paidByUserId === toUserId (B paye sa booking)
+      const inviteMode = (inviteData.mode as string) || 'individual';
+      const paidByUserId = toUserId; // both 'individual' + 'split' → B pays his Booking
+
       // Create booking
       const bookingRef = db.collection('bookings').doc();
       bookingIdResult = bookingRef.id;
@@ -512,6 +524,7 @@ async function handleInviteAcceptPayment(
         status: 'confirmed', transactionId: '',
         amount: amountTotal, currency: 'CHF', creditsUsed: 0,
         sessionId, paymentIntentId, tier: tierFromMeta,
+        paidByUserId, // Phase 9 SC2 c4/6 — denorm Q2=C
         createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
       });
 
@@ -548,12 +561,16 @@ async function handleInviteAcceptPayment(
         acceptedAt: FV.serverTimestamp(),
       });
 
+      // Phase 9 SC2 c4/6 — Transaction type variant selon mode invite
+      const txType =
+        inviteMode === 'split' ? 'invite_accept_split' : 'invite_accept_purchase';
+
       // Transaction record
       const txRef = db.collection('transactions').doc();
       tx.set(txRef, {
         transactionId: txRef.id, stripeSessionId,
         stripePaymentIntentId: paymentIntentId,
-        userId: toUserId, type: 'invite_accept_purchase',
+        userId: toUserId, type: txType,
         amount: amountTotal, currency: 'CHF', paymentMethod: pm,
         status: 'succeeded', metadata: meta,
         package: '', creditsGranted: bundleCredits,
@@ -597,6 +614,158 @@ async function handleInviteAcceptPayment(
       createdAt: FV.serverTimestamp(),
     });
   } catch { /* silent */ }
+}
+
+// =============================================================
+/**
+ * Phase 9 SC2 c4/6 — handleInvitePrepayPayment.
+ *
+ * Webhook Stripe consume metadata.mode='invite-prepay' (route /api/checkout SC2 c3/6) :
+ *  1. Idempotency dual : transactions.stripeSessionId + invite.inviterPaymentIntentId
+ *  2. runTransaction atomic :
+ *     - Verify invite.status='pending' + invite.mode in ['split', 'gift']
+ *     - Update invite.inviterPaymentIntentId + transaction record type='invite_prepay'
+ *  3. Post-commit best-effort : sendEmail confirmation A
+ */
+async function handleInvitePrepayPayment(
+  stripeCheckout: Record<string, unknown>,
+  stripe: InstanceType<typeof import('stripe').default>,
+): Promise<void> {
+  const { db, FV } = await initAdmin();
+  const meta = (stripeCheckout.metadata || {}) as Record<string, string>;
+
+  const inviteId = meta.inviteId;
+  const fromUserId = meta.fromUserId;
+  const inviteMode = meta.inviteMode || 'split';
+  const stripeSessionId = stripeCheckout.id as string;
+  const paymentIntentId = (stripeCheckout.payment_intent as string) || '';
+  const amountTotal = (stripeCheckout.amount_total as number) || 0;
+
+  if (!inviteId || !fromUserId) {
+    await logErr(db, FV, 'Webhook invite-prepay sans inviteId/fromUserId', stripeSessionId);
+    return;
+  }
+  if (!paymentIntentId) {
+    await logErr(db, FV, 'Webhook invite-prepay sans payment_intent', stripeSessionId);
+    return;
+  }
+
+  // 1a. Idempotency #1 — transaction stripeSessionId déjà créée ?
+  const existingTx = await db
+    .collection('transactions')
+    .where('stripeSessionId', '==', stripeSessionId)
+    .limit(1)
+    .get();
+  if (!existingTx.empty) return;
+
+  // 1b. Idempotency #2 — invite.inviterPaymentIntentId déjà set (replay-safe)
+  const inviteRef = db.collection('invites').doc(inviteId);
+  const inviteSnap = await inviteRef.get();
+  if (!inviteSnap.exists) {
+    await logErr(db, FV, `Invite ${inviteId} introuvable webhook invite-prepay`, stripeSessionId);
+    return;
+  }
+  const inviteData = inviteSnap.data() as Record<string, unknown>;
+  if (inviteData.inviterPaymentIntentId) {
+    console.warn(
+      `[handleInvitePrepayPayment] invite ${inviteId} inviterPaymentIntentId déjà set (replay/race)`,
+    );
+    return;
+  }
+  if (inviteData.status !== 'pending') {
+    console.warn(
+      `[handleInvitePrepayPayment] invite ${inviteId} status='${inviteData.status}' ≠ 'pending' (replay/race)`,
+    );
+    return;
+  }
+  if (inviteData.mode !== 'split' && inviteData.mode !== 'gift') {
+    await logErr(
+      db,
+      FV,
+      `Invite ${inviteId} mode='${inviteData.mode}' invalid pour invite-prepay`,
+      stripeSessionId,
+    );
+    return;
+  }
+
+  // 2. Detect payment method
+  let pm = 'card';
+  const pmTypes = stripeCheckout.payment_method_types as string[] | undefined;
+  if (pmTypes?.includes('twint') && paymentIntentId) {
+    try {
+      const pi = await stripe.paymentIntents.retrieve(paymentIntentId);
+      if (pi.payment_method_types?.includes('twint')) pm = 'twint';
+    } catch {
+      /* ok */
+    }
+  }
+
+  // 3. Transaction atomique : update invite + create transaction
+  try {
+    await db.runTransaction(async (tx) => {
+      const inviteSnapTx = await tx.get(inviteRef);
+      if (!inviteSnapTx.exists) throw new Error(`Invite ${inviteId} disparu`);
+      const dataTx = inviteSnapTx.data() as Record<string, unknown>;
+      if (dataTx.inviterPaymentIntentId) {
+        throw new Error(`Invite ${inviteId} inviterPaymentIntentId déjà set (race)`);
+      }
+      if (dataTx.status !== 'pending') {
+        throw new Error(`Invite ${inviteId} not pending (race)`);
+      }
+
+      // Update invite
+      tx.update(inviteRef, {
+        inviterPaymentIntentId: paymentIntentId,
+      });
+
+      // Transaction record
+      const txRef = db.collection('transactions').doc();
+      tx.set(txRef, {
+        transactionId: txRef.id,
+        stripeSessionId,
+        stripePaymentIntentId: paymentIntentId,
+        userId: fromUserId,
+        type: 'invite_prepay',
+        amount: amountTotal,
+        currency: 'CHF',
+        paymentMethod: pm,
+        status: 'succeeded',
+        metadata: meta,
+        package: '',
+        creditsGranted: 0,
+        sessionId: meta.sessionId || '',
+        inviteId,
+        createdAt: FV.serverTimestamp(),
+        completedAt: FV.serverTimestamp(),
+      });
+    });
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    await logErr(db, FV, `[handleInvitePrepayPayment] ${errMsg}`, stripeSessionId);
+    return;
+  }
+
+  // 4. Post-commit : notif fromUserId (best-effort)
+  try {
+    const nRef = db.collection('notifications').doc();
+    const titleByMode = inviteMode === 'gift' ? 'Cadeau facturé' : 'Ta part facturée';
+    const bodyByMode =
+      inviteMode === 'gift'
+        ? `Tu as payé l'intégralité (${(amountTotal / 100).toFixed(2)} CHF). En attente de la réponse de l'invité·e.`
+        : `Ta part (${(amountTotal / 100).toFixed(2)} CHF) est facturée. En attente que l'invité·e paye sa part.`;
+    await nRef.set({
+      notificationId: nRef.id,
+      userId: fromUserId,
+      type: 'payment',
+      title: titleByMode,
+      body: bodyByMode,
+      data: { inviteId, paymentIntentId, inviteMode },
+      isRead: false,
+      createdAt: FV.serverTimestamp(),
+    });
+  } catch {
+    /* silent */
+  }
 }
 
 // =============================================================

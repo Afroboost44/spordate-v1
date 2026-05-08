@@ -308,6 +308,12 @@ export interface Booking {
   refundedAt?: Timestamp;
   /** Phase 8 SC5 c4/5 — Montant remboursé (CHF centimes, cohérent stripe.refunds.create). */
   refundedAmount?: number;
+  /** Phase 9 SC2 c4/6 — Q2=C denorm payeur cohérent modes Split/Gift.
+   *  - Mode 'individual' (Phase 8 SC4 legacy) : paidByUserId === userId (user paye sa propre booking)
+   *  - Mode 'split' (Phase 9 SC2) : paidByUserId === userId (B paye sa part, A's prepay séparé)
+   *  - Mode 'gift' (Phase 9 SC2) : paidByUserId === inviter, userId === invitee (A paye pour B)
+   *  Utilisé pour traceability + refund routing (Phase 10 polish post-accept refund). */
+  paidByUserId?: string;
 }
 
 // ===================== CREDITS =====================
