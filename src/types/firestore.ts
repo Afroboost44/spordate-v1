@@ -619,6 +619,19 @@ export interface Review {
   moderatedAt?: Timestamp;
   /** True une fois le bonus 5 crédits chat alloué (anti-double-bonus). */
   creditsAwarded: boolean;
+
+  // ----- Phase 9 SC4 c2/6 — IA modération reviews 1-2★ (additif) -----
+  /** Suggestion IA Genkit (Gemini Flash) pour modération admin. Set fire-and-forget
+   *  post-create si rating ≤ 2. Admin garde la décision finale (Q3=A doctrine SC4).
+   *  Si Gemini fail/error → recommendation='borderline' + motive='ai-error'. */
+  aiSuggestion?: {
+    civility: number;
+    factuality: number;
+    recommendation: 'publish' | 'reject' | 'borderline';
+    motive: string;
+    modelVersion: string;
+    scoredAt: Timestamp;
+  };
 }
 
 // ===================== REPORTS + SANCTIONS (Phase 7 T&S sub-chantier 3) =====================

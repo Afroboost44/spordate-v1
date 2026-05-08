@@ -224,6 +224,30 @@ export async function createReview(input: CreateReviewInput): Promise<CreateRevi
         error: err instanceof Error ? err.message : String(err),
       });
     }
+
+    // Phase 9 SC4 c2/6 — IA-assistée modération admin queue (Q3=A admin keep final decision).
+    // Fire-and-forget POST /api/reviews/[id]/moderate (server-only Genkit + Admin SDK).
+    // Cohérent pattern /api/anti-leak SC2 hotfix : isole les imports server-only du client bundle.
+    // Si fetch fail/Gemini error → review reste pending sans aiSuggestion (admin tranche manuel).
+    if (typeof fetch !== 'undefined') {
+      const activityTitle = (activity as { title?: string }).title;
+      // Note : pas d'await — fire-and-forget intentionnel pour ne pas bloquer le retour à l'UI.
+      void fetch(`/api/reviews/${reviewId}/moderate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rating: input.rating,
+          comment: input.comment,
+          activityTitle,
+          reviewerId: input.reviewerId,
+        }),
+      }).catch((err) => {
+        console.warn('[createReview] fire-and-forget IA moderation failed (non-blocking)', {
+          reviewId,
+          error: err instanceof Error ? err.message : String(err),
+        });
+      });
+    }
   }
 
   return {

@@ -55,7 +55,8 @@
     "test:notifications:send-push": "firebase emulators:exec --only firestore 'npx tsx tests/notifications/send-push-notification.test.ts'",
     "test:notifications:push-opt-in": "firebase emulators:exec --only firestore 'npx tsx tests/notifications/push-opt-in.test.ts'",
     "test:notifications:mark-read": "firebase emulators:exec --only firestore 'npx tsx tests/notifications/markRead.test.ts'",
-    "test:admin-actions:history-csv": "firebase emulators:exec --only firestore 'npx tsx tests/admin-actions/history-csv.test.ts'"
+    "test:admin-actions:history-csv": "firebase emulators:exec --only firestore 'npx tsx tests/admin-actions/history-csv.test.ts'",
+    "test:reviews:moderate-review-ia": "firebase emulators:exec --only firestore 'npx tsx tests/reviews/moderate-review-ia.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",

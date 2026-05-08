@@ -94,3 +94,36 @@ export interface SuggestionOutput {
     reason: string;
   }>;
 }
+
+// ===================== MODERATE REVIEW (Phase 9 SC4 c2/6 Genkit) =====================
+//
+// IA-assistée modération reviews 1-2★ (architecture.md ligne 893). Doctrine SC4 Q3=A
+// confirmé : admin keep final decision, IA = suggestion uniquement (pas d'auto-action
+// Phase 9). Le résultat est persisté dans Review.aiSuggestion (cf. types/firestore.ts)
+// et affiché en badge dans <TandSReviewsPanel> (commit 3/6).
+
+/** Input du flow review-moderator. FR uniquement Phase 9. */
+export interface ModerateReviewInput {
+  /** Note 1 ou 2 (les seules ratings qui passent en queue admin pré-pub). */
+  rating: 1 | 2;
+  /** Commentaire utilisateur (10-500 chars validés upstream par createReview). */
+  comment: string;
+  /** Titre activité (contexte optionnel pour calibrage Gemini). */
+  activityTitle?: string;
+  /** Hash anonyme du reviewerId (audit trail sans PII, cohérent §C.Q2 anti-leak). */
+  reviewerHashId: string;
+}
+
+/** Output du flow review-moderator — admin tranche, IA suggère. */
+export interface ModerateReviewOutput {
+  /** Score civilité ∈ [0,1] : 1.0 = parfaitement civil, 0.0 = insulte/slur/harassment. */
+  civility: number;
+  /** Score factualité ∈ [0,1] : 1.0 = critique factuelle vérifiable, 0.0 = opinion infondée/diffamation. */
+  factuality: number;
+  /** Recommendation IA — admin garde la décision finale (Q3=A). */
+  recommendation: 'publish' | 'reject' | 'borderline';
+  /** Motif court FR ≤ 100 chars (affiché en tooltip badge admin queue). */
+  motive: string;
+  /** Version modèle pour audit/rollback (ex: 'gemini-2.5-flash-2026-05'). */
+  modelVersion: string;
+}
