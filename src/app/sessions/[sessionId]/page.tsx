@@ -39,6 +39,7 @@ import { SessionHero } from '@/components/sessions/SessionHero';
 import { SessionDetailsPanel } from '@/components/sessions/SessionDetailsPanel';
 import { PricingTimeline } from '@/components/sessions/PricingTimeline';
 import { SessionTSActions } from '@/components/sessions/SessionTSActions';
+import { ParticipantsList } from '@/components/sessions/ParticipantsList';
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
@@ -170,9 +171,14 @@ export default async function SessionDetailPage({ params }: PageProps) {
           </section>
         )}
 
+        {/* ============= PARTICIPANTS LIST — Phase 9 sub-chantier 1 commit 1/5 ============= */}
+        {/* Client island : visibilité gradée selon viewer (past session = public,
+            partner / admin / participant confirmé = autorisé, sinon hidden silent).
+            Comble Différé Phase 9 ligne 890 architecture.md. */}
+        <ParticipantsList sessionId={sessionId} />
+
         {/* ============= SÉCURITÉ T&S — Phase 7 sub-chantier 6 commit 2/2 ============= */}
-        {/* Doctrine §9.sexies E "card session entry point" — wire seulement le partner Phase 7.
-            UI complete participants list différée Phase 9 (privacy + UX scope). */}
+        {/* Doctrine §9.sexies E "card session entry point" — wire le partner. */}
         {activity?.partnerId && (
           <SessionTSActions
             partnerId={activity.partnerId}
