@@ -29,6 +29,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const BATCH_LIMIT_DEFAULT = 500;
+const MAX_PAGES_DEFAULT = 10; // 5000 docs cap par run (Phase 9 SC0 c1/X cursor)
 const CONSERVATION_MONTHS = 24;
 
 // =====================================================================
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const dryRun = searchParams.get('dryRun') === 'true';
   const limitParam = searchParams.get('limit');
-  let batchLimit = BATCH_LIMIT_DEFAULT;
+  let pageSize = BATCH_LIMIT_DEFAULT;
   if (limitParam !== null) {
     const parsed = Number(limitParam);
     if (!Number.isFinite(parsed) || parsed <= 0 || parsed > BATCH_LIMIT_DEFAULT) {
@@ -88,7 +89,19 @@ export async function POST(req: NextRequest) {
         { status: 400, headers: { 'Cache-Control': 'no-store' } },
       );
     }
-    batchLimit = Math.floor(parsed);
+    pageSize = Math.floor(parsed);
+  }
+  const maxPagesParam = searchParams.get('maxPages');
+  let maxPages = MAX_PAGES_DEFAULT;
+  if (maxPagesParam !== null) {
+    const parsed = Number(maxPagesParam);
+    if (!Number.isFinite(parsed) || parsed <= 0 || parsed > MAX_PAGES_DEFAULT) {
+      return NextResponse.json(
+        { error: 'invalid-maxPages', detail: `maxPages must be 1..${MAX_PAGES_DEFAULT}` },
+        { status: 400, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+    maxPages = Math.floor(parsed);
   }
 
   try {
@@ -100,82 +113,101 @@ export async function POST(req: NextRequest) {
     const cutoffTs = Timestamp.fromMillis(cutoffMs);
 
     // ---------------------------------------------------------------
-    // 3. Purge adminActions/ : createdAt < cutoff → delete
+    // 3. Purge adminActions/ : pagination cursor Phase 9 SC0 c1/X
     // ---------------------------------------------------------------
     let adminActionsDeleted = 0;
+    let adminActionsPages = 0;
+    let adminActionsTruncated = false;
     try {
-      const snap = await db
-        .collection('adminActions')
-        .where('createdAt', '<', cutoffTs)
-        .limit(batchLimit)
-        .get();
-      for (const d of snap.docs) {
-        try {
-          if (!dryRun) {
-            await d.ref.delete();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let lastDoc: any = null;
+      while (adminActionsPages < maxPages) {
+        let pageQuery = db
+          .collection('adminActions')
+          .where('createdAt', '<', cutoffTs)
+          .orderBy('createdAt', 'asc')
+          .limit(pageSize);
+        if (lastDoc) pageQuery = pageQuery.startAfter(lastDoc);
+        const snap = await pageQuery.get();
+        if (snap.empty) break;
+        adminActionsPages++;
+        for (const d of snap.docs) {
+          try {
+            if (!dryRun) {
+              await d.ref.delete();
+            }
+            adminActionsDeleted++;
+          } catch (err) {
+            console.warn('[/api/cron/purge-old-data] delete adminAction failed', {
+              actionId: d.id,
+              error: err instanceof Error ? err.message : String(err),
+            });
           }
-          adminActionsDeleted++;
-        } catch (err) {
-          console.warn('[/api/cron/purge-old-data] delete adminAction failed', {
-            actionId: d.id,
-            error: err instanceof Error ? err.message : String(err),
-          });
         }
+        // Si dryRun on ne delete pas → mêmes docs reviendront à la query suivante
+        // → break pour éviter loop infini
+        if (dryRun || snap.size < pageSize) break;
+        lastDoc = snap.docs[snap.docs.length - 1];
       }
+      if (adminActionsPages >= maxPages) adminActionsTruncated = true;
     } catch (err) {
       console.warn('[/api/cron/purge-old-data] adminActions query failed (non-bloquant)', err);
     }
 
     // ---------------------------------------------------------------
-    // 4. Anonymise users : activeSanctionLevel='ban_permanent' + sanction > 24mo
+    // 4. Anonymise users : pagination cursor Phase 9 SC0 c1/X
     // ---------------------------------------------------------------
     let usersAnonymized = 0;
+    let usersPages = 0;
+    let usersTruncated = false;
     try {
-      const snap = await db
-        .collection('users')
-        .where('activeSanctionLevel', '==', 'ban_permanent')
-        .limit(batchLimit)
-        .get();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      let lastDoc: any = null;
+      while (usersPages < maxPages) {
+        let pageQuery = db
+          .collection('users')
+          .where('activeSanctionLevel', '==', 'ban_permanent')
+          .orderBy('uid', 'asc')
+          .limit(pageSize);
+        if (lastDoc) pageQuery = pageQuery.startAfter(lastDoc);
+        const snap = await pageQuery.get();
+        if (snap.empty) break;
+        usersPages++;
 
-      for (const userDoc of snap.docs) {
-        const user = userDoc.data();
-        // Idempotency : skip si déjà anonymisé
-        if (user.anonymizedAt) continue;
+        for (const userDoc of snap.docs) {
+          const user = userDoc.data();
+          if (user.anonymizedAt) continue;
+          const sanctionId = user.activeSanctionId as string | undefined;
+          if (!sanctionId) continue;
+          try {
+            const sanctionSnap = await db.collection('userSanctions').doc(sanctionId).get();
+            if (!sanctionSnap.exists) continue;
+            const sanction = sanctionSnap.data();
+            const sanctionCreatedAtMs = sanction?.createdAt?.toMillis?.() ?? 0;
+            if (sanctionCreatedAtMs >= cutoffMs) continue;
 
-        // Fetch sanction pour vérifier createdAt < cutoff
-        const sanctionId = user.activeSanctionId as string | undefined;
-        if (!sanctionId) {
-          // Phase 9 polish : fallback query userSanctions where userId+level
-          // Phase 8 KISS : skip si pas de denorm sanctionId (CF SC5 c2/5 wires this)
-          continue;
-        }
-        try {
-          const sanctionSnap = await db.collection('userSanctions').doc(sanctionId).get();
-          if (!sanctionSnap.exists) continue;
-          const sanction = sanctionSnap.data();
-          const sanctionCreatedAtMs = sanction?.createdAt?.toMillis?.() ?? 0;
-          if (sanctionCreatedAtMs >= cutoffMs) {
-            continue; // pas encore 24mo
-          }
-
-          // Anonymise PII
-          if (!dryRun) {
-            await userDoc.ref.update({
-              displayName: null,
-              email: null,
-              photoURL: null,
-              phoneNumber: null,
-              anonymizedAt: FieldValue.serverTimestamp(),
+            if (!dryRun) {
+              await userDoc.ref.update({
+                displayName: null,
+                email: null,
+                photoURL: null,
+                phoneNumber: null,
+                anonymizedAt: FieldValue.serverTimestamp(),
+              });
+            }
+            usersAnonymized++;
+          } catch (err) {
+            console.warn('[/api/cron/purge-old-data] per-user anonymize failed', {
+              userId: userDoc.id,
+              error: err instanceof Error ? err.message : String(err),
             });
           }
-          usersAnonymized++;
-        } catch (err) {
-          console.warn('[/api/cron/purge-old-data] per-user anonymize failed', {
-            userId: userDoc.id,
-            error: err instanceof Error ? err.message : String(err),
-          });
         }
+
+        if (snap.size < pageSize) break;
+        lastDoc = snap.docs[snap.docs.length - 1];
       }
+      if (usersPages >= maxPages) usersTruncated = true;
     } catch (err) {
       console.warn('[/api/cron/purge-old-data] banlist query failed (non-bloquant)', err);
     }
@@ -183,9 +215,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         adminActionsDeleted,
+        adminActionsPages,
+        adminActionsTruncated,
         usersAnonymized,
+        usersPages,
+        usersTruncated,
         dryRun,
-        batchLimit,
+        pageSize,
+        maxPages,
         cutoffMs,
       },
       { status: 200, headers: { 'Cache-Control': 'no-store' } },

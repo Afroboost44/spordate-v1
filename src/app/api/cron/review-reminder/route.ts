@@ -18,9 +18,11 @@
  * Idempotency : flag `Booking.reviewReminderSent=true` set après envoi (ou tentative
  * loggedOnly dev). Replay-safe — runs ultérieurs skip les bookings déjà flaggés.
  *
- * Batch limit 500 par run (cohérent purge-old-data Phase 8 SC5 c3/5). Volume launch
- * phase 8 = quelques bookings/heure, marge confortable. Phase 9 polish : pagination
- * cursor si volume > 500/h.
+ * Pagination Phase 9 SC0 c1/X (item r) : pageSize=500 + cursor `startAfter()` interne,
+ * jusqu'à `MAX_PAGES` (5000 docs cap par run pour respecter Vercel maxDuration 60s).
+ * Si truncated=true dans response → run suivant continuera depuis là (next tick CF
+ * Scheduler horaire). Future polish Phase 10 : persistance cursor dans
+ * `cronState/review-reminder` doc pour reprendre exactement.
  *
  * Method : POST (state-changing — write reviewReminderSent flag).
  *
@@ -36,6 +38,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 const BATCH_LIMIT_DEFAULT = 500;
+const MAX_PAGES_DEFAULT = 10; // 5000 docs cap par run (Phase 9 SC0 c1/X cursor)
 const REMINDER_WINDOW_START_HOURS = 72; // session ended >= 72h ago → trop tard, skip
 const REMINDER_WINDOW_END_HOURS = 48; // session ended < 48h ago → pas encore, skip
 const REVIEW_BONUS_CREDITS = 5; // cohérent template + REVIEW_BONUS_CREDITS lib/reviews
@@ -96,7 +99,7 @@ export async function POST(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const dryRun = searchParams.get('dryRun') === 'true';
   const limitParam = searchParams.get('limit');
-  let batchLimit = BATCH_LIMIT_DEFAULT;
+  let pageSize = BATCH_LIMIT_DEFAULT;
   if (limitParam !== null) {
     const parsed = Number(limitParam);
     if (!Number.isFinite(parsed) || parsed <= 0 || parsed > BATCH_LIMIT_DEFAULT) {
@@ -105,7 +108,19 @@ export async function POST(req: NextRequest) {
         { status: 400, headers: { 'Cache-Control': 'no-store' } },
       );
     }
-    batchLimit = Math.floor(parsed);
+    pageSize = Math.floor(parsed);
+  }
+  const maxPagesParam = searchParams.get('maxPages');
+  let maxPages = MAX_PAGES_DEFAULT;
+  if (maxPagesParam !== null) {
+    const parsed = Number(maxPagesParam);
+    if (!Number.isFinite(parsed) || parsed <= 0 || parsed > MAX_PAGES_DEFAULT) {
+      return NextResponse.json(
+        { error: 'invalid-maxPages', detail: `maxPages must be 1..${MAX_PAGES_DEFAULT}` },
+        { status: 400, headers: { 'Cache-Control': 'no-store' } },
+      );
+    }
+    maxPages = Math.floor(parsed);
   }
 
   try {
@@ -117,83 +132,100 @@ export async function POST(req: NextRequest) {
     const windowStartMs = nowMs - REMINDER_WINDOW_START_HOURS * 60 * 60 * 1000; // 72h ago
     const windowEndMs = nowMs - REMINDER_WINDOW_END_HOURS * 60 * 60 * 1000; // 48h ago
 
-    // 4. Query bookings dont sessionDate dans la fenêtre (range single-field index auto)
-    //    KISS Phase 8 : 1 inequality field (sessionDate). Filter status + flag client-side.
-    //    Phase 9 polish : composite index status+sessionDate si volume > batchLimit/h.
-    const snap = await db
-      .collection('bookings')
-      .where('sessionDate', '>=', Timestamp.fromMillis(windowStartMs))
-      .where('sessionDate', '<=', Timestamp.fromMillis(windowEndMs))
-      .limit(batchLimit)
-      .get();
-
+    // 4. Query bookings sessionDate range — pagination cursor Phase 9 SC0 c1/X.
+    //    Composite index `bookings: status+sessionDate` ajouté firestore.indexes.json
+    //    permet aussi `where status='confirmed' AND sessionDate range` côté Phase 9 polish.
+    //    Pour cursor pagination, on utilise sessionDate comme orderBy (stable + range-friendly).
     let processed = 0;
     let sent = 0;
     let skipped = 0;
+    let pages = 0;
+    let truncated = false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let lastDoc: any = null;
 
-    for (const bdoc of snap.docs) {
-      processed++;
-      const booking = bdoc.data();
-      if (!bookingDocReadable(booking)) {
-        skipped++;
-        continue;
+    while (pages < maxPages) {
+      let pageQuery = db
+        .collection('bookings')
+        .where('sessionDate', '>=', Timestamp.fromMillis(windowStartMs))
+        .where('sessionDate', '<=', Timestamp.fromMillis(windowEndMs))
+        .orderBy('sessionDate', 'asc')
+        .limit(pageSize);
+      if (lastDoc) {
+        pageQuery = pageQuery.startAfter(lastDoc);
       }
-      try {
-        // Lookup user (email + displayName), activity (title), partner (displayName)
-        const [userSnap, activitySnap, partnerSnap] = await Promise.all([
-          db.collection('users').doc(booking.userId).get(),
-          booking.activityId
-            ? db.collection('activities').doc(booking.activityId).get()
-            : Promise.resolve(null),
-          booking.partnerId
-            ? db.collection('users').doc(booking.partnerId).get()
-            : Promise.resolve(null),
-        ]);
-        const userEmail = userSnap.data()?.email as string | undefined;
-        if (!userEmail) {
-          // Pas d'email → on flag quand même pour pas re-tenter à chaque run
-          if (!dryRun) {
-            await bdoc.ref.update({ reviewReminderSent: true });
-          }
+      const snap = await pageQuery.get();
+      if (snap.empty) break;
+      pages++;
+
+      for (const bdoc of snap.docs) {
+        processed++;
+        const booking = bdoc.data();
+        if (!bookingDocReadable(booking)) {
           skipped++;
           continue;
         }
-        const userName = (userSnap.data()?.displayName as string | undefined) || 'Hello';
-        const activityTitle =
-          (activitySnap?.data()?.title as string | undefined) || booking.sport || 'ta session';
-        const partnerName =
-          (partnerSnap?.data()?.displayName as string | undefined) || 'le partenaire';
-        const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
-        const reviewLink = booking.activityId
-          ? `${baseUrl}/activities/${booking.activityId}/review`
-          : `${baseUrl}/dashboard?action=review`;
+        try {
+          // Lookup user (email + displayName), activity (title), partner (displayName)
+          const [userSnap, activitySnap, partnerSnap] = await Promise.all([
+            db.collection('users').doc(booking.userId).get(),
+            booking.activityId
+              ? db.collection('activities').doc(booking.activityId).get()
+              : Promise.resolve(null),
+            booking.partnerId
+              ? db.collection('users').doc(booking.partnerId).get()
+              : Promise.resolve(null),
+          ]);
+          const userEmail = userSnap.data()?.email as string | undefined;
+          if (!userEmail) {
+            if (!dryRun) {
+              await bdoc.ref.update({ reviewReminderSent: true });
+            }
+            skipped++;
+            continue;
+          }
+          const userName = (userSnap.data()?.displayName as string | undefined) || 'Hello';
+          const activityTitle =
+            (activitySnap?.data()?.title as string | undefined) || booking.sport || 'ta session';
+          const partnerName =
+            (partnerSnap?.data()?.displayName as string | undefined) || 'le partenaire';
+          const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
+          const reviewLink = booking.activityId
+            ? `${baseUrl}/activities/${booking.activityId}/review`
+            : `${baseUrl}/dashboard?action=review`;
 
-        if (!dryRun) {
-          // sendEmail wrapper retourne ok=true en mode loggedOnly aussi (pas de RESEND_API_KEY).
-          // Tests fonctionnent sans key — flag set sur loggedOnly cohérent prod intent.
-          await sendEmail({
-            to: userEmail,
-            templateName: 'reviewReminder',
-            templateData: {
-              userName,
-              sessionTitle: activityTitle,
-              partnerName,
-              reviewLink,
-              creditsBonus: REVIEW_BONUS_CREDITS,
-            },
+          if (!dryRun) {
+            await sendEmail({
+              to: userEmail,
+              templateName: 'reviewReminder',
+              templateData: {
+                userName,
+                sessionTitle: activityTitle,
+                partnerName,
+                reviewLink,
+                creditsBonus: REVIEW_BONUS_CREDITS,
+              },
+            });
+            await bdoc.ref.update({ reviewReminderSent: true });
+          }
+          sent++;
+        } catch (err) {
+          console.warn('[/api/cron/review-reminder] per-booking failure (best-effort)', {
+            bookingId: bdoc.id,
+            error: err instanceof Error ? err.message : String(err),
           });
-          // Flag idempotency même si sendEmail throw (best-effort) — pour pas re-tenter
-          // un booking en boucle si infra email transient down.
-          await bdoc.ref.update({ reviewReminderSent: true });
+          skipped++;
         }
-        sent++;
-      } catch (err) {
-        console.warn('[/api/cron/review-reminder] per-booking failure (best-effort)', {
-          bookingId: bdoc.id,
-          error: err instanceof Error ? err.message : String(err),
-        });
-        skipped++;
       }
+
+      // Si page partielle (snap.size < pageSize) → done
+      if (snap.size < pageSize) break;
+      lastDoc = snap.docs[snap.docs.length - 1];
+    }
+
+    if (pages >= maxPages) {
+      // On a peut-être hit le cap maxPages — possible truncation, run suivant continuera
+      truncated = true;
     }
 
     return NextResponse.json(
@@ -201,7 +233,10 @@ export async function POST(req: NextRequest) {
         processed,
         sent,
         skipped,
-        batchLimit,
+        pages,
+        truncated,
+        pageSize,
+        maxPages,
         dryRun,
         windowStartMs,
         windowEndMs,

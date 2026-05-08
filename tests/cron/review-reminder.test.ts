@@ -12,7 +12,8 @@
  *   RR2 reviewReminderSent=true → skip (idempotency)
  *   RR3 sessionDate -24h (pas encore 48h) → skip
  *   RR4 sessionDate -100h (>72h) → skip
- *   RR5 batch limit honored : 600 bookings éligibles → 500 traités max
+ *   RR5 cursor pagination : 600 bookings éligibles → 600 traités sur 2 pages (Phase 9 SC0 c1/X)
+ *   RR6 maxPages cap : 1100 bookings + maxPages=2 → truncated=true, processed=1000 (Phase 9 SC0 c1/X)
  */
 
 // ⚠️ ENV vars must be set BEFORE firebase-admin import
@@ -267,9 +268,9 @@ async function main(): Promise<void> {
   }
 
   // ===================================================================
-  // RR5 batch limit honored
+  // RR5 cursor pagination Phase 9 SC0 c1/X
   // ===================================================================
-  section('RR5 batch limit : 600 bookings éligibles → 500 traités max');
+  section('RR5 cursor pagination : 600 bookings éligibles → 600 traités sur 2 pages');
   {
     await clearAll();
     await seedUser(PARTNER_UID, 'partner@test.local');
@@ -286,22 +287,72 @@ async function main(): Promise<void> {
           userId: uid,
           activityId: ACTIVITY_ID,
           partnerId: PARTNER_UID,
-          sessionDateMs: NOW - 50 * 60 * 60 * 1000,
+          // Distribute sessionDates to avoid orderBy ties (within window 48h..72h)
+          sessionDateMs: NOW - (49 * 60 * 60 * 1000 + i * 1000),
         }),
       );
     }
     await Promise.all(seedPromises);
 
     const res = await callCron();
-    if (res.status === 200 && (res.body.processed as number) === 500) {
-      pass('RR5 processed=500 (batch limit honored)');
+    if (res.status === 200 && (res.body.processed as number) === 600) {
+      pass('RR5 processed=600 (cursor pagination 2 pages)');
     } else {
       fail('RR5 processed', res.body);
     }
-    if ((res.body.batchLimit as number) === 500) {
-      pass('RR5 batchLimit=500 dans response');
+    if ((res.body.pages as number) === 2) {
+      pass('RR5 pages=2 (500 + 100)');
     } else {
-      fail('RR5 batchLimit', res.body);
+      fail('RR5 pages', res.body);
+    }
+    if ((res.body.pageSize as number) === 500) {
+      pass('RR5 pageSize=500 dans response');
+    } else {
+      fail('RR5 pageSize', res.body);
+    }
+    if (res.body.truncated === false) {
+      pass('RR5 truncated=false (toutes pages traitées)');
+    } else {
+      fail('RR5 truncated', res.body);
+    }
+  }
+
+  // ===================================================================
+  // RR6 maxPages cap Phase 9 SC0 c1/X
+  // ===================================================================
+  section('RR6 maxPages cap : 1100 bookings + maxPages=2 → truncated=true, processed=1000');
+  {
+    await clearAll();
+    await seedUser(PARTNER_UID, 'partner@test.local');
+    await seedActivity(ACTIVITY_ID, PARTNER_UID);
+
+    // Seed 1100 bookings éligibles (limit at 1000 with maxPages=2 × pageSize=500)
+    const seedPromises: Promise<void>[] = [];
+    for (let i = 0; i < 1100; i++) {
+      const uid = `user_rr6_${i}`;
+      seedPromises.push(seedUser(uid, `rr6_${i}@test.local`));
+      seedPromises.push(
+        seedBooking({
+          bookingId: `booking_rr6_${i}`,
+          userId: uid,
+          activityId: ACTIVITY_ID,
+          partnerId: PARTNER_UID,
+          sessionDateMs: NOW - (49 * 60 * 60 * 1000 + i * 1000),
+        }),
+      );
+    }
+    await Promise.all(seedPromises);
+
+    const res = await callCron('Bearer test-cron-secret-rr', '?maxPages=2');
+    if (res.status === 200 && (res.body.processed as number) === 1000) {
+      pass('RR6 processed=1000 (maxPages=2 × pageSize=500)');
+    } else {
+      fail('RR6 processed', res.body);
+    }
+    if (res.body.truncated === true) {
+      pass('RR6 truncated=true (cap maxPages atteint)');
+    } else {
+      fail('RR6 truncated', res.body);
     }
   }
 

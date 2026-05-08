@@ -20,6 +20,8 @@ import {
   ArrowUp, Eye, EyeOff, Zap
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from '@/context/AuthContext';
+import { useRouter } from 'next/navigation';
 
 import {
   subscribeToAnalytics,
@@ -40,15 +42,14 @@ import type {
   Payout, ErrorLog, Partner
 } from '@/types/firestore';
 import { ADMIN_EMAIL } from '@/lib/sports';
-import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { db, auth, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, query as fsQuery, where, getDocs, limit as fsLimit } from 'firebase/firestore';
 import { TandSReviewsPanel } from '@/components/admin/TandSReviewsPanel';
 import { TandSReportsPanel } from '@/components/admin/TandSReportsPanel';
 import { SanctionsTable } from '@/components/admin/SanctionsTable';
 import { AppealsTable } from '@/components/admin/AppealsTable';
 
-// Auth key
-const ADMIN_AUTH_KEY = 'spordate_admin_auth';
+// Phase 9 SC0 c1/X — auth via AuthContext + AdminGuard layout (vs localStorage residual).
 const AUTHORIZED_EMAIL = ADMIN_EMAIL;
 
 // Types
@@ -59,11 +60,14 @@ interface DailyRevenue {
 
 export default function AdminDashboard() {
   const { toast } = useToast();
+  const router = useRouter();
 
-  // ==================== AUTH STATE ====================
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [loginEmail, setLoginEmail] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
+  // ==================== AUTH (via AdminGuard layout — Phase 9 SC0 c1/X) ====================
+  // Le layout /admin/layout.tsx vérifie déjà role='admin' + redirige sinon.
+  // Ici on consomme juste useAuth() pour avoir userProfile prêt.
+  const { user, userProfile, logout } = useAuth();
+  const isAuthenticated = !!user && userProfile?.role === 'admin';
+  const isLoading = false;
 
   // ==================== ANALYTICS STATE ====================
   const [analytics, setAnalytics] = useState<AnalyticsGlobal | null>(null);
@@ -155,34 +159,15 @@ export default function AdminDashboard() {
     })();
   }, [isAuthenticated, adminUid]);
 
-  // ==================== AUTH CHECK ====================
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const savedAuth = localStorage.getItem(ADMIN_AUTH_KEY);
-    if (savedAuth === AUTHORIZED_EMAIL) {
-      setIsAuthenticated(true);
+  // ==================== HANDLE LOGOUT (Phase 9 SC0 c1/X — Firebase Auth) ====================
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast({ title: "Déconnexion", description: "À bientôt ! 👋" });
+      router.replace('/admin/login');
+    } catch (err) {
+      toast({ variant: "destructive", title: "Erreur déconnexion", description: 'Réessayez.' });
     }
-    setIsLoading(false);
-  }, []);
-
-  // ==================== HANDLE LOGIN ====================
-  const handleAdminLogin = () => {
-    if (typeof window === 'undefined') return;
-    if (loginEmail.toLowerCase() === AUTHORIZED_EMAIL.toLowerCase()) {
-      localStorage.setItem(ADMIN_AUTH_KEY, AUTHORIZED_EMAIL);
-      setIsAuthenticated(true);
-      toast({ title: "✅ Connexion réussie", description: "Bienvenue au Dashboard Admin V2." });
-    } else {
-      toast({ variant: "destructive", title: "❌ Accès refusé", description: "Email non autorisé." });
-    }
-  };
-
-  // ==================== HANDLE LOGOUT ====================
-  const handleLogout = () => {
-    if (typeof window === 'undefined') return;
-    localStorage.removeItem(ADMIN_AUTH_KEY);
-    setIsAuthenticated(false);
-    toast({ title: "Déconnexion", description: "À bientôt ! 👋" });
   };
 
   // ==================== LOAD ANALYTICS (Real-time) ====================
@@ -354,49 +339,10 @@ export default function AdminDashboard() {
     );
   };
 
-  // ==================== LOGIN SCREEN ====================
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#05090e]">
-        <Activity className="h-8 w-8 animate-spin text-cyan-400" />
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-[#05090e] px-4">
-        <Card className="w-full max-w-md bg-[#0f1115] border-gray-800">
-          <CardHeader className="text-center">
-            <div className="mx-auto p-3 bg-cyan-900/20 rounded-xl border border-cyan-800/50 w-fit mb-4">
-              <Shield className="text-cyan-400 h-8 w-8" />
-            </div>
-            <CardTitle className="text-2xl">Admin Dashboard</CardTitle>
-            <CardDescription>Spordateur V2 — Accès réservé</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <label className="text-sm font-medium text-gray-300">Email administrateur</label>
-              <Input
-                type="email"
-                placeholder="contact.artboost@gmail.com"
-                value={loginEmail}
-                onChange={(e) => setLoginEmail(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleAdminLogin()}
-                className="bg-black border-gray-700 mt-2"
-              />
-            </div>
-            <Button onClick={handleAdminLogin} className="w-full bg-cyan-600 hover:bg-cyan-500 text-white">
-              <Lock className="mr-2 h-4 w-4" /> Accéder au Dashboard
-            </Button>
-            <p className="text-xs text-center text-gray-500">
-              Seul l'email autorisé (contact.artboost@gmail.com) peut accéder.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
-  }
+  // Phase 9 SC0 c1/X — l'AdminGuard layout (`/admin/layout.tsx`) gère :
+  //   - loading state (spinner pendant validation auth)
+  //   - redirect vers /admin/login si pas auth ou role !== 'admin'
+  // Donc ici on est garanti d'avoir un user admin → render direct le dashboard.
 
   // ==================== MAIN DASHBOARD ====================
   return (
