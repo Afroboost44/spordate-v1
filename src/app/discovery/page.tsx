@@ -40,6 +40,7 @@ import type { UserProfile, SportEntry } from '@/types/firestore';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
 import { createMatch } from '@/services/firestore';
 import { getMutualBlockSet } from '@/lib/blocks';
+import { computeMatchScore } from '@/lib/matching/computeMatchScore';
 import { useCredits } from '@/hooks/useCredits';
 import BackButton from '@/components/BackButton';
 import ProfileActions from '@/components/ProfileActions';
@@ -90,40 +91,8 @@ function firestoreProfileToCard(user: UserProfile, index: number) {
   };
 }
 
-/** Compute a match score between the current user and a candidate profile */
-function computeMatchScore(myProfile: UserProfile | null, candidate: UserProfile): number {
-  if (!myProfile || !myProfile.sports || myProfile.sports.length === 0) return 50; // Neutral score
-
-  const mySports = new Set(myProfile.sports.map((s: SportEntry) => s.name));
-  const theirSports = candidate.sports || [];
-
-  let score = 0;
-  let sportsInCommon = 0;
-
-  for (const sport of theirSports) {
-    if (mySports.has(sport.name)) {
-      sportsInCommon++;
-      // Bonus for same sport
-      score += 30;
-
-      // Additional bonus for matching level
-      const mySport = myProfile.sports.find((s: SportEntry) => s.name === sport.name);
-      if (mySport && mySport.level === sport.level) {
-        score += 20; // Same level = perfect match
-      } else if (mySport) {
-        score += 10; // Different level but same sport
-      }
-    }
-  }
-
-  // Same city bonus
-  if (myProfile.city && candidate.city && myProfile.city === candidate.city) {
-    score += 15;
-  }
-
-  // Normalize: cap at 100
-  return Math.min(score, 100);
-}
+// Phase 9 SC5 c3/4 — computeMatchScore extracted to @/lib/matching/computeMatchScore.ts
+// (low-rating multiplier × 0.7 si <3.5★ + ≥3 reviews — Q2=B + Q3=A + Q4=B doctrine)
 
 
 export default function DiscoveryPage() {

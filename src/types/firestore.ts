@@ -79,6 +79,14 @@ export interface UserProfile {
     modelVersion: string;
     scoredAt: Timestamp;
   };
+
+  // ----- Phase 9 SC5 c3/4 — Aggregated rating denorm pour matching algo (additif) -----
+  /** Phase 9 SC5 c3/4 (additif). Note moyenne reçue en tant que reviewee (status='published').
+   *  Denormalized field — recomputed fire-and-forget post-publish via /api/users/[id]/recompute-rating.
+   *  Utilisé par computeMatchScore (algo matching discovery) — Q2=B multiplier × 0.7 si <3.5★ + Q4=B min 3 reviews. */
+  averageRatingAsReviewee?: number;
+  /** Phase 9 SC5 c3/4 (additif). Nombre de reviews published reçues. Anti-faux-positif Q4=B. */
+  reviewCountAsReviewee?: number;
 }
 
 export interface SportEntry {

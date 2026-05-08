@@ -61,7 +61,8 @@
     "test:reviews:retaliation-detector": "firebase emulators:exec --only firestore 'npx tsx tests/reviews/retaliation-detector.test.ts'",
     "test:profile:moderate-bio": "firebase emulators:exec --only firestore 'npx tsx tests/profile/moderate-bio-ia.test.ts'",
     "test:excuses:create": "firebase emulators:exec --only firestore 'npx tsx tests/excuses/excuse.test.ts'",
-    "test:reports:no-show-excuse": "firebase emulators:exec --only firestore 'npx tsx tests/reports/no-show-excuse.test.ts'"
+    "test:reports:no-show-excuse": "firebase emulators:exec --only firestore 'npx tsx tests/reports/no-show-excuse.test.ts'",
+    "test:matching:compute-score": "firebase emulators:exec --only firestore 'npx tsx tests/matching/compute-match-score.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",

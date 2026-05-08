@@ -58,6 +58,25 @@ export async function awardReviewBonus(reviewId: string): Promise<AwardReviewBon
     return { alreadyAwarded: false, review };
   });
 
+  // Phase 9 SC5 c3/4 — Fire-and-forget recompute averageRating reviewee (matching algo).
+  // Trigger AVANT early-return idempotent : si publish s'est déjà produit (alreadyAwarded),
+  // un re-publish via moderateReview pourrait avoir changé l'agg → recompute toujours.
+  // Server-side via API route /api/users/[id]/recompute-rating (Admin SDK bypass rules).
+  if (typeof fetch !== 'undefined') {
+    const revieweeId = reviewSnapshot.review.revieweeId;
+    void fetch(`/api/users/${revieweeId}/recompute-rating`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    }).catch((err) => {
+      console.warn('[awardReviewBonus] recompute averageRating failed (non-blocking)', {
+        reviewId,
+        revieweeId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
+
   if (reviewSnapshot.alreadyAwarded) {
     return { awarded: false, creditsAdded: 0 };
   }
