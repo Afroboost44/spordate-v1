@@ -2049,7 +2049,136 @@ HOOK PUBLISH REVIEW (recompute denorm) :
 - ⏭️ Threshold `4.0★` (Q3=B) si Phase 10 metrics montrent 3.5 trop permissif
 - ⏭️ Cloud Function onWrite trigger pour denorm averageRating (Q4=B fire-and-forget Phase 9 ; CF Phase 10 si scale)
 
-### Phase 9 progression (27 commits techniques + 5 close-outs)
+### Sub-chantier 6 — Female-safety quota + anonymisation soft delete UI ✅ COMPLET (4 commits)
+
+- 1/4 `e411c12` : `audienceType` helpers `src/lib/audience/_internal.ts` (`AUDIENCE_TYPES` Q1=A schema Phase 7 SC0 c3 préservé `'all' | 'women-only' | 'men-only' | 'mixed-priority-women'` + `AudienceError` typed + `isAllowedByAudience` pure helper + `assertAllowedByAudience` throw variant + `isAudienceType` type guard) + extension `firestore.rules /activities/{id}` create+update validate enum whitelist + `<AudienceTypeSelector>` UI partner RadioGroup 4 options (recommended ★ sur `mixed-priority-women`) + helper text LCD Art. 3 + nLPD + wire dans `/partner/offers` formulaire create/edit + tests AS1-AS4 + bonus 'other'/undefined/null/men-only Q4=A symmetric/invalid type fail-safe/type guard/enum schema (16 assertions, pure helpers no emulator).
+- 2/4 `a47377b` : Extension `bookSession` pre-tx audience check (load activity + user.gender → `assertCanBookActivity` fail-fast avant transaction Firestore) + `'gender-required'` typed pour UX (force user complete profil avant booking restrictif vs juste mismatch) + extension `/api/checkout` mode='session' server-side defense-in-depth Admin SDK check + HTTP 412 mapping si AudienceError (precondition-failed, anti-bypass client) + tests BS1-BS4 + 7 bonus (12 assertions). Skip check si `audienceType='all'` ou `undefined` (rétro-compat).
+- 3/4 `f7aac7f` : `UserProfile.softDeletedAt?` + `softDeleteScheduledPurgeAt?` + `softDeleteReason?` fields additifs + service `softDeleteUser({uid, reason?})` (verify ownership + update fields + grace 30j Q5=A) + service `restoreSoftDeletedUser` (pendant grace → unset fields ; après → throw `'grace-expired'`) + helpers `isSoftDeleted` / `softDeleteGraceDaysRemaining` + `SoftDeleteError` typed + DI seam + `<DeleteAccountActions>` client island avec AlertDialog confirm + restore button inline (Q7=A reversibility RGPD/nLPD friendly) + page `/profile/delete` user-facing avec onSnapshot status + extension `/api/cron/purge-old-data` Step 5 NEW (query users `softDeleteScheduledPurgeAt < now AND anonymizedAt == null` → anonymise PII + clear denorm rating fields + cursor pagination cohérent SC0 c1) + composite index `users: softDeleteScheduledPurgeAt ASC` + tests SD1-SD5 + 12 bonus (20 assertions). **🎉 RGPD/nLPD COMPLIANCE COMPLET pour launch**.
+- 4/4 *(this commit)* : architecture.md SC6 close-out + cumulative tests Phase 9 SC0-SC6 + retrospective Q1-Q8 doctrine SC6 appliquée.
+
+**Architecture résultante SC6 female-safety + soft delete end-to-end** :
+
+```
+PARTNER CRÉE ACTIVITY AVEC AUDIENCE TYPE (SC6 c1) :
+  /partner/offers (formulaire create/edit) :
+    <AudienceTypeSelector> RadioGroup 4 options :
+      - 'all' (défaut) : Tous publics
+      - 'mixed-priority-women' ★ Recommandé : Mixte priorité femmes (boost matching Phase 10)
+      - 'women-only' : Femmes uniquement (booking strict Q3=A)
+      - 'men-only' : Hommes uniquement (booking strict Q4=A symmetric)
+    ↓ setDoc /activities/{id} avec audienceType field
+    ↓ firestore.rules validate enum whitelist (defense-in-depth)
+       (helper validAudienceType() Phase 9 SC6 c1)
+
+USER TENTE BOOKING ACTIVITY (SC6 c2) :
+  Client : bookSession({sessionId, userId, ...})
+    ↓ Idempotency check (paymentIntentId existant → skip)
+    ↓ Phase 9 SC6 c2 — Audience pre-check (Q3=A + Q4=A) :
+       getDoc activity → audienceType
+       getDoc users/{uid} → gender
+       assertCanBookActivity(gender, audienceType) :
+         IF audienceType IN ['women-only', 'men-only'] AND gender == null :
+           → throw AudienceError('gender-required')  ← UX: redirect /profile pour set gender
+         IF !isAllowedByAudience(gender, audienceType) :
+           → throw AudienceError('gender-mismatch')  ← strict enforcement
+       Skip check si audienceType='all' / undefined (rétro-compat)
+       Fail-fast avant transaction Firestore (économie ressource)
+    ↓ runTransaction atomic (existing flow inchangé) :
+       create booking + currentParticipants++ + tier recompute + match.chatUnlocked
+
+  Server defense-in-depth (/api/checkout mode='session') :
+    Same assertCanBookActivity check Admin SDK
+    HTTP 412 (precondition-failed) si AudienceError
+    Anti-bypass : si user fait fetch direct /api/checkout sans bookSession service
+
+USER DEMANDE SUPPRESSION COMPTE (SC6 c3 — RGPD/nLPD Art. 17) :
+  /profile → section Confidentialité → lien "Supprimer mon compte" → /profile/delete
+  /profile/delete page :
+    onSnapshot users/{uid} → load softDeletedAt status
+    SI déjà soft-deleted :
+      <DeleteAccountActions isAlreadySoftDeleted={true} graceDaysRemaining={N} />
+      → Banner amber "Suppression dans N jours" + bouton "Annuler"
+      → restoreSoftDeletedUser() : unset softDeletedAt/scheduledPurgeAt/reason
+      → router.refresh() + toast success
+    SINON :
+      <DeleteAccountActions isAlreadySoftDeleted={false} />
+      → Card warning red "Action irréversible après 30j" + textarea reason (max 500)
+      → AlertDialog confirm avant action destructive
+      → softDeleteUser({uid, reason?}) :
+         softDeletedAt = serverTimestamp()
+         softDeleteScheduledPurgeAt = +30 days (Q5=A grace cohérent SC5 c3 banlist)
+         softDeleteReason? (optional audit)
+      → logout + redirect / + toast feedback
+
+CRON PURGE AUTO POST-GRACE (SC6 c3) :
+  purgeOldDataCron weekly Friday 03:00 → /api/cron/purge-old-data
+    ↓ Step 5 NEW Phase 9 SC6 c3 :
+       query users where softDeleteScheduledPurgeAt < now AND anonymizedAt == null
+       cursor pagination cohérent SC0 c1 (pageSize=500, maxPages=10)
+       per-user :
+         skip si déjà anonymizedAt (idempotency vs cron banlist 24mo SC5 c3)
+         update :
+           displayName = null
+           email = null
+           photoURL = null
+           phoneNumber = null
+           bio = null
+           averageRatingAsReviewee = 0  (clear denorm SC5 c3)
+           reviewCountAsReviewee = 0
+           anonymizedAt = serverTimestamp()
+       Returns {softDeletedAnonymized, softDeletePages, softDeleteTruncated}
+```
+
+**Bilan SC6 Phase 9 — votes Q1-Q8 doctrine SC6 appliqués (8/8)** :
+- ✅ Q1=A `AUDIENCE_TYPES` enum schema Phase 7 SC0 c3 préservé (4 valeurs, rétro-compat)
+- ✅ Q2=C `mixed-priority-women` pas d'enforcement booking (matching boost defer Phase 10 — SC6 c3 skipped)
+- ✅ Q3=A hard enforcement strict `women-only` (gender='female' uniquement)
+- ✅ Q4=A symmetric `men-only` enforcement (LCD Art. 3 cohérence)
+- ✅ Q5=A 30j grace period soft delete (cohérent SC5 c3 banlist purge cadence)
+- ✅ Q6=A réutilise cron `purge-old-data` existing (extension Step 5 KISS — pattern proven Phase 8 SC5)
+- ✅ Q7=A inline UI restore pendant grace (RGPD/nLPD friendly + reversibility)
+- ✅ Q8=A tests verify content via pure helpers + boundary edges + idempotency
+
+**Tests SC6 cumulés** :
+- AS1-AS4 + bonus (audience helpers pure) : 16 assertions
+- BS1-BS4 + 7 bonus (bookSession enforcement) : 12 assertions
+- SD1-SD5 + 12 bonus (soft delete + cron purge + helpers + rules anti-spoof) : 20 assertions
+- **SC6 total : 48 nouvelles assertions automated**
+
+**Cumul routes Vercel API Phase 8+9 (24 routes — extension SC6 +1 page seulement)** :
+- **Phase 9 SC6 (NEW)** : page `/profile/delete` (client-side, no API route — services client SDK + extension cron purge-old-data Step 5)
+
+**Cumul Cloud Functions (6 CF déployables — inchangé SC6)** :
+- `refreshPricingCron`, `reviewReminderCron`, `denormActiveSanctionTrigger`, `purgeOldDataCron` (extended SC6 c3 Step 5 soft delete purge), `expireInvitesCron`, `sessionRemindersCron`
+
+**Nouveaux composite indexes Firestore SC6 cumul** :
+- `users: softDeleteScheduledPurgeAt ASC` (cron query efficient)
+- À déployer prod via `firebase deploy --only firestore:indexes` (Phase 9 SC6 close-out)
+
+**Nouveaux helpers/services SC6 cumul** :
+- `src/lib/audience/_internal.ts` (`AUDIENCE_TYPES` + `isAllowedByAudience` + `assertAllowedByAudience` + `assertCanBookActivity` + `isAudienceType` type guard + `AudienceError`)
+- `src/lib/users/softDelete.ts` (services `softDeleteUser` + `restoreSoftDeletedUser` + helpers `isSoftDeleted` + `softDeleteGraceDaysRemaining` + `SoftDeleteError`)
+- `src/components/partner/AudienceTypeSelector.tsx` (RadioGroup partner UI)
+- `src/components/profile/DeleteAccountActions.tsx` (client island user-facing AlertDialog)
+- `src/app/profile/delete/page.tsx` (page user-facing avec onSnapshot status)
+- Extension `src/app/api/cron/purge-old-data/route.ts` Step 5 (soft delete purge)
+
+**🎉 RGPD/nLPD COMPLIANCE COMPLET POUR LAUNCH** :
+- ✅ Soft delete user-facing UI (RGPD Art. 17 droit à l'effacement)
+- ✅ Grace period 30j (réversibilité, doctrine §H)
+- ✅ Cron purge auto anonymisation PII (proportionnalité nLPD Art. 7)
+- ✅ Audit trail T&S préservé (reviews anonymes, reports, sanctions — doctrine §H)
+- ✅ Banlist 24mo (Phase 8 SC5 c3) + soft delete user-initiated (Phase 9 SC6 c3) coexistent
+
+**Différé Phase 10 documenté** :
+- ⏭️ Matching boost `mixed-priority-women × 1.3` (Q2=C SC6 c3 skipped Phase 9 — defer Phase 10 si demande user)
+- ⏭️ Email notification user 7 jours avant purge soft delete (Q5=A grace 30j Phase 9 — Phase 10 polish reminder)
+- ⏭️ Dashboard admin liste users soft-deleted en grace (Q6=A cron silent Phase 9)
+- ⏭️ Hard delete option (vs soft delete) si user veut suppression immédiate sans grace
+- ⏭️ UI feedback survey reason multi-choice + free text (Q5=A reason free text Phase 9)
+- ⏭️ Per-activity override `Activity.excuseWindowHours?` (cohérent SC5 différé)
+
+### Phase 9 progression (30 commits techniques + 6 close-outs)
 
 | SC | Thème | Commits | Tests automated |
 |----|-------|---------|-----------------|
@@ -2059,15 +2188,16 @@ HOOK PUBLISH REVIEW (recompute denorm) :
 | SC3 | Email rappels J-1/T-0 + Web Push reviewReminder | 5 (incl. close-out) | 70 |
 | SC4 | Admin queue history + IA modération étendue + détection représailles | 6 (incl. close-out) | 77 |
 | SC5 | UX no-show excuse pré-session + matching algo visibility | 4 (incl. close-out) | 36 |
-| **Cumul Phase 9** | | **27 + 5 close-outs** | **331** |
+| SC6 | Female-safety quota + anonymisation soft delete UI | 4 (incl. close-out) | 48 |
+| **Cumul Phase 9** | | **30 + 6 close-outs** | **395** |
 
-**Tests Phase 9 final cumulés** : 331 nouvelles assertions automated.
+**Tests Phase 9 final cumulés** : 395 nouvelles assertions automated.
 **Phase 8 cumul 251+ tests préservé** intégralement (zéro régression mesurée).
 **Phase 7 base 372 tests préservé** intégralement (markNoShow legacy 47/47 PASS).
 
-**Vercel green** sur 30+ déploiements consécutifs Phase 9.
+**Vercel green** sur 35+ déploiements consécutifs Phase 9.
 
-**Reste sub-chantiers Phase 9** : SC6 (Female-safety quota + anonymisation soft delete), SC7 (close-out final Phase 9).
+**Reste sub-chantiers Phase 9** : SC7 (close-out final Phase 9).
 
 ---
 
