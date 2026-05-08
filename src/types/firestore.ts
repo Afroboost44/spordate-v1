@@ -408,6 +408,11 @@ export interface Partner {
   reviewCount: number;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+  /** Phase 9 SC2 c1/6 — Stripe Connect Express account id persisté.
+   *  Provenance : `/api/stripe-connect` POST onboarding (account.id `acct_xxx`).
+   *  Utilisé pour destination charges modes Split/Gift (transfer_data.destination).
+   *  Absent = partner pas onboardé Connect (Stripe Connect required pour invites Split/Gift). */
+  stripeAccountId?: string;
 }
 
 // ===================== COMMISSION SETTINGS =====================
@@ -772,6 +777,13 @@ export interface Block {
 
 export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired';
 
+/** Phase 9 SC2 c1/6 — Mode de paiement de l'invite (doctrine §E.Q1 Phase 9).
+ *  - 'individual' (Phase 8 SC4) : invité paye sa part, inviter ne paye rien (default legacy).
+ *  - 'split' (Phase 9 SC2) : inviter paye une portion (10-90%), invité paye le reste.
+ *  - 'gift' (Phase 9 SC2) : inviter paye 100%, invité confirme uniquement (no payment).
+ *  Mode choisi par inviter à la création (Q1=A). */
+export type InviteMode = 'individual' | 'split' | 'gift';
+
 export interface Invite {
   /** Doc ID Firestore — pattern `${fromUserId}_${toUserId}_${sessionId}`. */
   inviteId: string;
@@ -796,6 +808,29 @@ export interface Invite {
   acceptedAt?: Timestamp;
   /** Set quand status passe à 'declined' (via /api/invites/[id]/decline). */
   declinedAt?: Timestamp;
+  // ===== Phase 9 SC2 c1/6 — Modes Split/Gift Stripe Connect destination charges =====
+  /** Phase 9 SC2 c1/6 (additif). Default 'individual' (legacy compat Phase 8 SC4 quand absent).
+   *  Choisi par inviter (Q1=A) à la création. Validation rule + service. */
+  mode?: InviteMode;
+  /** Phase 9 SC2 c1/6. Montant inviter en CHF centimes (mode='split'/'gift').
+   *  Mode='gift' : inviterAmountCents = totalCents (100%).
+   *  Mode='split' : 10%-90% du total (Q5=A range), reste = inviteeAmountCents.
+   *  Absent pour mode='individual'. */
+  splitInviterAmountCents?: number;
+  /** Phase 9 SC2 c1/6. Montant invité en CHF centimes (mode='split' uniquement).
+   *  Mode='gift' : 0 (B paye rien).
+   *  Mode='individual' : absent (B paye via /api/checkout invite-accept Phase 8 SC4 logic). */
+  splitInviteeAmountCents?: number;
+  /** Phase 9 SC2 c1/6. Stripe PaymentIntent id du pre-pay inviter (mode='split'/'gift').
+   *  Set par webhook Stripe `invite-prepay` (SC2 c4/6). Servira pour refund auto si
+   *  decline/expire (SC2 c5/6 cancellation policy Q6=A). */
+  inviterPaymentIntentId?: string;
+  /** Phase 9 SC2 c1/6. Set quand refund inviter executé (via cron expireInvitesCron OR
+   *  /api/invites/[id]/decline → refundForInvite). Idempotency Firestore-side. */
+  inviterRefundedAt?: Timestamp;
+  /** Phase 9 SC2 c1/6. Montant inviter remboursé (CHF centimes, cohérent
+   *  Booking.refundedAmount Phase 8 SC5 c4/5). */
+  inviterRefundedAmount?: number;
 }
 
 // ===================== NOTIFICATIONS =====================

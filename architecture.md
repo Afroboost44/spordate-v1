@@ -688,6 +688,21 @@ Session bookée (CHF) → bundle 50 crédits chat
 - **Gift** : organisateur paye 100% (use-case anniversaire, gratitude — viralisation potentielle)
 - Les 4 questions design (default mode Phase 9, min/max split, cancellation policy, UI) → tranchées en pré-Phase 9 sur la base de la donnée Phase 8 (taux d'invite Individuel, abandons, demandes user).
 
+**Phase 9 SC2 — votes doctrine tranchés (mai 2026)** :
+- **Q1=A** UI mode selection : **inviter choisit** (Individual/Split/Gift + ratio si Split) à la création de l'invite. Cohérent UX gift IRL — l'inviter offre le contexte.
+- **Q2=C** Gift mode Booking shape : **Booking unique** `userId=invitee` avec denorm `paidByUserId=inviter` ≠ `userId` (traceability + refund routing propre).
+- **Q3=C** Refund post-accept : **defer Phase 10** (Phase 9 KISS — focus refund auto pre-accept decline/expire). Flag `refundDue` admin manuel pour cas edge post-accept.
+- **Q4=B** Application fee Spordate : **5% flat Phase 9** (growth incentive). Configurable env var `SPORDATE_INVITE_FEE_PCT=5` pour tuning sans redeploy.
+- **Q5=A** Min/max split ratio : **10-90%** (anti-zero ET anti-100%). Slider step 10% (10/20/30/40/50/60/70/80/90).
+- **Q6=A** Cancellation policy split/gift (avant accept) : **A peut cancel l'invite** → refund auto 100% via cron expireInvitesCron extension. Cohérent doctrine retain-not-trap.
+
+**Stripe Connect destination charges pattern Phase 9 SC2** :
+- Inviter pre-pays sa portion (Split) ou totalité (Gift) à la création de l'invite via Stripe checkout
+- `transfer_data.destination = partner.stripeAccountId` (Express account onboarded)
+- `application_fee_amount = totalCents * SPORDATE_INVITE_FEE_PCT / 100` (Spordate platform commission)
+- Idempotency key Stripe : `invite-prepay-{inviteId}` (scope-safe replay)
+- Refund auto si decline/expire : `refundForInvite({inviteId})` helper cohérent SC5 c4/5 `refundForSanction` pattern
+
 **Justification** :
 - Économique : Individuel = -friction modeste vs Split mais ship-able en ~3-4 jours vs ~2 semaines
 - Risque : Stripe Connect destination splits = surface bug + fraud potentielle. À mûrir Phase 9 sur du code Phase 8 stable.

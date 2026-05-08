@@ -145,7 +145,18 @@ service cloud.firestore {
         && request.resource.data.expiresAt > request.time
         // createdAt = server time (anti-backdate)
         && request.resource.data.createdAt == request.time
-        // Keys whitelist (Phase 8 SC4 commit 1/6)
+        // Phase 9 SC2 c1/6 — mode validation (optional, default 'individual')
+        // Si présent : doit être enum 'individual'|'split'|'gift'
+        && (!('mode' in request.resource.data) ||
+            request.resource.data.mode in ['individual', 'split', 'gift'])
+        // Phase 9 SC2 c1/6 — montants split/gift (optional, int >= 0 si présents)
+        && (!('splitInviterAmountCents' in request.resource.data) ||
+            (request.resource.data.splitInviterAmountCents is int
+              && request.resource.data.splitInviterAmountCents >= 0))
+        && (!('splitInviteeAmountCents' in request.resource.data) ||
+            (request.resource.data.splitInviteeAmountCents is int
+              && request.resource.data.splitInviteeAmountCents >= 0))
+        // Keys whitelist (Phase 8 SC4 commit 1/6 + Phase 9 SC2 c1/6 modes)
         && request.resource.data.keys().hasOnly([
              'inviteId',
              'fromUserId',
@@ -155,7 +166,11 @@ service cloud.firestore {
              'status',
              'expiresAt',
              'message',
-             'createdAt'
+             'createdAt',
+             // Phase 9 SC2 c1/6 — modes Split/Gift
+             'mode',
+             'splitInviterAmountCents',
+             'splitInviteeAmountCents'
            ]);
 
       // Update : transitions strictes (toUserId only pour accept/decline)

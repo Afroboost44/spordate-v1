@@ -7,13 +7,16 @@
  *
  * Pattern : @firebase/rules-unit-testing v4 (cohérent tests/blocks/rules.test.ts).
  *
- * Couverture (6 cas INV1-INV6) :
+ * Couverture (9 cas INV1-INV9 — Phase 8 SC4 + Phase 9 SC2 c1/6) :
  *   INV1 : create owner (auth.uid == fromUserId) + status='pending' + doc-id pattern → SUCCESS
  *   INV2 : create avec fromUserId spoofé (auth.uid ≠ fromUserId) → REJET
  *   INV3 : create avec doc-id pattern incorrect (anti-doublon Q10=B) → REJET
  *   INV4 : update accept par toUserId (status pending → accepted + acceptedAt) → SUCCESS
  *   INV5 : update accept par fromUserId (path b reserved toUserId) → REJET
  *   INV6 : update fromUserId immuable (toUserId tente de changer fromUserId) → REJET
+ *   INV7 : create avec mode='split' + splitInviter/InviteeAmountCents valides → SUCCESS (Phase 9 SC2 c1/6)
+ *   INV8 : create avec mode='invalid' (hors enum) → REJET (Phase 9 SC2 c1/6)
+ *   INV9 : create avec splitInviterAmountCents négatif → REJET (Phase 9 SC2 c1/6)
  */
 
 import {
@@ -260,12 +263,78 @@ async function main(): Promise<void> {
   }
 
   // ===================================================================
+  // CREATE rules Phase 9 SC2 c1/6 — modes Split/Gift validation (INV7-INV9)
+  // ===================================================================
+  section('CREATE rules /invites/{id} : modes Split/Gift Phase 9 SC2 c1/6 (INV7-INV9)');
+
+  // INV7 : create avec mode='split' + montants valides → SUCCESS
+  {
+    const SESSION_INV7 = 'session_inv_7';
+    const docId7 = inviteDocId(ALICE_UID, BOB_UID, SESSION_INV7);
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    try {
+      await assertSucceeds(
+        setDoc(doc(fbDb, 'invites', docId7), {
+          ...validInvitePayload(ALICE_UID, BOB_UID, SESSION_INV7),
+          mode: 'split',
+          splitInviterAmountCents: 1250,
+          splitInviteeAmountCents: 1250,
+        }),
+      );
+      passManually('INV7 create mode=split + montants valides → SUCCESS (Phase 9 SC2 c1/6)');
+    } catch (e) {
+      failManually('INV7 (expected success split mode)', e);
+    }
+  }
+
+  // INV8 : create avec mode='invalid' (hors enum) → REJET
+  {
+    const SESSION_INV8 = 'session_inv_8';
+    const docId8 = inviteDocId(ALICE_UID, BOB_UID, SESSION_INV8);
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    try {
+      await assertFails(
+        setDoc(doc(fbDb, 'invites', docId8), {
+          ...validInvitePayload(ALICE_UID, BOB_UID, SESSION_INV8),
+          mode: 'invalid_mode_xyz',
+        }),
+      );
+      passManually('INV8 create mode invalide (hors enum) → REJET (Phase 9 SC2 c1/6)');
+    } catch (e) {
+      failManually('INV8 (expected fail invalid mode)', e);
+    }
+  }
+
+  // INV9 : create avec splitInviterAmountCents négatif → REJET
+  {
+    const SESSION_INV9 = 'session_inv_9';
+    const docId9 = inviteDocId(ALICE_UID, BOB_UID, SESSION_INV9);
+    const aliceCtx = env.authenticatedContext(ALICE_UID);
+    const fbDb = asFirestore(aliceCtx.firestore());
+    try {
+      await assertFails(
+        setDoc(doc(fbDb, 'invites', docId9), {
+          ...validInvitePayload(ALICE_UID, BOB_UID, SESSION_INV9),
+          mode: 'split',
+          splitInviterAmountCents: -100, // ❌ négatif
+          splitInviteeAmountCents: 1500,
+        }),
+      );
+      passManually('INV9 create splitInviterAmountCents négatif → REJET (Phase 9 SC2 c1/6)');
+    } catch (e) {
+      failManually('INV9 (expected fail négatif)', e);
+    }
+  }
+
+  // ===================================================================
   // Cleanup
   // ===================================================================
   await env.cleanup();
 
   console.log('');
-  console.log('====== Résumé Invites rules (INV1-INV6) ======');
+  console.log('====== Résumé Invites rules (INV1-INV9) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);
