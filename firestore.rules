@@ -38,11 +38,8 @@ service cloud.firestore {
 
     // === USERS ===
     // Phase 9 SC6 c3/4 — soft delete user-facing UI (RGPD/nLPD Art. 17).
-    // Defense-in-depth helper : owner peut update softDelete fields uniquement (anti-spoof other fields).
-    function isUpdatingOnlySoftDeleteFields() {
-      return request.resource.data.diff(resource.data).affectedKeys()
-        .hasOnly(['softDeletedAt', 'softDeleteScheduledPurgeAt', 'softDeleteReason']);
-    }
+    // Owner allowed full update inclut softDelete fields (preserved Phase 9).
+    // Phase 10 polish : tighten owner update à champs whitelist via diff.affectedKeys().hasOnly.
     match /users/{userId} {
       allow read: if isAuth();
       allow create: if isOwner(userId);
