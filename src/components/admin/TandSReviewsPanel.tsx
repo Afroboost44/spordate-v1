@@ -21,7 +21,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { getPendingReviewsForAdmin } from '@/lib/reviews';
+import { getPendingReviewsForAdmin, aiBadgeProps } from '@/lib/reviews';
 import type { Review } from '@/types/firestore';
 import {
   ReviewModerationActionsDialog,
@@ -60,6 +60,7 @@ export function TandSReviewsPanel({ adminUid }: TandSReviewsPanelProps) {
     open: boolean;
     reviewId: string;
     action: ReviewModerationAction;
+    aiSuggestion?: Review['aiSuggestion'];
   }>({ open: false, reviewId: '', action: 'publish' });
 
   const loadReviews = useCallback(async () => {
@@ -78,8 +79,12 @@ export function TandSReviewsPanel({ adminUid }: TandSReviewsPanelProps) {
     loadReviews();
   }, [loadReviews]);
 
-  const handleAction = (reviewId: string, action: ReviewModerationAction) => {
-    setActionDialog({ open: true, reviewId, action });
+  const handleAction = (
+    reviewId: string,
+    action: ReviewModerationAction,
+    aiSuggestion?: Review['aiSuggestion'],
+  ) => {
+    setActionDialog({ open: true, reviewId, action, aiSuggestion });
   };
 
   const handleResolved = () => {
@@ -145,13 +150,31 @@ export function TandSReviewsPanel({ adminUid }: TandSReviewsPanelProps) {
                       </Badge>
                     </TableCell>
                     <TableCell className="text-xs text-gray-400 max-w-xs">
-                      <span title={r.comment}>{commentPreview(r.comment)}</span>
+                      <div className="flex flex-col gap-1">
+                        <span title={r.comment}>{commentPreview(r.comment)}</span>
+                        {(() => {
+                          // Phase 9 SC4 c3/6 — badge IA recommendation (Q3=A admin keep final).
+                          // Graceful degradation : si pas d'aiSuggestion → badge non rendu.
+                          const badge = aiBadgeProps(r.aiSuggestion);
+                          if (!badge) return null;
+                          return (
+                            <span
+                              data-testid={badge.testId}
+                              title={badge.tooltip}
+                              aria-label={badge.tooltip}
+                              className={`inline-flex items-center self-start rounded border px-2 py-0.5 text-[10px] font-mono uppercase tracking-wider ${badge.className}`}
+                            >
+                              {badge.label}
+                            </span>
+                          );
+                        })()}
+                      </div>
                     </TableCell>
                     <TableCell className="text-right whitespace-nowrap">
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleAction(r.reviewId, 'publish')}
+                        onClick={() => handleAction(r.reviewId, 'publish', r.aiSuggestion)}
                         className="h-7 px-2 text-xs border-green-600/40 text-green-400 hover:bg-green-600/10 mr-2"
                       >
                         Publier
@@ -159,7 +182,7 @@ export function TandSReviewsPanel({ adminUid }: TandSReviewsPanelProps) {
                       <Button
                         size="sm"
                         variant="outline"
-                        onClick={() => handleAction(r.reviewId, 'reject')}
+                        onClick={() => handleAction(r.reviewId, 'reject', r.aiSuggestion)}
                         className="h-7 px-2 text-xs border-red-600/40 text-red-400 hover:bg-red-600/10"
                       >
                         Rejeter
@@ -179,6 +202,7 @@ export function TandSReviewsPanel({ adminUid }: TandSReviewsPanelProps) {
         reviewId={actionDialog.reviewId}
         action={actionDialog.action}
         adminId={adminUid}
+        aiSuggestion={actionDialog.aiSuggestion}
         onResolved={handleResolved}
       />
     </>

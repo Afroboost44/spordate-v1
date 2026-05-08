@@ -14,8 +14,8 @@
 
 'use client';
 
-import { useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -28,7 +28,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { moderateReview, ReviewError } from '@/lib/reviews';
+import { moderateReview, ReviewError, prefilledReason, mismatchWarning } from '@/lib/reviews';
+import type { Review } from '@/types/firestore';
 
 const NOTE_MIN_LENGTH = 10;
 const NOTE_MAX_LENGTH = 500;
@@ -44,6 +45,9 @@ export interface ReviewModerationActionsDialogProps {
   adminId: string;
   /** Callback succès — refresh queue. */
   onResolved?: () => void;
+  /** Phase 9 SC4 c3/6 — IA suggestion review (additif). Si présent et aligned avec
+   *  action choisie, prefill reason avec motive ; si mismatch, affiche warning subtle. */
+  aiSuggestion?: Review['aiSuggestion'];
 }
 
 export function ReviewModerationActionsDialog({
@@ -53,10 +57,22 @@ export function ReviewModerationActionsDialog({
   action,
   adminId,
   onResolved,
+  aiSuggestion,
 }: ReviewModerationActionsDialogProps) {
   const { toast } = useToast();
   const [note, setNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  // Phase 9 SC4 c3/6 — prefill reason si admin choix === IA recommendation (pure helper)
+  const prefilled = prefilledReason(aiSuggestion, action);
+  const warning = mismatchWarning(aiSuggestion, action);
+
+  // Sync prefilled reason quand dialog re-ouvre / action change
+  useEffect(() => {
+    if (open) {
+      setNote(prefilled);
+    }
+  }, [open, prefilled]);
 
   const isReject = action === 'reject';
   const noteRequired = isReject;
@@ -135,6 +151,16 @@ export function ReviewModerationActionsDialog({
               : 'La review sera rejetée. Le reviewer recevra un email avec ta justification (transparency).'}
           </DialogDescription>
         </DialogHeader>
+
+        {warning && (
+          <div
+            data-testid="ai-mismatch-warning"
+            className="flex items-start gap-2 rounded border border-amber-500/40 bg-amber-500/10 p-2 text-xs text-amber-300"
+          >
+            <AlertTriangle className="h-4 w-4 shrink-0 mt-0.5" aria-hidden="true" />
+            <span>{warning} (tu gardes la décision finale).</span>
+          </div>
+        )}
 
         <div className="flex flex-col gap-2 py-2">
           <Label htmlFor="moderation-note" className="text-xs uppercase tracking-wider text-gray-400">

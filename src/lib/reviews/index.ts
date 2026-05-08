@@ -41,6 +41,15 @@ export {
   type ReviewerProfile,
 } from './getReviewerProfiles';
 
+// Phase 9 SC4 c3/6 — UI helpers admin queue badge IA + reason prefill
+export {
+  aiBadgeProps,
+  prefilledReason,
+  mismatchWarning,
+  type AiBadgeProps,
+  type AiRecommendation,
+} from './aiBadgeHelpers';
+
 // Constants + errors typés
 export {
   ReviewError,
