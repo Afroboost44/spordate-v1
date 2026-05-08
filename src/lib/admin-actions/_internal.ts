@@ -45,6 +45,7 @@ export const ADMIN_ACTION_TYPES: AdminActionType[] = [
   'sanction_manual_create',
   'leak_escalation_l4', // Phase 8 SC2 commit 5/6 — auto-escalation system
   'auto_refund_partner_no_show', // Phase 8 SC5 c4/5 — refund auto level 3 partner no-show
+  'auto_refund_invite', // Phase 9 SC2 c5/6 — refund auto invite Split/Gift décliné/expiré
 ];
 
 export const ADMIN_ACTION_TARGET_TYPES: AdminActionTargetType[] = [
@@ -52,6 +53,7 @@ export const ADMIN_ACTION_TARGET_TYPES: AdminActionTargetType[] = [
   'report',
   'sanction',
   'user', // Phase 8 SC2 commit 5/6 — target user pour leak_escalation_l4
+  'invite', // Phase 9 SC2 c5/6 — target invite pour auto_refund_invite
 ];
 
 // =====================================================================

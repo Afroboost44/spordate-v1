@@ -302,6 +302,28 @@ export async function declineInvite(inviteId: string, toUserId: string): Promise
     status: 'declined',
     declinedAt: serverTimestamp(),
   });
+
+  // Phase 9 SC2 c5/6 — refund auto si mode Split/Gift et inviter a déjà payé (Q6=A)
+  // Best-effort : si refund fail, decline reste valide (admin manual fallback Phase 10)
+  const inviteMode = (invite.mode as string) ?? 'individual';
+  if (inviteMode !== 'individual' && invite.inviterPaymentIntentId) {
+    try {
+      // Dynamic import (SC2 c5/6) — évite cycle webpack client-bundle (cohérent SC4 c5/6 fetch self-call)
+      // refundForInvite uses Admin SDK — server-only context.
+      const { refundForInvite } = await import('@/lib/stripe/refundForInvite');
+      const result = await refundForInvite({ inviteId });
+      console.info('[declineInvite] refund auto result', {
+        inviteId,
+        inviteMode,
+        result,
+      });
+    } catch (err) {
+      console.warn('[declineInvite] refundForInvite failed (best-effort, decline reste valide)', {
+        inviteId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
 }
 
 // =====================================================================

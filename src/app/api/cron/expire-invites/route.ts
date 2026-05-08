@@ -110,9 +110,11 @@ export async function POST(req: NextRequest) {
 
     let processed = 0;
     let pages = 0;
+    let refundsAttempted = 0;
     let truncated = false;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let lastDoc: any = null;
+    const inviteIdsToRefund: string[] = [];
 
     while (pages < maxPages) {
       let pageQuery = db
@@ -125,6 +127,21 @@ export async function POST(req: NextRequest) {
       const snap = await pageQuery.get();
       if (snap.empty) break;
       pages++;
+
+      // Phase 9 SC2 c5/6 — collect invites éligibles refund AVANT batch update
+      // (mode Split/Gift + inviterPaymentIntentId set + non déjà refunded)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      for (const d of snap.docs as any[]) {
+        const data = d.data();
+        const mode = (data?.mode as string) ?? 'individual';
+        if (
+          mode !== 'individual' &&
+          data?.inviterPaymentIntentId &&
+          !data?.inviterRefundedAt
+        ) {
+          inviteIdsToRefund.push(d.id);
+        }
+      }
 
       // Batch update status='expired' (Admin SDK bypass rules)
       if (!dryRun) {
@@ -156,6 +173,26 @@ export async function POST(req: NextRequest) {
       truncated = true;
     }
 
+    // Phase 9 SC2 c5/6 — refund auto best-effort post-batch (Q6=A retain-not-trap)
+    // Effectué hors batch principal pour éviter Stripe latency × N inside loop.
+    if (!dryRun && inviteIdsToRefund.length > 0) {
+      const { refundForInvite } = await import('@/lib/stripe/refundForInvite');
+      for (const inviteId of inviteIdsToRefund) {
+        try {
+          const result = await refundForInvite({ inviteId });
+          if (result.ok && result.refundId) {
+            refundsAttempted++;
+          }
+          console.info('[/api/cron/expire-invites] refund auto', { inviteId, result });
+        } catch (err) {
+          console.warn('[/api/cron/expire-invites] refund failed (best-effort)', {
+            inviteId,
+            error: err instanceof Error ? err.message : String(err),
+          });
+        }
+      }
+    }
+
     return NextResponse.json(
       {
         processed,
@@ -164,6 +201,9 @@ export async function POST(req: NextRequest) {
         pageSize,
         maxPages,
         dryRun,
+        // Phase 9 SC2 c5/6 — refund metrics
+        refundsAttempted,
+        refundCandidates: inviteIdsToRefund.length,
       },
       { status: 200, headers: { 'Cache-Control': 'no-store' } },
     );

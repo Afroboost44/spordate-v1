@@ -728,13 +728,15 @@ export type AdminActionType =
   | 'appeal_resolve_overturned'
   | 'sanction_manual_create'
   | 'leak_escalation_l4' // Phase 8 SC2 commit 5/6 — auto-escalation system (adminId='system')
-  | 'auto_refund_partner_no_show'; // Phase 8 SC5 c4/5 — refund auto level 3 partner no-show (adminId='system')
+  | 'auto_refund_partner_no_show' // Phase 8 SC5 c4/5 — refund auto level 3 partner no-show (adminId='system')
+  | 'auto_refund_invite'; // Phase 9 SC2 c5/6 — refund auto invite Split/Gift décliné/expiré (adminId='system')
 
 export type AdminActionTargetType =
   | 'review'
   | 'report'
   | 'sanction'
-  | 'user'; // Phase 8 SC2 commit 5/6 — target user pour leak_escalation_l4
+  | 'user' // Phase 8 SC2 commit 5/6 — target user pour leak_escalation_l4
+  | 'invite'; // Phase 9 SC2 c5/6 — target invite pour auto_refund_invite
 
 export interface AdminAction {
   /** Doc ID Firestore — dénormalisé. */
