@@ -58,7 +58,8 @@
     "test:admin-actions:history-csv": "firebase emulators:exec --only firestore 'npx tsx tests/admin-actions/history-csv.test.ts'",
     "test:reviews:moderate-review-ia": "firebase emulators:exec --only firestore 'npx tsx tests/reviews/moderate-review-ia.test.ts'",
     "test:reviews:admin-queue-ai-badge": "npx tsx tests/reviews/admin-queue-ai-badge.test.ts",
-    "test:reviews:retaliation-detector": "firebase emulators:exec --only firestore 'npx tsx tests/reviews/retaliation-detector.test.ts'"
+    "test:reviews:retaliation-detector": "firebase emulators:exec --only firestore 'npx tsx tests/reviews/retaliation-detector.test.ts'",
+    "test:profile:moderate-bio": "firebase emulators:exec --only firestore 'npx tsx tests/profile/moderate-bio-ia.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",

@@ -127,3 +127,33 @@ export interface ModerateReviewOutput {
   /** Version modèle pour audit/rollback (ex: 'gemini-2.5-flash-2026-05'). */
   modelVersion: string;
 }
+
+// ===================== MODERATE PROFILE BIO (Phase 9 SC4 c5/6 Genkit) =====================
+//
+// IA-assistée modération bios profil (architecture.md ligne 1403 polish Phase 9). Doctrine
+// SC4 Q3=A admin keep final decision + Q4=B fire-and-forget client-side post-updateUser
+// + Q7=A flag silent + admin queue (bio reste visible — no UX disruption Phase 9).
+
+/** Input du flow profile-bio-moderator. FR uniquement Phase 9. */
+export interface ModerateProfileBioInput {
+  /** Bio user (≤ 500 chars validés upstream par updateUser). */
+  bio: string;
+  /** Hash anonyme du userId (audit trail sans PII, cohérent §C.Q2). */
+  userHashId: string;
+}
+
+/** Output du flow profile-bio-moderator — admin tranche, IA suggère. */
+export interface ModerateProfileBioOutput {
+  /** Score toxicité ∈ [0,1] : 0.0 = bio civile, 1.0 = insulte/slur/harassment. */
+  toxicity: number;
+  /** Score profanity (vulgarité non-haineuse) ∈ [0,1]. */
+  profanity: number;
+  /** Score contactLeak ∈ [0,1] : 0.0 = aucune coordonnée, 1.0 = email/phone/handle évident. */
+  contactLeak: number;
+  /** Recommendation IA — admin garde la décision finale (Q3=A). */
+  recommendation: 'approve' | 'flag';
+  /** Motif court FR ≤ 100 chars. */
+  motive: string;
+  /** Version modèle. */
+  modelVersion: string;
+}

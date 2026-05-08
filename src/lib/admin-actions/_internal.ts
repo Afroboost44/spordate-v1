@@ -47,6 +47,7 @@ export const ADMIN_ACTION_TYPES: AdminActionType[] = [
   'auto_refund_partner_no_show', // Phase 8 SC5 c4/5 — refund auto level 3 partner no-show
   'auto_refund_invite', // Phase 9 SC2 c5/6 — refund auto invite Split/Gift décliné/expiré
   'review_retaliation_flag', // Phase 9 SC4 c4/6 — heuristique cross-user same-session within 24h
+  'profile_bio_flag', // Phase 9 SC4 c5/6 — IA Genkit modération bio profil flag (adminId='system', Q7=A silent)
 ];
 
 export const ADMIN_ACTION_TARGET_TYPES: AdminActionTargetType[] = [

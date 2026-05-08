@@ -64,6 +64,21 @@ export interface UserProfile {
    *  Si défini : displayName/email/photoURL/phoneNumber ont été nullifiés.
    *  Idempotency : cron purge skip si déjà set. */
   anonymizedAt?: Timestamp;
+
+  // ----- Phase 9 SC4 c5/6 / IA modération bio profil (additif) -----
+  /** Phase 9 SC4 c5/6 (additif). Suggestion IA Genkit (Gemini Flash) pour modération
+   *  admin de la bio user. Set fire-and-forget post-updateUser si bio non vide (Q4=B).
+   *  Admin garde la décision finale (Q3=A) — bio reste visible Q7=A no UX disruption.
+   *  Si Gemini fail/error → recommendation='approve' + motive='ai-error' (Phase 9 permissif). */
+  bioModeration?: {
+    toxicity: number;
+    profanity: number;
+    contactLeak: number;
+    recommendation: 'approve' | 'flag';
+    motive: string;
+    modelVersion: string;
+    scoredAt: Timestamp;
+  };
 }
 
 export interface SportEntry {
@@ -766,7 +781,8 @@ export type AdminActionType =
   | 'leak_escalation_l4' // Phase 8 SC2 commit 5/6 — auto-escalation system (adminId='system')
   | 'auto_refund_partner_no_show' // Phase 8 SC5 c4/5 — refund auto level 3 partner no-show (adminId='system')
   | 'auto_refund_invite' // Phase 9 SC2 c5/6 — refund auto invite Split/Gift décliné/expiré (adminId='system')
-  | 'review_retaliation_flag'; // Phase 9 SC4 c4/6 — heuristique cross-user same-session within 24h (adminId='system')
+  | 'review_retaliation_flag' // Phase 9 SC4 c4/6 — heuristique cross-user same-session within 24h (adminId='system')
+  | 'profile_bio_flag'; // Phase 9 SC4 c5/6 — IA Genkit modération bio profil (adminId='system', Q7=A silent flag)
 
 export type AdminActionTargetType =
   | 'review'

@@ -101,6 +101,22 @@ export async function updateUser(uid: string, data: Partial<UserProfile>): Promi
     ...data,
     updatedAt: serverTimestamp(),
   });
+
+  // Phase 9 SC4 c5/6 — IA modération bio profil (Q4=B fire-and-forget client-side).
+  // Trigger si bio dans le payload + non-vide. Cache 24h hash exact dedup côté flow
+  // (re-call sans changement = cache hit, no Gemini API call).
+  if (typeof fetch !== 'undefined' && typeof data.bio === 'string' && data.bio.length > 0) {
+    void fetch(`/api/users/${uid}/moderate-bio`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ bio: data.bio }),
+    }).catch((err) => {
+      console.warn('[updateUser] fire-and-forget bio moderation failed (non-blocking)', {
+        uid,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    });
+  }
 }
 
 /**
