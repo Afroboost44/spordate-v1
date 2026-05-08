@@ -7,23 +7,18 @@
  * Le mode 'package' (défaut, rétrocompatible) reste inchangé pour l'achat de crédits génériques.
  */
 import { NextRequest, NextResponse } from 'next/server';
-import Stripe from 'stripe';
 import { computePricingTier, isSessionBookable } from '@/services/firestore';
 import type { Session, Activity, PricingTierKind, Invite } from '@/types/firestore';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
+import { getSharedStripe } from '@/lib/stripe/sharedStripe';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
-// Phase 8 SC2 hotfix-2 — lazy-init Stripe pour éviter crash module-load au build
-// Vercel "Collecting page data" si STRIPE_SECRET_KEY absent (cohérent verify-payment fix).
-let _stripe: Stripe | null = null;
-function getStripe(): Stripe {
-  if (_stripe) return _stripe;
-  const key = process.env.STRIPE_SECRET_KEY;
-  if (!key) throw new Error('STRIPE_SECRET_KEY not configured');
-  _stripe = new Stripe(key);
-  return _stripe;
+// Phase 9 SC2 c3/6 — Stripe via getSharedStripe() (DI seam pour tests, cohérent SC5 c4/5
+// refundForSanction + SC2 connectHelpers). Lazy-init préservé.
+async function getStripe() {
+  return getSharedStripe();
 }
 
 // Lazy Firebase Admin + package cache
@@ -106,6 +101,11 @@ export async function POST(request: NextRequest) {
       return handleInviteAcceptMode(request, body);
     }
 
+    // Phase 9 SC2 commit 3/6 : invite-prepay flow (A pré-paye sa part Split/Gift)
+    if (body?.mode === 'invite-prepay') {
+      return handleInvitePrepayMode(request, body);
+    }
+
     const { packageId, userId, matchId, referralCode, partnerId } = body;
 
     if (!process.env.STRIPE_SECRET_KEY) {
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
       }];
     }
 
-    const session = await getStripe().checkout.sessions.create(sessionParams as never);
+    const session = await (await getStripe()).checkout.sessions.create(sessionParams as never);
     return NextResponse.json({ sessionId: session.id, url: session.url });
   } catch (error: unknown) {
     console.error('[Checkout] Erreur:', error);
@@ -285,7 +285,7 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
       last_minute: 'Last Minute',
     };
 
-    const stripeSession = await getStripe().checkout.sessions.create({
+    const stripeSession = await (await getStripe()).checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card', 'twint'],
       success_url: successUrl,
@@ -443,7 +443,65 @@ async function handleInviteAcceptMode(
       last_minute: 'Last Minute',
     };
 
-    const stripeSession = await getStripe().checkout.sessions.create({
+    // Phase 9 SC2 c3/6 — split mode : B paye splitInviteeAmountCents avec destination charge
+    // Phase 9 SC2 c3/6 — gift mode : B ne paye rien (bypass checkout)
+    const inviteMode = (invite.mode ?? 'individual') as 'individual' | 'split' | 'gift';
+
+    if (inviteMode === 'gift') {
+      // B accept gift : pas de Stripe checkout. Délégué à /api/invites/[id]/accept-gift (commit 4/6).
+      return NextResponse.json(
+        {
+          error: 'use-accept-gift-endpoint',
+          detail: 'Mode=gift — B doit POST /api/invites/[id]/accept-gift (no Stripe checkout)',
+          inviteId,
+          mode: 'gift',
+        },
+        { status: 409 },
+      );
+    }
+
+    // Compute amount + destination charge params selon mode
+    let unitAmount: number = price;
+    let descriptionExtra = `Invite de ${invite.fromUserId.slice(0, 8)}`;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const paymentIntentData: any = {};
+
+    if (inviteMode === 'split') {
+      const splitInviteeCents = invite.splitInviteeAmountCents ?? 0;
+      if (splitInviteeCents <= 0) {
+        return NextResponse.json(
+          { error: 'invalid-split-amount', detail: 'Invite mode=split mais splitInviteeAmountCents missing' },
+          { status: 500 },
+        );
+      }
+      unitAmount = splitInviteeCents;
+      descriptionExtra = `Ta part Split (${(splitInviteeCents / 100).toFixed(2)} CHF) • Invite de ${invite.fromUserId.slice(0, 8)}`;
+
+      // Stripe Connect destination charge
+      try {
+        const { getPartnerStripeAccount, ConnectError } = await import('@/lib/stripe/connectHelpers');
+        const partnerStripeAccount = await getPartnerStripeAccount(session.partnerId);
+        const { getApplicationFeePct } = await import('@/lib/invites/splitMath');
+        const feePct = getApplicationFeePct();
+        const applicationFeeAmount = Math.round((unitAmount * feePct) / 100);
+        paymentIntentData.transfer_data = { destination: partnerStripeAccount };
+        paymentIntentData.application_fee_amount = applicationFeeAmount;
+        // Useful side: ConnectError is just imported for future strict typecheck — narrowing handled by caller
+        void ConnectError;
+      } catch (err) {
+        const code = (err as { code?: string })?.code;
+        if (code === 'partner-not-found' || code === 'partner-not-onboarded') {
+          return NextResponse.json(
+            { error: code, detail: err instanceof Error ? err.message : 'Stripe Connect required' },
+            { status: 412 },
+          );
+        }
+        throw err;
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const checkoutParams: any = {
       mode: 'payment',
       payment_method_types: ['card', 'twint'],
       success_url: successUrl,
@@ -454,10 +512,10 @@ async function handleInviteAcceptMode(
             currency: 'chf',
             product_data: {
               name: session.title,
-              description: `${tierLabel[tier]} • Invite de ${invite.fromUserId.slice(0, 8)} • Inclut ${bundleCredits} crédits chat`,
+              description: `${tierLabel[tier]} • ${descriptionExtra} • Inclut ${bundleCredits} crédits chat`,
               images: ['https://spordateur.com/logo.png'],
             },
-            unit_amount: price,
+            unit_amount: unitAmount,
           },
           quantity: 1,
         },
@@ -471,14 +529,208 @@ async function handleInviteAcceptMode(
         activityId: invite.activityId,
         partnerId: session.partnerId,
         tier,
-        amount: String(price),
+        amount: String(unitAmount),
         bundleCredits: String(bundleCredits),
+        inviteMode,
       },
-    });
+    };
+    if (Object.keys(paymentIntentData).length > 0) {
+      checkoutParams.payment_intent_data = paymentIntentData;
+    }
+
+    const stripeSession = await (await getStripe()).checkout.sessions.create(checkoutParams);
 
     return NextResponse.json({ sessionId: stripeSession.id, url: stripeSession.url });
   } catch (err) {
     console.error('[Checkout invite-accept] Erreur:', err);
+    const message = err instanceof Error ? err.message : 'Erreur serveur';
+    return NextResponse.json({ error: 'internal-error', detail: message }, { status: 500 });
+  }
+}
+
+// =============================================================
+// Phase 9 SC2 commit 3/6 — Mode 'invite-prepay' : A pré-paye Split/Gift
+// =============================================================
+
+/**
+ * Pipeline mode='invite-prepay' :
+ *  1. verifyAuth → uid (must equal invite.fromUserId)
+ *  2. Load invite Admin SDK + verify status='pending' + invite.mode in ['split', 'gift']
+ *  3. Load session + activity + getPartnerStripeAccount + assertConnectChargesEnabled
+ *  4. Stripe checkout session avec destination charge + app_fee + idempotencyKey
+ *
+ * Errors HTTP :
+ *  - missing Bearer → 401
+ *  - invalid input → 400
+ *  - invite not found → 404
+ *  - status != pending → 409
+ *  - forbidden (auth ≠ fromUserId) → 403
+ *  - mode not split/gift (e.g. individual) → 400 invalid-mode-for-prepay
+ *  - partner not onboarded → 412
+ */
+async function handleInvitePrepayMode(
+  request: NextRequest,
+  body: { mode: string; inviteId?: unknown },
+): Promise<NextResponse> {
+  const callerUid = await verifyAuth(request);
+  if (!callerUid) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  }
+  if (typeof body.inviteId !== 'string' || body.inviteId.length === 0) {
+    return NextResponse.json(
+      { error: 'invalid-input', detail: 'inviteId required' },
+      { status: 400 },
+    );
+  }
+  const inviteId = body.inviteId;
+  if (!process.env.STRIPE_SECRET_KEY) {
+    return NextResponse.json({ error: 'Stripe non configuré' }, { status: 503 });
+  }
+
+  try {
+    const db = await getDb();
+    const inviteSnap = await db.collection('invites').doc(inviteId).get();
+    if (!inviteSnap.exists) {
+      return NextResponse.json({ error: 'invite-not-found' }, { status: 404 });
+    }
+    const invite = inviteSnap.data() as unknown as Invite;
+
+    if (invite.status !== 'pending') {
+      return NextResponse.json(
+        { error: 'invalid-status', detail: `Invite status='${invite.status}', expected 'pending'` },
+        { status: 409 },
+      );
+    }
+    if (invite.fromUserId !== callerUid) {
+      return NextResponse.json(
+        { error: 'forbidden', detail: 'Only fromUserId can prepay' },
+        { status: 403 },
+      );
+    }
+
+    const inviteMode = (invite.mode ?? 'individual') as 'individual' | 'split' | 'gift';
+    if (inviteMode === 'individual') {
+      return NextResponse.json(
+        {
+          error: 'invalid-mode-for-prepay',
+          detail: `Invite mode='individual' n'a pas de prepay (B paye sa part directement)`,
+        },
+        { status: 400 },
+      );
+    }
+
+    const inviterCents = invite.splitInviterAmountCents ?? 0;
+    if (inviterCents <= 0) {
+      return NextResponse.json(
+        { error: 'invalid-split-amount', detail: 'splitInviterAmountCents missing or <=0' },
+        { status: 500 },
+      );
+    }
+
+    if (!invite.sessionId) {
+      return NextResponse.json(
+        { error: 'invalid-input', detail: 'Invite has no sessionId' },
+        { status: 400 },
+      );
+    }
+    const sessionSnap = await db.collection('sessions').doc(invite.sessionId).get();
+    if (!sessionSnap.exists) {
+      return NextResponse.json({ error: 'session-not-found' }, { status: 404 });
+    }
+    const session = sessionSnap.data() as unknown as Session;
+
+    const activitySnap = await db.collection('activities').doc(invite.activityId).get();
+    if (!activitySnap.exists) {
+      return NextResponse.json({ error: 'activity-not-found' }, { status: 404 });
+    }
+    const activity = activitySnap.data() as unknown as Activity;
+
+    // Stripe Connect : resolve partner account + verify charges_enabled
+    let partnerStripeAccount: string;
+    try {
+      const { getPartnerStripeAccount, assertConnectChargesEnabled } = await import(
+        '@/lib/stripe/connectHelpers'
+      );
+      partnerStripeAccount = await getPartnerStripeAccount(session.partnerId);
+      await assertConnectChargesEnabled(partnerStripeAccount);
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === 'partner-not-found' || code === 'partner-not-onboarded') {
+        return NextResponse.json(
+          { error: code, detail: err instanceof Error ? err.message : 'Stripe Connect required' },
+          { status: 412 },
+        );
+      }
+      throw err;
+    }
+
+    // Application fee Spordate (Q4=B 5% Phase 9)
+    const { getApplicationFeePct } = await import('@/lib/invites/splitMath');
+    const feePct = getApplicationFeePct();
+    const applicationFeeAmount = Math.round((inviterCents * feePct) / 100);
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
+    const successUrl = `${baseUrl}/invite/${inviteId}?status=prepay-success&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${baseUrl}/invite/${inviteId}?status=prepay-cancel`;
+
+    const productLabel =
+      inviteMode === 'gift'
+        ? `Cadeau pour ${invite.toUserId.slice(0, 8)}`
+        : `Ma part Split (${(inviterCents / 100).toFixed(2)} CHF)`;
+
+    // Idempotency key Stripe (Q8=A pattern cohérent SC5 c4/5)
+    const idempotencyKey = `invite-prepay-${inviteId}`;
+
+    const stripeSession = await (await getStripe()).checkout.sessions.create(
+      {
+        mode: 'payment',
+        payment_method_types: ['card', 'twint'],
+        success_url: successUrl,
+        cancel_url: cancelUrl,
+        line_items: [
+          {
+            price_data: {
+              currency: 'chf',
+              product_data: {
+                name: session.title,
+                description: `${productLabel} • ${activity.title || 'Spordate'}`,
+                images: ['https://spordateur.com/logo.png'],
+              },
+              unit_amount: inviterCents,
+            },
+            quantity: 1,
+          },
+        ],
+        payment_intent_data: {
+          transfer_data: { destination: partnerStripeAccount },
+          application_fee_amount: applicationFeeAmount,
+        },
+        metadata: {
+          mode: 'invite-prepay',
+          inviteId,
+          fromUserId: invite.fromUserId,
+          toUserId: invite.toUserId,
+          sessionId: invite.sessionId,
+          activityId: invite.activityId,
+          partnerId: session.partnerId,
+          inviteMode,
+          amount: String(inviterCents),
+          applicationFeeAmount: String(applicationFeeAmount),
+        },
+      },
+      { idempotencyKey },
+    );
+
+    return NextResponse.json(
+      {
+        sessionId: stripeSession.id,
+        url: stripeSession.url,
+        idempotencyKey,
+      },
+      { status: 200 },
+    );
+  } catch (err) {
+    console.error('[Checkout invite-prepay] Erreur:', err);
     const message = err instanceof Error ? err.message : 'Erreur serveur';
     return NextResponse.json({ error: 'internal-error', detail: message }, { status: 500 });
   }
