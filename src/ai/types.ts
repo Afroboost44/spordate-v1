@@ -65,6 +65,8 @@ export interface SuggestionCatalogEntry {
   partnerId: string;
   /** Prochaine session schedulée (filtrage doctrine §D "future"). */
   nextSessionAt?: Timestamp;
+  /** Phase 9 SC1 c2/5 — sessionId résolu (collection sessions/) pour wire InviteButton. */
+  nextSessionId?: string;
 }
 
 /** Input du flow next-activity-suggester (Phase 8 SC3 commit 2/6).

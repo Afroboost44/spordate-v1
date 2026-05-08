@@ -165,27 +165,64 @@ export async function POST(request: NextRequest) {
       .get();
 
     const nowMs = Date.now();
+    const { Timestamp } = await import('firebase-admin/firestore');
     type AdminDocSnap = { id: string; data: () => Record<string, unknown> | undefined };
     type ScheduleEntry = { startAt?: { toMillis?: () => number } };
-    const catalog: SuggestionCatalogEntry[] = catalogSnap.docs
-      .map((d: AdminDocSnap) => {
-        const data = d.data() ?? {};
-        const schedule = (data.schedule as ScheduleEntry[] | undefined) ?? [];
-        const nextSchedule = schedule.find(
-          (s) => s.startAt && typeof s.startAt.toMillis === 'function' && s.startAt.toMillis()! > nowMs,
-        );
-        return {
-          activityId: d.id,
-          title: (data.title as string) ?? '',
-          sport: (data.sport as string) ?? '',
-          city: (data.city as string) ?? userCity,
-          partnerId: (data.partnerId as string) ?? '',
-          nextSessionAt: nextSchedule?.startAt as never,
-        };
-      })
-      // Filter activities sans nextSessionAt si on veut "future only" — mais doctrine permet
-      // suggestions même sans schedule (lien direct activity). Garde toutes les activities active.
-      .filter((c: SuggestionCatalogEntry) => c.activityId.length > 0 && c.title.length > 0);
+
+    // Phase 9 SC1 c2/5 — enrich catalog avec nextSessionId depuis collection `sessions/`
+    // (best-effort parallel). Fallback : legacy `schedule[]` field si pas de session.
+    const catalog: SuggestionCatalogEntry[] = (
+      await Promise.all(
+        catalogSnap.docs.map(async (d: AdminDocSnap) => {
+          const data = d.data() ?? {};
+          const activityId = d.id;
+
+          // Query future session la plus proche (Phase 9 SC1 c2/5)
+          let nextSessionId: string | undefined;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          let nextSessionAt: any = undefined;
+          try {
+            const nextSessionSnap = await db
+              .collection('sessions')
+              .where('activityId', '==', activityId)
+              .where('startAt', '>', Timestamp.fromMillis(nowMs))
+              .orderBy('startAt', 'asc')
+              .limit(1)
+              .get();
+            if (!nextSessionSnap.empty) {
+              const sd = nextSessionSnap.docs[0];
+              nextSessionId = sd.id;
+              nextSessionAt = sd.data().startAt;
+            }
+          } catch (err) {
+            // Best-effort : si query fail (index missing en dev) → fallback schedule[]
+            console.warn('[/api/suggest-activities] next-session query failed', {
+              activityId,
+              error: err instanceof Error ? err.message : String(err),
+            });
+          }
+
+          // Fallback : legacy `schedule[]` denormalisé sur Activity (pre-Phase 1 sessions)
+          if (!nextSessionAt) {
+            const schedule = (data.schedule as ScheduleEntry[] | undefined) ?? [];
+            const nextSchedule = schedule.find(
+              (s) => s.startAt && typeof s.startAt.toMillis === 'function' && s.startAt.toMillis()! > nowMs,
+            );
+            nextSessionAt = nextSchedule?.startAt;
+          }
+
+          return {
+            activityId,
+            title: (data.title as string) ?? '',
+            sport: (data.sport as string) ?? '',
+            city: (data.city as string) ?? userCity,
+            partnerId: (data.partnerId as string) ?? '',
+            nextSessionAt,
+            nextSessionId,
+          };
+        }),
+      )
+    ).filter((c: SuggestionCatalogEntry) => c.activityId.length > 0 && c.title.length > 0);
 
     if (catalog.length < MIN_CATALOG_SIZE) {
       return NextResponse.json(
@@ -242,6 +279,10 @@ export async function POST(request: NextRequest) {
       };
       if (activity?.nextSessionAt) {
         card.nextSessionAt = activity.nextSessionAt;
+      }
+      // Phase 9 SC1 c2/5 — nextSessionId pour wire InviteButton dans SuggestionMessage
+      if (activity?.nextSessionId) {
+        card.nextSessionId = activity.nextSessionId;
       }
       return card;
     });

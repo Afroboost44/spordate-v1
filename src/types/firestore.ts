@@ -521,6 +521,10 @@ export interface SuggestionCard {
   city: string;
   /** Timestamp prochaine session disponible (optional — null si activity sans session schedulée). */
   nextSessionAt?: Timestamp;
+  /** Phase 9 SC1 c2/5 — sessionId résolu de la prochaine session future (collection `sessions/`).
+   *  Présent si `nextSessionAt` provient d'une session réelle (pas du legacy schedule[] field).
+   *  Permet wire `<InviteButton sessionId={...}>` dans SuggestionMessage. */
+  nextSessionId?: string;
   /** Justification courte FR affichée dans la card (doctrine §D.Q3 FR uniquement). */
   reason: string;
 }

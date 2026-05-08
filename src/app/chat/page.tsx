@@ -627,8 +627,13 @@ function ChatWindow({
                         </span>
                       </div>
                     ) : msg.type === 'ai_suggestion' ? (
-                      // Phase 8 SC3 commit 5/6 — bot card inline doctrine §D.Q4
-                      <SuggestionMessage message={msg} />
+                      // Phase 8 SC3 commit 5/6 + Phase 9 SC1 c2/5 — bot card + InviteButton
+                      <SuggestionMessage
+                        message={msg}
+                        viewerUid={currentUserId}
+                        otherUserId={otherUser.uid}
+                        otherUserName={otherUser.displayName}
+                      />
                     ) : (
                       <div
                         className={cn(
