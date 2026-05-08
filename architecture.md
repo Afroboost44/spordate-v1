@@ -1507,6 +1507,170 @@ Inviteur A (chat / activity page)
 
 **Reste sub-chantiers Phase 9** : SC2 (Stripe Connect Split/Gift + refund post-accept), SC3 (Email rappels J-1/T-0 + Web Push), SC4 (Admin queue history + IA modération étendue), SC5 (UX no-show + matching algo), SC6 (Female-safety quota + anonymisation soft delete), SC7 (close-out final Phase 9).
 
+### Sub-chantier 2 — Stripe Connect Split/Gift + refund post-accept ✅ COMPLET (6 commits)
+
+- 1/6 `3b02ae0` : Types `InviteMode = 'individual'|'split'|'gift'` + `Invite` extended (mode + splitInviterAmountCents + splitInviteeAmountCents + inviterPaymentIntentId + inviterRefundedAt + inviterRefundedAmount) + `Partner.stripeAccountId?` (Stripe Connect Express persisted) + `firestore.rules /invites/{id}` create extension (mode enum validation + montants int >= 0 + keys whitelist) + tests INV7-INV9 (3 assertions). Doctrine §E.Q1 Phase 9 votes Q1-Q6 tranchés architecture.md.
+- 2/6 `57a9b3b` : Helper pure `computeSplitAmounts` (Q4=B 5% fee + Q5=A range [0.1, 0.9] + round-up resolution exact) + SplitMathError typed + `getApplicationFeePct` env-config (`SPORDATE_INVITE_FEE_PCT`) + email templates `inviteReceivedSplit` / `inviteReceivedGift` (charte cohérente Phase 8 SC4) + extension `createInvite` service (mode + montants + persist) + `/api/invites` POST mode-aware (anti-cheat totalCents server-resolved + dispatch sendEmail mode-aware) + tests SM1-SM7 + EM-SP1-EM-SP4 (36 assertions).
+- 3/6 `2696417` : Module partagé `src/lib/stripe/sharedStripe.ts` avec DI seam unique `__setSharedStripeForTesting` (refactor architectural — réutilisable connectHelpers + checkout + verify-payment) + `connectHelpers.ts` (`getPartnerStripeAccount` + `assertConnectChargesEnabled` + `ConnectError` typed mapping HTTP 412 partner-not-onboarded) + extension `/api/checkout` mode='invite-prepay' (Stripe Connect destination charge `transfer_data.destination=acct_xxx` + `application_fee_amount=round(amt × 5/100)` + idempotencyKey `invite-prepay-{inviteId}` Q8=A pattern) + extension mode='invite-accept' splitMode (B paye splitInviteeAmountCents avec destination charge) + refactor `getStripe()` → `await getSharedStripe()` (testable DI seam) + tests SP-CHK1-SP-CHK4 + bonus (13 assertions).
+- 4/6 `3c10548` : Webhook `handleInvitePrepayPayment` (idempotency dual layer transactions stripeSessionId + invite.inviterPaymentIntentId + atomic update + post-commit notif fromUserId) + extension `handleInviteAcceptPayment` (Q2=C Booking.paidByUserId=toUserId + tx type variant `invite_accept_split` vs `invite_accept_purchase` selon `invite.mode`) + endpoint `/api/invites/[id]/accept-gift` (verify mode='gift' + inviterPaymentIntentId set + atomic Booking userId=B paidByUserId=A + tx type='invite_accept_gift' + post-commit notifs) + `Booking.paidByUserId?: string` field extension + tests SP-WH1-SP-WH6 + 2 bonus (17 assertions).
+- 5/6 `3f8d399` : Helper `refundForInvite` (idempotency dual Firestore inviterRefundedAt + Stripe `idempotencyKey: refund-invite-{inviteId}` Q8=A + audit log adminAction `auto_refund_invite` adminId='system') + extension `declineInvite` service (refund auto best-effort si mode!='individual' + inviterPaymentIntentId set, dynamic import server-only) + extension cron `expire-invites` (collect candidats refund + post-batch loop refundForInvite + metrics `refundsAttempted`/`refundCandidates`) + UI `<InviteButton>` modal RadioGroup mode (Q1=A) + Slider 10-90% step 10% (Q5=A) + preview montants CHF + redirect Stripe pre-pay si mode!=individual + AdminActionType extensions (`auto_refund_invite` + targetType `invite`) + tests SP-RF1-SP-RF4 + 2 bonus (19 assertions).
+- 6/6 *(this commit)* : architecture.md SC2 close-out + cumulative tests Phase 9 final + retrospective Q1-Q6 doctrine appliquée.
+
+**Architecture résultante Stripe Connect Split/Gift end-to-end** :
+
+```
+INVITE CREATION (A) :
+  <InviteButton> modal :
+    - RadioGroup mode (Q1=A) : Individual / Split / Gift
+    - Si Split : Slider 10-90% step 10% (Q5=A) + preview "Tu paies X CHF, ton invité Y CHF"
+    - Si Gift : preview "Tu offres tout : Z CHF"
+  ↓ user.getIdToken() + POST /api/invites Bearer
+  ↓
+  /api/invites POST (server, Admin SDK)
+    ↓ verifyAuth → fromUserId
+    ↓ Resolve totalCents server-side via session.currentPrice (anti-cheat)
+    ↓ createInvite() service avec computeSplitAmounts() :
+       - mode='individual' : invite.splitInviterAmountCents = 0, invite.splitInviteeAmountCents = totalCents
+       - mode='split' : inviterCents = round(total × ratio), inviteeCents = total - inviterCents
+       - mode='gift' : inviterCents = totalCents, inviteeCents = 0
+    ↓ persist Invite avec mode + splitInviter/InviteeAmountCents
+    ↓ sendEmail mode-aware (split → inviteReceivedSplit / gift → inviteReceivedGift / individual → inviteReceived legacy)
+    ↓ Return {inviteId, status:'pending', mode}
+  ↓
+  Si mode!='individual' : InviteButton enchaîne POST /api/checkout {mode:'invite-prepay', inviteId}
+  ↓
+  /api/checkout invite-prepay (server, Admin SDK)
+    ↓ verifyAuth → uid (must equal invite.fromUserId)
+    ↓ getPartnerStripeAccount(activity.partnerId) → acct_xxx
+    ↓ assertConnectChargesEnabled(acct_xxx) → throw 412 si charges_enabled=false
+    ↓ Stripe.checkout.sessions.create(
+         {
+           line_items: [{unit_amount: invite.splitInviterAmountCents}],
+           payment_intent_data: {
+             transfer_data: { destination: acct_xxx },           ← Stripe Connect destination charge
+             application_fee_amount: round(amt × 5/100),         ← Q4=B 5% Spordate platform commission
+           },
+           metadata: {mode:'invite-prepay', inviteId, ...},
+         },
+         { idempotencyKey: 'invite-prepay-{inviteId}' }            ← Q8=A pattern cohérent SC5 c4/5
+       )
+    ↓ Return checkoutUrl
+  ↓ window.location redirect → Stripe Checkout (A paye sa part)
+  ↓
+  Stripe webhook event mode='invite-prepay'
+    ↓ handleInvitePrepayPayment (idempotency dual)
+       ↓ runTransaction atomic : update invite.inviterPaymentIntentId + tx record type='invite_prepay'
+       ↓ Post-commit best-effort : notif A "Ta part facturée" / "Cadeau facturé"
+
+INVITE ACCEPT (B) :
+  /invite/[id] page mode-aware (Server Component)
+  ↓ <InviteActionsClient> rend 2 actions :
+    - mode='split' : "Accepter et payer ma part (X CHF)" → POST /api/checkout {mode:'invite-accept'}
+    - mode='gift'  : "Accepter le cadeau"               → POST /api/invites/[id]/accept-gift
+    - mode='individual' (Phase 8 SC4 legacy)            → POST /api/checkout {mode:'invite-accept'} unchanged
+
+  SPLIT FLOW (B paye sa part) :
+    /api/checkout invite-accept (extension SC2 c3) :
+      ↓ Si invite.mode='split' : line_items[0].unit_amount = splitInviteeAmountCents
+                                + payment_intent_data.transfer_data.destination + app_fee 5%
+      ↓ Stripe Checkout B → webhook handleInviteAcceptPayment (extended SC2 c4)
+        ↓ Q2=C : Booking userId=B + paidByUserId=B
+        ↓ tx type='invite_accept_split'
+        ↓ Atomic : Booking + Invite.status='accepted' + session.currentParticipants++ + chatCreditsBundle B
+
+  GIFT FLOW (B accepte cadeau, no Stripe checkout) :
+    POST /api/invites/[id]/accept-gift (server, Bearer B) :
+      ↓ verifyAuth → callerUid (must equal invite.toUserId)
+      ↓ Verify mode='gift' + status='pending' + inviterPaymentIntentId set + not expired
+      ↓ runTransaction atomic :
+         - Booking userId=B + paidByUserId=A (Q2=C denorm gift) + amount=splitInviterAmountCents
+         - Invite.status='accepted' + acceptedAt
+         - Increment session.currentParticipants
+         - Grant chatCreditsBundle B
+         - tx type='invite_accept_gift'
+      ↓ Post-commit best-effort : notif A "Cadeau accepté" + notif B "Réservation confirmée"
+
+INVITE DECLINE / EXPIRE (Q6=A retain-not-trap) :
+  Decline :
+    POST /api/invites/[id]/decline Bearer B (Phase 8 SC4)
+    ↓ declineInvite() service (extension SC2 c5)
+       ↓ updateDoc invite.status='declined' + declinedAt
+       ↓ Si mode!='individual' AND inviterPaymentIntentId set :
+          ↓ refundForInvite({inviteId}) best-effort
+
+  Expire :
+    CF Scheduler every 60min → /api/cron/expire-invites (extension SC2 c5)
+    ↓ Pagination cursor SC0 c1 pattern :
+       1. Collect candidats refund AVANT batch (mode!='individual' + paymentIntentId set + !inviterRefundedAt)
+       2. Batch update status='pending'→'expired'
+       3. Post-batch loop refundForInvite per candidate (best-effort)
+    ↓ Return metrics {processed, refundsAttempted, refundCandidates, ...}
+
+  refundForInvite() helper :
+    ↓ Idempotency Firestore : skip si invite.inviterRefundedAt déjà set
+    ↓ Stripe.refunds.create({payment_intent}, {idempotencyKey: 'refund-invite-{inviteId}'}) ← Q8=A
+    ↓ Update invite.inviterRefundedAt + inviterRefundedAmount
+    ↓ Audit log adminAction type='auto_refund_invite' targetType='invite' adminId='system'
+```
+
+**Bilan SC2 Phase 9 — votes Q1-Q6 doctrine §E.Q1 appliqués** :
+- ✅ Q1=A inviter choisit mode (UI RadioGroup Individual/Split/Gift)
+- ✅ Q2=C Booking unique avec denorm `paidByUserId` ≠ `userId` (split: paidBy=B B paye sa part / gift: paidBy=A A paye pour B)
+- ✅ Q3=C defer post-accept refund Phase 10 (KISS Phase 9 — focus refund auto pre-accept decline/expire)
+- ✅ Q4=B 5% `application_fee_amount` Spordate (configurable `SPORDATE_INVITE_FEE_PCT` env override)
+- ✅ Q5=A range 10-90% step 10% (slider UI 10/20/30/40/50/60/70/80/90)
+- ✅ Q6=A retain-not-trap : refund auto on decline + expire (cron + service intégrations)
+
+**Tests SC2 cumulés** :
+- INV7-INV9 (rules) : 3 assertions
+- SM1-SM7 + bonus (split-math) : 25 assertions
+- EM-SP1-EM-SP4 (email-split-gift) : 11 assertions
+- SP-CHK1-SP-CHK4 + bonus (checkout-split) : 13 assertions
+- SP-WH1-SP-WH6 + 2 bonus (webhook-split-gift) : 17 assertions
+- SP-RF1-SP-RF4 + 2 bonus (refund-on-decline) : 19 assertions
+- **SC2 total : 88 nouvelles assertions automated**
+
+**Cumul routes Vercel API Phase 8+9 (16 routes — extension SC2 c4)** :
+- Phase 8 SC2 : `/api/anti-leak`
+- Phase 8 SC3 : `/api/suggest-activities`
+- Phase 8 SC4 : `/api/invites` + `/api/invites/[id]/decline` + `/api/checkout` (modes session/invite-accept) + `/api/webhooks/stripe` + page `/invite/[id]`
+- Phase 8 SC5 : `/api/admin/blocks` + `/api/cron/review-reminder` + `/api/cron/purge-old-data` + `/api/admin/refund-sanction/[sanctionId]`
+- Phase 9 SC1 : `/api/sessions/[sessionId]/participants` + `/api/users/me/matches` + `/api/cron/expire-invites`
+- **Phase 9 SC2 (NEW)** : `/api/invites/[id]/accept-gift` + extension `/api/checkout` mode='invite-prepay'
+
+**Cumul Cloud Functions (5 CF déployables — inchangé)** :
+| CF | Phase | Schedule |
+|---|---|---|
+| `refreshPricingCron` | 6 | every 15 min |
+| `reviewReminderCron` | 8 SC5 c2 | every 60 min |
+| `denormActiveSanctionTrigger` | 8 SC5 c2 | onWrite userSanctions |
+| `purgeOldDataCron` | 8 SC5 c3 | weekly Friday 03:00 |
+| `expireInvitesCron` | 9 SC1 c4 (extended SC2 c5) | every 60 min — **+ refund auto** |
+
+**5 nouveaux helpers SC2 cumul** :
+- `src/lib/invites/splitMath.ts` (pure helper computeSplitAmounts)
+- `src/lib/stripe/sharedStripe.ts` (Stripe lazy-init + DI seam unique partagé)
+- `src/lib/stripe/connectHelpers.ts` (Connect Express + ConnectError)
+- `src/lib/stripe/refundForInvite.ts` (refund auto + idempotency dual)
+- `src/app/api/invites/[id]/accept-gift/route.ts` (gift accept atomic Booking)
+
+### Phase 9 progression (16 commits techniques + 2 close-outs)
+
+| SC | Thème | Commits | Tests automated |
+|----|-------|---------|-----------------|
+| SC0 | Foundation polish (admin auth + indexes + cursor + charte) | 2 | 31 |
+| SC1 | Card session participants + invite cleanup (4 SC4 close-out items + UI) | 5 (incl. close-out) | 45 |
+| SC2 | Stripe Connect Split/Gift + refund post-accept | 6 (incl. close-out) | 88 |
+| **Cumul Phase 9** | | **13 + 2 close-outs** | **148** |
+
+**Tests Phase 9 final cumulés** : 148 nouvelles assertions automated.
+**Phase 8 cumul 251+ tests préservé** intégralement (zéro régression mesurée).
+**Phase 7 base 372 tests préservé** intégralement (zéro régression mesurée).
+
+**Vercel green** sur 16+ déploiements consécutifs Phase 9.
+
+**Reste sub-chantiers Phase 9** : SC3 (Email rappels J-1/T-0 + Web Push), SC4 (Admin queue history + IA modération étendue), SC5 (UX no-show + matching algo), SC6 (Female-safety quota + anonymisation soft delete), SC7 (close-out final Phase 9).
+
 ---
 
 ### A. Doctrine économique — T&S = pré-requis rétention
