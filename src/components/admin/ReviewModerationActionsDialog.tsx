@@ -9,7 +9,7 @@
  * Note : moderateReview existant ne stocke pas la note (Phase 8 polish enrichira si besoin).
  * Phase 7 MVP : note loggée localement pour audit, l'email reviewModerationDecision suffit.
  *
- * Style admin (bg-gray-900 — exception Q9).
+ * Style admin charte stricte (Phase 9 SC0 c2/X) : bg-zinc-950 + #D91CD2 accents.
  */
 
 'use client';
@@ -124,7 +124,7 @@ export function ReviewModerationActionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-gray-900 border border-gray-800 text-white max-w-md">
+      <DialogContent className="bg-zinc-950 border border-zinc-800 text-white max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white font-medium text-lg">
             {action === 'publish' ? 'Publier la review' : 'Rejeter la review'}

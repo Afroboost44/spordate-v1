@@ -10,7 +10,7 @@
  *  - 2 actions par ligne : "Publier" (vert) / "Rejeter" (rouge) → ReviewModerationActionsDialog
  *  - Empty state : "Aucune review en attente — Inbox zero 🎉"
  *
- * Style admin (bg-gray-900 — exception charte stricte Q9).
+ * Style admin charte stricte (Phase 9 SC0 c2/X) : bg-zinc-950 + #D91CD2 accents.
  */
 
 'use client';
@@ -88,7 +88,7 @@ export function TandSReviewsPanel({ adminUid }: TandSReviewsPanelProps) {
 
   if (!adminUid) {
     return (
-      <Card className="bg-gray-900 border border-gray-800">
+      <Card className="bg-zinc-950 border border-zinc-800">
         <CardContent className="p-6 text-center text-orange-400 text-sm">
           ⚠️ Setup admin requis : ouvre Firebase Console → users → ton document → set <code className="bg-gray-800 px-1 rounded">role: &quot;admin&quot;</code>.
           Sans cela les services admin rejettent (defense-in-depth).
@@ -99,7 +99,7 @@ export function TandSReviewsPanel({ adminUid }: TandSReviewsPanelProps) {
 
   return (
     <>
-      <Card className="bg-gray-900 border border-gray-800">
+      <Card className="bg-zinc-950 border border-zinc-800">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-medium text-white flex items-center gap-2">
             <ShieldCheck className="h-4 w-4 text-[#D91CD2]" />

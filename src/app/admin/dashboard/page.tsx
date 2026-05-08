@@ -327,7 +327,7 @@ export default function AdminDashboard() {
               <span className="text-xs text-gray-500 w-10">{item.date}</span>
               <div className="flex-1 flex items-end gap-1 h-12">
                 <div
-                  className="bg-gradient-to-t from-cyan-500 to-cyan-400 rounded-t w-full transition-all duration-300"
+                  className="bg-gradient-to-t from-[#7B1FA2] to-[#D91CD2] rounded-t w-full transition-all duration-300"
                   style={{ height: `${height}%` }}
                 />
               </div>
@@ -346,12 +346,12 @@ export default function AdminDashboard() {
 
   // ==================== MAIN DASHBOARD ====================
   return (
-    <div className="min-h-screen bg-[#05090e] pt-24 pb-20 px-4 md:px-8 text-white">
+    <div className="min-h-screen bg-black pt-24 pb-20 px-4 md:px-8 text-white">
       {/* Header */}
       <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-cyan-900/20 rounded-xl border border-cyan-800/50">
-            <BarChart3 className="text-cyan-400 h-8 w-8" />
+          <div className="p-3 bg-[#D91CD2]/10 rounded-xl border border-[#D91CD2]/30">
+            <BarChart3 className="text-[#D91CD2] h-8 w-8" />
           </div>
           <div>
             <h1 className="text-3xl md:text-4xl font-bold">Spordateur Admin Dashboard</h1>
@@ -364,7 +364,7 @@ export default function AdminDashboard() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-gray-900/50 border border-gray-800 p-1 flex-wrap h-auto w-full justify-start gap-1">
+        <TabsList className="bg-zinc-950/80 border border-zinc-800 p-1 flex-wrap h-auto w-full justify-start gap-1">
           <TabsTrigger value="overview" className="text-xs md:text-sm">
             <BarChart3 className="mr-2 h-4 w-4" />
             Overview
@@ -497,10 +497,10 @@ export default function AdminDashboard() {
           </div>
 
           {/* Revenue Chart */}
-          <Card className="bg-[#0f1115] border-gray-800">
+          <Card className="bg-zinc-950 border-zinc-800">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <BarChart3 className="h-5 w-5 text-cyan-400" />
+                <BarChart3 className="h-5 w-5 text-[#D91CD2]" />
                 Revenue Last 7 Days
               </CardTitle>
               <CardDescription>Daily breakdown with trend analysis</CardDescription>
@@ -512,7 +512,7 @@ export default function AdminDashboard() {
 
           {/* Recent Activity */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card className="bg-[#0f1115] border-gray-800">
+            <Card className="bg-zinc-950 border-zinc-800">
               <CardHeader>
                 <CardTitle>Recent Transactions</CardTitle>
               </CardHeader>
@@ -536,7 +536,7 @@ export default function AdminDashboard() {
               </CardContent>
             </Card>
 
-            <Card className="bg-[#0f1115] border-gray-800">
+            <Card className="bg-zinc-950 border-zinc-800">
               <CardHeader>
                 <CardTitle>Recent Bookings</CardTitle>
               </CardHeader>
@@ -564,13 +564,13 @@ export default function AdminDashboard() {
 
         {/* ==================== USERS TAB ==================== */}
         <TabsContent value="users">
-          <Card className="bg-[#0f1115] border-gray-800">
+          <Card className="bg-zinc-950 border-zinc-800">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>User Management</CardTitle>
                 <CardDescription>Ban, suspend, or monitor users</CardDescription>
               </div>
-              <Button onClick={loadAllData} disabled={loadingData} className="bg-cyan-600 hover:bg-cyan-500">
+              <Button onClick={loadAllData} disabled={loadingData} className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90">
                 {loadingData ? 'Loading...' : 'Refresh'}
               </Button>
             </CardHeader>
@@ -611,7 +611,7 @@ export default function AdminDashboard() {
                               <Lock className="h-4 w-4" />
                             </Button>
                           </AlertDialogTrigger>
-                          <AlertDialogContent className="bg-[#0f1115] border-gray-800">
+                          <AlertDialogContent className="bg-zinc-950 border-zinc-800">
                             <AlertDialogHeader>
                               <AlertDialogTitle>Ban User?</AlertDialogTitle>
                               <AlertDialogDescription>
@@ -643,13 +643,13 @@ export default function AdminDashboard() {
 
         {/* ==================== PARTNERS TAB ==================== */}
         <TabsContent value="partners">
-          <Card className="bg-[#0f1115] border-gray-800">
+          <Card className="bg-zinc-950 border-zinc-800">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Partner Management</CardTitle>
                 <CardDescription>Approve or reject partner applications</CardDescription>
               </div>
-              <Button onClick={loadAllData} disabled={loadingData} className="bg-cyan-600 hover:bg-cyan-500">
+              <Button onClick={loadAllData} disabled={loadingData} className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90">
                 {loadingData ? 'Loading...' : 'Refresh'}
               </Button>
             </CardHeader>
@@ -721,13 +721,13 @@ export default function AdminDashboard() {
 
         {/* ==================== PAYOUTS TAB ==================== */}
         <TabsContent value="payouts">
-          <Card className="bg-[#0f1115] border-gray-800">
+          <Card className="bg-zinc-950 border-zinc-800">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Payout Management</CardTitle>
                 <CardDescription>Process creator payouts</CardDescription>
               </div>
-              <Button onClick={loadAllData} disabled={loadingData} className="bg-cyan-600 hover:bg-cyan-500">
+              <Button onClick={loadAllData} disabled={loadingData} className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90">
                 {loadingData ? 'Loading...' : 'Refresh'}
               </Button>
             </CardHeader>
@@ -790,13 +790,13 @@ export default function AdminDashboard() {
 
         {/* ==================== TRANSACTIONS TAB ==================== */}
         <TabsContent value="transactions">
-          <Card className="bg-[#0f1115] border-gray-800">
+          <Card className="bg-zinc-950 border-zinc-800">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Recent Transactions</CardTitle>
                 <CardDescription>All payment activity</CardDescription>
               </div>
-              <Button onClick={loadAllData} disabled={loadingData} className="bg-cyan-600 hover:bg-cyan-500">
+              <Button onClick={loadAllData} disabled={loadingData} className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90">
                 {loadingData ? 'Loading...' : 'Refresh'}
               </Button>
             </CardHeader>
@@ -841,13 +841,13 @@ export default function AdminDashboard() {
 
         {/* ==================== ERRORS TAB ==================== */}
         <TabsContent value="errors">
-          <Card className="bg-[#0f1115] border-gray-800">
+          <Card className="bg-zinc-950 border-zinc-800">
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
                 <CardTitle>Error Logs</CardTitle>
                 <CardDescription>Unresolved system errors</CardDescription>
               </div>
-              <Button onClick={loadAllData} disabled={loadingData} className="bg-cyan-600 hover:bg-cyan-500">
+              <Button onClick={loadAllData} disabled={loadingData} className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90">
                 {loadingData ? 'Loading...' : 'Refresh'}
               </Button>
             </CardHeader>
@@ -889,7 +889,7 @@ export default function AdminDashboard() {
 
         {/* ==================== NOTIFICATIONS TAB ==================== */}
         <TabsContent value="notifications">
-          <Card className="bg-[#0f1115] border-gray-800">
+          <Card className="bg-zinc-950 border-zinc-800">
             <CardHeader>
               <CardTitle>Global Notification Broadcaster</CardTitle>
               <CardDescription>Send system-wide notifications to all users</CardDescription>
@@ -920,7 +920,7 @@ export default function AdminDashboard() {
               </div>
               <Button
                 onClick={handleSendNotification}
-                className="w-full bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500"
+                className="w-full bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90"
               >
                 <Mail className="mr-2 h-4 w-4" />
                 Send to All Users
@@ -931,7 +931,7 @@ export default function AdminDashboard() {
 
         {/* ==================== ACTIVITIES TAB ==================== */}
         <TabsContent value="activities" className="space-y-6">
-          <Card className="bg-[#0f1115] border-gray-800">
+          <Card className="bg-zinc-950 border-zinc-800">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5 text-orange-400" />
@@ -966,7 +966,7 @@ export default function AdminDashboard() {
                       className={`p-4 rounded-xl border text-left transition-all ${
                         featuredActivities.includes(activity.id)
                           ? 'bg-orange-500/10 border-orange-500 ring-1 ring-orange-500/50'
-                          : 'bg-gray-900/50 border-gray-800 hover:border-gray-600'
+                          : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-600'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">
@@ -994,7 +994,7 @@ export default function AdminDashboard() {
                       className={`p-4 rounded-xl border text-left transition-all ${
                         featuredActivities.includes(activity.id)
                           ? 'bg-blue-500/10 border-blue-500 ring-1 ring-blue-500/50'
-                          : 'bg-gray-900/50 border-gray-800 hover:border-gray-600'
+                          : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-600'
                       }`}
                     >
                       <div className="flex items-center justify-between mb-2">

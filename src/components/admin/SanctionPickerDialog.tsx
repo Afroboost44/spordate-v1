@@ -7,7 +7,7 @@
  * Submit → sustainReport({ reportId, adminId, decisionNote, manualSanctionLevel }).
  * Note OBLIGATOIRE ≥10 chars (cohérent doctrine "décision motivée fair process").
  *
- * Style admin (bg-gray-900 — pas charte stricte user-facing, exception §Q9).
+ * Style admin charte stricte (Phase 9 SC0 c2/X) : bg-zinc-950 + #D91CD2 accents.
  */
 
 'use client';
@@ -116,7 +116,7 @@ export function SanctionPickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-gray-900 border border-gray-800 text-white max-w-lg">
+      <DialogContent className="bg-zinc-950 border border-zinc-800 text-white max-w-lg">
         <DialogHeader>
           <DialogTitle className="text-white font-medium text-lg">
             Sustain report — sanction manuelle

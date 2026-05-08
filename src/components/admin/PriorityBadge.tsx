@@ -8,7 +8,8 @@
  *  3 (moyenne) → jaune — fake_profile, autre
  *  4 (basse) → vert — no_show
  *
- * Style admin (bg-gray-900 ambient — pas charte stricte user-facing).
+ * Style admin charte stricte (Phase 9 SC0 c2/X) : bg-zinc-950 ambient.
+ * Couleurs catégories conservées (semantic urgence — rouge/orange/jaune/vert pour at-a-glance triage).
  */
 
 import { REPORT_CATEGORY_PRIORITY } from '@/lib/reports';

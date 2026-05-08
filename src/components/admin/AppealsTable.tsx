@@ -7,7 +7,7 @@
  * Actions par row : "Uphold" (vert) / "Overturn" (rouge) → AlertDialog + note ≥10 chars
  *   → resolveAppeal({decision: 'upheld'|'overturned'}). Si 'overturned' → isActive=false propagé.
  *
- * Style admin (bg-gray-900 — exception charte stricte Q9).
+ * Style admin charte stricte (Phase 9 SC0 c2/X) : bg-zinc-950 + #D91CD2 accents + white text.
  *
  * Note Phase 7 : query directe sans index dédié appealUsed+appealResolvedAt.
  *  Filter client-side après fetch userSanctions where appealUsed=true.
@@ -158,7 +158,7 @@ export function AppealsTable({ adminUid }: AppealsTableProps) {
 
   if (!adminUid) {
     return (
-      <Card className="bg-gray-900 border border-gray-800">
+      <Card className="bg-zinc-950 border border-zinc-800">
         <CardContent className="p-6 text-center text-orange-400 text-sm">
           ⚠️ Setup admin requis : users.{`{adminUid}`}.role=&apos;admin&apos;.
         </CardContent>
@@ -174,7 +174,7 @@ export function AppealsTable({ adminUid }: AppealsTableProps) {
 
   return (
     <>
-      <Card className="bg-gray-900 border border-gray-800">
+      <Card className="bg-zinc-950 border border-zinc-800">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-medium text-white flex items-center gap-2">
             <Scale className="h-4 w-4 text-[#D91CD2]" />
@@ -265,7 +265,7 @@ export function AppealsTable({ adminUid }: AppealsTableProps) {
           if (!open) setDecisionNote('');
         }}
       >
-        <AlertDialogContent className="bg-gray-900 border-gray-800 text-white">
+        <AlertDialogContent className="bg-zinc-950 border-zinc-800 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">{decisionLabel} appeal ?</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-400">

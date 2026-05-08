@@ -7,7 +7,7 @@
  * Filtres dropdown : level / reason / refundDue.
  * Action "Overturn" → AlertDialog confirmation + Textarea note → overturnSanction service.
  *
- * Style admin (bg-gray-900 — exception charte stricte Q9).
+ * Style admin charte stricte (Phase 9 SC0 c2/X) : bg-zinc-950 + #D91CD2 accents + white text.
  */
 
 'use client';
@@ -159,7 +159,7 @@ export function SanctionsTable({ adminUid }: SanctionsTableProps) {
 
   if (!adminUid) {
     return (
-      <Card className="bg-gray-900 border border-gray-800">
+      <Card className="bg-zinc-950 border border-zinc-800">
         <CardContent className="p-6 text-center text-orange-400 text-sm">
           ⚠️ Setup admin requis : users.{`{adminUid}`}.role=&apos;admin&apos; (Firebase Console).
         </CardContent>
@@ -169,7 +169,7 @@ export function SanctionsTable({ adminUid }: SanctionsTableProps) {
 
   return (
     <>
-      <Card className="bg-gray-900 border border-gray-800">
+      <Card className="bg-zinc-950 border border-zinc-800">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-medium text-white flex items-center gap-2">
             <ShieldOff className="h-4 w-4 text-[#D91CD2]" />
@@ -183,7 +183,7 @@ export function SanctionsTable({ adminUid }: SanctionsTableProps) {
               <SelectTrigger className="w-[180px] bg-gray-800 border-gray-700 text-white">
                 <SelectValue placeholder="Level" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-gray-700 text-white">
+              <SelectContent className="bg-zinc-950 border-zinc-700 text-white">
                 <SelectItem value="all">Tous niveaux</SelectItem>
                 <SelectItem value="warning">Warning</SelectItem>
                 <SelectItem value="suspension_7d">Suspension 7d</SelectItem>
@@ -195,7 +195,7 @@ export function SanctionsTable({ adminUid }: SanctionsTableProps) {
               <SelectTrigger className="w-[200px] bg-gray-800 border-gray-700 text-white">
                 <SelectValue placeholder="Reason" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-gray-700 text-white">
+              <SelectContent className="bg-zinc-950 border-zinc-700 text-white">
                 <SelectItem value="all">Toutes raisons</SelectItem>
                 <SelectItem value="reports_threshold">Reports threshold</SelectItem>
                 <SelectItem value="no_show_threshold">No-show threshold</SelectItem>
@@ -206,7 +206,7 @@ export function SanctionsTable({ adminUid }: SanctionsTableProps) {
               <SelectTrigger className="w-[160px] bg-gray-800 border-gray-700 text-white">
                 <SelectValue placeholder="Refund due" />
               </SelectTrigger>
-              <SelectContent className="bg-gray-900 border-gray-700 text-white">
+              <SelectContent className="bg-zinc-950 border-zinc-700 text-white">
                 <SelectItem value="all">Tous</SelectItem>
                 <SelectItem value="yes">Refund due</SelectItem>
                 <SelectItem value="no">Pas refund</SelectItem>
@@ -255,7 +255,7 @@ export function SanctionsTable({ adminUid }: SanctionsTableProps) {
                     </TableCell>
                     <TableCell className="text-center">
                       {s.refundDue === true ? (
-                        <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                        <Badge className="bg-[#D91CD2]/15 text-[#D91CD2] border-[#D91CD2]/30">
                           due
                         </Badge>
                       ) : (
@@ -289,7 +289,7 @@ export function SanctionsTable({ adminUid }: SanctionsTableProps) {
           if (!open) setOverturnNote('');
         }}
       >
-        <AlertDialogContent className="bg-gray-900 border-gray-800 text-white">
+        <AlertDialogContent className="bg-zinc-950 border-zinc-800 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white">Overturn sanction ?</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-400">
