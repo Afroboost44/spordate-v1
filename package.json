@@ -52,7 +52,8 @@
     "test:invites:webhook-split-gift": "firebase emulators:exec --only firestore 'npx tsx tests/invites/webhook-split-gift.test.ts'",
     "test:invites:refund-on-decline": "firebase emulators:exec --only firestore 'npx tsx tests/invites/refund-on-decline.test.ts'",
     "test:cron:session-reminders": "firebase emulators:exec --only firestore 'npx tsx tests/cron/session-reminders.test.ts'",
-    "test:notifications:send-push": "firebase emulators:exec --only firestore 'npx tsx tests/notifications/send-push-notification.test.ts'"
+    "test:notifications:send-push": "firebase emulators:exec --only firestore 'npx tsx tests/notifications/send-push-notification.test.ts'",
+    "test:notifications:push-opt-in": "firebase emulators:exec --only firestore 'npx tsx tests/notifications/push-opt-in.test.ts'"
   },
   "dependencies": {
     "@genkit-ai/google-genai": "^1.20.0",

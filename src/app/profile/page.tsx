@@ -14,6 +14,7 @@ import { useRouter } from 'next/navigation';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { updateUser, updateUserAiOptIn, getUser } from "@/services/firestore";
+import { PushOptInSwitch } from "@/components/profile/PushOptInSwitch";
 import type { UserProfile, SportEntry } from "@/types/firestore";
 import { Switch } from "@/components/ui/switch";
 import { DANCE_ACTIVITIES, DANCE_LEVELS } from "@/types/firestore";
@@ -655,6 +656,17 @@ export default function ProfilePage() {
                 className="mt-1 data-[state=checked]:bg-[#D91CD2] flex-shrink-0"
               />
             </div>
+
+            {/* Phase 9 SC3 c3/5 — Push notifications opt-in (default-on) */}
+            {user?.uid && (
+              <div className="pt-2 border-t border-white/5">
+                <PushOptInSwitch
+                  uid={user.uid}
+                  initialEnabled={userProfile?.pushNotificationsEnabled !== false}
+                />
+              </div>
+            )}
+
             <div className="pt-2 border-t border-white/5">
               <p className="text-[11px] text-white/30 leading-relaxed">
                 La modération automatisée des messages (filtres + IA) constitue une mesure de sécurité

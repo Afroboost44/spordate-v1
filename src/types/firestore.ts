@@ -52,6 +52,12 @@ export interface UserProfile {
    *  = risque LCD si auto-quarantine). Reset manuel admin via Firebase Console SC2 ;
    *  UI admin tab dédiée Phase 9. Boolean simple ; count denorm Phase 9 si scale. */
   leakFlagged?: boolean;
+  // ----- Phase 9 SC3 c3/5 / Web Push notifications opt-in (additif) -----
+  /** Phase 9 SC3 c3/5 (additif). Opt-out user pour push notifications.
+   *  Default-on (cohérent aiSuggestionsOptIn pattern Phase 8 SC0) : `undefined === true`.
+   *  `true` ou absent = recevoir push notifications ; `false` = opt-out explicite via /profile.
+   *  Sans `fcmToken` set → email fallback (Q3=B). Toggle UI dans /profile section Confidentialité. */
+  pushNotificationsEnabled?: boolean;
   // ----- Phase 8 SC5 c3/5 / Banlist anonymization (additif) -----
   /** Phase 8 SC5 c3/5 (additif). Timestamp d'anonymisation PII pour les users bannis
    *  permanent depuis > 24 mois (doctrine LPD/nLPD : conservation limitée).
