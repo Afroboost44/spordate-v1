@@ -36,7 +36,11 @@ export function isAudienceType(value: unknown): value is AudienceType {
 // Errors typed (cohérent ReviewError / ReportError pattern Phase 7)
 // =====================================================================
 
-export type AudienceErrorCode = 'gender-mismatch' | 'invalid-audience-type' | 'invalid-input';
+export type AudienceErrorCode =
+  | 'gender-mismatch'
+  | 'gender-required'
+  | 'invalid-audience-type'
+  | 'invalid-input';
 
 export class AudienceError extends Error {
   public readonly code: AudienceErrorCode;
@@ -109,4 +113,39 @@ export function assertAllowedByAudience(
       audienceType,
     });
   }
+}
+
+/** Audience types qui REQUIÈRENT un gender défini (Q3=A + Q4=A hard enforcement). */
+const GENDER_REQUIRED_AUDIENCES = ['women-only', 'men-only'] as const;
+
+/**
+ * Pre-booking check (SC6 c2/4) — distingue 3 cas pour mapping HTTP propre :
+ *   1. audienceType requires gender + user.gender undefined/null → throw 'gender-required'
+ *   2. audienceType requires gender + user.gender mismatch → throw 'gender-mismatch'
+ *   3. autrement → success (allowed)
+ *
+ * Force user à compléter son profil avant booking sur activity restrictive
+ * (UX : redirect vers /profile pour set gender).
+ *
+ * @throws AudienceError 'gender-required' si activity requires gender mais user.gender absent
+ * @throws AudienceError 'gender-mismatch' si user.gender présent mais ne match pas
+ */
+export function assertCanBookActivity(
+  userGender: UserProfile['gender'] | undefined | null,
+  audienceType: Activity['audienceType'] | undefined | null,
+): void {
+  const effectiveAudience = audienceType ?? 'all';
+  const requiresGender = (GENDER_REQUIRED_AUDIENCES as readonly string[]).includes(
+    effectiveAudience,
+  );
+
+  if (requiresGender && (userGender == null || (userGender as string) === '')) {
+    throw new AudienceError('gender-required', {
+      audienceType: effectiveAudience,
+      detail: 'user must set gender on profile before booking gender-restricted activity',
+    });
+  }
+
+  // Délègue au check standard — gender présent mais peut être 'other' pour audiences restrictives
+  assertAllowedByAudience(userGender, audienceType);
 }

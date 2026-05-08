@@ -14,6 +14,7 @@ export {
   isAudienceType,
   isAllowedByAudience,
   assertAllowedByAudience,
+  assertCanBookActivity,
   AudienceError,
   type AudienceType,
   type AudienceErrorCode,

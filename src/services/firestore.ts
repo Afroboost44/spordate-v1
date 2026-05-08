@@ -1761,6 +1761,25 @@ export async function bookSession(input: BookSessionInput): Promise<string> {
   );
   if (!existing.empty) return existing.docs[0].id;
 
+  // Phase 9 SC6 c2/4 — Audience enforcement (Q3=A + Q4=A hard enforcement).
+  // Pre-tx check : load activity.audienceType + user.gender → assertCanBookActivity.
+  // Throws AudienceError 'gender-required' (user manque gender) ou 'gender-mismatch'
+  // (gender ne match pas restricting audience). Caller mappe HTTP 412 (precondition-failed).
+  const sessionDocSnap = await getDoc(doc(fbDb, 'sessions', input.sessionId));
+  if (sessionDocSnap.exists()) {
+    const sessionPreCheck = sessionDocSnap.data() as Session;
+    const activitySnap = await getDoc(doc(fbDb, 'activities', sessionPreCheck.activityId));
+    if (activitySnap.exists()) {
+      const activity = activitySnap.data() as Activity;
+      if (activity.audienceType && activity.audienceType !== 'all') {
+        const userSnap = await getDoc(doc(fbDb, 'users', input.userId));
+        const userProfile = userSnap.exists() ? (userSnap.data() as UserProfile) : null;
+        const { assertCanBookActivity } = await import('@/lib/audience');
+        assertCanBookActivity(userProfile?.gender, activity.audienceType);
+      }
+    }
+  }
+
   // 2. Transaction atomique
   const bookingId = await runTransaction(fbDb, async (tx) => {
     const sessionRef = doc(fbDb, 'sessions', input.sessionId);

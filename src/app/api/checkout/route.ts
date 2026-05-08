@@ -273,6 +273,29 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
     const activity = activitySnap.data() as unknown as Activity;
     const bundleCredits = activity.chatCreditsBundle ?? 50;
 
+    // Phase 9 SC6 c2/4 — Audience enforcement defense-in-depth (Q3=A + Q4=A).
+    // Server-side double-check pour bypass client tentative (cohérent /api/anti-leak SC2 hotfix).
+    // 412 precondition-failed pour gender-required / gender-mismatch.
+    if (activity.audienceType && activity.audienceType !== 'all') {
+      const userSnap = await db.collection('users').doc(body.userId).get();
+      const userProfile = userSnap.exists ? (userSnap.data() as { gender?: string }) : null;
+      try {
+        const { assertCanBookActivity, AudienceError } = await import('@/lib/audience');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        assertCanBookActivity(userProfile?.gender as any, activity.audienceType);
+        void AudienceError;
+      } catch (err) {
+        const { AudienceError } = await import('@/lib/audience');
+        if (err instanceof AudienceError) {
+          return NextResponse.json(
+            { error: err.code, audienceType: activity.audienceType },
+            { status: 412 },
+          );
+        }
+        throw err;
+      }
+    }
+
     // 5. Construire la session Stripe
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
     // TODO Phase 5: change success_url to `/sessions/${body.sessionId}?status=success&session_id={CHECKOUT_SESSION_ID}` once page exists
