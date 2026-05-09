@@ -4,11 +4,14 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
+import { Loader2, MapPin, ChevronLeft, ChevronRight, Play, Video } from "lucide-react";
 import Link from "next/link";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import BackButton from '@/components/BackButton';
+import { getMediaItems } from '@/lib/activities/media';
+import { getVideoThumbnail } from '@/lib/activities/mediaParser';
+import type { MediaItem } from '@/types/firestore';
 
 interface ActivityCard {
   activityId: string;
@@ -21,6 +24,8 @@ interface ActivityCard {
   schedule: string;
   imageUrl?: string;
   images?: string[];
+  /** Phase 9.5 c5 — rich media items pour rendu unifié image+video card listing. */
+  mediaUrls?: import('@/types/firestore').MediaItem[];
   city: string;
   partnerName: string;
   partnerId: string;
@@ -43,42 +48,85 @@ const AFROBOOST_FALLBACK: ActivityCard[] = [
   },
 ];
 
+/** Phase 9.5 c5 — render media item card preview (image OR video thumb + play overlay) */
+function CardMediaSlide({ item, fallbackSeed }: { item: MediaItem; fallbackSeed: string }) {
+  if (item.type === 'video') {
+    const thumb = getVideoThumbnail(item);
+    return (
+      <div className="absolute inset-0 w-full h-full bg-zinc-900 flex items-center justify-center">
+        {thumb ? (
+          <img
+            src={thumb}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).style.display = 'none';
+            }}
+          />
+        ) : (
+          <Video className="h-12 w-12 text-white/30" aria-hidden="true" />
+        )}
+        {/* Play overlay center (Q4=A no autoplay — user click pour /activities/[id] embed) */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/50 rounded-full p-3 backdrop-blur-sm">
+            <Play className="h-7 w-7 text-[#D91CD2] fill-[#D91CD2]" aria-hidden="true" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+  // type='image' OR fallback
+  return (
+    <img
+      src={item.url || `https://picsum.photos/seed/${fallbackSeed}/800/600`}
+      alt=""
+      className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
+    />
+  );
+}
+
 function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
   const [imgIndex, setImgIndex] = useState(0);
-  const allImages = activity.images && activity.images.length > 0
-    ? activity.images
-    : [activity.imageUrl || `https://picsum.photos/seed/${activity.sport}/800/600`];
-  const hasMultiple = allImages.length > 1;
+  // Phase 9.5 c5 — unified media items via getMediaItems (rich type — image+video).
+  // Fallback : seed picsum si zéro media.
+  const mediaItems = getMediaItems({
+    mediaUrls: activity.mediaUrls,
+    images: activity.images,
+  });
+  const items: MediaItem[] = mediaItems.length > 0
+    ? mediaItems
+    : [{
+        url: activity.imageUrl || `https://picsum.photos/seed/${activity.sport}/800/600`,
+        type: 'image',
+        source: 'url',
+      }];
+  const hasMultiple = items.length > 1;
 
   return (
     <Card className="overflow-hidden bg-card border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20 transition-all duration-300 transform hover:-translate-y-2">
       <div className="relative h-56 w-full group">
         <BackButton fallbackUrl="/discovery" />
-        <img
-          src={allImages[imgIndex]}
-          alt={activity.title}
-          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
-        />
-        <div className="absolute inset-0 bg-black/40" />
+        <CardMediaSlide item={items[imgIndex]} fallbackSeed={activity.sport} />
+        <div className="absolute inset-0 bg-black/40 pointer-events-none" />
         <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
           {activity.duration || 60} min
         </div>
         {hasMultiple && (
           <>
             <button
-              onClick={(e) => { e.stopPropagation(); setImgIndex(i => i === 0 ? allImages.length - 1 : i - 1); }}
-              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => { e.stopPropagation(); setImgIndex(i => i === 0 ? items.length - 1 : i - 1); }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
-              onClick={(e) => { e.stopPropagation(); setImgIndex(i => i === allImages.length - 1 ? 0 : i + 1); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={(e) => { e.stopPropagation(); setImgIndex(i => i === items.length - 1 ? 0 : i + 1); }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5">
-              {allImages.map((_, i) => (
+            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+              {items.map((_, i) => (
                 <button
                   key={i}
                   onClick={(e) => { e.stopPropagation(); setImgIndex(i); }}
@@ -154,6 +202,8 @@ export default function ActivitiesPage() {
               : '',
             imageUrl: raw.images?.[0] || raw.imageUrl || '',
             images: raw.images || (raw.imageUrl ? [raw.imageUrl] : []),
+            // Phase 9.5 c5 — preserve rich mediaUrls (image+video) pour rendu card unifié
+            mediaUrls: raw.mediaUrls,
             city: raw.city || '',
             partnerName: raw.partnerName || '',
             partnerId: raw.partnerId || '',

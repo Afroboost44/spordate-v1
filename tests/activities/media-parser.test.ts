@@ -23,7 +23,7 @@
  *   - Firebase Storage URL (firebasestorage.googleapis.com) → image extension match
  */
 
-import { parseVideoUrl, isImageUrl } from '../../src/lib/activities/mediaParser';
+import { parseVideoUrl, isImageUrl, getVideoThumbnail } from '../../src/lib/activities/mediaParser';
 
 // =====================================================================
 // Mini test runner
@@ -251,8 +251,84 @@ async function main(): Promise<void> {
     }
   }
 
+  // ===================================================================
+  // Phase 9.5 c5 — getVideoThumbnail tests
+  // ===================================================================
+  section('MP7 getVideoThumbnail YouTube → img.youtube.com hqdefault.jpg');
+  {
+    const item = {
+      type: 'video' as const,
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      provider: 'youtube' as const,
+    };
+    const thumb = getVideoThumbnail(item);
+    if (thumb === 'https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg') {
+      pass('MP7 YouTube thumb URL hqdefault.jpg correct');
+    } else {
+      fail('MP7 YouTube thumb mismatch', { thumb });
+    }
+    // Variante avec videoId déjà stocké (pas de re-parse)
+    const item2 = {
+      type: 'video' as const,
+      url: 'https://example.invalid/whatever',
+      provider: 'youtube' as const,
+      videoId: 'abc12345678',
+    };
+    const thumb2 = getVideoThumbnail(item2);
+    if (thumb2 === 'https://img.youtube.com/vi/abc12345678/hqdefault.jpg') {
+      pass('MP7 YouTube thumb avec videoId stocké (pas de re-parse)');
+    } else {
+      fail('MP7 YouTube stored videoId', { thumb2 });
+    }
+  }
+
+  section('MP8 getVideoThumbnail Vimeo → null (oEmbed defer Phase 10)');
+  {
+    const item = {
+      type: 'video' as const,
+      url: 'https://vimeo.com/123456789',
+      provider: 'vimeo' as const,
+    };
+    const thumb = getVideoThumbnail(item);
+    if (thumb === null) {
+      pass('MP8 Vimeo thumb=null (caller fallback placeholder Lucide Video icon)');
+    } else {
+      fail('MP8 Vimeo should be null', { thumb });
+    }
+  }
+
+  section('MP9 getVideoThumbnail Drive → null (no stable thumb)');
+  {
+    const item = {
+      type: 'video' as const,
+      url: 'https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/view',
+      provider: 'drive' as const,
+    };
+    const thumb = getVideoThumbnail(item);
+    if (thumb === null) {
+      pass('MP9 Drive thumb=null (caller fallback placeholder)');
+    } else {
+      fail('MP9 Drive should be null', { thumb });
+    }
+  }
+
+  section('MP10 getVideoThumbnail item.type=image → null (skip non-video)');
+  {
+    const item = {
+      type: 'image' as const,
+      url: 'https://example.com/photo.jpg',
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const thumb = getVideoThumbnail(item as any);
+    if (thumb === null) {
+      pass('MP10 image item → null (defensive skip)');
+    } else {
+      fail('MP10 image should return null', { thumb });
+    }
+  }
+
   console.log('');
-  console.log('====== Résumé Media Parser (MP1-MP6 + bonus) ======');
+  console.log('====== Résumé Media Parser (MP1-MP6 + bonus + MP7-MP10 c5) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);

@@ -94,6 +94,40 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoUrl | 
   return null;
 }
 
+/**
+ * Phase 9.5 c5 — extract video thumbnail URL pour preview cards listing.
+ *
+ * Behaviors :
+ *  - YouTube : retourne `https://img.youtube.com/vi/{videoId}/hqdefault.jpg` (toujours dispo, même vidéos privées)
+ *  - Vimeo : retourne null (oEmbed API requise → fetch async, defer Phase 10) → caller fallback placeholder
+ *  - Drive : retourne null (pas de thumb stable Google) → caller fallback placeholder
+ *
+ * @param item MediaItem (must be type='video')
+ * @returns thumbnail URL ou null si non disponible (caller doit fallback placeholder)
+ */
+export function getVideoThumbnail(item: { type: string; url?: string; provider?: string; videoId?: string }): string | null {
+  if (item.type !== 'video') return null;
+  // Si videoId déjà extrait (cohérent MediaItem post-parseVideoUrl)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stored = (item as any).videoId as string | undefined;
+  // Sinon re-parse depuis url (backward compat MediaItem sans videoId stocké)
+  let provider = item.provider;
+  let videoId: string | undefined = stored;
+  if (!videoId && item.url) {
+    const parsed = parseVideoUrl(item.url);
+    if (parsed) {
+      provider = parsed.provider;
+      videoId = parsed.videoId;
+    }
+  }
+  if (!videoId) return null;
+  if (provider === 'youtube') {
+    return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+  }
+  // Vimeo + Drive : pas de thumb URL stable côté client → caller fallback placeholder
+  return null;
+}
+
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.avif'];
 
 /**
