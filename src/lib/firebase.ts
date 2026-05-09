@@ -2,13 +2,17 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 
+// Phase 9.5 hotfix c2 — defensive .trim() sur env vars Firebase.
+// Anti-régression : si user copie-colle une valeur env var avec trailing \n dans Vercel UI,
+// le code n'utilise plus la valeur brute mais .trim() pour éviter "Illegal url for new iframe"
+// (%0A dans authDomain → URL iframe construite côté client cassée).
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '',
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || '',
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '',
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '',
+  apiKey: (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '').trim(),
+  authDomain: (process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '').trim(),
+  projectId: (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '').trim(),
+  storageBucket: (process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || '').trim(),
+  messagingSenderId: (process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '').trim(),
+  appId: (process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '').trim(),
 };
 
 // Check if Firebase is properly configured with REAL credentials

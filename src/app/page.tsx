@@ -70,10 +70,11 @@ export default function LandingPage() {
       try {
         const { initializeApp, getApps } = await import('firebase/app');
         const { getFirestore, doc, getDoc } = await import('firebase/firestore');
+        // Phase 9.5 hotfix c2 — defensive .trim() (cohérent src/lib/firebase.ts)
         const firebaseConfig = {
-          apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
-          authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '',
-          projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '',
+          apiKey: (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '').trim(),
+          authDomain: (process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '').trim(),
+          projectId: (process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || '').trim(),
         };
         const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
         const db = getFirestore(app);
