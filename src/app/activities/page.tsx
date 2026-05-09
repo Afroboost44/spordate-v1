@@ -13,6 +13,7 @@ import { getMediaItems } from '@/lib/activities/media';
 import { getVideoThumbnailChain, getVideoEmbedUrl } from '@/lib/activities/mediaParser';
 import type { MediaItem } from '@/types/firestore';
 import { ReserveButtonListing } from '@/components/activities/ReserveButtonListing';
+import { ShareButton } from '@/components/activities/ShareButton';
 
 interface ActivityCard {
   activityId: string;
@@ -269,13 +270,23 @@ function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
           <p className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-rose-400">
             {activity.price === 0 ? 'Gratuit' : `${activity.price} CHF`}
           </p>
-          <ReserveButtonListing
-            activity={{
-              activityId: activity.activityId,
-              title: activity.title,
-              price: activity.price,
-            }}
-          />
+          <div className="flex items-center gap-2">
+            {/* Phase 9.5 c10.B — Share standalone (Like + Comment viendront 10.C/10.D via SocialBar) */}
+            <ShareButton
+              activity={{
+                activityId: activity.activityId,
+                title: activity.title,
+                name: activity.name,
+              }}
+            />
+            <ReserveButtonListing
+              activity={{
+                activityId: activity.activityId,
+                title: activity.title,
+                price: activity.price,
+              }}
+            />
+          </div>
         </div>
       </CardContent>
     </Card>
