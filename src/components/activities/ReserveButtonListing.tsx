@@ -71,7 +71,13 @@ export function ReserveButtonListing({ activity, className }: ReserveButtonListi
           if (res.status === 429) {
             toast({
               title: 'Déjà réservée',
-              description: 'Tu as déjà réservé cette activité gratuite récemment (1 fois par 24h).',
+              description: 'Tu as déjà réservé cette activité ces dernières 24h.',
+              variant: 'destructive',
+            });
+          } else if (res.status === 503 && data?.error === 'index-not-ready') {
+            toast({
+              title: 'Système en cours de mise à jour',
+              description: 'Réessaie dans 1 minute.',
               variant: 'destructive',
             });
           } else if (res.status === 412 && data?.error === 'gender-mismatch') {
@@ -88,8 +94,8 @@ export function ReserveButtonListing({ activity, className }: ReserveButtonListi
             });
           } else {
             toast({
-              title: 'Réservation échouée',
-              description: data?.detail || data?.error || 'Réessaie plus tard.',
+              title: 'Erreur réservation',
+              description: 'Contacte le support si le problème persiste.',
               variant: 'destructive',
             });
           }

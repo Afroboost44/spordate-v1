@@ -451,15 +451,41 @@ async function handleSessionFreeMode(
     }
 
     // Anti-abus 24h cooldown : same user + activity within last 24h
+    // Composite index requis : bookings(userId ASC, activityId ASC, createdAt DESC)
+    // → cf firestore.indexes.json. Si manquant en prod (live deploy gap), Admin SDK throw
+    // FAILED_PRECONDITION code 9 → on map en 503 'index-not-ready' UX gracieuse.
     const { Timestamp } = await import('firebase-admin/firestore');
     const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
-    const recentBookings = await db
-      .collection('bookings')
-      .where('userId', '==', body.userId)
-      .where('activityId', '==', body.activityId)
-      .where('createdAt', '>=', Timestamp.fromMillis(cutoffMs))
-      .limit(1)
-      .get();
+    let recentBookings;
+    try {
+      recentBookings = await db
+        .collection('bookings')
+        .where('userId', '==', body.userId)
+        .where('activityId', '==', body.activityId)
+        .where('createdAt', '>=', Timestamp.fromMillis(cutoffMs))
+        .limit(1)
+        .get();
+    } catch (queryErr) {
+      const msg = queryErr instanceof Error ? queryErr.message : String(queryErr);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const code = (queryErr as any)?.code;
+      if (
+        code === 9 ||
+        code === 'failed-precondition' ||
+        msg.includes('FAILED_PRECONDITION') ||
+        msg.includes('requires an index')
+      ) {
+        console.warn('[handleSessionFreeMode] Firestore composite index manquant', { msg });
+        return NextResponse.json(
+          {
+            error: 'index-not-ready',
+            detail: 'Système en cours de mise à jour, réessaie dans 1 minute.',
+          },
+          { status: 503 },
+        );
+      }
+      throw queryErr;
+    }
     if (!recentBookings.empty) {
       return NextResponse.json(
         {

@@ -14,6 +14,7 @@
  *   FB4. Activity not found → 404 activity-not-found
  *   FB5. authedUid != userId → 403 forbidden
  *   FB6. Per-activity chatCreditsBundle override → grant cette valeur (10) au lieu freeActivityBundle (5)
+ *   FB7. Firestore composite index manquant (FAILED_PRECONDITION) → 503 index-not-ready
  */
 
 // ⚠️ ENV vars must be set BEFORE firebase-admin import
@@ -318,13 +319,81 @@ async function main(): Promise<void> {
   }
 
   // ===================================================================
+  // FB7 — Firestore composite index manquant → 503 index-not-ready
+  // ===================================================================
+  section('FB7 missing composite index (FAILED_PRECONDITION) → 503 index-not-ready');
+  {
+    await clearAll();
+    await seedActivity(FREE_ACTIVITY_ID, 0);
+    await seedUser(ALICE_UID);
+    _mockUid = ALICE_UID;
+
+    // Monkey-patch Query.prototype.get pour throw FAILED_PRECONDITION
+    // (simule l'erreur prod observée quand index composite bookings(userId+activityId+createdAt) manque)
+    const { Query } = await import('@google-cloud/firestore');
+    const originalGet = Query.prototype.get;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (Query.prototype as any).get = async function () {
+      const err = new Error('9 FAILED_PRECONDITION: The query requires an index.');
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (err as any).code = 9;
+      throw err;
+    };
+
+    let routeRes: MockResponse;
+    try {
+      routeRes = await callPost(
+        { mode: 'session-free', activityId: FREE_ACTIVITY_ID, userId: ALICE_UID },
+        'mock_token_alice',
+      );
+    } finally {
+      // Restore AVANT les orphan checks (qui sont aussi des Query.get)
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (Query.prototype as any).get = originalGet;
+    }
+
+    if (routeRes.status === 503 && routeRes.body.error === 'index-not-ready') {
+      pass('FB7 missing index → 503 index-not-ready');
+    } else {
+      fail('FB7', routeRes);
+    }
+
+    // Verify aucun orphan : pas de booking, pas de creditTransactions, user.credits=0
+    // (la query throw AVANT runTransaction → rollback automatique)
+    const bookingsSnap = await db
+      .collection('bookings')
+      .where('userId', '==', ALICE_UID)
+      .get();
+    if (bookingsSnap.empty) {
+      pass('FB7.b aucun booking orphelin (query throw avant runTransaction)');
+    } else {
+      fail('FB7.b booking orphelin', bookingsSnap.size);
+    }
+    const userSnap = await db.collection('users').doc(ALICE_UID).get();
+    if ((userSnap.data()?.credits ?? 0) === 0) {
+      pass('FB7.c user.credits=0 (pas de grant orphelin)');
+    } else {
+      fail('FB7.c credits orphelin', userSnap.data()?.credits);
+    }
+    const ctSnap = await db
+      .collection('creditTransactions')
+      .where('userId', '==', ALICE_UID)
+      .get();
+    if (ctSnap.empty) {
+      pass('FB7.d aucun creditTransactions orphelin');
+    } else {
+      fail('FB7.d creditTransactions orphelin', ctSnap.size);
+    }
+  }
+
+  // ===================================================================
   // Cleanup
   // ===================================================================
   __setVerifyAuthForTesting(null);
   await clearAll();
 
   console.log('');
-  console.log('====== Résumé Free Booking (FB1-FB6) ======');
+  console.log('====== Résumé Free Booking (FB1-FB7) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);
