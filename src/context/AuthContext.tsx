@@ -93,8 +93,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearError = () => setError(null);
 
-  // Translate Firebase error codes to French
-  function getFirebaseErrorMessage(code: string): string {
+  // Translate Firebase error codes to French.
+  // Phase 9.5 hotfix : étendu avec 5 codes Google Sign-In + 2 silent cases (return null).
+  // Caller skip setError si message === null (case: user a fermé popup volontairement).
+  function getFirebaseErrorMessage(code: string): string | null {
     switch (code) {
       case 'auth/email-already-in-use':
         return 'Cette adresse email est déjà utilisée.';
@@ -110,10 +112,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return 'Email ou mot de passe incorrect.';
       case 'auth/too-many-requests':
         return 'Trop de tentatives. Réessayez dans quelques minutes.';
-      case 'auth/popup-closed-by-user':
-        return 'Connexion annulée.';
       case 'auth/network-request-failed':
         return 'Erreur réseau. Vérifiez votre connexion internet.';
+      // Phase 9.5 hotfix — Google Sign-In error codes étendus
+      case 'auth/account-exists-with-different-credential':
+        return 'Ce compte existe déjà avec email/mot de passe. Connecte-toi avec ton mot de passe puis lie Google depuis ton profil.';
+      case 'auth/unauthorized-domain':
+        return 'Domaine non autorisé. Contacte l\'administrateur.';
+      case 'auth/operation-not-allowed':
+        return 'Connexion Google temporairement désactivée.';
+      case 'auth/popup-blocked':
+        return 'Popup bloquée. Autorise les popups pour ce site.';
+      // Silent cases — user a annulé volontairement, pas un vrai error
+      case 'auth/popup-closed-by-user':
+      case 'auth/cancelled-popup-request':
+        return null;
       default:
         return 'Une erreur est survenue. Veuillez réessayer.';
     }
@@ -162,8 +175,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       await signInWithPopup(auth, provider);
       router.push('/discovery');
     } catch (err: any) {
-      if (err.code !== 'auth/popup-closed-by-user') {
-        setError(getFirebaseErrorMessage(err.code));
+      // Phase 9.5 hotfix — surface real err.code pour debug prod
+      console.error('[loginWithGoogle] Firebase error code:', err?.code, 'message:', err?.message);
+      const message = getFirebaseErrorMessage(err?.code);
+      if (message !== null) {
+        setError(message);
       }
       throw err;
     }

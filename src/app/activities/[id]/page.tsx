@@ -77,21 +77,25 @@ export default async function ActivityDetailPage({ params }: PageProps) {
 
   if (!activity) notFound();
 
-  const reviews = await getReviewsByActivity(id, { limit: 50 }).catch((err) => {
-    console.error('[ActivityDetailPage] getReviewsByActivity failed', err);
-    return [];
-  });
+  // Phase 9.5 hotfix — parallel SSR queries (avant: séquentielles ~400ms / après: ~250ms).
+  // getReviewsByActivity + getNextFutureSessionForActivity sont indépendantes (n'utilisent que `id`).
+  // getReviewerProfiles dépend du résultat reviews → reste séquentielle après ce Promise.all.
+  const [reviews, nextSession] = await Promise.all([
+    getReviewsByActivity(id, { limit: 50 }).catch((err) => {
+      console.error('[ActivityDetailPage] getReviewsByActivity failed', err);
+      return [];
+    }),
+    getNextFutureSessionForActivity(id).catch((err) => {
+      console.error('[ActivityDetailPage] getNextFutureSessionForActivity failed', err);
+      return null;
+    }),
+  ]);
 
   // Phase 7 commit 4/6 : résoudre les profils reviewers nominatifs (3-5★)
+  // Dépend de reviews → reste séquentielle (mais batch interne via Promise.all sur N uids).
   const reviewerProfiles = await getReviewerProfiles(reviews).catch((err) => {
     console.error('[ActivityDetailPage] getReviewerProfiles failed', err);
     return new Map();
-  });
-
-  // Phase 9 SC1 c3/5 — résoudre prochaine session future pour wire InviteSection
-  const nextSession = await getNextFutureSessionForActivity(id).catch((err) => {
-    console.error('[ActivityDetailPage] getNextFutureSessionForActivity failed', err);
-    return null;
   });
 
   return (
