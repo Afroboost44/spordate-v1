@@ -12,6 +12,7 @@ import BackButton from '@/components/BackButton';
 import { getMediaItems } from '@/lib/activities/media';
 import { getVideoThumbnail, getVideoEmbedUrl } from '@/lib/activities/mediaParser';
 import type { MediaItem } from '@/types/firestore';
+import { ReserveButtonListing } from '@/components/activities/ReserveButtonListing';
 
 interface ActivityCard {
   activityId: string;
@@ -254,11 +255,15 @@ function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
         <p className="text-xs text-foreground/30 mb-4">{activity.schedule}</p>
         <div className="flex justify-between items-center">
           <p className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-rose-400">
-            {activity.price} CHF
+            {activity.price === 0 ? 'Gratuit' : `${activity.price} CHF`}
           </p>
-          <Button asChild className="font-semibold bg-primary hover:bg-primary/90 text-sm px-4">
-            <Link href="/payment">Réserver</Link>
-          </Button>
+          <ReserveButtonListing
+            activity={{
+              activityId: activity.activityId,
+              title: activity.title,
+              price: activity.price,
+            }}
+          />
         </div>
       </CardContent>
     </Card>

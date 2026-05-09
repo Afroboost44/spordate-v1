@@ -2436,8 +2436,31 @@ Cf. ligne 2434+ section "10. Journal des phases de la mission Sessions" — Phas
 | **c2** | `3f57b9d` | Defensive `.trim()` env vars Firebase (anti trailing newline copy-paste) — bug `/partner/login` "Illegal url for new iframe" %0A | 2 fichiers, +14/-9 | typecheck + build |
 | **c3** | `0e55d16` | Reset password Resend (anti SPAM Firebase Auth default) — template `passwordResetCustom` + API route Admin SDK + DI seam + scrollbar thin partner modal | 8 fichiers, +557/-8 | 16/16 PR1-PR4 + bonus |
 | **c4** | `e873f3e` | MediaManager partner (drag&drop @dnd-kit + upload Firebase Storage 5MB cap + URL embed YouTube/Vimeo/Drive) + MediaCarousel iframe rendering activities/[id] | 16 fichiers, +1655/-71 | 21/21 MP1-MP6 + UAM1-UAM3 + bonus |
+| **c5** | `dd53fbd` | Vidéo thumbnail card listing + helper `getVideoThumbnail` (YouTube hqdefault) + unified `<CardMediaSlide>` rendering image|video carousel | 4 fichiers, +186/-25 | 5/5 video-thumbnail tests |
+| **c6** | `244ec74` | Autoplay + loop + mute toggle vidéo card listing — `getVideoEmbedUrl()` provider-specific opts (YT mute=1, Vimeo background=1) + IntersectionObserver | 3 fichiers, +144/-12 | 4/4 video-embed tests |
+| **c7** | _wip_ | Réservation conditionnelle (free vs paid) + bundle crédits chat central rules + **COMMISSION FIX critique** (mode='session' solo n'avait PAS `transfer_data` → 0% commission partner) | 6 fichiers, ~30/30 assertions |
 
-**Total Phase 9.5** : **4 commits hotfix** + storage deploy `partners/{partnerId}/activities/` + Firestore deploy `reviews:activityId+status+createdAt`
+**Total Phase 9.5** : **7 commits hotfix** + storage deploy `partners/{partnerId}/activities/` + Firestore deploy `reviews:activityId+status+createdAt`
+
+### Économie plateforme (Phase 9.5 c7 — close-out doctrine)
+
+Modèle économique tranché et codé :
+
+| Source revenu | Cible | Commission Spordate | Code path |
+|---|---|---|---|
+| **Réservation activité payante** (solo / split / gift) | Partner | **5%** application_fee via `SPORDATE_INVITE_FEE_PCT` (defaults `getApplicationFeePct()=5`) | `payment_intent_data.transfer_data.destination=partner.stripeAccountId` + `application_fee_amount=round(price × 5 / 100)` (mode='session', 'invite-prepay', 'invite-accept') |
+| **Réservation activité gratuite** (price === 0) | — (skip Stripe) | 0% | mode='session-free' grant `freeActivityBundle` (5 crédits chat) direct via `runTransaction` Admin SDK + log `creditTransactions {source:'free_booking_bundle'}` |
+| **Abonnement partenaire** | Plateforme | **49 CHF/mois** (`partner_monthly`) | Existing flat fee subscription Stripe |
+| **Pack crédits chat** (admin user) | Plateforme | **100%** (no Connect destination) | mode='package' (`1_date`/`3_dates`/`10_dates`/`premium_*`) checkout Stripe direct |
+
+**Bundle crédits chat** (config `src/lib/billing/creditRules.ts`) :
+- `CREDIT_RULES.freeActivityBundle = 5` (réservation gratuite)
+- `CREDIT_RULES.paidActivityRatio = 2` (réservation payante : `priceCHF × 2`, ex 30 CHF → 60 crédits)
+- Override per-activity : `Activity.chatCreditsBundle` (Phase 3) trumps central rules
+
+**Anti-abus réservation gratuite** : 1 booking / activity / user / 24h via Firestore query `bookings.where(userId)+where(activityId)+where(createdAt > now-24h)` → 429 cooldown-active.
+
+**COMMISSION FIX (Phase 9.5 c7)** : avant ce fix, mode='session' solo (lignes 311-342 ancien `/api/checkout/route.ts`) créait checkout Stripe **sans** `transfer_data` → **100% du prix au compte plateforme, 0% au partner**. Modes split/gift (lignes 510+728) avaient déjà `transfer_data`. Bug réel confirmé par audit, fix appliqué à TOUS modes payants.
 
 ### Deploys Phase 9.5
 

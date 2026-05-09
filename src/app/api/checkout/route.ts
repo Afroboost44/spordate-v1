@@ -96,6 +96,11 @@ export async function POST(request: NextRequest) {
       return handleSessionMode(body);
     }
 
+    // Phase 9.5 c7 : session-free flow (activité gratuite, skip Stripe + grant freeActivityBundle)
+    if (body?.mode === 'session-free') {
+      return handleSessionFreeMode(request, body);
+    }
+
     // Phase 8 SC4 commit 3/6 : invite-accept flow (B accepte invitation A → Stripe checkout B)
     if (body?.mode === 'invite-accept') {
       return handleInviteAcceptMode(request, body);
@@ -308,6 +313,35 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
       last_minute: 'Last Minute',
     };
 
+    // Phase 9.5 c7 COMMISSION FIX — Stripe Connect destination charge sur TOUS modes payants
+    // (solo mode='session' était l'oubli). 5% application_fee Spordate via SPORDATE_INVITE_FEE_PCT.
+    // Edge case : partner pas onboarded Stripe Connect → 412 ConnectError (pattern existing).
+    const { getPartnerStripeAccount, ConnectError, assertConnectChargesEnabled } = await import(
+      '@/lib/stripe/connectHelpers'
+    );
+    let partnerStripeAccount: string;
+    try {
+      partnerStripeAccount = await getPartnerStripeAccount(session.partnerId);
+      await assertConnectChargesEnabled(partnerStripeAccount);
+    } catch (err) {
+      if (err instanceof ConnectError) {
+        return NextResponse.json(
+          { error: err.code, partnerId: session.partnerId },
+          { status: 412 },
+        );
+      }
+      throw err;
+    }
+    const { getApplicationFeePct } = await import('@/lib/invites/splitMath');
+    const feePct = getApplicationFeePct();
+    const applicationFeeAmount = Math.round((price * feePct) / 100);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const paymentIntentData: Record<string, any> = {
+      transfer_data: { destination: partnerStripeAccount },
+      application_fee_amount: applicationFeeAmount,
+    };
+
     const stripeSession = await (await getStripe()).checkout.sessions.create({
       mode: 'payment',
       payment_method_types: ['card', 'twint'],
@@ -327,6 +361,7 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
           quantity: 1,
         },
       ],
+      payment_intent_data: paymentIntentData,
       metadata: {
         mode: 'session',
         sessionId: body.sessionId,
@@ -338,12 +373,208 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
         activityId: session.activityId,
         partnerId: session.partnerId,
         bundleCredits: String(bundleCredits),
+        applicationFeeAmount: String(applicationFeeAmount),
+        partnerStripeAccount,
       },
     });
 
     return NextResponse.json({ sessionId: stripeSession.id, url: stripeSession.url });
   } catch (error: unknown) {
     console.error('[Checkout session] Erreur:', error);
+    const message = error instanceof Error ? error.message : 'Erreur serveur';
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
+// =====================================================================
+// Phase 9.5 c7 — handleSessionFreeMode (activité gratuite, skip Stripe)
+// =====================================================================
+
+interface SessionFreeBody {
+  activityId: string;
+  sessionId?: string;
+  userId: string;
+}
+
+/**
+ * Phase 9.5 c7 — Reservation activité gratuite (price === 0).
+ *
+ * Pipeline :
+ *   1. Verify Bearer auth → uid (must equal body.userId)
+ *   2. Load activity → assert price === 0 (sinon 400 ; reroute vers mode='session')
+ *   3. Anti-abus 24h cooldown : query bookings where userId+activityId+createdAt within 24h → 429
+ *   4. Audience check (cohérent mode='session' Q3=A + Q4=A SC6)
+ *   5. runTransaction Admin SDK : create Booking (status='confirmed', amount=0, paymentIntentId='free-{ts}')
+ *      + grant freeActivityBundle credits
+ *      + log creditTransactions {source:'free_booking_bundle'}
+ *   6. Best-effort sendEmail bookingConfirmation
+ *   7. Return { bookingId, sessionId? }
+ *
+ * Anti-abus : 1 réservation gratuite / activity / user / 24h (Q1 vote).
+ *
+ * @returns 200 { ok:true, bookingId } / 400 invalid / 401 unauth / 404 activity / 412 audience / 429 cooldown
+ */
+async function handleSessionFreeMode(
+  request: NextRequest,
+  body: Partial<SessionFreeBody>,
+): Promise<NextResponse> {
+  if (!body.activityId || !body.userId) {
+    return NextResponse.json(
+      { error: 'invalid-input', detail: 'activityId + userId required' },
+      { status: 400 },
+    );
+  }
+
+  // Verify Bearer ID token (cohérent invite-accept)
+  const authedUid = await verifyAuth(request);
+  if (!authedUid) {
+    return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+  }
+  if (authedUid !== body.userId) {
+    return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+  }
+
+  try {
+    const db = await getDb();
+    const activitySnap = await db.collection('activities').doc(body.activityId).get();
+    if (!activitySnap.exists) {
+      return NextResponse.json({ error: 'activity-not-found' }, { status: 404 });
+    }
+    const activity = activitySnap.data() as unknown as Activity;
+
+    // Assert free
+    if (typeof activity.price !== 'number' || activity.price !== 0) {
+      return NextResponse.json(
+        { error: 'not-free-activity', detail: 'use mode=session for paid activities' },
+        { status: 400 },
+      );
+    }
+
+    // Anti-abus 24h cooldown : same user + activity within last 24h
+    const { Timestamp } = await import('firebase-admin/firestore');
+    const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
+    const recentBookings = await db
+      .collection('bookings')
+      .where('userId', '==', body.userId)
+      .where('activityId', '==', body.activityId)
+      .where('createdAt', '>=', Timestamp.fromMillis(cutoffMs))
+      .limit(1)
+      .get();
+    if (!recentBookings.empty) {
+      return NextResponse.json(
+        {
+          error: 'cooldown-active',
+          detail: '1 réservation gratuite par activité par 24h',
+        },
+        { status: 429 },
+      );
+    }
+
+    // Audience check (cohérent mode='session' SC6)
+    if (activity.audienceType && activity.audienceType !== 'all') {
+      const userSnap = await db.collection('users').doc(body.userId).get();
+      const userProfile = userSnap.exists ? (userSnap.data() as { gender?: string }) : null;
+      try {
+        const { assertCanBookActivity, AudienceError } = await import('@/lib/audience');
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        assertCanBookActivity(userProfile?.gender as any, activity.audienceType);
+        void AudienceError;
+      } catch (err) {
+        const { AudienceError } = await import('@/lib/audience');
+        if (err instanceof AudienceError) {
+          return NextResponse.json(
+            { error: err.code, audienceType: activity.audienceType },
+            { status: 412 },
+          );
+        }
+        throw err;
+      }
+    }
+
+    // Compute bundled credits (per-activity override OR central rules freeActivityBundle)
+    const { computeBundledCredits } = await import('@/lib/billing/creditRules');
+    const bundleCredits = computeBundledCredits(activity);
+
+    // runTransaction : create booking + grant credits + creditTransaction log
+    const { FieldValue } = await import('firebase-admin/firestore');
+    const bookingRef = db.collection('bookings').doc();
+    const bookingId = bookingRef.id;
+    const paymentIntentId = `free-${Date.now()}-${bookingId}`;
+
+    await db.runTransaction(async (tx) => {
+      // Booking doc
+      tx.set(bookingRef, {
+        bookingId,
+        userId: body.userId,
+        userName: '',
+        matchId: '',
+        activityId: body.activityId,
+        partnerId: activity.partnerId,
+        sport: activity.sport,
+        ticketType: 'solo',
+        sessionDate: activity.createdAt ?? Timestamp.now(),
+        status: 'confirmed',
+        transactionId: '',
+        amount: 0,
+        currency: 'CHF',
+        creditsUsed: 0,
+        sessionId: body.sessionId || '',
+        paymentIntentId,
+        createdAt: FieldValue.serverTimestamp(),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      // Grant credits
+      tx.update(db.collection('users').doc(body.userId!), {
+        credits: FieldValue.increment(bundleCredits),
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+
+      // Audit log creditTransactions
+      const ctRef = db.collection('creditTransactions').doc();
+      tx.set(ctRef, {
+        creditId: ctRef.id,
+        userId: body.userId,
+        type: 'purchase',
+        amount: bundleCredits,
+        description: `Free booking bundle — ${activity.title}`,
+        relatedId: bookingId,
+        source: 'free_booking_bundle',
+        activityId: body.activityId,
+        createdAt: FieldValue.serverTimestamp(),
+      });
+    });
+
+    // Best-effort email confirmation
+    try {
+      const { sendEmail } = await import('@/lib/email/sendEmail');
+      const userSnap = await db.collection('users').doc(body.userId).get();
+      const userEmail = userSnap.data()?.email as string | undefined;
+      const userName = (userSnap.data()?.displayName as string | undefined) || 'Hello';
+      if (userEmail) {
+        await sendEmail({
+          to: userEmail,
+          templateName: 'bookingConfirmation',
+          templateData: {
+            customerName: userName,
+            sessionTitle: activity.title,
+            sessionDate: '',
+            partnerName: activity.partnerName || '',
+            amount: 0,
+            bookingId,
+          },
+        });
+      }
+    } catch (err) {
+      console.warn('[handleSessionFreeMode] sendEmail failed (non-blocking)', err);
+    }
+
+    return NextResponse.json(
+      { ok: true, bookingId, creditsGranted: bundleCredits },
+      { status: 200 },
+    );
+  } catch (error: unknown) {
+    console.error('[handleSessionFreeMode] Erreur:', error);
     const message = error instanceof Error ? error.message : 'Erreur serveur';
     return NextResponse.json({ error: message }, { status: 500 });
   }
