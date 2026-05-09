@@ -54,11 +54,29 @@ export function breakdownMs(ms: number): { days: number; hours: number; minutes:
   return { days, hours, minutes, seconds };
 }
 
-/** Convertit Date | Timestamp Firestore | number en epoch ms. */
-function toMs(target: Date | { toMillis: () => number } | number): number {
+/**
+ * Convertit Date | Timestamp Firestore | number | sérialisé JSON en epoch ms.
+ *
+ * Phase 9.5 c11.1 hotfix — quand SSR Server Component passe un Firestore Timestamp
+ * à un Client Component, la classe Timestamp est sérialisée en `{seconds, nanoseconds}`
+ * pendant l'hydratation et perd ses méthodes (toMillis, toDate). Le fallback ci-dessous
+ * gère les 4 formats input pour éviter le crash "TypeError: e.toMillis is not a function".
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toMs(target: any): number {
   if (typeof target === 'number') return target;
   if (target instanceof Date) return target.getTime();
-  return target.toMillis();
+  if (target && typeof target.toMillis === 'function') return target.toMillis();
+  // Firestore Timestamp sérialisé JSON via SSR : { seconds, nanoseconds }
+  if (target && typeof target.seconds === 'number') {
+    const nanos = typeof target.nanoseconds === 'number' ? target.nanoseconds : 0;
+    return target.seconds * 1000 + Math.floor(nanos / 1_000_000);
+  }
+  // Defensive : type inattendu → log warn + return 0 (countdown "expired" gracefully)
+  if (typeof console !== 'undefined') {
+    console.warn('[useCountdown] toMs: unsupported target type', target);
+  }
+  return 0;
 }
 
 /**

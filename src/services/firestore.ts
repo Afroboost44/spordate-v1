@@ -1264,10 +1264,24 @@ export function getChatPhase(
   session: Pick<Session, 'chatOpenAt' | 'chatCloseAt' | 'startAt' | 'endAt'>,
   now: Date,
 ): 'before' | 'chat-open' | 'started' | 'ended' {
+  // Phase 9.5 c11.1 hotfix — defensive toMillis pour SSR-sérialisé
+  // { seconds, nanoseconds } qui n'a plus la méthode toMillis().
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const readMs = (raw: any): number => {
+    if (!raw) return 0;
+    if (typeof raw.toMillis === 'function') return raw.toMillis();
+    if (typeof raw.seconds === 'number') {
+      const nanos = typeof raw.nanoseconds === 'number' ? raw.nanoseconds : 0;
+      return raw.seconds * 1000 + Math.floor(nanos / 1_000_000);
+    }
+    if (raw instanceof Date) return raw.getTime();
+    if (typeof raw === 'number') return raw;
+    return 0;
+  };
   const nowMs = now.getTime();
-  const openAtMs = session.chatOpenAt.toMillis();
-  const startAtMs = session.startAt.toMillis();
-  const closeAtMs = session.chatCloseAt.toMillis();
+  const openAtMs = readMs(session.chatOpenAt);
+  const startAtMs = readMs(session.startAt);
+  const closeAtMs = readMs(session.chatCloseAt);
 
   if (nowMs < openAtMs) return 'before';
   if (nowMs < startAtMs) return 'chat-open';
