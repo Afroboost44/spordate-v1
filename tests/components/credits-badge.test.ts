@@ -15,6 +15,8 @@
  *   CB5. shouldShowBadge(loggedIn, loading) — hide quand pas logged in OU loading
  */
 
+export {}; // Phase 9.5 c9 — force module scope (sinon globals collide tsc)
+
 let _passes = 0;
 let _failures = 0;
 

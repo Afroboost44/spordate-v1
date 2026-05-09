@@ -24,8 +24,27 @@ export const DEFAULT_SPORTS: Sport[] = [
   { id: 'fitness', label: 'Fitness', icon: 'Dumbbell', active: true, priority: 6 },
 ];
 
-// Admin authorized email
-export const ADMIN_EMAIL = 'contact.artboost@gmail.com';
+// Phase 9.5 c9 — ADMIN_EMAILS list (auto-promote au login).
+// Ajouter une entrée ici pour qu'un nouvel email devienne admin sans édition Firestore manuelle.
+// Note : email comparison via isAdminEmail() : case-insensitive + trim() pour
+// neutraliser les copy-paste avec espaces ou casse mixte.
+export const ADMIN_EMAILS = [
+  'contact.artboost@gmail.com',
+  'bassicustomshoes@gmail.com',
+] as const;
+
+/** Backward-compat (existing /admin/dashboard + TandSReviewsPanel). */
+export const ADMIN_EMAIL = ADMIN_EMAILS[0];
+
+/**
+ * Vérifie si un email correspond à un admin authorized (case-insensitive).
+ * @param email — string OU null/undefined (pour usabilité Firebase user.email)
+ */
+export function isAdminEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  return ADMIN_EMAILS.some((adm) => adm.toLowerCase() === normalized);
+}
 
 /**
  * Get all sports from Firestore or localStorage

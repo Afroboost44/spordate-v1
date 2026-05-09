@@ -56,6 +56,8 @@
     "test:integration:booking-redirect": "firebase emulators:exec --only firestore 'npx tsx tests/integration/booking-redirect.test.ts'",
     "test:components:media-manager-reorder": "npx tsx tests/components/media-manager-reorder.test.ts",
     "test:components:credits-badge": "npx tsx tests/components/credits-badge.test.ts",
+    "test:auth:admin-auto-promote": "firebase emulators:exec --only firestore 'npx tsx tests/auth/admin-auto-promote.test.ts'",
+    "test:components:admin-menu-link": "npx tsx tests/components/admin-menu-link.test.ts",
     "test:invites:webhook-split-gift": "firebase emulators:exec --only firestore 'npx tsx tests/invites/webhook-split-gift.test.ts'",
     "test:invites:refund-on-decline": "firebase emulators:exec --only firestore 'npx tsx tests/invites/refund-on-decline.test.ts'",
     "test:cron:session-reminders": "firebase emulators:exec --only firestore 'npx tsx tests/cron/session-reminders.test.ts'",

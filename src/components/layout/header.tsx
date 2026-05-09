@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from '@/components/ui/sheet';
-import { Menu, Bell, Languages, LogOut, Crown, Shield, Building } from 'lucide-react';
+import { Menu, Bell, Languages, LogOut, Crown, Building } from 'lucide-react';
 import { NotificationBadge } from '@/components/notifications/NotificationBadge';
 import { useLanguage } from '@/context/LanguageContext';
 import {
@@ -18,6 +18,7 @@ import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { useFeatureFlags } from '@/lib/site/useFeatureFlags';
 import { CreditsBadge } from '@/components/layout/CreditsBadge';
+import { AdminMenuLink } from '@/components/layout/AdminMenuLink';
 
 
 // ─── S LOGO COMPONENT ──────────────────────────────────────────
@@ -143,14 +144,7 @@ export default function Header() {
                         </Link>
                       </Button>
                     )}
-                    {userProfile?.role === 'admin' && (
-                      <Button variant="ghost" asChild className="flex items-center gap-2 text-[#A855F7] hover:text-[#A855F7]/80">
-                        <Link href="/admin/manage">
-                          <Shield className="h-4 w-4" />
-                          Tableau de bord
-                        </Link>
-                      </Button>
-                    )}
+                    <AdminMenuLink variant="desktop" />
                     <Button variant="ghost" onClick={handleLogout} className="flex items-center gap-2">
                       <LogOut className="h-4 w-4" />
                       {t('nav_logout') || "Déconnexion"}
@@ -197,11 +191,8 @@ export default function Header() {
                     Espace Partenaire
                   </Link>
                 )}
-                {isLoggedIn && userProfile?.role === 'admin' && (
-                  <Link href="/admin/manage" className="px-4 py-2 rounded-md hover:bg-accent/10 text-[#A855F7] flex items-center gap-2">
-                    <Shield className="h-5 w-5" />
-                    Tableau de bord
-                  </Link>
+                {isLoggedIn && (
+                  <AdminMenuLink variant="mobile" />
                 )}
               </nav>
               <div className="absolute bottom-8 left-4 right-4 flex flex-col space-y-2">

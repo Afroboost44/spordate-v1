@@ -15,6 +15,7 @@ import {
 } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from '@/lib/firebase';
 import { createUser, getUser } from '@/services/firestore';
+import { isAdminEmail } from '@/lib/sports';
 import type { UserProfile } from '@/types/firestore';
 
 interface AuthContextType {
@@ -55,6 +56,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         });
         console.log('[Auth] Profil Firestore créé pour', firebaseUser.email);
       }
+
+      // Phase 9.5 c9 — auto-promote admin si email matche allowlist + role !== admin.
+      // Best-effort fire-and-forget vers /api/auth/admin-self-promote (Admin SDK bypass rules).
+      // Idempotent côté serveur : alreadyAdmin → no-op + no log doublon.
+      if (isAdminEmail(firebaseUser.email) && profile.role !== 'admin') {
+        try {
+          const idToken = await firebaseUser.getIdToken();
+          const res = await fetch('/api/auth/admin-self-promote', {
+            method: 'POST',
+            headers: { Authorization: `Bearer ${idToken}` },
+          });
+          if (res.ok) {
+            const data = await res.json().catch(() => null);
+            if (data?.ok && data?.role === 'admin') {
+              console.log('[Auth] Auto-promote admin OK pour', firebaseUser.email);
+              // Refetch profile pour rendu immédiat (sinon stale)
+              const refreshed = await getUser(firebaseUser.uid);
+              if (refreshed) profile = refreshed;
+            }
+          } else {
+            console.warn('[Auth] admin-self-promote returned', res.status);
+          }
+        } catch (err) {
+          console.warn('[Auth] admin-self-promote failed (non-blocking):', err);
+        }
+      }
+
       return profile;
     } catch (err) {
       console.warn('[Auth] Firestore profile load failed (offline?):', err);
