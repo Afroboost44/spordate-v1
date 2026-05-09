@@ -242,7 +242,7 @@ export default function PartnerOffersPage() {
               <DialogTitle className="text-white text-xl font-light">{editing ? "Modifier l'activité" : "Nouvelle activité"}</DialogTitle>
               <DialogDescription>{editing ? "Mettez à jour les détails." : "Créez une activité pour recevoir des réservations."}</DialogDescription>
             </DialogHeader>
-            <div className="grid gap-4 py-6 max-h-[60vh] overflow-y-auto pr-2">
+            <div className="grid gap-4 py-6 max-h-[60vh] overflow-y-auto pr-2 scrollbar-thin">
               <div className="grid gap-2">
                 <Label className="text-white/50">Nom de l&apos;activité *</Label>
                 <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Cours de Zumba" className="bg-[#1A1A1A] border-white/10 h-12" required />

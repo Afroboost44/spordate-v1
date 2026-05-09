@@ -242,9 +242,20 @@ export default function PartnerLoginPage() {
     if (!auth) return;
     setIsLoading(true);
     try {
-      await sendPasswordResetEmail(auth, email);
-      setResetSent(true);
-    } catch { setError("Erreur lors de l'envoi. Vérifiez l'email."); }
+      // Phase 9.5 hotfix c3 — route via API Resend (anti-SPAM vs Firebase Auth default).
+      const res = await fetch('/api/auth/send-reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        setError("Erreur lors de l'envoi. Vérifiez l'email.");
+      } else {
+        setResetSent(true);
+      }
+    } catch {
+      setError("Erreur lors de l'envoi. Vérifiez l'email.");
+    }
     setIsLoading(false);
   };
 

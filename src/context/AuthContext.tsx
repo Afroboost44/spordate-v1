@@ -202,9 +202,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
     setError(null);
     try {
-      await sendPasswordResetEmail(auth, email);
+      // Phase 9.5 hotfix c3 — route via API Resend (anti-SPAM Firebase Auth default sender).
+      // Cf. /api/auth/send-reset-password : Admin SDK génère le link Firebase + Resend send.
+      // Anti-enumeration : API retourne 200 même si user-not-found (silent).
+      const res = await fetch('/api/auth/send-reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
+      });
+      if (!res.ok) {
+        // 400 invalid-input ou 500 internal → afficher message générique
+        const body = await res.json().catch(() => ({}));
+        if (body?.error === 'invalid-input') {
+          setError('Adresse email invalide.');
+        } else {
+          setError('Une erreur est survenue. Veuillez réessayer.');
+        }
+        throw new Error(`Reset password API ${res.status}`);
+      }
     } catch (err: any) {
-      setError(getFirebaseErrorMessage(err.code));
+      console.error('[resetPassword] failed', err?.message);
+      if (!err?.message?.startsWith('Reset password API')) {
+        // Network / fetch error
+        setError('Erreur réseau. Vérifiez votre connexion internet.');
+      }
       throw err;
     }
   };

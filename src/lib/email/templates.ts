@@ -38,7 +38,8 @@ export type TemplateName =
   | 'inviteReceivedSplit' // Phase 9 SC2 c2/6 — invitation mode='split' (inviter paye part, invité paye reste)
   | 'inviteReceivedGift' // Phase 9 SC2 c2/6 — invitation mode='gift' (inviter paye 100%, invité confirme)
   | 'sessionReminderJMinus1' // Phase 9 SC3 c1/5 — rappel J-1 (24h avant session) Q1=B window 18-30h
-  | 'sessionReminderTMinus0'; // Phase 9 SC3 c1/5 — rappel T-0 (1h avant session) Q2=A window 30-90min
+  | 'sessionReminderTMinus0' // Phase 9 SC3 c1/5 — rappel T-0 (1h avant session) Q2=A window 30-90min
+  | 'passwordResetCustom'; // Phase 9.5 c3 — reset password Resend (anti SPAM Firebase Auth default)
 
 /** SanctionLevel cohérent src/types/firestore.ts (utilisé par userSanctionNotice). */
 export type SanctionLevelEmail = 'warning' | 'suspension_7d' | 'suspension_30d' | 'ban_permanent';
@@ -213,6 +214,15 @@ export interface TemplateDataMap {
     sessionDate: string;
     sessionAddress?: string;
     sessionLink: string;
+  };
+  /** Phase 9.5 c3 — reset password via Resend (anti-SPAM vs Firebase Auth default sender). */
+  passwordResetCustom: {
+    /** Display name (greeting personnalisé), fallback 'membre Spordate' si absent. */
+    userName?: string;
+    /** Lien Firebase reset password full URL (généré via Admin SDK generatePasswordResetLink). */
+    resetUrl: string;
+    /** Expiration link en heures (Firebase default 1h). Display dans email. */
+    expiresInHours: number;
   };
 }
 
@@ -654,6 +664,20 @@ function renderSessionReminderTMinus0(d: TemplateDataMap['sessionReminderTMinus0
   return { subject, html: layout({ headerBadgeText: 'Imminent', bodyHtml: body }) };
 }
 
+function renderPasswordResetCustom(d: TemplateDataMap['passwordResetCustom']) {
+  const subject = `Réinitialise ton mot de passe Spordate`;
+  const greeting = d.userName ? `Salut ${d.userName} !` : `Salut !`;
+  const body = `
+    ${h1(`Mot de passe oublié ?`)}
+    ${p(greeting)}
+    ${p(`Tu as demandé à réinitialiser ton mot de passe sur Spordate. Clique sur le bouton ci-dessous pour choisir un nouveau mot de passe.`)}
+    ${ctaButton(`Choisir un nouveau mot de passe`, d.resetUrl)}
+    ${p(`Ce lien expire dans <strong style="color:#ffffff;">${d.expiresInHours}h</strong>. Au-delà, tu devras refaire la demande.`, '40')}
+    ${p(`Si tu n'as pas demandé cette réinitialisation, ignore cet email — ton compte est en sécurité.`, '40')}
+  `;
+  return { subject, html: layout({ headerBadgeText: 'Mot de passe', bodyHtml: body }) };
+}
+
 // =====================================================================
 // Public renderTemplate (type-safe dispatch)
 // =====================================================================
@@ -699,6 +723,8 @@ export function renderTemplate<T extends TemplateName>(
       return renderSessionReminderJMinus1(data as TemplateDataMap['sessionReminderJMinus1']);
     case 'sessionReminderTMinus0':
       return renderSessionReminderTMinus0(data as TemplateDataMap['sessionReminderTMinus0']);
+    case 'passwordResetCustom':
+      return renderPasswordResetCustom(data as TemplateDataMap['passwordResetCustom']);
     default: {
       // Exhaustive check — TypeScript should error if a new TemplateName is added without case
       const _exhaustive: never = templateName;
