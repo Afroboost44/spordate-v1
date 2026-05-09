@@ -454,8 +454,85 @@ async function main(): Promise<void> {
     }
   }
 
+  // ===================================================================
+  // Phase 9.5 c10.A — YouTube shorts + URL trim + getVideoThumbnailChain
+  // ===================================================================
+  section('MP15 youtube.com/shorts/ID → provider=youtube + videoId 11 chars');
+  {
+    const r = parseVideoUrl('https://www.youtube.com/shorts/dQw4w9WgXcQ');
+    if (
+      r &&
+      r.provider === 'youtube' &&
+      r.videoId === 'dQw4w9WgXcQ' &&
+      r.embedUrl === 'https://www.youtube.com/embed/dQw4w9WgXcQ'
+    ) {
+      pass('MP15 shorts/ format reconnu');
+    } else {
+      fail('MP15', r);
+    }
+  }
+
+  section('MP16 youtube watch?v= avec spaces leading/trailing → trim ok');
+  {
+    const r = parseVideoUrl('   https://www.youtube.com/watch?v=dQw4w9WgXcQ   ');
+    if (r && r.videoId === 'dQw4w9WgXcQ') {
+      pass('MP16 trim spaces leading/trailing');
+    } else {
+      fail('MP16', r);
+    }
+  }
+
+  section('MP17 youtu.be/ID avec query si= (share link iOS) → ignoré, videoId ok');
+  {
+    const r = parseVideoUrl('https://youtu.be/dQw4w9WgXcQ?si=abc123def456');
+    if (r && r.videoId === 'dQw4w9WgXcQ') {
+      pass('MP17 youtu.be?si= → query stripped, videoId 11 chars exact');
+    } else {
+      fail('MP17', r);
+    }
+  }
+
+  section('MP18 getVideoThumbnailChain YouTube → 3 URLs en ordre hq → mq → default');
+  {
+    const { getVideoThumbnailChain } = await import('../../src/lib/activities/mediaParser');
+    const item = {
+      type: 'video' as const,
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      provider: 'youtube' as const,
+    };
+    const chain = getVideoThumbnailChain(item);
+    const expected = [
+      'https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+      'https://img.youtube.com/vi/dQw4w9WgXcQ/mqdefault.jpg',
+      'https://img.youtube.com/vi/dQw4w9WgXcQ/default.jpg',
+    ];
+    if (
+      chain.length === 3 &&
+      chain[0] === expected[0] &&
+      chain[1] === expected[1] &&
+      chain[2] === expected[2]
+    ) {
+      pass('MP18 fallback chain hq → mq → default');
+    } else {
+      fail('MP18', { chain, expected });
+    }
+
+    // Non-YouTube → empty chain
+    const driveItem = {
+      type: 'video' as const,
+      url: 'https://drive.google.com/file/d/abc123/view',
+      provider: 'drive' as const,
+    };
+    const driveChain = getVideoThumbnailChain(driveItem);
+    if (driveChain.length === 0) {
+      pass('MP18.b non-YouTube (drive) → empty chain (caller fallback placeholder)');
+    } else {
+      fail('MP18.b', driveChain);
+    }
+  }
+
   console.log('');
-  console.log('====== Résumé Media Parser (MP1-MP6 + bonus + MP7-MP10 c5 + MP11-MP14 c6) ======');
+  console.log('====== Résumé Media Parser (MP1-MP6 + bonus + MP7-MP10 c5 + MP11-MP14 c6 + MP15-MP18 c10.A) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);

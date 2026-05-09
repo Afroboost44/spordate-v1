@@ -60,7 +60,7 @@ import {
   StorageUploadError,
   STORAGE_UPLOAD_MAX_BYTES,
 } from '@/lib/storage/uploadActivityMedia';
-import { parseVideoUrl, isImageUrl } from '@/lib/activities/mediaParser';
+import { parseVideoUrl, isImageUrl, getVideoThumbnail } from '@/lib/activities/mediaParser';
 import type { MediaItem } from '@/types/firestore';
 
 // =====================================================================
@@ -120,10 +120,29 @@ function SortableItem({ id, item, index, onRemove }: SortableItemProps) {
         <GripVertical className="h-4 w-4" />
       </button>
 
-      {/* Preview */}
-      <div className="h-12 w-12 shrink-0 rounded overflow-hidden bg-zinc-800 flex items-center justify-center">
+      {/* Preview — c10.A : YouTube videos affichent leur thumbnail (avant : Video icon générique) */}
+      <div className="h-12 w-12 shrink-0 rounded overflow-hidden bg-zinc-800 flex items-center justify-center relative">
         {isVideo ? (
-          <Video className="h-5 w-5 text-[#D91CD2]" />
+          (() => {
+            const thumb = getVideoThumbnail(item);
+            if (thumb && !imgBroken) {
+              return (
+                <>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={thumb}
+                    alt=""
+                    className="h-full w-full object-cover"
+                    onError={() => setImgBroken(true)}
+                  />
+                  <span className="absolute inset-0 flex items-center justify-center bg-black/30">
+                    <Video className="h-4 w-4 text-white" />
+                  </span>
+                </>
+              );
+            }
+            return <Video className="h-5 w-5 text-[#D91CD2]" />;
+          })()
         ) : imgBroken ? (
           <ImageIcon className="h-5 w-5 text-white/30" />
         ) : (

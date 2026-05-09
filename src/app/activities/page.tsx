@@ -10,7 +10,7 @@ import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import BackButton from '@/components/BackButton';
 import { getMediaItems } from '@/lib/activities/media';
-import { getVideoThumbnail, getVideoEmbedUrl } from '@/lib/activities/mediaParser';
+import { getVideoThumbnailChain, getVideoEmbedUrl } from '@/lib/activities/mediaParser';
 import type { MediaItem } from '@/types/firestore';
 import { ReserveButtonListing } from '@/components/activities/ReserveButtonListing';
 
@@ -58,6 +58,39 @@ const AFROBOOST_FALLBACK: ActivityCard[] = [
  *  - Volume toggle button top-right corner (Volume2/VolumeX) avec stopPropagation
  *  - Card click → /activities/[id] reste functional (iframe pointer-events: none)
  */
+/**
+ * Phase 9.5 c10.A — fallback thumbnail chain pour vidéos non-embeddable
+ * (Drive ou YouTube avec embed restreint). Chain hq→mq→default + placeholder
+ * Video icon si toute la chain 404 (vidéos supprimées/privées).
+ *
+ * Pas de raw href text affiché (cosmetic regression c4 corrigée).
+ */
+function CardVideoFallbackThumb({ item }: { item: MediaItem }) {
+  const chain = getVideoThumbnailChain(item);
+  const [idx, setIdx] = useState(0);
+  const exhausted = idx >= chain.length;
+
+  return (
+    <div className="absolute inset-0 w-full h-full bg-zinc-900 flex items-center justify-center">
+      {!exhausted ? (
+        <img
+          src={chain[idx]}
+          alt=""
+          className="w-full h-full object-cover"
+          onError={() => setIdx((i) => i + 1)}
+        />
+      ) : (
+        <Video className="h-12 w-12 text-white/30" aria-hidden="true" />
+      )}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="bg-black/50 rounded-full p-3 backdrop-blur-sm">
+          <Play className="h-7 w-7 text-[#D91CD2] fill-[#D91CD2]" aria-hidden="true" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function CardVideoEmbed({ item }: { item: MediaItem }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -99,30 +132,9 @@ function CardVideoEmbed({ item }: { item: MediaItem }) {
   }, [item.provider]);
 
   const embedUrl = getVideoEmbedUrl(item, { autoplay: true, muted: true, loop: true });
-  // Si Drive ou autre non-embeddable → fallback thumbnail c5
+  // Si Drive ou autre non-embeddable → fallback thumbnail c5 + chain hq→mq→default (c10.A)
   if (!embedUrl) {
-    const thumb = getVideoThumbnail(item);
-    return (
-      <div className="absolute inset-0 w-full h-full bg-zinc-900 flex items-center justify-center">
-        {thumb ? (
-          <img
-            src={thumb}
-            alt=""
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = 'none';
-            }}
-          />
-        ) : (
-          <Video className="h-12 w-12 text-white/30" aria-hidden="true" />
-        )}
-        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-          <div className="bg-black/50 rounded-full p-3 backdrop-blur-sm">
-            <Play className="h-7 w-7 text-[#D91CD2] fill-[#D91CD2]" aria-hidden="true" />
-          </div>
-        </div>
-      </div>
-    );
+    return <CardVideoFallbackThumb item={item} />;
   }
 
   const handleToggleMute = (e: React.MouseEvent) => {

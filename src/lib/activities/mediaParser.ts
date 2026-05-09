@@ -10,6 +10,9 @@
  *   - https://youtu.be/VIDEO_ID
  *   - https://www.youtube.com/embed/VIDEO_ID
  *   - https://m.youtube.com/watch?v=VIDEO_ID
+ *   - https://www.youtube.com/shorts/VIDEO_ID (Phase 9.5 c10.A — short-form support)
+ *   - URLs avec query params multiples (t=120, list=PL..., si=...) → ignorés
+ *   - URLs avec spaces leading/trailing → trim() dès l'entrée
  *
  * Patterns Vimeo supportés :
  *   - https://vimeo.com/VIDEO_ID
@@ -44,10 +47,10 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoUrl | 
   const trimmed = url.trim();
   if (trimmed.length === 0) return null;
 
-  // YouTube — watch?v= / youtu.be/ / embed/
-  // Match groups: 1 = videoId
+  // YouTube — watch?v= / youtu.be/ / embed/ / shorts/ (Phase 9.5 c10.A)
+  // Match groups: 1 = videoId (11 chars exact alphanum + - _ — spec officielle YouTube)
   const ytWatch = trimmed.match(
-    /(?:youtube\.com\/watch\?(?:.*&)?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
   );
   if (ytWatch) {
     const videoId = ytWatch[1];
@@ -167,22 +170,45 @@ export function getVideoEmbedUrl(
 }
 
 /**
- * Phase 9.5 c5 — extract video thumbnail URL pour preview cards listing.
+ * Phase 9.5 c5 + c10.A — extract video thumbnail URL pour preview cards listing.
  *
  * Behaviors :
- *  - YouTube : retourne `https://img.youtube.com/vi/{videoId}/hqdefault.jpg` (toujours dispo, même vidéos privées)
- *  - Vimeo : retourne null (oEmbed API requise → fetch async, defer Phase 10) → caller fallback placeholder
- *  - Drive : retourne null (pas de thumb stable Google) → caller fallback placeholder
+ *  - YouTube : retourne `hqdefault.jpg` (toujours dispo même vidéos privées/non-listées)
+ *  - Vimeo : retourne null (oEmbed API requise → defer)
+ *  - Drive : retourne null (pas de thumb stable Google)
+ *
+ * Pour gérer les vidéos rares où hqdefault retourne le 120x90 grey placeholder
+ * de YouTube (vidéos supprimées/privées), utiliser `getVideoThumbnailChain()`
+ * qui retourne [hq, mq, default] — le caller chaîne via onError.
  *
  * @param item MediaItem (must be type='video')
- * @returns thumbnail URL ou null si non disponible (caller doit fallback placeholder)
+ * @returns primary thumbnail URL ou null si non disponible
  */
 export function getVideoThumbnail(item: { type: string; url?: string; provider?: string; videoId?: string }): string | null {
-  if (item.type !== 'video') return null;
-  // Si videoId déjà extrait (cohérent MediaItem post-parseVideoUrl)
+  const chain = getVideoThumbnailChain(item);
+  return chain.length > 0 ? chain[0] : null;
+}
+
+/**
+ * Phase 9.5 c10.A — Fallback chain de thumbnails YouTube.
+ *
+ * Returns [hqdefault, mqdefault, default] — le caller chain via onError handler :
+ *   ```tsx
+ *   const [idx, setIdx] = useState(0);
+ *   <img src={chain[idx]} onError={() => setIdx(i => i+1 < chain.length ? i+1 : i)} />
+ *   ```
+ *
+ * Si la chaine est épuisée → null caller doit fallback placeholder Video icon.
+ *
+ * @param item MediaItem
+ * @returns Array of URLs in order of quality (hq → mq → default), empty si non-YouTube
+ */
+export function getVideoThumbnailChain(
+  item: { type: string; url?: string; provider?: string; videoId?: string },
+): string[] {
+  if (item.type !== 'video') return [];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stored = (item as any).videoId as string | undefined;
-  // Sinon re-parse depuis url (backward compat MediaItem sans videoId stocké)
   let provider = item.provider;
   let videoId: string | undefined = stored;
   if (!videoId && item.url) {
@@ -192,12 +218,12 @@ export function getVideoThumbnail(item: { type: string; url?: string; provider?:
       videoId = parsed.videoId;
     }
   }
-  if (!videoId) return null;
-  if (provider === 'youtube') {
-    return `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
-  }
-  // Vimeo + Drive : pas de thumb URL stable côté client → caller fallback placeholder
-  return null;
+  if (!videoId || provider !== 'youtube') return [];
+  return [
+    `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+    `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+    `https://img.youtube.com/vi/${videoId}/default.jpg`,
+  ];
 }
 
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.avif'];
