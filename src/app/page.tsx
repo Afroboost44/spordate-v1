@@ -10,8 +10,8 @@ import { ArrowRight, ChevronRight } from 'lucide-react';
 function SLogo({ className = "h-8 w-8" }: { className?: string }) {
   return (
     <img
-      src="/icons/icon-192.png"
-      alt="Spordate"
+      src="/icon-192.png"
+      alt="Spordateur"
       className={`${className} rounded-xl`}
     />
   );
@@ -62,7 +62,7 @@ export default function LandingPage() {
     ctaFinalTitle: "Prêt à bouger ?", ctaFinalSubtitle: "Rejoins la communauté. Trouve ton partenaire.", ctaFinalButton: "Créer mon profil",
     testimonialsTitle: "Ils bougent déjà ensemble.",
     swissTitle: "Actif dans toute la Suisse.", swissSubtitle: "Studios partenaires, salles de danse et espaces fitness.", swissImage: "https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?w=800&h=1000&fit=crop",
-    partnerTitle: "Studio de danse ou salle de sport ?", partnerSubtitle: "Rejoins le réseau Spordate. Remplis tes cours, gagne en visibilité.", partnerCta1: "Devenir partenaire", partnerCta2: "Nous contacter",
+    partnerTitle: "Studio de danse ou salle de sport ?", partnerSubtitle: "Rejoins le réseau Spordateur. Remplis tes cours, gagne en visibilité.", partnerCta1: "Devenir partenaire", partnerCta2: "Nous contacter",
   } as Record<string, string>);
 
   useEffect(() => {
@@ -95,7 +95,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <Link href="/" className="flex items-center gap-2.5">
             <SLogo className="h-8 w-8" />
-            <span className="text-lg font-light tracking-widest uppercase text-white">Spordate</span>
+            <span className="text-lg font-light tracking-widest uppercase text-white">Spordateur</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
             <a href="#method" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Méthode</a>
@@ -303,7 +303,7 @@ export default function LandingPage() {
             <div className="col-span-2 md:col-span-1 space-y-3">
               <div className="flex items-center gap-2.5">
                 <SLogo className="h-7 w-7" />
-                <span className="text-base font-light tracking-widest uppercase text-white">Spordate</span>
+                <span className="text-base font-light tracking-widest uppercase text-white">Spordateur</span>
               </div>
               <p className="text-xs font-light text-white/30 leading-relaxed">La plateforme suisse de rencontres par le sport et la danse.</p>
             </div>
@@ -336,7 +336,7 @@ export default function LandingPage() {
             </div>
           </div>
           <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center text-xs font-light text-white/20">
-            <Link href="/login" className="hover:text-white/40 transition">© 2026 Spordate. Tous droits réservés.</Link>
+            <Link href="/login" className="hover:text-white/40 transition">© 2026 Spordateur. Tous droits réservés.</Link>
             <div className="flex gap-6 mt-3 md:mt-0">
               <a href="#" className="hover:text-white/60 transition tracking-wide uppercase">Instagram</a>
               <a href="#" className="hover:text-white/60 transition tracking-wide uppercase">TikTok</a>

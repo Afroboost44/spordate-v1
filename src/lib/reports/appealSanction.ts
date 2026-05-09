@@ -12,7 +12,7 @@
  *
  * Update sanction : appealUsed=true + appealNote (cohérent rule update owner).
  *
- * Note doctrine §F : appel formellement par email reply à contact@spordateur.com.
+ * Note doctrine §F : appel formellement par email reply à contact@afroboosteur.com.
  * Ce service stocke appealUsed + appealNote pour tracking. L'admin résout via
  * resolveAppeal (sub-chantier 4) qui wire appealResolved email post-décision.
  *

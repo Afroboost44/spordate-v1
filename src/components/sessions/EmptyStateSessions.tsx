@@ -41,7 +41,7 @@
 import { useEffect } from 'react';
 import { Calendar, AlertCircle, ArrowRight, RefreshCw } from 'lucide-react';
 
-const DEFAULT_CONTACT_EMAIL = 'contact@spordateur.com';
+const DEFAULT_CONTACT_EMAIL = 'contact@afroboosteur.com';
 
 const EMPTY_MAILTO_SUBJECT = 'Me prévenir des prochaines sessions Spordateur';
 const EMPTY_MAILTO_BODY =
@@ -51,7 +51,7 @@ export interface EmptyStateSessionsProps {
   variant: 'empty' | 'error';
   /** Détails techniques (variant='error' uniquement). Affichés en text-xs white/40 font-mono. */
   errorDetails?: string;
-  /** Email pour le mailto du variant 'empty'. Défaut 'contact@spordateur.com'. */
+  /** Email pour le mailto du variant 'empty'. Défaut 'contact@afroboosteur.com'. */
   contactEmail?: string;
   /** Action de retry pour variant='error'. Si absente, fallback window.location.reload(). */
   onRetry?: () => void;
@@ -68,7 +68,7 @@ export function EmptyStateSessions({
   // Logging variant 'error' côté client (Phase 7 path : POST /api/error-log)
   useEffect(() => {
     if (variant === 'error') {
-      console.error('[Spordate] EmptyStateSessions error variant rendered', {
+      console.error('[Spordateur] EmptyStateSessions error variant rendered', {
         errorDetails,
       });
     }

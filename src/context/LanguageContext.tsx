@@ -5,7 +5,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 const defaultTranslations: any = {
   fr: {
     hero_title: "Trouve ton Partenaire de Sport Idéal",
-    hero_subtitle: "Connecte-toi avec des gens qui partagent ta passion. Du tennis au yoga, Spordate est là.",
+    hero_subtitle: "Connecte-toi avec des gens qui partagent ta passion. Du tennis au yoga, Spordateur est là.",
     cta_button: "Commencer l'aventure",
     nav_login: "Connexion",
     nav_signup: "S'inscrire",
@@ -25,7 +25,7 @@ const defaultTranslations: any = {
   },
   en: {
     hero_title: "Find Your Perfect Sports Partner",
-    hero_subtitle: "Connect with people who share your passion. From tennis to yoga, Spordate is here.",
+    hero_subtitle: "Connect with people who share your passion. From tennis to yoga, Spordateur is here.",
     cta_button: "Get Started",
     nav_login: "Login",
     nav_signup: "Sign Up",

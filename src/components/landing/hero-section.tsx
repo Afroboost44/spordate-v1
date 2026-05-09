@@ -25,7 +25,7 @@ export function HeroSection() {
             Find Your Perfect Match.
           </h1>
           <p className="mt-4 md:mt-6 text-lg md:text-xl text-gray-200 max-w-2xl mx-auto">
-            Connect with people who share your passion for sports. Spordate helps you find a partner for your favorite activity, from tennis to yoga.
+            Connect with people who share your passion for sports. Spordateur helps you find a partner for your favorite activity, from tennis to yoga.
           </p>
           <div className="mt-8 flex justify-center">
             <Button asChild size="lg" className="bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] text-white font-bold text-lg px-8 py-6 rounded-full transition-transform transform hover:scale-105 shadow-lg shadow-rose-500/30 hover:shadow-violet-500/40">

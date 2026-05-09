@@ -25,12 +25,14 @@ export default function TermsPage() {
             <h2 className="text-lg text-white font-normal mb-3">1. Objet et champ d&apos;application</h2>
             <p>
               Les présentes Conditions Générales d&apos;Utilisation (« CGU ») régissent l&apos;accès et l&apos;utilisation
-              de la plateforme Spordate (ci-après « la Plateforme »), accessible à l&apos;adresse spordateur.com
-              et via ses applications mobiles. La Plateforme est éditée et exploitée par Spordate,
-              entreprise individuelle de droit suisse dont le siège est à Genève, Suisse.
+              de la plateforme Spordateur (ci-après « la Plateforme »), accessible à l&apos;adresse spordateur.com
+              et via ses applications mobiles. La Plateforme est éditée et exploitée par
+              l&apos;<span className="text-white">Association Afroboosteur</span>, association à but non
+              lucratif au sens des art. 60 ss du Code civil suisse, dont le siège est à Rue des Maillefer 39,
+              2000 Neuchâtel, Suisse (Numéro IDE : CHE-407.097.646).
             </p>
             <p className="mt-3">
-              Spordate est un service de mise en relation entre particuliers (« Utilisateurs ») souhaitant
+              Spordateur est un service de mise en relation entre particuliers (« Utilisateurs ») souhaitant
               pratiquer des activités sportives ou de danse ensemble, ainsi qu&apos;un outil de réservation
               auprès d&apos;établissements partenaires (« Partenaires »). En accédant à la Plateforme ou
               en créant un compte, l&apos;Utilisateur accepte sans réserve les présentes CGU.
@@ -47,8 +49,8 @@ export default function TermsPage() {
             <p className="mt-3">
               L&apos;Utilisateur est responsable de la confidentialité de ses identifiants de connexion. Toute
               utilisation du compte est réputée effectuée par l&apos;Utilisateur lui-même. En cas de soupçon
-              d&apos;utilisation non autorisée, l&apos;Utilisateur doit en informer Spordate sans délai à
-              l&apos;adresse contact@spordateur.com.
+              d&apos;utilisation non autorisée, l&apos;Utilisateur doit en informer Spordateur sans délai à
+              l&apos;adresse contact@afroboosteur.com.
             </p>
           </section>
 
@@ -98,7 +100,7 @@ export default function TermsPage() {
             <p>
               Conformément à l&apos;art. 40a ss du Code des obligations suisse (CO), l&apos;Utilisateur dispose d&apos;un
               délai de révocation de 14 jours à compter de la conclusion du contrat pour les services
-              non encore utilisés. La révocation doit être communiquée par écrit à contact@spordateur.com.
+              non encore utilisés. La révocation doit être communiquée par écrit à contact@afroboosteur.com.
               Si l&apos;Utilisateur a commencé à utiliser le service avant l&apos;expiration du délai de révocation,
               le droit de révocation est éteint.
             </p>
@@ -129,7 +131,7 @@ export default function TermsPage() {
               — Disposer d&apos;une assurance personnelle couvrant la pratique sportive.
             </p>
             <p className="mt-3">
-              Spordate se réserve le droit de suspendre ou supprimer tout compte contrevenant
+              Spordateur se réserve le droit de suspendre ou supprimer tout compte contrevenant
               aux présentes CGU, sans préavis ni indemnité, dans le cadre du système de sanctions
               décrit en section 7.bis ci-dessous.
             </p>
@@ -170,7 +172,7 @@ export default function TermsPage() {
             <p className="mt-3">
               <span className="text-white">Droit d&apos;appel (1× par niveau de sanction).</span>{' '}
               L&apos;Utilisateur sanctionné dispose d&apos;un droit d&apos;appel exerçable une seule fois par
-              niveau de sanction. L&apos;appel se formule par écrit à <span className="text-[#D91CD2]">contact@spordateur.com</span>{' '}
+              niveau de sanction. L&apos;appel se formule par écrit à <span className="text-[#D91CD2]">contact@afroboosteur.com</span>{' '}
               en répondant à l&apos;e-mail de notification, en exposant les motifs détaillés et les
               éléments contradictoires. Délai de réponse de notre équipe modération : 7 jours
               calendaires (SLA Phase 7 ; 48 heures à terme avec équipe modération étendue).
@@ -180,7 +182,7 @@ export default function TermsPage() {
             <p className="mt-3">
               <span className="text-white">Procédure équitable (nLPD Art. 19, LCD Art. 3).</span>{' '}
               Toute décision de sanction est motivée, notifiée par écrit, susceptible d&apos;appel
-              (1 × par niveau) et révisable par décision humaine. Spordate s&apos;engage à un
+              (1 × par niveau) et révisable par décision humaine. Spordateur s&apos;engage à un
               traitement transparent, proportionné et non-discriminatoire des signalements.
             </p>
             <p className="mt-3">
@@ -299,11 +301,11 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg text-white font-normal mb-3">8. Limitation de responsabilité</h2>
             <p>
-              Spordate agit exclusivement en qualité d&apos;intermédiaire technique. La Plateforme ne
+              Spordateur agit exclusivement en qualité d&apos;intermédiaire technique. La Plateforme ne
               garantit ni la qualité des activités proposées par les Partenaires, ni la compatibilité
-              effective entre Utilisateurs. Spordate décline toute responsabilité en cas d&apos;accident,
+              effective entre Utilisateurs. Spordateur décline toute responsabilité en cas d&apos;accident,
               de blessure ou de dommage survenant lors de la pratique d&apos;une activité sportive.
-              La responsabilité de Spordate est dans tous les cas limitée au montant effectivement
+              La responsabilité de Spordateur est dans tous les cas limitée au montant effectivement
               payé par l&apos;Utilisateur au cours des 12 derniers mois.
             </p>
           </section>
@@ -312,7 +314,7 @@ export default function TermsPage() {
             <h2 className="text-lg text-white font-normal mb-3">9. Propriété intellectuelle</h2>
             <p>
               L&apos;ensemble des éléments de la Plateforme (marques, logos, textes, images, code source)
-              sont la propriété exclusive de Spordate ou de ses partenaires et sont protégés par le
+              sont la propriété exclusive de Spordateur ou de ses partenaires et sont protégés par le
               droit suisse et les conventions internationales. Toute reproduction, représentation ou
               exploitation non autorisée est strictement interdite.
             </p>
@@ -329,11 +331,11 @@ export default function TermsPage() {
               entrée en vigueur le 1er septembre 2023.
             </p>
             <p className="mt-3">
-              <span className="text-white">Sous-traitants (nLPD Art. 9, RGPD Art. 28).</span> Spordate
+              <span className="text-white">Sous-traitants (nLPD Art. 9, RGPD Art. 28).</span> Spordateur
               recourt à des sous-traitants pour assurer le fonctionnement de la Plateforme : Stripe
               (paiements, États-Unis), Vercel (hébergement web, États-Unis), Firebase / Google Cloud
               (base de données, stockage, authentification, eur3 Frankfurt), Hostinger (mailbox
-              contact@spordateur.com, Lituanie UE), Resend (e-mails transactionnels, États-Unis).
+              contact@afroboosteur.com, Lituanie UE), Resend (e-mails transactionnels, États-Unis).
               La liste détaillée et les finalités de chaque sous-traitant figurent dans la Politique
               de Confidentialité, section 5.
             </p>
@@ -342,7 +344,7 @@ export default function TermsPage() {
           <section>
             <h2 className="text-lg text-white font-normal mb-3">11. Modification des CGU</h2>
             <p>
-              Spordate se réserve le droit de modifier les présentes CGU à tout moment. Les modifications
+              Spordateur se réserve le droit de modifier les présentes CGU à tout moment. Les modifications
               seront notifiées aux Utilisateurs par e-mail ou notification in-app au moins 30 jours avant
               leur entrée en vigueur. La poursuite de l&apos;utilisation de la Plateforme après l&apos;entrée en
               vigueur des modifications vaut acceptation des nouvelles CGU.
@@ -354,8 +356,8 @@ export default function TermsPage() {
             <p>
               Les présentes CGU sont soumises au droit suisse, à l&apos;exclusion des règles de conflit
               de lois. Tout litige découlant de l&apos;utilisation de la Plateforme sera soumis à la
-              compétence exclusive des tribunaux de Genève, Suisse, sous réserve des fors impératifs
-              prévus par la loi.
+              compétence exclusive des tribunaux du canton de Neuchâtel, Suisse, sous réserve des fors
+              impératifs prévus par la loi.
             </p>
           </section>
 
@@ -365,7 +367,9 @@ export default function TermsPage() {
               Pour toute question relative aux présentes CGU, veuillez contacter :
             </p>
             <p className="mt-2 text-white">
-              Spordate — contact@spordateur.com
+              Association Afroboosteur — contact@afroboosteur.com
+              <br />
+              Rue des Maillefer 39, 2000 Neuchâtel, Suisse
             </p>
           </section>
 

@@ -21,7 +21,7 @@
  *       reason: 'reports_threshold',
  *       endsAtFormatted: '11 mai 2026',
  *       appealable: true,
- *       appealEmail: 'contact@spordateur.com',
+ *       appealEmail: 'contact@afroboosteur.com',
  *     },
  *   });
  *

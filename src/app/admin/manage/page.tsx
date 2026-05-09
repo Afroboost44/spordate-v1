@@ -381,7 +381,7 @@ export default function AdminManagePage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-light tracking-tight flex items-center gap-2">
-              <Shield className="h-6 w-6 text-[#D91CD2]" /> Admin Spordate
+              <Shield className="h-6 w-6 text-[#D91CD2]" /> Admin Spordateur
             </h1>
           </div>
           <Link href="/admin/revenue"><Button variant="outline" size="sm" className="border-[#D91CD2]/30 text-[#D91CD2] text-xs">Revenus</Button></Link>

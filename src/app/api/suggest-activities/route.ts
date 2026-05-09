@@ -294,7 +294,7 @@ export async function POST(request: NextRequest) {
     batch.set(msgRef, {
       messageId: msgRef.id,
       senderId: 'system',
-      text: '🤖 Spordate · Suggestion',
+      text: '🤖 Spordateur · Suggestion',
       type: 'ai_suggestion',
       readBy: [],
       createdAt: FieldValue.serverTimestamp(),

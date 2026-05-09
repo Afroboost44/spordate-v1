@@ -3,7 +3,7 @@
 /**
  * Phase 8 SC3 commit 5/6 + Phase 9 SC1 c2/5 — UI bot card SuggestionMessage.
  *
- * Doctrine §D.Q4 : message bot inline avec avatar Spordate distinct + label "Suggestion"
+ * Doctrine §D.Q4 : message bot inline avec avatar Spordateur distinct + label "Suggestion"
  * + 1-3 cards activities + boutons quick-book vers /activities/{id}.
  *
  * Phase 9 SC1 c2/5 (Q7=B 2 actions distinctes) :
@@ -190,7 +190,7 @@ export function SuggestionMessage({
           'flex-shrink-0 h-7 w-7 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20',
           'flex items-center justify-center',
         )}
-        title="Spordate IA — suggestions d'activités"
+        title="Spordateur IA — suggestions d'activités"
       >
         <Sparkles className="h-3.5 w-3.5 text-[#D91CD2]" />
       </div>
@@ -200,7 +200,7 @@ export function SuggestionMessage({
         {/* Header */}
         <div className="text-[11px] text-white/40 font-light mb-2.5 flex items-center gap-1.5">
           <span>🤖</span>
-          <span>Spordate · Suggestion</span>
+          <span>Spordateur · Suggestion</span>
         </div>
 
         {/* Cards */}

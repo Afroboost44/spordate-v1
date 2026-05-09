@@ -163,7 +163,7 @@ export async function POST(request: NextRequest) {
       ]);
       const toUserEmail = toUserSnap.data()?.email as string | undefined;
       const toUserName = toUserSnap.data()?.displayName as string | undefined;
-      const fromUserName = (fromUserSnap.data()?.displayName as string | undefined) || 'Un membre Spordate';
+      const fromUserName = (fromUserSnap.data()?.displayName as string | undefined) || 'Un membre Spordateur';
       const activityTitle = (activitySnap.data()?.title as string | undefined) || 'une activité';
       const sessionDate = formatSessionDateFR(sessionSnap.data()?.startAt);
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';

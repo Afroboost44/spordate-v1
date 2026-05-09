@@ -200,7 +200,7 @@ export default function PremiumPage() {
           <div className="text-center space-y-6">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#D91CD2]/30 bg-[#D91CD2]/5">
               <Sparkles className="h-4 w-4 text-[#D91CD2]" />
-              <span className="text-sm text-[#D91CD2] font-light">Spordate Premium</span>
+              <span className="text-sm text-[#D91CD2] font-light">Spordateur Premium</span>
             </div>
 
             <h1 className="text-4xl md:text-6xl font-light text-white tracking-tight">

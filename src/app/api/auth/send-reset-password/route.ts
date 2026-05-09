@@ -5,7 +5,7 @@
  * tombait dans SPAM Gmail (mauvaise réputation domaine firebaseapp.com par défaut).
  *
  * Solution : générer le lien Firebase via Admin SDK puis envoyer email via Resend
- * (cohérent template Phase 7+8+9 — branding Spordate FR + sender vérifié spordateur.com).
+ * (cohérent template Phase 7+8+9 — branding Spordateur FR + sender vérifié spordateur.com).
  *
  * Pipeline :
  *   1. Validate email (non-empty + format basique)
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send Resend email avec template branded Spordate
+    // Send Resend email avec template branded Spordateur
     const emailResult = await sendEmail({
       to: email,
       templateName: 'passwordResetCustom',

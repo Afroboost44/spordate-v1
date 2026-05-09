@@ -73,14 +73,14 @@ export default function PWARegister() {
         }}
       >
         <img
-          src="/icons/icon-192.png"
-          alt="Spordate"
+          src="/icon-192.png"
+          alt="Spordateur"
           width={120}
           height={120}
           style={{ borderRadius: 28, marginBottom: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
         />
         <h1 style={{ color: 'white', fontSize: 36, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>
-          Spordate
+          Spordateur
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 15, marginTop: 8 }}>
           Rencontres sportives en Suisse
@@ -111,7 +111,7 @@ export default function PWARegister() {
         }}
       >
         <img
-          src="/icons/icon-192.png"
+          src="/icon-192.png"
           alt=""
           width={48}
           height={48}
@@ -119,7 +119,7 @@ export default function PWARegister() {
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ color: 'white', margin: 0, fontWeight: 600, fontSize: 15 }}>
-            Installer Spordate
+            Installer Spordateur
           </p>
           <p style={{ color: '#aaa', margin: '4px 0 0', fontSize: 13 }}>
             Accès rapide depuis ton écran d'accueil

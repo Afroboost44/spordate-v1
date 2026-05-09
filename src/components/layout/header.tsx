@@ -21,13 +21,16 @@ import { CreditsBadge } from '@/components/layout/CreditsBadge';
 import { AdminMenuLink } from '@/components/layout/AdminMenuLink';
 
 
-// ─── S LOGO COMPONENT ──────────────────────────────────────────
-function SLogo({ className = "h-6 w-6" }: { className?: string }) {
+// ─── S LOGO COMPONENT (Phase 9.5 c12 — branding refresh) ─────────
+function SLogo({ className = "h-7 w-7" }: { className?: string }) {
   return (
+    // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/icons/icon-192.png"
-      alt="Spordate"
-      className={`${className} rounded-xl`}
+      src="/icon-192.png"
+      alt="Spordateur"
+      className={className}
+      width={32}
+      height={32}
     />
   );
 }
@@ -81,7 +84,7 @@ export default function Header() {
         <div className="flex items-center md:flex-1">
           <Link href="/" className="mr-6 flex items-center space-x-2">
             <SLogo className="h-7 w-7" />
-            <span className="font-bold">Spordate</span>
+            <span className="font-bold">Spordateur</span>
           </Link>
           <nav className="hidden items-center space-x-6 text-sm font-medium md:flex">
             {isLoggedIn && navLinks.map((link) => (

@@ -226,7 +226,7 @@ function generateFalseFlagMailto(args: {
     '',
     'Merci',
   ].join('\n');
-  return `mailto:contact@spordateur.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return `mailto:contact@afroboosteur.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 // ——— Chat Window ———

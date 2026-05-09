@@ -113,9 +113,9 @@ async function loadInviteData(inviteId: string): Promise<InvitePageData | null> 
     return {
       inviteId,
       fromUserId: invite.fromUserId,
-      fromUserName: (fromSnap.data()?.displayName as string) || 'Un membre Spordate',
+      fromUserName: (fromSnap.data()?.displayName as string) || 'Un membre Spordateur',
       toUserId: invite.toUserId,
-      toUserName: (toSnap.data()?.displayName as string) || 'Membre Spordate',
+      toUserName: (toSnap.data()?.displayName as string) || 'Membre Spordateur',
       activityId: invite.activityId,
       activityTitle: (activitySnap.data()?.title as string) || 'Activity',
       city: (activitySnap.data()?.city as string) || '',
@@ -139,9 +139,9 @@ export async function generateMetadata({
 }): Promise<Metadata> {
   const { id } = await params;
   const data = await loadInviteData(id);
-  if (!data) return { title: 'Invitation introuvable — Spordate' };
+  if (!data) return { title: 'Invitation introuvable — Spordateur' };
   return {
-    title: `Invitation : ${data.activityTitle} — Spordate`,
+    title: `Invitation : ${data.activityTitle} — Spordateur`,
     description: `${data.fromUserName} t'invite à ${data.activityTitle}${data.sessionDate ? ` (${data.sessionDate})` : ''}`,
   };
 }

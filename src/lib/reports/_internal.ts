@@ -400,7 +400,7 @@ export const REPORT_CATEGORY_LABELS: Record<string, string> = {
 };
 
 /** Email contact admin (cohérent doctrine §F + CGU). */
-export const ADMIN_CONTACT_EMAIL = 'contact@spordateur.com';
+export const ADMIN_CONTACT_EMAIL = 'contact@afroboosteur.com';
 
 /**
  * Priorité catégorie reports doctrine §D.2.

@@ -2,7 +2,7 @@
  * Phase 7 sub-chantier 3 commit 5/5 — <SanctionBanner>.
  *
  * Banner sticky top affiché si user logged a une UserSanction active.
- * Q4 décision : banner sticky + lien recours mailto contact@spordateur.com.
+ * Q4 décision : banner sticky + lien recours mailto contact@afroboosteur.com.
  * Q6 décision : check au login + setInterval 5 min (custom claims Phase 9).
  *
  * Render selon level :
@@ -27,7 +27,7 @@ import { getActiveUserSanction } from '@/lib/reports';
 import type { UserSanction } from '@/types/firestore';
 
 const SANCTION_REFRESH_INTERVAL_MS = 5 * 60 * 1000; // 5 min (Q6)
-const APPEAL_EMAIL = 'contact@spordateur.com';
+const APPEAL_EMAIL = 'contact@afroboosteur.com';
 
 function formatEndsAt(sanction: UserSanction): string {
   if (!sanction.endsAt) return '';

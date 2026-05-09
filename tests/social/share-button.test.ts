@@ -87,7 +87,7 @@ async function main(): Promise<void> {
       'https://spordateur.com/activities/a1',
     );
     if (
-      p1.title === 'Spordate — Afroboost' &&
+      p1.title === 'Spordateur — Afroboost' &&
       p1.text === 'Découvre cette activité : Afroboost' &&
       p1.url === 'https://spordateur.com/activities/a1'
     ) {
@@ -98,7 +98,7 @@ async function main(): Promise<void> {
 
     // Fallback : pas de title, name → utilise name
     const p2 = buildSharePayload({ activityId: 'a2', name: 'Cours Salsa' }, 'https://x/activities/a2');
-    if (p2.title === 'Spordate — Cours Salsa') {
+    if (p2.title === 'Spordateur — Cours Salsa') {
       pass('SB2.b fallback name si pas title');
     } else {
       fail('SB2.b', p2);
@@ -106,8 +106,8 @@ async function main(): Promise<void> {
 
     // Fallback ultime : ni title ni name → générique
     const p3 = buildSharePayload({ activityId: 'a3' }, 'https://x/activities/a3');
-    if (p3.title === 'Spordate — Activité Spordate') {
-      pass('SB2.c fallback ultime "Activité Spordate"');
+    if (p3.title === 'Spordateur — Activité Spordateur') {
+      pass('SB2.c fallback ultime "Activité Spordateur"');
     } else {
       fail('SB2.c', p3);
     }
@@ -119,7 +119,7 @@ async function main(): Promise<void> {
   section('SB3 performShare : navigator.share appelé avec payload exact');
   {
     const payload: SharePayload = {
-      title: 'Spordate — Tennis',
+      title: 'Spordateur — Tennis',
       text: 'Découvre cette activité : Tennis',
       url: 'https://x/activities/abc',
     };

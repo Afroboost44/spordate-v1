@@ -23,8 +23,8 @@ export default function PrivacyPage() {
 
           <section>
             <p>
-              La présente Politique de Confidentialité décrit comment Spordate (ci-après « nous »,
-              « notre » ou « Spordate ») collecte, utilise, conserve et protège vos données personnelles
+              La présente Politique de Confidentialité décrit comment Spordateur (ci-après « nous »,
+              « notre » ou « Spordateur ») collecte, utilise, conserve et protège vos données personnelles
               conformément à la Loi fédérale sur la protection des données (nLPD, RS 235.1) et, dans
               la mesure applicable, au Règlement général sur la protection des données (RGPD) de
               l&apos;Union européenne.
@@ -37,9 +37,12 @@ export default function PrivacyPage() {
               Le responsable du traitement des données est :
             </p>
             <p className="mt-2">
-              Spordate — Entreprise individuelle<br />
-              Genève, Suisse<br />
-              E-mail : contact@spordateur.com
+              <span className="text-white">Association Afroboosteur</span><br />
+              Association à but non lucratif (art. 60 ss CC)<br />
+              Rue des Maillefer 39<br />
+              2000 Neuchâtel, Suisse<br />
+              IDE : CHE-407.097.646<br />
+              E-mail : contact@afroboosteur.com
             </p>
           </section>
 
@@ -62,7 +65,7 @@ export default function PrivacyPage() {
             <p className="mt-3">
               <span className="text-white">Données de paiement :</span> les informations de paiement
               (carte bancaire, TWINT) sont traitées exclusivement par notre prestataire Stripe Inc.
-              Spordate ne stocke aucune donnée de carte bancaire. Nous conservons uniquement les
+              Spordateur ne stocke aucune donnée de carte bancaire. Nous conservons uniquement les
               identifiants de transaction, montants et dates.
             </p>
             <p className="mt-3">
@@ -141,7 +144,7 @@ export default function PrivacyPage() {
             </p>
             <p className="mt-3">
               <span className="text-white">Hostinger International Ltd.</span> — Mailbox{' '}
-              contact@spordateur.com (Lituanie, UE). Hostinger est conforme au RGPD. Finalité : relais
+              contact@afroboosteur.com (Lituanie, UE). Hostinger est conforme au RGPD. Finalité : relais
               des e-mails entrants utilisateurs (notamment les appels de sanctions T&amp;S).
             </p>
             <p className="mt-3">
@@ -233,7 +236,7 @@ export default function PrivacyPage() {
               — <span className="text-white">Droit de retirer votre consentement</span> à tout moment.
             </p>
             <p className="mt-3">
-              Pour exercer ces droits, contactez-nous à contact@spordateur.com. Nous répondrons dans
+              Pour exercer ces droits, contactez-nous à contact@afroboosteur.com. Nous répondrons dans
               un délai de 30 jours. En cas de désaccord, vous pouvez déposer une réclamation auprès
               du Préposé fédéral à la protection des données et à la transparence (PFPDT).
             </p>
@@ -244,7 +247,7 @@ export default function PrivacyPage() {
               signalement, la durée, la date de fin (si suspension) et le mécanisme d&apos;appel.
               L&apos;identité du signalant n&apos;est jamais communiquée (protection lanceur d&apos;alerte).
               Vous disposez d&apos;un droit d&apos;appel exerçable une seule fois par niveau de sanction
-              (réponse à l&apos;e-mail ou écrit à contact@spordateur.com), avec un délai de réponse
+              (réponse à l&apos;e-mail ou écrit à contact@afroboosteur.com), avec un délai de réponse
               de notre équipe modération de 7 jours calendaires (Phase 7) — voir CGU section 7.bis.
             </p>
             <p className="mt-3">
@@ -326,7 +329,7 @@ export default function PrivacyPage() {
               Pour toute question relative à la protection de vos données :
             </p>
             <p className="mt-2 text-white">
-              Spordate — contact@spordateur.com
+              Spordateur — contact@afroboosteur.com
             </p>
           </section>
 

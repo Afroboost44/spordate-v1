@@ -8,7 +8,7 @@ export default function Footer() {
         <div className="flex flex-col md:flex-row justify-between items-center space-y-6 md:space-y-0">
           <div className="flex items-center space-x-2">
             <Dumbbell className="h-6 w-6 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] rounded-md p-1 text-white" />
-            <span className="font-light text-lg text-white">Spordate</span>
+            <span className="font-light text-lg text-white">Spordateur</span>
           </div>
 
           <nav className="flex flex-wrap items-center justify-center gap-6 text-xs text-gray-500 font-light">
@@ -31,7 +31,7 @@ export default function Footer() {
 
         <div className="mt-6 pt-4 border-t border-zinc-800/50 text-center">
           <Link href="/admin/login" className="text-xs text-gray-700 hover:text-gray-500 transition-colors font-light" title="Admin">
-            &copy; {new Date().getFullYear()} Spordate — Genève, Suisse
+            &copy; {new Date().getFullYear()} Spordateur — Association Afroboosteur, Neuchâtel, Suisse
           </Link>
         </div>
       </div>

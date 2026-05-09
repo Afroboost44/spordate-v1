@@ -900,7 +900,7 @@ export async function sendMessage(
 
     // 3. Email admin (best-effort — log-only en absence RESEND_API_KEY/client-side)
     try {
-      const adminEmail = process.env.ADMIN_LEAK_EMAIL || 'contact@spordateur.com';
+      const adminEmail = process.env.ADMIN_LEAK_EMAIL || 'contact@afroboosteur.com';
       await sendEmail({
         to: adminEmail,
         templateName: 'leakEscalationAdmin',

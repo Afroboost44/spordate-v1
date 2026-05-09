@@ -8,7 +8,7 @@
  * - Ville (MapPin + nom en relief)
  * - Date attendue ("Sessions prévues : Été 2026")
  * - Compteur d'intérêt optionnel ("23 membres intéressés")
- * - CTA "Me notifier" → mailto: contact@spordateur.com pré-rempli
+ * - CTA "Me notifier" → mailto: contact@afroboosteur.com pré-rempli
  *
  * Décision wording : pas de mot "Bientôt" en gros (effet inverse "rien ici"). À la
  * place, on met en relief la date attendue + le compteur d'intérêt qui transforme
@@ -39,7 +39,7 @@
 
 import { MapPin, Calendar, Users, ArrowRight } from 'lucide-react';
 
-const DEFAULT_CONTACT_EMAIL = 'contact@spordateur.com';
+const DEFAULT_CONTACT_EMAIL = 'contact@afroboosteur.com';
 
 export interface WaitlistCityCardProps {
   /** Nom de la ville (ex: 'Lausanne'). */
@@ -48,7 +48,7 @@ export interface WaitlistCityCardProps {
   expectedDate: string;
   /** Compteur d'intérêt mocké/réel. Si fourni et >0, affiché. */
   interested?: number;
-  /** Email destinataire pour le mailto. Défaut 'contact@spordateur.com'. */
+  /** Email destinataire pour le mailto. Défaut 'contact@afroboosteur.com'. */
   contactEmail?: string;
   /** Si false, masque le compteur "interested" même s'il est fourni. Défaut true. */
   showInterested?: boolean;
@@ -80,8 +80,8 @@ export function WaitlistCityCard({
   const dateDescId = `waitlist-${slugify(city)}-date`;
 
   // Mailto pré-rempli (subject + body encodés)
-  const subject = `Notify-me — Sessions Spordate ${city}`;
-  const body = `Bonjour,\n\nJe souhaite être notifié(e) dès qu'une session Spordate s'ouvre à ${city} (prévu ${expectedDate}).\n\nMerci.`;
+  const subject = `Notify-me — Sessions Spordateur ${city}`;
+  const body = `Bonjour,\n\nJe souhaite être notifié(e) dès qu'une session Spordateur s'ouvre à ${city} (prévu ${expectedDate}).\n\nMerci.`;
   const mailtoHref = `mailto:${contactEmail}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 
   const showCounter =

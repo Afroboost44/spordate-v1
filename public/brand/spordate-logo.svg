@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="neonGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#8B2DCF"/>
+      <stop offset="50%" stop-color="#D91CD2"/>
+      <stop offset="100%" stop-color="#FF3FD8"/>
+    </linearGradient>
+    <filter id="neonGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="3" result="b1"/>
+      <feGaussianBlur stdDeviation="8" in="SourceGraphic" result="b2"/>
+      <feMerge>
+        <feMergeNode in="b2"/>
+        <feMergeNode in="b1"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Cercle outline neon -->
+  <circle cx="256" cy="256" r="226" stroke="url(#neonGrad)" stroke-width="8" fill="none" filter="url(#neonGlow)"/>
+
+  <!-- Heart -->
+  <path d="M 200 195
+           C 168 195, 148 218, 148 250
+           C 148 295, 200 335, 240 380
+           C 280 335, 332 295, 332 250
+           C 332 218, 312 195, 280 195
+           C 268 195, 252 205, 240 220
+           C 228 205, 212 195, 200 195 Z"
+        stroke="url(#neonGrad)" stroke-width="12" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"
+        filter="url(#neonGlow)"/>
+
+  <!-- Arrow oblique BG → upper-right -->
+  <path d="M 175 405 L 380 175"
+        stroke="url(#neonGrad)" stroke-width="12" fill="none"
+        stroke-linecap="round"
+        filter="url(#neonGlow)"/>
+  <!-- Arrow head -->
+  <path d="M 380 175 L 320 175 M 380 175 L 380 235"
+        stroke="url(#neonGrad)" stroke-width="12" fill="none"
+        stroke-linecap="round" stroke-linejoin="round"
+        filter="url(#neonGlow)"/>
+</svg>

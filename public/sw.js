@@ -1,4 +1,4 @@
-// Spordate Service Worker v2.0
+// Spordateur Service Worker v2.0
 const CACHE_NAME = 'spordate-v2';
 const OFFLINE_URL = '/offline.html';
 
@@ -7,9 +7,9 @@ const PRECACHE_ASSETS = [
   '/',
   '/manifest.json',
   '/icons/icon.svg',
-  '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/icons/apple-touch-icon.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png',
   '/offline.html',
 ];
 

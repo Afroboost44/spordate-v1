@@ -12,12 +12,12 @@ export function StepGrowth({ referralCode, onGoToProfile }: StepGrowthProps) {
     : `${process.env.NEXT_PUBLIC_APP_URL || ''}?ref=${referralCode}`;
 
   const shareReferralLink = async () => {
-    const shareText = `Rejoins-moi sur Spordate pour trouver des partenaires de sport ! 🏃‍♂️🎾`;
+    const shareText = `Rejoins-moi sur Spordateur pour trouver des partenaires de sport ! 🏃‍♂️🎾`;
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "Spordate - Trouve ton partenaire de sport",
+          title: "Spordateur - Trouve ton partenaire de sport",
           text: shareText,
           url: shareUrl,
         });

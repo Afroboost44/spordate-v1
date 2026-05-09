@@ -25,7 +25,7 @@ par tests Node-side.
 
 ## Flow nominal — toggle ON depuis /profile
 
-1. **Connecte-toi à Spordate** sur Chrome/Firefox/Safari (≥16.4)
+1. **Connecte-toi à Spordateur** sur Chrome/Firefox/Safari (≥16.4)
 2. **Ouvre `/profile`** → section "Confidentialité"
 3. **Toggle "Notifications push"** : doit être **OFF par défaut visuellement** (mais default-on côté serveur)
    - *Note* : par défaut `pushNotificationsEnabled !== false` côté serveur, mais sans `fcmToken` → email fallback Q3=B
@@ -54,7 +54,7 @@ par tests Node-side.
 
 ## Flow Safari iOS <16.4 (Q6=A silent skip)
 
-1. Ouvre Spordate sur Safari iOS 15.x
+1. Ouvre Spordateur sur Safari iOS 15.x
 2. `/profile` → section "Confidentialité"
 3. Toggle disabled (greyed out)
 4. Description sous toggle : "Ton navigateur ne supporte pas les notifications push (Safari iOS <16.4 par exemple). Tu recevras les rappels par email uniquement."
@@ -64,9 +64,9 @@ par tests Node-side.
 ## Flow background push
 
 1. Toggle ON + permission granted
-2. **Ferme tous les onglets Spordate** (background)
+2. **Ferme tous les onglets Spordateur** (background)
 3. **Trigger** : un cron `review-reminder` ou `session-reminders` fire
-4. **Notif system apparaît** (icône Spordate, title, body)
+4. **Notif system apparaît** (icône Spordateur, title, body)
 5. **Click notif** → focus tab existant OU ouvre `clickUrl` (sessions/[id], etc.)
 6. Vérifie navigation correcte
 

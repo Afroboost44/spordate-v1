@@ -1,4 +1,4 @@
-# Tests Spordate
+# Tests Spordateur
 
 Tests standalone pour les services backend. Pas de framework de test (pas de Jest/Vitest/Mocha).
 

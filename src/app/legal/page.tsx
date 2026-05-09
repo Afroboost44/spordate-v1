@@ -25,12 +25,14 @@ export default function LegalPage() {
           <section>
             <h2 className="text-lg text-white font-normal mb-3">Éditeur du site</h2>
             <p>
-              Spordate<br />
-              Entreprise individuelle de droit suisse<br />
-              Genève, Suisse
+              <span className="text-white">Association Afroboosteur</span><br />
+              Association à but non lucratif au sens des art. 60 ss du Code civil suisse<br />
+              Rue des Maillefer 39<br />
+              2000 Neuchâtel, Suisse
             </p>
             <p className="mt-3">
-              E-mail : contact@spordateur.com<br />
+              Numéro IDE : CHE-407.097.646<br />
+              E-mail : contact@afroboosteur.com<br />
               Site web : spordateur.com
             </p>
           </section>
@@ -38,7 +40,8 @@ export default function LegalPage() {
           <section>
             <h2 className="text-lg text-white font-normal mb-3">Représentant légal</h2>
             <p>
-              Henri Bassi, fondateur et exploitant.
+              Le ou la président(e) de l&apos;Association Afroboosteur, agissant au nom et pour le compte
+              de celle-ci conformément aux statuts.
             </p>
           </section>
 
@@ -54,7 +57,7 @@ export default function LegalPage() {
             <p className="mt-3">
               <span className="text-white">Base de données et authentification :</span><br />
               Google Cloud Platform — Firebase<br />
-              Région : europe-west6 (Zurich, Suisse)<br />
+              Région : europe-west3 (Francfort, Allemagne)<br />
               Google Ireland Limited<br />
               Gordon House, Barrow Street, Dublin 4, Irlande
             </p>
@@ -73,7 +76,7 @@ export default function LegalPage() {
           <section>
             <h2 className="text-lg text-white font-normal mb-3">Propriété intellectuelle</h2>
             <p>
-              Le nom « Spordate », le logo et l&apos;ensemble des contenus du site (textes, images,
+              Le nom « Spordateur », le logo et l&apos;ensemble des contenus du site (textes, images,
               graphismes, vidéos, architecture, code source) sont protégés par le droit d&apos;auteur
               suisse (Loi fédérale sur le droit d&apos;auteur, LDA, RS 231.1) et les conventions
               internationales applicables. Toute reproduction, même partielle, est soumise à
@@ -120,16 +123,16 @@ export default function LegalPage() {
             <h2 className="text-lg text-white font-normal mb-3">Résolution des litiges</h2>
             <p>
               En cas de litige, nous encourageons l&apos;Utilisateur à nous contacter en premier lieu
-              à contact@spordateur.com afin de rechercher une solution amiable. À défaut d&apos;accord,
-              les tribunaux de Genève sont compétents, sous réserve des fors impératifs prévus par
+              à contact@afroboosteur.com afin de rechercher une solution amiable. À défaut d&apos;accord,
+              les tribunaux du canton de Neuchâtel sont compétents, sous réserve des fors impératifs prévus par
               le droit suisse. Le droit suisse est applicable.
             </p>
             <p className="mt-3">
               <span className="text-white">Sanctions Trust &amp; Safety.</span> Les sanctions appliquées
               dans le cadre du système de modération privée Trust &amp; Safety (cf. CGU section 7.bis)
               ne constituent pas des décisions juridictionnelles. Elles relèvent exclusivement de la
-              modération privée de Spordate. Tout Utilisateur sanctionné dispose d&apos;un droit d&apos;appel
-              motivé adressé par écrit à contact@spordateur.com (1 appel par niveau de sanction,
+              modération privée de Spordateur. Tout Utilisateur sanctionné dispose d&apos;un droit d&apos;appel
+              motivé adressé par écrit à contact@afroboosteur.com (1 appel par niveau de sanction,
               SLA de réponse 7 jours calendaires) avant tout recours juridictionnel.
             </p>
           </section>
@@ -137,11 +140,11 @@ export default function LegalPage() {
           <section>
             <h2 className="text-lg text-white font-normal mb-3">Clause de non-responsabilité</h2>
             <p>
-              Malgré le soin apporté à la rédaction du contenu de ce site, Spordate ne peut garantir
-              l&apos;exactitude, la fiabilité ou l&apos;exhaustivité des informations publiées. Spordate décline
+              Malgré le soin apporté à la rédaction du contenu de ce site, Spordateur ne peut garantir
+              l&apos;exactitude, la fiabilité ou l&apos;exhaustivité des informations publiées. Spordateur décline
               toute responsabilité pour les dommages résultant de l&apos;utilisation ou de l&apos;impossibilité
               d&apos;utiliser les informations diffusées sur ce site, y compris en cas de perte de données
-              ou de virus informatiques. Spordate se réserve le droit de modifier, compléter ou
+              ou de virus informatiques. Spordateur se réserve le droit de modifier, compléter ou
               supprimer tout ou partie des informations publiées, sans préavis.
             </p>
           </section>
@@ -149,7 +152,7 @@ export default function LegalPage() {
           <section>
             <h2 className="text-lg text-white font-normal mb-3">Liens externes</h2>
             <p>
-              La Plateforme peut contenir des liens vers des sites tiers. Spordate n&apos;exerce aucun
+              La Plateforme peut contenir des liens vers des sites tiers. Spordateur n&apos;exerce aucun
               contrôle sur ces sites et décline toute responsabilité quant à leur contenu, leur
               politique de confidentialité ou leurs pratiques.
             </p>

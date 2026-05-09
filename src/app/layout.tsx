@@ -7,22 +7,45 @@ import PWARegister from "@/components/PWARegister";
 import { SanctionBanner } from "@/components/SanctionBanner";
 
 export const metadata: Metadata = {
-  title: "Spordate",
+  title: {
+    default: "Spordateur",
+    template: "%s — Spordateur",
+  },
   description: "La plateforme suisse de rencontres par le sport et la danse.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
-    title: "Spordate",
+    title: "Spordateur",
   },
   icons: {
-    icon: "/icons/icon-192.png",
-    apple: "/icons/apple-touch-icon.png",
+    icon: "/favicon.ico",
+    apple: "/apple-touch-icon.png",
+  },
+  openGraph: {
+    title: "Spordateur",
+    description: "Sport pour de vraies rencontres en Suisse romande.",
+    type: "website",
+    locale: "fr_CH",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "Spordateur",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "Spordateur",
+    description: "Sport pour de vraies rencontres en Suisse romande.",
+    images: ["/og-image.png"],
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#000000",
+  themeColor: "#D91CD2",
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
@@ -36,7 +59,7 @@ export default function RootLayout({
   return (
     <html lang="fr" className="dark">
       <head>
-        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>

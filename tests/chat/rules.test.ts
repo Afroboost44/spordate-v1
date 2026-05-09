@@ -495,7 +495,7 @@ async function main(): Promise<void> {
         setDoc(msgRef, {
           messageId: 'msg_chat14',
           senderId: 'system', // ❌ spoof — alice n'est pas 'system'
-          text: '🤖 Spordate · Suggestion',
+          text: '🤖 Spordateur · Suggestion',
           type: 'ai_suggestion',
           readBy: [ALICE_UID],
           createdAt: serverTimestamp(),

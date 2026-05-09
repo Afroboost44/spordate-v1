@@ -26,8 +26,8 @@ export default function SharePage() {
   const shareUrl = `https://spordateur.com/signup?ref=${referralCode}`;
 
   const shareText = partner
-    ? `Je viens de réserver un ${sport} avec ${partner} sur Spordate ! Rejoins-moi pour ta prochaine séance`
-    : `Je viens de réserver mon ${sport} sur Spordate ! Trouve ton partenaire sportif`;
+    ? `Je viens de réserver un ${sport} avec ${partner} sur Spordateur ! Rejoins-moi pour ta prochaine séance`
+    : `Je viens de réserver mon ${sport} sur Spordateur ! Trouve ton partenaire sportif`;
 
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareUrl);

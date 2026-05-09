@@ -40,15 +40,15 @@ export function buildShareUrl(activityId: string): string {
 
 /**
  * Construit le payload Web Share API à partir d'une activité.
- * Title fallback : title → name → 'Activité Spordate'.
+ * Title fallback : title → name → 'Activité Spordateur'.
  */
 export function buildSharePayload(
   activity: ShareActivityRef,
   url: string,
 ): SharePayload {
-  const label = activity.title || activity.name || 'Activité Spordate';
+  const label = activity.title || activity.name || 'Activité Spordateur';
   return {
-    title: `Spordate — ${label}`,
+    title: `Spordateur — ${label}`,
     text: `Découvre cette activité : ${label}`,
     url,
   };

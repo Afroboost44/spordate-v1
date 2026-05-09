@@ -38,10 +38,10 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('[firebase-messaging-sw] Background message received', payload);
 
-  const title = payload.notification?.title || 'Spordate';
+  const title = payload.notification?.title || 'Spordateur';
   const options = {
     body: payload.notification?.body || '',
-    icon: '/icons/icon-192.png',
+    icon: '/icon-192.png',
     badge: '/icons/icon.svg',
     data: {
       ...payload.data,

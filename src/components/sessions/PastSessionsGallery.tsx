@@ -103,7 +103,7 @@ export function PastSessionsGallery({
             Ils l&apos;ont déjà vécu
           </h2>
           <p className="text-sm text-white/70 font-light">
-            Sessions Afroboost — l&apos;origine de Spordate.
+            Sessions Afroboost — l&apos;origine de Spordateur.
           </p>
         </header>
       )}

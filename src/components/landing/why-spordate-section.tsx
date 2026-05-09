@@ -19,7 +19,7 @@ export function WhySpordateSection() {
     <section id="why-us" className="w-full py-20 md:py-32 bg-black">
       <div className="container px-4 md:px-6">
         <div className="text-center max-w-2xl mx-auto">
-          <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl font-headline">Why Choose Spordate?</h2>
+          <h2 className="text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl font-headline">Why Choose Spordateur?</h2>
           <p className="mt-4 text-gray-400 md:text-xl">
             We focus on what matters most: your experience and safety.
           </p>

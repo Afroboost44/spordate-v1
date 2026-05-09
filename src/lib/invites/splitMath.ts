@@ -6,7 +6,7 @@
  *   - Mode 'split' (Phase 9 SC2) : inviter paye splitInviterRatio (10-90%), invité le reste
  *   - Mode 'gift' (Phase 9 SC2) : inviter paye 100%, invité paye 0
  *
- * Application fee Spordate (Q4=B) : 5% flat Phase 9 (configurable env var
+ * Application fee Spordateur (Q4=B) : 5% flat Phase 9 (configurable env var
  * `SPORDATE_INVITE_FEE_PCT`). Appliquée sur chaque part pour modes Split (cohérent
  * destination charges multi-payment), sur la totalité pour Individual + Gift (1
  * payment unique).
@@ -16,7 +16,7 @@
  */
 
 /**
- * Application fee % Spordate (Q4=B Phase 9 SC2 — 5% flat, configurable env).
+ * Application fee % Spordateur (Q4=B Phase 9 SC2 — 5% flat, configurable env).
  * Lazy resolution pour permettre tuning sans redeploy.
  */
 export function getApplicationFeePct(): number {
@@ -66,10 +66,10 @@ export interface ComputeSplitOutput {
   inviterCents: number;
   /** Montant invité en CHF centimes. 0 pour mode='gift'. */
   inviteeCents: number;
-  /** Application fee Spordate sur la part inviter (CHF centimes).
+  /** Application fee Spordateur sur la part inviter (CHF centimes).
    *  0 pour mode='individual' (pas de pre-pay inviter). */
   inviterFeeCents: number;
-  /** Application fee Spordate sur la part invité (CHF centimes).
+  /** Application fee Spordateur sur la part invité (CHF centimes).
    *  0 pour mode='gift' (pas de payment invité). */
   inviteeFeeCents: number;
 }

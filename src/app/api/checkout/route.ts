@@ -314,7 +314,7 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
     };
 
     // Phase 9.5 c7 COMMISSION FIX — Stripe Connect destination charge sur TOUS modes payants
-    // (solo mode='session' était l'oubli). 5% application_fee Spordate via SPORDATE_INVITE_FEE_PCT.
+    // (solo mode='session' était l'oubli). 5% application_fee Spordateur via SPORDATE_INVITE_FEE_PCT.
     // Edge case : partner pas onboarded Stripe Connect → 412 ConnectError (pattern existing).
     const { getPartnerStripeAccount, ConnectError, assertConnectChargesEnabled } = await import(
       '@/lib/stripe/connectHelpers'
@@ -1014,7 +1014,7 @@ async function handleInvitePrepayMode(
       throw err;
     }
 
-    // Application fee Spordate (Q4=B 5% Phase 9)
+    // Application fee Spordateur (Q4=B 5% Phase 9)
     const { getApplicationFeePct } = await import('@/lib/invites/splitMath');
     const feePct = getApplicationFeePct();
     const applicationFeeAmount = Math.round((inviterCents * feePct) / 100);
@@ -1043,7 +1043,7 @@ async function handleInvitePrepayMode(
               currency: 'chf',
               product_data: {
                 name: session.title,
-                description: `${productLabel} • ${activity.title || 'Spordate'}`,
+                description: `${productLabel} • ${activity.title || 'Spordateur'}`,
                 images: ['https://spordateur.com/logo.png'],
               },
               unit_amount: inviterCents,

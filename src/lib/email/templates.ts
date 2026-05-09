@@ -102,7 +102,7 @@ export interface TemplateDataMap {
     endsAtFormatted?: string;
     /** Si true, mention du droit d'appel + email contact. */
     appealable: boolean;
-    /** 'contact@spordateur.com'. */
+    /** 'contact@afroboosteur.com'. */
     appealEmail: string;
   };
   noShowWarningNotice: {
@@ -217,7 +217,7 @@ export interface TemplateDataMap {
   };
   /** Phase 9.5 c3 — reset password via Resend (anti-SPAM vs Firebase Auth default sender). */
   passwordResetCustom: {
-    /** Display name (greeting personnalisé), fallback 'membre Spordate' si absent. */
+    /** Display name (greeting personnalisé), fallback 'membre Spordateur' si absent. */
     userName?: string;
     /** Lien Firebase reset password full URL (généré via Admin SDK generatePasswordResetLink). */
     resetUrl: string;
@@ -231,7 +231,9 @@ export interface TemplateDataMap {
 // =====================================================================
 
 function layout(opts: { headerBadgeText: string; bodyHtml: string; footerNote?: string }): string {
-  const footer = opts.footerNote ?? '© 2026 Spordateur — contact@spordateur.com';
+  const footer =
+    opts.footerNote ??
+    '© 2026 Association Afroboosteur — contact@afroboosteur.com — Rue des Maillefer 39, 2000 Neuchâtel';
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
@@ -338,7 +340,7 @@ function renderReviewPendingModeration(d: TemplateDataMap['reviewPendingModerati
     ${p(`Ton avis ★${d.rating}${titleSuffix} a bien été reçu.`)}
     ${p(`Conformément à notre doctrine de modération (CGU section 7.ter), les avis ★1 et ★2 sont publiés <strong style="color:#ffffff;">anonymement après validation</strong> par notre équipe modération. Cela protège l'auteur de tout backlash et permet de filtrer les attaques personnelles.`)}
     ${p(`Délai de modération : <strong style="color:#ffffff;">${d.slaDays} jours calendaires maximum</strong>. Tu seras notifié par email dès que la décision est prise (publication ou refus motivé).`)}
-    ${p(`Pour toute question, contacte-nous à contact@spordateur.com.`, '40')}
+    ${p(`Pour toute question, contacte-nous à contact@afroboosteur.com.`, '40')}
   `;
   return { subject, html: layout({ headerBadgeText: 'Avis en modération', bodyHtml: body }) };
 }
@@ -352,7 +354,7 @@ function renderReviewModerationDecision(d: TemplateDataMap['reviewModerationDeci
       ${p(`Bonjour ${d.userName || 'membre Spordateur'},`)}
       ${p(`Ton avis ★${d.rating}${titleSuffix} a été publié anonymement après modération de notre équipe (cohérent CGU section 7.ter).`)}
       ${p(`Tu reçois également <strong style="color:#D91CD2;">+5 crédits chat</strong> en bonus pour ton retour. Merci pour ta contribution à la qualité de la communauté Spordateur.`)}
-      ${p(`Pour tout désaccord ou question, contacte-nous à contact@spordateur.com.`, '40')}
+      ${p(`Pour tout désaccord ou question, contacte-nous à contact@afroboosteur.com.`, '40')}
     `;
     return { subject, html: layout({ headerBadgeText: 'Avis publié', bodyHtml: body }) };
   }
@@ -364,7 +366,7 @@ function renderReviewModerationDecision(d: TemplateDataMap['reviewModerationDeci
     ${p(`Ton avis ★${d.rating}${titleSuffix} n'a pas été retenu pour publication après modération de notre équipe.`)}
     ${p(`Si tu souhaites partager une expérience constructive, tu peux essayer de reformuler ton commentaire en restant factuel et respectueux. Cf. CGU section 7.ter pour les attentes éditoriales.`)}
     ${p(`Pour tout désaccord, tu peux contester cette décision en répondant à cet email avec tes éléments. Notre équipe revoit les contestations sous 7 jours.`)}
-    ${p(`Contact direct : <strong style="color:#D91CD2;">contact@spordateur.com</strong>.`, '40')}
+    ${p(`Contact direct : <strong style="color:#D91CD2;">contact@afroboosteur.com</strong>.`, '40')}
   `;
   return { subject, html: layout({ headerBadgeText: 'Modération', bodyHtml: body }) };
 }
@@ -393,7 +395,7 @@ function renderReportSubmitted(d: TemplateDataMap['reportSubmitted']) {
     ${p(`Bonjour ${d.reporterName || 'membre Spordateur'},`)}
     ${p(`Nous avons bien reçu ton signalement de catégorie <strong style="color:#ffffff;">${d.categoryLabel}</strong>.`)}
     ${p(`<strong style="color:#ffffff;">Anonymat garanti</strong> : la personne signalée ne saura jamais qui l'a signalée. Notre équipe modération examinera ton signalement sous <strong style="color:#ffffff;">${d.slaHours}h</strong> (cf. CGU section 7.bis).`)}
-    ${p(`Merci de contribuer à la sécurité de la communauté Spordateur. Pour toute question : contact@spordateur.com.`, '40')}
+    ${p(`Merci de contribuer à la sécurité de la communauté Spordateur. Pour toute question : contact@afroboosteur.com.`, '40')}
   `;
   return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
 }
@@ -441,11 +443,11 @@ function renderNoShowWarningNotice(d: TemplateDataMap['noShowWarningNotice']) {
     escalationLine = p(`<strong style="color:#D91CD2;">2ème no-show cumulé</strong> (90 jours rolling). Prochain no-show → suspension 30 jours + remboursement partner. À 4+, ban permanent.`);
   } else if (isThird) {
     subject = `3ème no-show — suspension 30 jours`;
-    escalationLine = p(`<strong style="color:#D91CD2;">3ème no-show cumulé</strong> (90 jours rolling). Une suspension 30 jours est automatiquement appliquée + remboursement partner. Tu peux faire appel par email à contact@spordateur.com.`);
+    escalationLine = p(`<strong style="color:#D91CD2;">3ème no-show cumulé</strong> (90 jours rolling). Une suspension 30 jours est automatiquement appliquée + remboursement partner. Tu peux faire appel par email à contact@afroboosteur.com.`);
   } else {
     // ban
     subject = `Ban permanent — no-shows répétés`;
-    escalationLine = p(`<strong style="color:#D91CD2;">${d.noShowCount}ème no-show cumulé</strong>. Bannissement permanent appliqué. Tu peux faire appel 1× via contact@spordateur.com.`);
+    escalationLine = p(`<strong style="color:#D91CD2;">${d.noShowCount}ème no-show cumulé</strong>. Bannissement permanent appliqué. Tu peux faire appel 1× via contact@afroboosteur.com.`);
   }
 
   const body = `
@@ -453,7 +455,7 @@ function renderNoShowWarningNotice(d: TemplateDataMap['noShowWarningNotice']) {
     ${p(`Bonjour ${d.userName || 'membre Spordateur'},`)}
     ${p(`Tu as été marqué <strong style="color:#ffffff;">no-show</strong> par ${d.partnerName} pour la session <strong style="color:#ffffff;">${d.sessionTitle}</strong> à laquelle tu étais inscrit·e.`)}
     ${escalationLine}
-    ${p(`Si c'est une erreur, contacte <strong style="color:#D91CD2;">contact@spordateur.com</strong> dans les 24h. Le partenaire peut aussi annuler le marquage depuis son dashboard pendant ce délai.`)}
+    ${p(`Si c'est une erreur, contacte <strong style="color:#D91CD2;">contact@afroboosteur.com</strong> dans les 24h. Le partenaire peut aussi annuler le marquage depuis son dashboard pendant ce délai.`)}
     ${p(`Cf. CGU section 7.bis pour le détail du workflow no-show. Spordateur applique une politique de fair-play : honorer ses réservations protège la communauté.`, '40')}
   `;
   return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
@@ -484,7 +486,7 @@ function renderUserSanctionOverturned(d: TemplateDataMap['userSanctionOverturned
     ${p(`Bonne nouvelle : la sanction <strong style="color:#ffffff;">${levelLabel}</strong> appliquée à ton compte a été <strong style="color:#D91CD2;">annulée</strong> par notre équipe modération.`)}
     ${noteLine}
     ${p(`Ton compte est de nouveau pleinement opérationnel. Tu peux à nouveau réserver, matcher et participer aux sessions Spordateur normalement.`)}
-    ${p(`Pour toute question : contact@spordateur.com.`, '40')}
+    ${p(`Pour toute question : contact@afroboosteur.com.`, '40')}
   `;
   return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
 }
@@ -516,7 +518,7 @@ function renderAppealResolved(d: TemplateDataMap['appealResolved']) {
         ${p(`<strong style="color:#ffffff;">Décision : sanction maintenue</strong>. Après examen des éléments contradictoires, la sanction reste active.`)}
         ${noteLine}
         ${p(`Conformément à la doctrine §F (1× appel par niveau), tu ne peux pas faire un nouvel appel sur cette sanction. Tu peux contester sur d'autres voies (médiation externe, recours juridique) — Spordateur respecte les droits LPD/nLPD.`)}
-        ${p(`Pour toute question : contact@spordateur.com.`, '40')}
+        ${p(`Pour toute question : contact@afroboosteur.com.`, '40')}
       `;
 
   return { subject, html: layout({ headerBadgeText: 'Trust & Safety', bodyHtml: body }) };
@@ -526,7 +528,7 @@ function renderAppealResolved(d: TemplateDataMap['appealResolved']) {
  * Phase 8 SC2 commit 5/6 — alerte admin L4 anti-leak (doctrine §B.Q3 escalation manuelle).
  *
  * Déclenché par sendMessage quand un user atteint 5 tentatives leak dans un chat (compteur
- * Chat.leakBySender). Email envoyé à ADMIN_LEAK_EMAIL (default contact@spordateur.com).
+ * Chat.leakBySender). Email envoyé à ADMIN_LEAK_EMAIL (default contact@afroboosteur.com).
  * Pas d'action automatique (anti-quarantine) — admin review manuel via aiScanLogs/ + UI Phase 9.
  */
 function renderLeakEscalationAdmin(d: TemplateDataMap['leakEscalationAdmin']) {
@@ -552,13 +554,13 @@ function renderLeakEscalationAdmin(d: TemplateDataMap['leakEscalationAdmin']) {
 /**
  * Phase 8 SC4 commit 4/6 — invitation activity reçue (doctrine §E mode Individuel).
  *
- * Subject : "{fromUserName} t'invite à {activityTitle} sur Spordate"
+ * Subject : "{fromUserName} t'invite à {activityTitle} sur Spordateur"
  * Body : greeting + activity + session date + message? optional + CTA "Voir l'invitation"
  *        → page /invite/[id] où user peut Accepter (Stripe) ou Décliner.
  */
 function renderInviteReceived(d: TemplateDataMap['inviteReceived']) {
-  const fromLabel = d.fromUserName || 'Un membre Spordate';
-  const subject = `${fromLabel} t'invite à ${d.activityTitle} sur Spordate`;
+  const fromLabel = d.fromUserName || 'Un membre Spordateur';
+  const subject = `${fromLabel} t'invite à ${d.activityTitle} sur Spordateur`;
 
   const greeting = d.toUserName ? `Bonjour ${d.toUserName},` : 'Bonjour,';
   const messageLine = d.message
@@ -582,7 +584,7 @@ function renderInviteReceived(d: TemplateDataMap['inviteReceived']) {
 // =====================================================================
 
 function renderInviteReceivedSplit(d: TemplateDataMap['inviteReceivedSplit']) {
-  const fromLabel = d.fromUserName || 'Un membre Spordate';
+  const fromLabel = d.fromUserName || 'Un membre Spordateur';
   const subject = `${fromLabel} t'invite à ${d.activityTitle} — partagez la note`;
 
   const greeting = d.toUserName ? `Bonjour ${d.toUserName},` : 'Bonjour,';
@@ -603,7 +605,7 @@ function renderInviteReceivedSplit(d: TemplateDataMap['inviteReceivedSplit']) {
 }
 
 function renderInviteReceivedGift(d: TemplateDataMap['inviteReceivedGift']) {
-  const fromLabel = d.fromUserName || 'Un membre Spordate';
+  const fromLabel = d.fromUserName || 'Un membre Spordateur';
   const subject = `${fromLabel} t'offre ${d.activityTitle} — c'est cadeau !`;
 
   const greeting = d.toUserName ? `Bonjour ${d.toUserName},` : 'Bonjour,';
@@ -665,12 +667,12 @@ function renderSessionReminderTMinus0(d: TemplateDataMap['sessionReminderTMinus0
 }
 
 function renderPasswordResetCustom(d: TemplateDataMap['passwordResetCustom']) {
-  const subject = `Réinitialise ton mot de passe Spordate`;
+  const subject = `Réinitialise ton mot de passe Spordateur`;
   const greeting = d.userName ? `Salut ${d.userName} !` : `Salut !`;
   const body = `
     ${h1(`Mot de passe oublié ?`)}
     ${p(greeting)}
-    ${p(`Tu as demandé à réinitialiser ton mot de passe sur Spordate. Clique sur le bouton ci-dessous pour choisir un nouveau mot de passe.`)}
+    ${p(`Tu as demandé à réinitialiser ton mot de passe sur Spordateur. Clique sur le bouton ci-dessous pour choisir un nouveau mot de passe.`)}
     ${ctaButton(`Choisir un nouveau mot de passe`, d.resetUrl)}
     ${p(`Ce lien expire dans <strong style="color:#ffffff;">${d.expiresInHours}h</strong>. Au-delà, tu devras refaire la demande.`, '40')}
     ${p(`Si tu n'as pas demandé cette réinitialisation, ignore cet email — ton compte est en sécurité.`, '40')}

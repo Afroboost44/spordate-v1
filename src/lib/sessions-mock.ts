@@ -45,7 +45,7 @@ export interface MockPastSession {
 export const MOCK_HERO_STORY = {
   title: 'Notre histoire',
   paragraphs: [
-    "Spordate est né à Genève d'une idée simple : transformer chaque cours sportif en occasion de rencontrer quelqu'un qui partage votre énergie. Pas de swipe sur des photos. Du sport ensemble, et le reste vient.",
+    "Spordateur est né à Genève d'une idée simple : transformer chaque cours sportif en occasion de rencontrer quelqu'un qui partage votre énergie. Pas de swipe sur des photos. Du sport ensemble, et le reste vient.",
     "On a commencé avec l'Afroboost — la danse-fitness afro qui mêle cardio, rythme et bonne humeur. Au bord du lac, dans des studios, en plein air. Vous bookez votre place, vous venez bouger, vous rencontrez les autres participants pendant et après le cours.",
     "Aujourd'hui, des dizaines de Sport Dates par mois entre Genève et Lausanne. Demain, toute la Suisse romande, puis la Suisse alémanique. Ce qui compte, c'est qu'à chaque session, vous repartez avec plus que des courbatures.",
   ],
