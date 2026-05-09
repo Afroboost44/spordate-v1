@@ -538,6 +538,36 @@ async function handleSessionFreeMode(
     const bookingId = bookingRef.id;
     const paymentIntentId = `free-${Date.now()}-${bookingId}`;
 
+    // Phase 9.5 c11 — si activity.scheduledAt défini, créer ALSO une Session
+    // avec id = bookingId pour que /sessions/{bookingId} affiche countdown +
+    // SessionHero au lieu du fallback BookingPendingHero.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const scheduledAtRaw = (activity as any).scheduledAt as
+      | FirebaseFirestore.Timestamp
+      | null
+      | undefined;
+    let scheduledAtTs: FirebaseFirestore.Timestamp | null = null;
+    if (scheduledAtRaw) {
+      // Defensive : Firestore peut renvoyer un Timestamp OU un objet Date OU null.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const raw = scheduledAtRaw as any;
+      if (typeof raw.toMillis === 'function') {
+        scheduledAtTs = raw as FirebaseFirestore.Timestamp;
+      } else if (raw instanceof Date) {
+        scheduledAtTs = Timestamp.fromDate(raw);
+      }
+    }
+    const willCreateSession = scheduledAtTs !== null;
+    const durationMinutes = typeof activity.duration === 'number' && activity.duration > 0
+      ? activity.duration
+      : 60;
+    const chatOpenOffsetMinutes = activity.chatOpenOffsetMinutes ?? 120;
+
+    const sessionId = willCreateSession ? bookingId : (body.sessionId || '');
+    const sessionRef = willCreateSession
+      ? db.collection('sessions').doc(bookingId)
+      : null;
+
     await db.runTransaction(async (tx) => {
       // Booking doc
       tx.set(bookingRef, {
@@ -549,13 +579,13 @@ async function handleSessionFreeMode(
         partnerId: activity.partnerId,
         sport: activity.sport,
         ticketType: 'solo',
-        sessionDate: activity.createdAt ?? Timestamp.now(),
+        sessionDate: scheduledAtTs ?? activity.createdAt ?? Timestamp.now(),
         status: 'confirmed',
         transactionId: '',
         amount: 0,
         currency: 'CHF',
         creditsUsed: 0,
-        sessionId: body.sessionId || '',
+        sessionId,
         paymentIntentId,
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp(),
@@ -580,6 +610,35 @@ async function handleSessionFreeMode(
         activityId: body.activityId,
         createdAt: FieldValue.serverTimestamp(),
       });
+
+      // Phase 9.5 c11 — Session auto-créée pour countdown si scheduledAt défini
+      if (sessionRef && scheduledAtTs) {
+        const startMs = scheduledAtTs.toMillis();
+        const endMs = startMs + durationMinutes * 60_000;
+        const chatOpenMs = startMs - chatOpenOffsetMinutes * 60_000;
+        const chatCloseMs = endMs + 30 * 60_000;
+        tx.set(sessionRef, {
+          sessionId: bookingId,
+          activityId: body.activityId,
+          partnerId: activity.partnerId,
+          creatorId: activity.partnerId,
+          sport: activity.sport,
+          title: activityLabel,
+          city: activity.city || '',
+          startAt: scheduledAtTs,
+          endAt: Timestamp.fromMillis(endMs),
+          chatOpenAt: Timestamp.fromMillis(chatOpenMs),
+          chatCloseAt: Timestamp.fromMillis(chatCloseMs),
+          maxParticipants: activity.maxParticipants || 10,
+          currentParticipants: 1,
+          pricingTiers: [],
+          currentTier: 'early',
+          currentPrice: 0,
+          status: 'open',
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+      }
     });
 
     // Best-effort email confirmation

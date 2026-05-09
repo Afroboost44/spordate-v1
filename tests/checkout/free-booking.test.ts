@@ -16,6 +16,8 @@
  *   FB6. Per-activity chatCreditsBundle override → grant cette valeur (10) au lieu freeActivityBundle (5)
  *   FB7. Firestore composite index manquant (FAILED_PRECONDITION) → 503 index-not-ready
  *   FB8. orderBy('createdAt','desc')+limit(1) détecte booking récent parmi old + recent → 429
+ *   FB9. (c11) activity.scheduledAt défini → Session ALSO créée avec id=bookingId + timestamps
+ *   FB10. (c11) activity.scheduledAt absent → Booking seul (pas de Session)
  */
 
 // ⚠️ ENV vars must be set BEFORE firebase-admin import
@@ -444,13 +446,136 @@ async function main(): Promise<void> {
   }
 
   // ===================================================================
+  // FB9 — c11 : activity.scheduledAt défini → Session créée avec id=bookingId
+  // ===================================================================
+  section('FB9 (c11) activity.scheduledAt set → Session ALSO créée + timestamps');
+  {
+    await clearAll();
+    const SCHEDULED_ACTIVITY_ID = 'activity_scheduled_fb';
+    const startMs = Date.now() + 7 * 24 * 60 * 60 * 1000; // +7 jours
+    await db.collection('activities').doc(SCHEDULED_ACTIVITY_ID).set({
+      activityId: SCHEDULED_ACTIVITY_ID,
+      partnerId: 'partner_test',
+      partnerName: 'Test Partner',
+      sport: 'tennis',
+      title: 'Cours planifié',
+      description: 'desc',
+      price: 0,
+      duration: 90, // 90 min pour valider endAt computation
+      schedule: 'Mar 19h',
+      city: 'Geneva',
+      audienceType: 'all',
+      maxParticipants: 12,
+      scheduledAt: Timestamp.fromMillis(startMs),
+      createdAt: Timestamp.now(),
+    });
+    await seedUser(ALICE_UID);
+    _mockUid = ALICE_UID;
+
+    const res = await callPost(
+      { mode: 'session-free', activityId: SCHEDULED_ACTIVITY_ID, userId: ALICE_UID },
+      'mock_alice',
+    );
+    if (res.status === 200 && typeof res.body.bookingId === 'string') {
+      pass('FB9.a status 200 + bookingId returned');
+    } else {
+      fail('FB9.a', res);
+    }
+
+    const bookingId = res.body.bookingId as string;
+
+    // Session ALSO créée avec id = bookingId
+    const sessionSnap = await db.collection('sessions').doc(bookingId).get();
+    if (sessionSnap.exists) {
+      pass('FB9.b session doc créée avec id = bookingId');
+    } else {
+      fail('FB9.b session missing');
+      return;
+    }
+
+    const sessionData = sessionSnap.data()!;
+    if (
+      sessionData.status === 'open' &&
+      sessionData.activityId === SCHEDULED_ACTIVITY_ID &&
+      sessionData.partnerId === 'partner_test' &&
+      sessionData.title === 'Cours planifié'
+    ) {
+      pass('FB9.c session shape (status, activityId, partnerId, title)');
+    } else {
+      fail('FB9.c', sessionData);
+    }
+
+    // Timestamps : startAt = scheduledAt, endAt = startAt+90min, chatOpen = startAt-2h
+    const startAt = sessionData.startAt;
+    const endAt = sessionData.endAt;
+    const chatOpenAt = sessionData.chatOpenAt;
+    if (
+      startAt?.toMillis() === startMs &&
+      endAt?.toMillis() === startMs + 90 * 60_000 &&
+      chatOpenAt?.toMillis() === startMs - 120 * 60_000
+    ) {
+      pass('FB9.d timestamps (startAt + endAt = +90min + chatOpen = -2h)');
+    } else {
+      fail('FB9.d', {
+        startAt: startAt?.toMillis(),
+        endAt: endAt?.toMillis(),
+        chatOpenAt: chatOpenAt?.toMillis(),
+        expected: { startMs, endMs: startMs + 90 * 60_000, chatOpenMs: startMs - 120 * 60_000 },
+      });
+    }
+
+    // Booking sessionId === bookingId (lien explicite)
+    const bookingSnap = await db.collection('bookings').doc(bookingId).get();
+    if (bookingSnap.data()?.sessionId === bookingId) {
+      pass('FB9.e booking.sessionId === bookingId (countdown navigation)');
+    } else {
+      fail('FB9.e', bookingSnap.data()?.sessionId);
+    }
+  }
+
+  // ===================================================================
+  // FB10 — c11 : activity.scheduledAt absent → pas de Session
+  // ===================================================================
+  section('FB10 (c11) activity.scheduledAt absent → Booking only (no Session)');
+  {
+    await clearAll();
+    await seedActivity(FREE_ACTIVITY_ID, 0); // pas de scheduledAt
+    await seedUser(ALICE_UID);
+    _mockUid = ALICE_UID;
+
+    const res = await callPost(
+      { mode: 'session-free', activityId: FREE_ACTIVITY_ID, userId: ALICE_UID },
+      'mock_alice',
+    );
+    if (res.status !== 200) {
+      fail('FB10 setup', res);
+      return;
+    }
+
+    const bookingId = res.body.bookingId as string;
+    const sessionSnap = await db.collection('sessions').doc(bookingId).get();
+    if (!sessionSnap.exists) {
+      pass('FB10 pas de session créée (BookingPendingHero fallback)');
+    } else {
+      fail('FB10 unexpected session', sessionSnap.data());
+    }
+
+    const bookingSnap = await db.collection('bookings').doc(bookingId).get();
+    if (bookingSnap.data()?.sessionId === '') {
+      pass('FB10.b booking.sessionId vide (pas de session liée)');
+    } else {
+      fail('FB10.b', bookingSnap.data()?.sessionId);
+    }
+  }
+
+  // ===================================================================
   // Cleanup
   // ===================================================================
   __setVerifyAuthForTesting(null);
   await clearAll();
 
   console.log('');
-  console.log('====== Résumé Free Booking (FB1-FB8) ======');
+  console.log('====== Résumé Free Booking (FB1-FB10) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);

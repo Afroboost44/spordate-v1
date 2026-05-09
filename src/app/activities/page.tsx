@@ -14,6 +14,7 @@ import { getVideoThumbnailChain, getVideoEmbedUrl } from '@/lib/activities/media
 import type { MediaItem } from '@/types/firestore';
 import { ReserveButtonListing } from '@/components/activities/ReserveButtonListing';
 import { ShareButton } from '@/components/activities/ShareButton';
+import { formatScheduledLabel } from '@/lib/activities/scheduled';
 
 interface ActivityCard {
   activityId: string;
@@ -31,6 +32,9 @@ interface ActivityCard {
   city: string;
   partnerName: string;
   partnerId: string;
+  /** Phase 9.5 c11 — Prochaine séance planifiée (countdown auto si défini). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  scheduledAt?: any;
 }
 
 // Données Afroboost en dur (fallback si Firestore pas configuré ou vide)
@@ -265,6 +269,12 @@ function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
         {activity.description && (
           <p className="text-foreground/50 text-sm mb-2 line-clamp-2">{activity.description}</p>
         )}
+        {/* Phase 9.5 c11 — date prochaine séance si scheduledAt défini, sinon fallback schedule legacy */}
+        <p className="text-xs text-[#D91CD2] mb-1 font-medium">
+          {activity.scheduledAt
+            ? `Prochaine séance : ${formatScheduledLabel(activity)}`
+            : 'Date à venir'}
+        </p>
         <p className="text-xs text-foreground/30 mb-4">{activity.schedule}</p>
         <div className="flex justify-between items-center">
           <p className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-rose-400">
@@ -344,6 +354,8 @@ export default function ActivitiesPage() {
             city: raw.city || '',
             partnerName: raw.partnerName || '',
             partnerId: raw.partnerId || '',
+            // Phase 9.5 c11 — date prochaine séance (countdown auto sur free booking)
+            scheduledAt: raw.scheduledAt ?? null,
           } as ActivityCard;
         });
         setActivities(data.length > 0 ? data : AFROBOOST_FALLBACK);

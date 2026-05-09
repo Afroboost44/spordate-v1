@@ -249,6 +249,13 @@ export interface Activity {
    *  Modifiable via Admin SDK / Firebase Console / test seed Phase 7 (pas via UI partner).
    *  Cf. architecture.md §9.sexies G pour la doctrine female-safety complète. */
   audienceType?: 'all' | 'women-only' | 'men-only' | 'mixed-priority-women';
+  // ----- Phase 9.5 c11 — Date séance optionnelle (countdown auto sur free booking) -----
+  /** Date/heure de la prochaine séance planifiée. Optionnel — si défini, /api/checkout
+   *  mode='session-free' crée auto une Session liée (id = bookingId, startAt = scheduledAt,
+   *  chatOpenAt = startAt - 2h, endAt = startAt + duration, chatCloseAt = endAt + 30min).
+   *  → Permet d'afficher le countdown sur /sessions/{bookingId} au lieu de
+   *    BookingPendingHero "en attente planification". */
+  scheduledAt?: Timestamp | null;
 }
 
 export interface ActivitySchedule {

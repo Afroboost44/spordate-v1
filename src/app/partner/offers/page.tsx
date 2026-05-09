@@ -45,6 +45,9 @@ interface Activity {
   /** Phase 9.5 c4 — rich media items (image upload/URL OU video embed). */
   mediaUrls?: MediaItem[];
   audienceType?: AudienceType;
+  /** Phase 9.5 c11 — Date prochaine séance (Firestore Timestamp côté lecture). */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  scheduledAt?: any;
 }
 
 const SPORTS = [
@@ -78,6 +81,8 @@ export default function PartnerOffersPage() {
   const [formImages, setFormImages] = useState<string[]>(['', '', '']);
   const [formMediaItems, setFormMediaItems] = useState<MediaItem[]>([]);
   const [formAudienceType, setFormAudienceType] = useState<AudienceType>('all');
+  // Phase 9.5 c11 — date prochaine séance (optionnel, datetime-local format)
+  const [formScheduledAt, setFormScheduledAt] = useState('');
 
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
@@ -107,6 +112,7 @@ export default function PartnerOffersPage() {
     setFormCity(''); setFormAddress(''); setFormSchedule(''); setFormMax('10'); setFormImages(['', '', '']);
     setFormMediaItems([]);
     setFormAudienceType('all');
+    setFormScheduledAt('');
   };
 
   const openCreate = () => { setEditing(null); resetForm(); setOpen(true); };
@@ -123,6 +129,18 @@ export default function PartnerOffersPage() {
     // Phase 9.5 c4 — load mediaUrls (rich) avec fallback images (string[]) via getMediaItems
     setFormMediaItems(getMediaItems(act));
     setFormAudienceType(act.audienceType ?? 'all');
+    // Phase 9.5 c11 — load scheduledAt (Timestamp → input datetime-local format YYYY-MM-DDTHH:mm)
+    if (act.scheduledAt) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ts = act.scheduledAt as any;
+      const d = typeof ts.toDate === 'function' ? ts.toDate() : new Date(ts);
+      // Local time → datetime-local string (no Z, no offset, browser timezone)
+      const pad = (n: number) => String(n).padStart(2, '0');
+      const localStr = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      setFormScheduledAt(localStr);
+    } else {
+      setFormScheduledAt('');
+    }
     setOpen(true);
   };
 
@@ -138,6 +156,12 @@ export default function PartnerOffersPage() {
         .filter(m => m.type === 'image')
         .map(m => m.url);
       const finalImages = mediaItemsImages.length > 0 ? mediaItemsImages : filteredImages;
+      // Phase 9.5 c11 — scheduledAt : datetime-local string → JS Date (browser timezone)
+      // → Firestore Timestamp.fromDate (Admin SDK convertit automatiquement via setDoc).
+      // Empty string = pas de séance planifiée → null explicite (override edit).
+      const scheduledAtValue = formScheduledAt
+        ? new Date(formScheduledAt)
+        : null;
       const data = {
         name: formName, description: formDesc, sport: formSport,
         price: parseInt(formPrice) || 0, duration: parseInt(formDuration) || 60,
@@ -148,6 +172,7 @@ export default function PartnerOffersPage() {
         // Phase 9.5 c4 — rich mediaUrls (priorité MediaCarousel + getMediaItems backward compat)
         mediaUrls: formMediaItems,
         audienceType: formAudienceType,
+        scheduledAt: scheduledAtValue,
         partnerId: user.uid, isActive: true, updatedAt: serverTimestamp(),
       };
       if (editing) {
@@ -311,6 +336,23 @@ export default function PartnerOffersPage() {
               <div className="grid gap-2">
                 <Label className="text-white/50">Horaires *</Label>
                 <Input value={formSchedule} onChange={e => setFormSchedule(e.target.value)} placeholder="Mar 19h, Jeu 19h, Sam 10h" className="bg-[#1A1A1A] border-white/10 h-12" required />
+              </div>
+              {/* Phase 9.5 c11 — Date prochaine séance (optionnel) — déclenche countdown auto sur free booking */}
+              <div className="grid gap-2">
+                <Label className="text-white/50 flex items-center justify-between">
+                  <span>Prochaine séance — date et heure</span>
+                  <span className="text-[10px] uppercase tracking-wider text-white/30 normal-case">Optionnel</span>
+                </Label>
+                <Input
+                  type="datetime-local"
+                  value={formScheduledAt}
+                  onChange={e => setFormScheduledAt(e.target.value)}
+                  className="bg-[#1A1A1A] border-white/10 h-12 text-white"
+                />
+                <p className="text-[11px] text-white/40">
+                  Si défini : un compte à rebours s&apos;affiche aux participants sur la page de leur réservation.
+                  Sinon : page &quot;En attente de planification&quot; affichée.
+                </p>
               </div>
               {/* Phase 9 SC6 c1/4 — Audience type selector (Q1=A enum) */}
               <AudienceTypeSelector value={formAudienceType} onChange={setFormAudienceType} disabled={saving} />

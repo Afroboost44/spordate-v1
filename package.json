@@ -59,6 +59,7 @@
     "test:auth:admin-auto-promote": "firebase emulators:exec --only firestore 'npx tsx tests/auth/admin-auto-promote.test.ts'",
     "test:components:admin-menu-link": "npx tsx tests/components/admin-menu-link.test.ts",
     "test:social:share-button": "npx tsx tests/social/share-button.test.ts",
+    "test:components:activity-card-scheduled": "npx tsx tests/components/activity-card-scheduled.test.ts",
     "test:invites:webhook-split-gift": "firebase emulators:exec --only firestore 'npx tsx tests/invites/webhook-split-gift.test.ts'",
     "test:invites:refund-on-decline": "firebase emulators:exec --only firestore 'npx tsx tests/invites/refund-on-decline.test.ts'",
     "test:cron:session-reminders": "firebase emulators:exec --only firestore 'npx tsx tests/cron/session-reminders.test.ts'",
