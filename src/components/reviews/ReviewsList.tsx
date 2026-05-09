@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import type { Review } from '@/types/firestore';
 import { StarRating } from './StarRating';
 import { EmptyReviewsState } from './EmptyReviewsState';
+import { tsToDate } from '@/lib/firestore/timestamp';
 
 export interface ReviewerProfile {
   uid: string;
@@ -63,7 +64,9 @@ function ReviewItem({
   review: Review;
   reviewerProfile?: ReviewerProfile;
 }) {
-  const date = review.createdAt.toDate();
+  // Phase 9.5 c11.1 — defensive : SSR sérialise Timestamp → {seconds,nanoseconds}.
+  // tsToDate gère Firestore Timestamp / Date / number / JSON.
+  const date = tsToDate(review.createdAt) ?? new Date(0);
   const isAnonymized = review.anonymized;
   const displayName = isAnonymized
     ? 'Membre Spordateur'

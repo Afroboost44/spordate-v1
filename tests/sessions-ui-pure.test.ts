@@ -19,6 +19,7 @@
 
 import { breakdownMs } from '../src/hooks/useCountdown';
 import { formatBadge } from '../src/components/sessions/format';
+import { tsToMs, tsToDate } from '../src/lib/firestore/timestamp';
 
 let passes = 0;
 let failures = 0;
@@ -115,11 +116,81 @@ section('formatBadge — 3 cas');
 }
 
 // =====================================================================
+// Phase 9.5 c11.1 — tsToMs + tsToDate (4 input formats)
+// =====================================================================
+
+section('tsToMs / tsToDate — SSR serialization defensive (4 formats)');
+
+const REF_MS = 1717250400000; // 2024-06-01 14:00 UTC
+const REF_DATE = new Date(REF_MS);
+
+// TS1 Firestore Timestamp class (méthodes intactes — Server Component scenario)
+{
+  const tsClass = {
+    toMillis: () => REF_MS,
+    toDate: () => REF_DATE,
+    seconds: Math.floor(REF_MS / 1000),
+    nanoseconds: 0,
+  };
+  assertEq(tsToMs(tsClass), REF_MS, 'TS1.a tsToMs(Timestamp class) → ms');
+  assertEq(tsToDate(tsClass)?.getTime(), REF_MS, 'TS1.b tsToDate(Timestamp class) → Date');
+}
+
+// TS2 Date instance native
+{
+  assertEq(tsToMs(REF_DATE), REF_MS, 'TS2.a tsToMs(Date) → ms');
+  assertEq(tsToDate(REF_DATE)?.getTime(), REF_MS, 'TS2.b tsToDate(Date) → same Date');
+}
+
+// TS3 number (epoch ms)
+{
+  assertEq(tsToMs(REF_MS), REF_MS, 'TS3.a tsToMs(number) → identity');
+  assertEq(tsToDate(REF_MS)?.getTime(), REF_MS, 'TS3.b tsToDate(number) → Date');
+}
+
+// TS4 sérialisé JSON {seconds, nanoseconds} (Bug original — SSR→Client serialization)
+{
+  const tsJson = {
+    seconds: Math.floor(REF_MS / 1000),
+    nanoseconds: (REF_MS % 1000) * 1_000_000, // ms restants → nanos
+  };
+  // Tolérance 1ms (round trip nanoseconds)
+  const ms = tsToMs(tsJson);
+  assertEq(
+    Math.abs(ms - REF_MS) <= 1,
+    true,
+    `TS4.a tsToMs({seconds,nanoseconds}) → ${ms} (≈ ${REF_MS})`,
+  );
+  const d = tsToDate(tsJson);
+  assertEq(
+    d !== null && Math.abs(d.getTime() - REF_MS) <= 1,
+    true,
+    'TS4.b tsToDate({seconds,nanoseconds}) → Date',
+  );
+}
+
+// TS5 edge cases : null / undefined / unsupported shape → defensive
+{
+  // Mute le console.warn pendant les tests pour ne pas polluer le run
+  const origWarn = console.warn;
+  console.warn = () => {};
+  try {
+    assertEq(tsToMs(null), 0, 'TS5.a tsToMs(null) → 0 defensive');
+    assertEq(tsToMs(undefined), 0, 'TS5.b tsToMs(undefined) → 0 defensive');
+    assertEq(tsToMs({ random: 'shape' }), 0, 'TS5.c tsToMs(unsupported) → 0 + warn');
+    assertEq(tsToDate(null), null, 'TS5.d tsToDate(null) → null');
+    assertEq(tsToDate({ random: 'shape' }), null, 'TS5.e tsToDate(unsupported) → null');
+  } finally {
+    console.warn = origWarn;
+  }
+}
+
+// =====================================================================
 // Résumé
 // =====================================================================
 
 console.log('');
-console.log('====== Résumé Phase 4 UI pure ======');
+console.log('====== Résumé Phase 4 UI pure + c11.1 Timestamp helpers ======');
 console.log(`PASS : ${passes}`);
 console.log(`FAIL : ${failures}`);
 console.log(`Total: ${passes + failures}`);

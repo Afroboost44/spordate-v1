@@ -27,6 +27,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { isEligibleToReview, type EligibilityReason } from '@/lib/reviews';
 import { ReviewForm } from './ReviewForm';
+import { tsToMs } from '@/lib/firestore/timestamp';
 
 export interface ReviewTriggerProps {
   activityId: string;
@@ -74,7 +75,11 @@ export function ReviewTrigger({
         if (cancelled) return;
         setEligible(result.eligible);
         setReason(result.reason);
-        setCooldownEndsAtMs(result.cooldownEndsAt?.toMillis());
+        // Phase 9.5 c11.1 — defensive : isEligibleToReview peut être SSR-passed
+        // → cooldownEndsAt sérialisé sans .toMillis(). tsToMs gère 4 formats.
+        setCooldownEndsAtMs(
+          result.cooldownEndsAt ? tsToMs(result.cooldownEndsAt) : undefined,
+        );
       } catch (err) {
         if (cancelled) return;
         console.error('[ReviewTrigger] eligibility check failed', err);
