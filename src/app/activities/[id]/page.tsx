@@ -33,6 +33,7 @@ import { getActivity, getNextFutureSessionForActivity } from '@/services/firesto
 import { getReviewsByActivity, getReviewerProfiles } from '@/lib/reviews';
 import { getMediaItems } from '@/lib/activities/media';
 import { MediaCarousel } from '@/components/activities/MediaCarousel';
+import { ShareButton } from '@/components/activities/ShareButton';
 import { ReviewsList } from '@/components/reviews/ReviewsList';
 import { ReviewTrigger } from '@/components/reviews/ReviewTrigger';
 import { ActivityInviteSection } from '@/components/activities/ActivityInviteSection';
@@ -117,9 +118,19 @@ export default async function ActivityDetailPage({ params }: PageProps) {
           <span className="text-xs uppercase tracking-[0.2em] text-[#D91CD2] font-light">
             {activity.sport}
           </span>
-          <h1 className="text-3xl sm:text-4xl text-white font-light leading-tight">
-            {activity.title}
-          </h1>
+          <div className="flex items-start justify-between gap-4">
+            <h1 className="text-3xl sm:text-4xl text-white font-light leading-tight flex-1">
+              {activity.title}
+            </h1>
+            {/* Phase 9.5 c10.B — ShareButton sur page détail (Like + Comment via SocialBar 10.D) */}
+            <ShareButton
+              activity={{
+                activityId: activity.activityId,
+                title: activity.title,
+              }}
+              className="flex-shrink-0 mt-1"
+            />
+          </div>
           <div className="flex flex-col gap-1.5 text-sm text-white/70 font-light">
             <p className="flex items-center gap-2">
               <MapPin
