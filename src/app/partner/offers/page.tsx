@@ -15,6 +15,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { AudienceTypeSelector } from "@/components/partner/AudienceTypeSelector";
 import type { AudienceType } from "@/lib/audience";
+import { MediaManager } from "@/components/partner/MediaManager";
+import type { MediaItem } from "@/types/firestore";
+import { getMediaItems } from "@/lib/activities/media";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
@@ -39,6 +42,8 @@ interface Activity {
   isActive: boolean;
   imageUrl: string;
   images?: string[];
+  /** Phase 9.5 c4 — rich media items (image upload/URL OU video embed). */
+  mediaUrls?: MediaItem[];
   audienceType?: AudienceType;
 }
 
@@ -71,6 +76,7 @@ export default function PartnerOffersPage() {
   const [formSchedule, setFormSchedule] = useState('');
   const [formMax, setFormMax] = useState('10');
   const [formImages, setFormImages] = useState<string[]>(['', '', '']);
+  const [formMediaItems, setFormMediaItems] = useState<MediaItem[]>([]);
   const [formAudienceType, setFormAudienceType] = useState<AudienceType>('all');
 
   useEffect(() => {
@@ -99,6 +105,7 @@ export default function PartnerOffersPage() {
   const resetForm = () => {
     setFormName(''); setFormDesc(''); setFormSport(''); setFormPrice(''); setFormDuration('60');
     setFormCity(''); setFormAddress(''); setFormSchedule(''); setFormMax('10'); setFormImages(['', '', '']);
+    setFormMediaItems([]);
     setFormAudienceType('all');
   };
 
@@ -113,6 +120,8 @@ export default function PartnerOffersPage() {
       ? [...act.images, '', '', ''].slice(0, 3)
       : [act.imageUrl || '', '', ''];
     setFormImages(imgs);
+    // Phase 9.5 c4 — load mediaUrls (rich) avec fallback images (string[]) via getMediaItems
+    setFormMediaItems(getMediaItems(act));
     setFormAudienceType(act.audienceType ?? 'all');
     setOpen(true);
   };
@@ -123,13 +132,21 @@ export default function PartnerOffersPage() {
     setSaving(true);
     try {
       const filteredImages = formImages.filter(url => url.trim() !== '');
+      // Phase 9.5 c4 — derive backward compat images[] from formMediaItems (1ère image type='image')
+      // Conserve aussi formImages legacy si MediaManager pas encore utilisé (transition douce).
+      const mediaItemsImages = formMediaItems
+        .filter(m => m.type === 'image')
+        .map(m => m.url);
+      const finalImages = mediaItemsImages.length > 0 ? mediaItemsImages : filteredImages;
       const data = {
         name: formName, description: formDesc, sport: formSport,
         price: parseInt(formPrice) || 0, duration: parseInt(formDuration) || 60,
         city: formCity, address: formAddress, schedule: formSchedule,
         maxParticipants: parseInt(formMax) || 10,
-        images: filteredImages,
-        imageUrl: filteredImages[0] || '',
+        images: finalImages,
+        imageUrl: finalImages[0] || '',
+        // Phase 9.5 c4 — rich mediaUrls (priorité MediaCarousel + getMediaItems backward compat)
+        mediaUrls: formMediaItems,
         audienceType: formAudienceType,
         partnerId: user.uid, isActive: true, updatedAt: serverTimestamp(),
       };
@@ -251,57 +268,16 @@ export default function PartnerOffersPage() {
                 <Label className="text-white/50">Description</Label>
                 <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Décrivez votre activité, l'ambiance, ce que les participants vont vivre..." className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[80px] resize-none focus:outline-none focus:ring-1 focus:ring-[#D91CD2]" />
               </div>
-              <div className="grid gap-2">
-                <Label className="text-white/50 flex items-center gap-2">
-                  <ImagePlus className="h-4 w-4" /> Images (jusqu&apos;à 3 URLs)
-                </Label>
-                <div className="grid grid-cols-3 gap-3">
-                  {formImages.map((img, i) => (
-                    <div key={i} className="space-y-2">
-                      <div className="relative">
-                        <Input
-                          value={img}
-                          onChange={e => {
-                            const updated = [...formImages];
-                            updated[i] = e.target.value;
-                            setFormImages(updated);
-                          }}
-                          placeholder={`Image ${i + 1}`}
-                          className="bg-[#1A1A1A] border-white/10 h-10 text-xs pr-8"
-                        />
-                        {img && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const updated = [...formImages];
-                              updated[i] = '';
-                              setFormImages(updated);
-                            }}
-                            className="absolute right-2 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        )}
-                      </div>
-                      {img ? (
-                        <div className="relative h-20 w-full rounded-lg overflow-hidden border border-white/10">
-                          <img src={img} alt={`Image ${i + 1}`} className="w-full h-full object-cover" />
-                          {i === 0 && (
-                            <span className="absolute top-1 left-1 bg-[#D91CD2]/80 text-white text-[10px] px-1.5 py-0.5 rounded-full">
-                              Principale
-                            </span>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="h-20 w-full rounded-lg border border-dashed border-white/10 flex items-center justify-center">
-                          <ImagePlus className="h-5 w-5 text-white/15" />
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-                <p className="text-[10px] text-white/20">La première image sera utilisée comme image principale</p>
-              </div>
+              {/* Phase 9.5 c4 — MediaManager (drag&drop reorder + image upload + URL embed) */}
+              {user && (
+                <MediaManager
+                  value={formMediaItems}
+                  onChange={setFormMediaItems}
+                  partnerId={user.uid}
+                  maxItems={5}
+                  disabled={saving}
+                />
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label className="text-white/50">Sport *</Label>

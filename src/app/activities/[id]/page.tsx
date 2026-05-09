@@ -31,6 +31,8 @@ import { ArrowLeft, Building2, MapPin } from 'lucide-react';
 import type { Metadata } from 'next';
 import { getActivity, getNextFutureSessionForActivity } from '@/services/firestore';
 import { getReviewsByActivity, getReviewerProfiles } from '@/lib/reviews';
+import { getMediaItems } from '@/lib/activities/media';
+import { MediaCarousel } from '@/components/activities/MediaCarousel';
 import { ReviewsList } from '@/components/reviews/ReviewsList';
 import { ReviewTrigger } from '@/components/reviews/ReviewTrigger';
 import { ActivityInviteSection } from '@/components/activities/ActivityInviteSection';
@@ -137,6 +139,13 @@ export default async function ActivityDetailPage({ params }: PageProps) {
             )}
           </div>
         </header>
+
+        {/* Phase 9.5 c4 — Media carousel (images + video embeds) */}
+        {(() => {
+          const items = getMediaItems(activity);
+          if (items.length === 0) return null;
+          return <MediaCarousel items={items} />;
+        })()}
 
         {/* Description */}
         {activity.description && (

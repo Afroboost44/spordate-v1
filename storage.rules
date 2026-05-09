@@ -1,0 +1,80 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ========================================
+    // Photos de profil utilisateur
+    // Le user ne peut écrire que dans son propre dossier.
+    // ========================================
+    match /users/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ========================================
+    // Photos / vidéos d'activités (partenaires)
+    // TODO Phase 8 : vérifier que l'user est partner de l'activity.
+    // ========================================
+    match /activities/{activityId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*|video/.*');
+    }
+
+    // ========================================
+    // Phase 9.5 c4 — Media activités partner uploads (MediaManager)
+    // Path: partners/{partnerId}/activities/{timestamp}-{filename}
+    // Anti-spoof : write requires request.auth.uid == partnerId.
+    // Q2=A 5MB max + Q4=A images only Phase 9.5 (video via URL embed).
+    // ========================================
+    match /partners/{partnerId}/activities/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == partnerId
+        && request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ========================================
+    // Pièces jointes chat
+    // TODO Phase 8 : vérifier que l'user est participant du chat.
+    // ========================================
+    match /chats/{chatId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.resource.size < 25 * 1024 * 1024;
+    }
+
+    // ========================================
+    // Avatars / assets génériques uploadés via le formulaire profil
+    // (au cas où le code utilise un autre path que users/{uid})
+    // ========================================
+    match /avatars/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /profile-photos/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ========================================
+    // Default deny (sécurité)
+    // ========================================
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

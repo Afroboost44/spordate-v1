@@ -25,31 +25,22 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail } from '@/lib/email/sendEmail';
+import { getAdminAuthOverride, type AdminAuthLike } from './_internal';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 // =====================================================================
 // Lazy Admin SDK init (cohérent /api/checkout, /api/cron/*)
-// + DI seam pattern (cohérent verifyAuth Phase 8 SC4) — tests inject mock
+// DI seam pattern dans _internal.ts (Next.js 15 route.ts strict exports).
 // =====================================================================
-
-interface AdminAuthLike {
-  generatePasswordResetLink(email: string, opts?: unknown): Promise<string>;
-  getUserByEmail(email: string): Promise<{ displayName?: string | null }>;
-}
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _adminApp: any = null;
-let _adminAuthOverride: AdminAuthLike | null = null;
-
-/** @internal — utilisé UNIQUEMENT par tests pour injecter un mock firebase-admin/auth. */
-export function __setAdminAuthForTesting(mock: AdminAuthLike | null): void {
-  _adminAuthOverride = mock;
-}
 
 async function getAdminAuth(): Promise<AdminAuthLike> {
-  if (_adminAuthOverride) return _adminAuthOverride;
+  const override = getAdminAuthOverride();
+  if (override) return override;
   const { initializeApp, getApps, cert } = await import('firebase-admin/app');
   const { getAuth } = await import('firebase-admin/auth');
   if (!_adminApp) {

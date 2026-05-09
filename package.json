@@ -66,9 +66,14 @@
     "test:audience:helpers": "npx tsx tests/audience/audience-helpers.test.ts",
     "test:audience:book-session": "firebase emulators:exec --only firestore 'npx tsx tests/audience/book-session-enforcement.test.ts'",
     "test:users:soft-delete": "firebase emulators:exec --only firestore 'npx tsx tests/users/soft-delete.test.ts'",
-    "test:auth:reset-password-custom": "npx tsx tests/auth/reset-password-custom.test.ts"
+    "test:auth:reset-password-custom": "npx tsx tests/auth/reset-password-custom.test.ts",
+    "test:activities:media-parser": "npx tsx tests/activities/media-parser.test.ts",
+    "test:storage:upload-activity-media": "npx tsx tests/storage/upload-activity-media.test.ts"
   },
   "dependencies": {
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
     "@genkit-ai/google-genai": "^1.20.0",
     "@genkit-ai/next": "^1.20.0",
     "@hookform/resolvers": "^4.1.3",

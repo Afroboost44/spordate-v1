@@ -21,10 +21,8 @@
 
 import { Resend } from 'resend';
 import { __setResendForTesting } from '../../src/lib/email/sendEmail';
-import {
-  POST as POSTSendReset,
-  __setAdminAuthForTesting,
-} from '../../src/app/api/auth/send-reset-password/route';
+import { POST as POSTSendReset } from '../../src/app/api/auth/send-reset-password/route';
+import { __setAdminAuthForTesting } from '../../src/app/api/auth/send-reset-password/_internal';
 
 // =====================================================================
 // Mock Admin Auth (DI seam)

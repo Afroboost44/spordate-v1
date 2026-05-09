@@ -175,6 +175,26 @@ export interface MatchUser {
 }
 
 // ===================== ACTIVITIES =====================
+/** Phase 9.5 c4 — Media item rich pour MediaManager partner UI.
+ *  Backward compat : `Activity.imageUrls` reste lu en fallback si `mediaUrls` absent
+ *  (helper getMediaItems() centralise la logique). */
+export type MediaItemType = 'image' | 'video';
+export type MediaItemSource = 'upload' | 'url';
+export type MediaItemProvider = 'youtube' | 'vimeo' | 'drive' | 'direct';
+
+export interface MediaItem {
+  /** URL d'affichage (Firebase Storage download URL OU URL externe). */
+  url: string;
+  /** Type média : image (rendered <img>) ou video (rendered <iframe> embed). */
+  type: MediaItemType;
+  /** Origine : 'upload' (Firebase Storage partner) OU 'url' (lien externe collé). */
+  source: MediaItemSource;
+  /** Provider video pour générer l'embedUrl correct. Absent si type='image'. */
+  provider?: MediaItemProvider;
+  /** Embed URL pré-calculée (iframe src). Set par mediaParser pour video URLs. */
+  embedUrl?: string;
+}
+
 export interface Activity {
   activityId: string;
   title: string;
@@ -192,6 +212,10 @@ export interface Activity {
   currentParticipants: number;
   schedule: ActivitySchedule[];
   images: string[];
+  /** Phase 9.5 c4 — Media items rich (image upload/URL OU video embed YouTube/Vimeo/Drive).
+   *  Si présent : utilisé prioritairement par MediaCarousel + MediaManager partner.
+   *  Si absent : fallback sur `images: string[]` (backward compat) via getMediaItems() helper. */
+  mediaUrls?: MediaItem[];
   tags: string[];
   isActive: boolean;
   rating: number;
