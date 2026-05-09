@@ -1461,16 +1461,10 @@ export async function getSession(sessionId: string): Promise<Session | null> {
   return snap.exists() ? (snap.data() as Session) : null;
 }
 
-/**
- * Phase 9.5 c8 BUG 2 — Get a booking by id.
- * Utilisé par /sessions/[id] pour fallback quand l'id pointe sur un Booking
- * (free booking → pas de session formelle, on affiche "en attente planification").
- */
-export async function getBooking(bookingId: string): Promise<Booking | null> {
-  const fbDb = getSessionsDb();
-  const snap = await getDoc(doc(fbDb, 'bookings', bookingId));
-  return snap.exists() ? (snap.data() as Booking) : null;
-}
+// Phase 9.5 c9.1 — getBookingAdmin (Admin SDK SSR helper) déplacé dans
+// src/services/firestore-admin.ts pour éviter de pull firebase-admin dans le
+// bundle client via la chaîne AuthContext → services/firestore (webpack
+// fails sur fs/net Node-only modules).
 
 /**
  * Subscribe en temps réel à une session (pour la page détail avec countdown live).

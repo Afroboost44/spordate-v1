@@ -10,10 +10,14 @@
  * Couverture (4 cas BR1-BR4) :
  *   BR1. POST /api/checkout mode='session-free' → 200 { bookingId } (utilisé par
  *        ReserveButtonListing pour redirect /sessions/{bookingId}?status=success)
- *   BR2. getBooking(bookingId) renvoie le doc créé (activityId, status='confirmed', amount=0)
+ *   BR2. getBookingAdmin(bookingId) renvoie le doc créé (activityId, status='confirmed', amount=0)
  *   BR3. activity.title undefined → activity.name fallback dans description
  *        creditTransactions ("Free booking bundle — {name}", pas "undefined")
  *   BR4. activity ni title ni name → fallback "Activité gratuite" (no undefined)
+ *   BR5. (c9.1) getBookingAdmin SSR helper bypass rules + 404-correct path :
+ *        BR5.a getBookingAdmin(existing) → renvoie le doc (bypass auth required rules)
+ *        BR5.b getBookingAdmin(unknown) → null (caller affiche 404)
+ *        BR5.c getSession() prevails si session existe (pas de fallback inutile)
  */
 
 process.env.FIRESTORE_EMULATOR_HOST = process.env.FIRESTORE_EMULATOR_HOST || 'localhost:8080';
@@ -221,11 +225,86 @@ async function main(): Promise<void> {
     }
   }
 
+  // ===================================================================
+  // BR5 — c9.1 hotfix : getBookingAdmin SSR (Admin SDK bypass rules)
+  // ===================================================================
+  section('BR5 (c9.1) getBookingAdmin SSR — bypass auth-required rules');
+  {
+    await clearAll();
+    await seedActivity(ACTIVITY_TITLE, { title: 'Cours Afroboost gratuit' });
+    await seedUser(ALICE);
+    _mockUid = ALICE;
+    // Crée un booking via le flow normal pour avoir un id valide
+    const r = await callPost(
+      { mode: 'session-free', activityId: ACTIVITY_TITLE, userId: ALICE },
+      'mock_alice',
+    );
+    if (r.status !== 200) {
+      fail('BR5 setup', r);
+      return;
+    }
+    const bookingId = r.body.bookingId as string;
+
+    // BR5.a — Admin SDK helper renvoie le doc (bypass rules auth-only sur /bookings/)
+    const { getBookingAdmin } = await import('../../src/services/firestore-admin');
+    const found = await getBookingAdmin(bookingId);
+    if (
+      found !== null &&
+      found.activityId === ACTIVITY_TITLE &&
+      found.status === 'confirmed' &&
+      found.amount === 0
+    ) {
+      pass('BR5.a getBookingAdmin(existing) → bypass rules OK + doc retrieved');
+    } else {
+      fail('BR5.a', found);
+    }
+
+    // BR5.b — id inconnu → null (caller notFound 404)
+    const missing = await getBookingAdmin('does-not-exist-xyz');
+    if (missing === null) {
+      pass('BR5.b getBookingAdmin(unknown) → null (404 path correct)');
+    } else {
+      fail('BR5.b should be null', missing);
+    }
+
+    // BR5.c — getSession() prevails si session existe (pas de fallback inutile)
+    // Simuler en créant un doc dans 'sessions' avec id='session_real_id'
+    const realSessionId = 'session_real_brc';
+    await db.collection('sessions').doc(realSessionId).set({
+      sessionId: realSessionId,
+      activityId: ACTIVITY_TITLE,
+      partnerId: 'partner_test',
+      sport: 'tennis',
+      title: 'Real Session',
+      city: 'Geneva',
+      startAt: Timestamp.fromMillis(Date.now() + 5 * 24 * 60 * 60_000),
+      endAt: Timestamp.fromMillis(Date.now() + 6 * 24 * 60 * 60_000),
+      maxParticipants: 8,
+      currentParticipants: 0,
+      pricingTiers: [],
+      currentTier: 'early',
+      currentPrice: 2500,
+      status: 'open',
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    // Le flow SSR /sessions/[id] essaie getSession FIRST → trouvera la session ;
+    // donc le fallback Admin getBooking ne sera jamais appelé. On valide
+    // juste que getBookingAdmin avec ce sessionId est inutilisé/null
+    // (sessions !== bookings collections).
+    const sessionAsBooking = await getBookingAdmin(realSessionId);
+    if (sessionAsBooking === null) {
+      pass('BR5.c session id ≠ booking id (collections séparées) — fallback ne capture pas une session');
+    } else {
+      fail('BR5.c collection bleed', sessionAsBooking);
+    }
+  }
+
   __setVerifyAuthForTesting(null);
   await clearAll();
 
   console.log('');
-  console.log('====== Résumé Booking Redirect (BR1-BR4) ======');
+  console.log('====== Résumé Booking Redirect (BR1-BR5) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);

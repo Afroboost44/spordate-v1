@@ -33,9 +33,9 @@ import type { Metadata } from 'next';
 import {
   getSession,
   getActivity,
-  getBooking,
   getChatPhase,
 } from '@/services/firestore';
+import { getBookingAdmin } from '@/services/firestore-admin';
 import { SessionHero } from '@/components/sessions/SessionHero';
 import { SessionDetailsPanel } from '@/components/sessions/SessionDetailsPanel';
 import { PricingTimeline } from '@/components/sessions/PricingTimeline';
@@ -118,8 +118,8 @@ export default async function SessionDetailPage({ params }: PageProps) {
   // Phase 9.5 c8 BUG 2 : si pas de session avec cet id, fallback sur Booking
   // (free booking → bookingId-as-id, pas de session formelle planifiée).
   if (!session) {
-    const booking = await getBooking(sessionId).catch((err) => {
-      console.error('[SessionDetailPage] getBooking fallback failed', err);
+    const booking = await getBookingAdmin(sessionId).catch((err) => {
+      console.error('[SessionDetailPage] getBookingAdmin fallback failed', err);
       return null;
     });
     if (!booking) notFound();
