@@ -2423,6 +2423,72 @@ Cf. ligne 2434+ section "10. Journal des phases de la mission Sessions" — Phas
 
 ---
 
+## Phase 9.5 — Hotfix pré-launch ✅ COMPLET
+
+**Période** : mai 2026 (5 jours après Phase 9 close-out)
+**Contexte** : tests live partenaire post-launch beta → 5 bugs critiques découverts → 4 commits hotfix.
+
+### Récap commits Phase 9.5
+
+| Commit | Hash | Theme | Fichiers | Tests |
+|---|---|---|---|---|
+| **c1** | `b4a9567` | Google Sign-In error mapping (F1) + composite index `reviews:activityId+status+createdAt` (F2) + parallel SSR `/activities/[id]` (F3) | 3 fichiers, +45/-16 | régression validée |
+| **c2** | `3f57b9d` | Defensive `.trim()` env vars Firebase (anti trailing newline copy-paste) — bug `/partner/login` "Illegal url for new iframe" %0A | 2 fichiers, +14/-9 | typecheck + build |
+| **c3** | `0e55d16` | Reset password Resend (anti SPAM Firebase Auth default) — template `passwordResetCustom` + API route Admin SDK + DI seam + scrollbar thin partner modal | 8 fichiers, +557/-8 | 16/16 PR1-PR4 + bonus |
+| **c4** | `e873f3e` | MediaManager partner (drag&drop @dnd-kit + upload Firebase Storage 5MB cap + URL embed YouTube/Vimeo/Drive) + MediaCarousel iframe rendering activities/[id] | 16 fichiers, +1655/-71 | 21/21 MP1-MP6 + UAM1-UAM3 + bonus |
+
+**Total Phase 9.5** : **4 commits hotfix** + storage deploy `partners/{partnerId}/activities/` + Firestore deploy `reviews:activityId+status+createdAt`
+
+### Deploys Phase 9.5
+
+```bash
+# c1 F2 : composite index reviews
+firebase deploy --only firestore:indexes  # b4a9567
+
+# c4 : storage rules partners/{partnerId}/activities/
+firebase deploy --only storage  # post e873f3e
+```
+
+Vercel auto-deploy main green sur tous c1-c4.
+
+### Smoke verification post-deploy
+
+Tous tests live partner sur https://spordateur.com :
+- ✅ Google Sign-In flow (no silent error)
+- ✅ /partner/login no "Illegal url for new iframe"
+- ✅ Reset password : email Resend dans Inbox Gmail (pas spam), branding Spordate FR
+- ✅ MediaManager : upload image + URL image + URL YouTube → 3 items dans bon ordre
+- ✅ Drag & drop reorder fonctionnel (badge "Principale" change)
+- ✅ /activities/[id] : iframe YouTube embed + 2 images affichés correctement
+- ✅ Régression Phase 9 SC0-SC6 : 0 régression mesurée
+
+### Tests automated cumul Phase 9.5
+
+| Test suite | Assertions | Status |
+|---|---|---|
+| `test:auth:reset-password-custom` (c3) | 16 | ✅ |
+| `test:activities:media-parser` (c4) | 11 | ✅ |
+| `test:storage:upload-activity-media` (c4) | 10 | ✅ |
+| **Total Phase 9.5** | **37** | ✅ |
+
+**Cumul Phase 7+8+9+9.5** : ≈ **1055 tests automated** (372 P7 + 251 P8 + 395 P9 + 37 P9.5).
+
+### Différé Phase 10 (additif post-c4)
+
+- ⏭️ Video upload Firebase Storage (Phase 9.5 c4 = URL embed only)
+- ⏭️ MediaManager bulk upload multi-files (single file Phase 9.5)
+- ⏭️ Image crop / aspect ratio enforcer côté client (FFmpeg.wasm Phase 10)
+- ⏭️ Cache layer SWR pour `/activities/[id]` queries Firestore (revalidation côté client)
+- ⏭️ Helper `cleanEnv()` réutilisable pour toutes les env vars (Stripe/Resend/VAPID/Genkit) — Phase 9.5 c2 limited à Firebase
+
+### Conclusion Phase 9.5
+
+**Phase 9.5 = hotfix pré-launch live partner testing** — 5 bugs critiques résolus en 5 jours, zéro régression Phase 9 cumulée. Pattern : reproduire bug → audit code path → fix défensif + tests + déploy. **Site solide pour launch beta**.
+
+**Prochaine étape** : monitoring post-launch metrics Phase 9 doctrine §F KPIs (rétention chat J+1/J+7, conversion invite, anti-leak, T&S volume).
+
+---
+
 ### A. Doctrine économique — T&S = pré-requis rétention
 
 **Règle** : sans T&S structurée, la rétention femmes est compromise. Femmes ≈ 50% des users cibles. Une mauvaise expérience non gérée → quitte la plateforme + word-of-mouth négatif → spirale.
