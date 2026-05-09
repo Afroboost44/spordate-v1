@@ -15,6 +15,7 @@
  *   FB5. authedUid != userId → 403 forbidden
  *   FB6. Per-activity chatCreditsBundle override → grant cette valeur (10) au lieu freeActivityBundle (5)
  *   FB7. Firestore composite index manquant (FAILED_PRECONDITION) → 503 index-not-ready
+ *   FB8. orderBy('createdAt','desc')+limit(1) détecte booking récent parmi old + recent → 429
  */
 
 // ⚠️ ENV vars must be set BEFORE firebase-admin import
@@ -387,13 +388,69 @@ async function main(): Promise<void> {
   }
 
   // ===================================================================
+  // FB8 — orderBy desc + limit 1 détecte booking récent parmi mix old + recent
+  // ===================================================================
+  section('FB8 mix old (>24h) + recent (<24h) bookings → 429 (orderBy desc validé)');
+  {
+    await clearAll();
+    await seedActivity(FREE_ACTIVITY_ID, 0);
+    await seedUser(ALICE_UID);
+    _mockUid = ALICE_UID;
+
+    // Seed un booking OLD (créé 48h ago — hors fenêtre cooldown)
+    const oldBookingRef = db.collection('bookings').doc();
+    await oldBookingRef.set({
+      bookingId: oldBookingRef.id,
+      userId: ALICE_UID,
+      activityId: FREE_ACTIVITY_ID,
+      partnerId: 'partner_test',
+      sport: 'tennis',
+      status: 'confirmed',
+      amount: 0,
+      currency: 'CHF',
+      creditsUsed: 0,
+      sessionId: '',
+      paymentIntentId: 'free-old-test',
+      createdAt: Timestamp.fromMillis(Date.now() - 48 * 60 * 60 * 1000),
+    });
+
+    // Seed un booking RECENT (créé 1h ago — dans la fenêtre 24h cooldown)
+    const recentBookingRef = db.collection('bookings').doc();
+    await recentBookingRef.set({
+      bookingId: recentBookingRef.id,
+      userId: ALICE_UID,
+      activityId: FREE_ACTIVITY_ID,
+      partnerId: 'partner_test',
+      sport: 'tennis',
+      status: 'confirmed',
+      amount: 0,
+      currency: 'CHF',
+      creditsUsed: 0,
+      sessionId: '',
+      paymentIntentId: 'free-recent-test',
+      createdAt: Timestamp.fromMillis(Date.now() - 1 * 60 * 60 * 1000),
+    });
+
+    const res = await callPost(
+      { mode: 'session-free', activityId: FREE_ACTIVITY_ID, userId: ALICE_UID },
+      'mock_token_alice',
+    );
+
+    if (res.status === 429 && res.body.error === 'cooldown-active') {
+      pass('FB8 mix old+recent → 429 (orderBy desc + limit 1 picks recent)');
+    } else {
+      fail('FB8', res);
+    }
+  }
+
+  // ===================================================================
   // Cleanup
   // ===================================================================
   __setVerifyAuthForTesting(null);
   await clearAll();
 
   console.log('');
-  console.log('====== Résumé Free Booking (FB1-FB7) ======');
+  console.log('====== Résumé Free Booking (FB1-FB8) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);

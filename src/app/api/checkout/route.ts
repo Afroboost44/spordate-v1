@@ -454,6 +454,12 @@ async function handleSessionFreeMode(
     // Composite index requis : bookings(userId ASC, activityId ASC, createdAt DESC)
     // → cf firestore.indexes.json. Si manquant en prod (live deploy gap), Admin SDK throw
     // FAILED_PRECONDITION code 9 → on map en 503 'index-not-ready' UX gracieuse.
+    //
+    // ⚠️ orderBy('createdAt','desc') OBLIGATOIRE : sans cet orderBy explicite,
+    // Firestore applique implicit orderBy ASC sur le champ inequality (createdAt) →
+    // mismatch avec l'index DESC déployé → FAILED_PRECONDITION même quand l'index existe.
+    // Ref Firestore docs : "Range and array filters require composite index" §
+    // Limit 1 + orderBy desc = on récupère le booking le plus récent (suffisant pour cooldown).
     const { Timestamp } = await import('firebase-admin/firestore');
     const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
     let recentBookings;
@@ -463,6 +469,7 @@ async function handleSessionFreeMode(
         .where('userId', '==', body.userId)
         .where('activityId', '==', body.activityId)
         .where('createdAt', '>=', Timestamp.fromMillis(cutoffMs))
+        .orderBy('createdAt', 'desc')
         .limit(1)
         .get();
     } catch (queryErr) {
