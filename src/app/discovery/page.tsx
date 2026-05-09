@@ -42,6 +42,7 @@ import { createMatch } from '@/services/firestore';
 import { getMutualBlockSet } from '@/lib/blocks';
 import { computeMatchScore } from '@/lib/matching/computeMatchScore';
 import { useCredits } from '@/hooks/useCredits';
+import { useFeatureFlags } from '@/lib/site/useFeatureFlags';
 import BackButton from '@/components/BackButton';
 import ProfileActions from '@/components/ProfileActions';
 
@@ -126,6 +127,20 @@ export default function DiscoveryPage() {
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
   const { credits: creditCount, hasCredits, useCredit, canLike, canSuperMatch, canSkip, requireCreditsForChat } = useCredits();
+  const { discoveryEnabled, loading: flagsLoading } = useFeatureFlags();
+
+  // Phase 9.5 c8 — gate page derrière feature flag (default OFF launch)
+  useEffect(() => {
+    if (flagsLoading) return;
+    if (!discoveryEnabled) {
+      toast({
+        title: 'Bientôt disponible',
+        description: 'La section Rencontres sera activée prochainement.',
+        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+      });
+      router.replace('/activities');
+    }
+  }, [flagsLoading, discoveryEnabled, router, toast]);
 
   // Load REAL profiles from Firestore with matching
   useEffect(() => {

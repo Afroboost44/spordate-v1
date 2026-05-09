@@ -11,7 +11,7 @@ interface BackButtonProps {
 }
 
 export default function BackButton({
-  fallbackUrl = "/discovery",
+  fallbackUrl = "/activities",
   label = "Retour",
   className = "",
 }: BackButtonProps) {

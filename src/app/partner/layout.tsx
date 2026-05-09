@@ -131,9 +131,9 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           </div>
 
           <div className="flex items-center gap-2">
-            <Link href="/discovery" className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
+            <Link href="/activities" className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
               <Compass className="h-4 w-4" />
-              <span className="hidden md:inline">Découvrir</span>
+              <span className="hidden md:inline">Activités</span>
             </Link>
             <Link href="/" className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
               <Home className="h-4 w-4" />
@@ -163,10 +163,10 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
               </Link>
             ))}
             <div className="border-t border-white/10 pt-4 mt-4 space-y-2">
-              <Link href="/discovery" onClick={() => setMobileOpen(false)}
+              <Link href="/activities" onClick={() => setMobileOpen(false)}
                 className="flex items-center gap-3 px-5 py-4 rounded-2xl text-base font-light text-white/50 hover:bg-white/5 transition">
                 <Compass className="h-5 w-5" />
-                <span>Découvrir le site</span>
+                <span>Voir les activités</span>
               </Link>
               <Link href="/" onClick={() => setMobileOpen(false)}
                 className="flex items-center gap-3 px-5 py-4 rounded-2xl text-base font-light text-white/50 hover:bg-white/5 transition">

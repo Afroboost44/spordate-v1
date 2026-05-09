@@ -53,7 +53,7 @@ export default function LoginPage() {
         } catch {
           // Ignore errors, default to discovery
         }
-        router.replace('/discovery');
+        router.replace('/activities');
       };
 
       checkRole();

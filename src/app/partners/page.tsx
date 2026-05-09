@@ -116,7 +116,7 @@ export default function PartnersPage() {
 
   return (
     <div className="min-h-screen bg-black text-white">
-        <BackButton fallbackUrl="/discovery" />
+        <BackButton fallbackUrl="/activities" />
 
       {/* Nav */}
       <nav className="sticky top-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/90">

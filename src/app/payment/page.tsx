@@ -191,7 +191,7 @@ export default function PaymentPage() {
   if (paymentSuccess) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4">
-        <BackButton fallbackUrl="/discovery" />
+        <BackButton fallbackUrl="/activities" />
         {showConfetti && <Confetti width={width} height={height} />}
         <div className="max-w-sm w-full text-center space-y-6">
           <div className="relative inline-block">
@@ -214,7 +214,7 @@ export default function PaymentPage() {
 
           <div className="space-y-3 pt-2">
             <Button
-              onClick={() => router.push('/discovery')}
+              onClick={() => router.push('/activities')}
               className="w-full h-14 bg-gradient-to-r from-[#D91CD2] to-[#E91E63] text-white rounded-full text-base"
             >
               Découvrir des profils

@@ -1462,6 +1462,17 @@ export async function getSession(sessionId: string): Promise<Session | null> {
 }
 
 /**
+ * Phase 9.5 c8 BUG 2 — Get a booking by id.
+ * Utilisé par /sessions/[id] pour fallback quand l'id pointe sur un Booking
+ * (free booking → pas de session formelle, on affiche "en attente planification").
+ */
+export async function getBooking(bookingId: string): Promise<Booking | null> {
+  const fbDb = getSessionsDb();
+  const snap = await getDoc(doc(fbDb, 'bookings', bookingId));
+  return snap.exists() ? (snap.data() as Booking) : null;
+}
+
+/**
  * Subscribe en temps réel à une session (pour la page détail avec countdown live).
  * Retourne la fonction unsubscribe. Le callback reçoit null si le doc est supprimé.
  */

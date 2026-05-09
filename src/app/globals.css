@@ -96,3 +96,23 @@ body {
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background-color: rgba(217, 28, 210, 0.5);
 }
+
+/* Phase 9.5 c8 — credits badge pulse (animation déclenchée quand count augmente).
+   Usage : className="credits-badge-pulse" pendant 1.2s après increment. */
+@keyframes credits-badge-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(217, 28, 210, 0.6);
+    transform: scale(1);
+  }
+  40% {
+    box-shadow: 0 0 0 8px rgba(217, 28, 210, 0);
+    transform: scale(1.08);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(217, 28, 210, 0);
+    transform: scale(1);
+  }
+}
+.credits-badge-pulse {
+  animation: credits-badge-pulse 1.2s ease-out;
+}

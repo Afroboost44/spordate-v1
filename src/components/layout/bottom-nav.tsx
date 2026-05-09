@@ -3,16 +3,31 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Dumbbell, MessageCircle, User } from 'lucide-react';
+import { useFeatureFlags } from '@/lib/site/useFeatureFlags';
 
-const navItems = [
-  { href: '/discovery', icon: Home, label: 'Découvrir' },
-  { href: '/activities', icon: Dumbbell, label: 'Activités' },
-  { href: '/chat', icon: MessageCircle, label: 'Messages' },
-  { href: '/profile', icon: User, label: 'Profil' },
-];
+interface NavItem {
+  href: string;
+  icon: typeof Home;
+  label: string;
+}
+
+const ACTIVITIES_ITEM: NavItem = { href: '/activities', icon: Dumbbell, label: 'Activités' };
+const DISCOVERY_ITEM: NavItem = { href: '/discovery', icon: Home, label: 'Rencontres' };
+const CHAT_ITEM: NavItem = { href: '/chat', icon: MessageCircle, label: 'Messages' };
+const PROFILE_ITEM: NavItem = { href: '/profile', icon: User, label: 'Profil' };
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const { discoveryEnabled } = useFeatureFlags();
+
+  // Phase 9.5 c8 — Activités en premier (default landing post-login).
+  // Rencontres conditionné à discoveryEnabled (feature flag /admin).
+  const navItems: NavItem[] = [
+    ACTIVITIES_ITEM,
+    ...(discoveryEnabled ? [DISCOVERY_ITEM] : []),
+    CHAT_ITEM,
+    PROFILE_ITEM,
+  ];
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-[#D91CD2]/30 bg-black/80 backdrop-blur-xl safe-area-bottom">

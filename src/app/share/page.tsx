@@ -225,14 +225,14 @@ export default function SharePage() {
         {/* CTA retour */}
         <div className="pt-4 pb-8 space-y-3">
           <Link
-            href="/discovery"
+            href="/activities"
             className="block w-full h-14 bg-white/5 backdrop-blur-xl border border-[#D91CD2] rounded-full text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2 hover:bg-[#D91CD2]/10 transition-all"
           >
             Prêt pour un nouveau date ?
             <ArrowRight className="h-4 w-4" />
           </Link>
           <Link
-            href="/discovery"
+            href="/activities"
             className="block text-center text-sm text-white/30 hover:text-white/50 transition py-2"
           >
             Retour aux profils

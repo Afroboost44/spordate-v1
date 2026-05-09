@@ -215,7 +215,7 @@ function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
   return (
     <Card className="overflow-hidden bg-card border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20 transition-all duration-300 transform hover:-translate-y-2">
       <div className="relative h-56 w-full group">
-        <BackButton fallbackUrl="/discovery" />
+        <BackButton fallbackUrl="/" />
         <CardMediaSlide item={items[imgIndex]} fallbackSeed={activity.sport} />
         <div className="absolute inset-0 bg-black/40 pointer-events-none" />
         <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">

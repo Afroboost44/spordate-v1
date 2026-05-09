@@ -171,7 +171,7 @@ export default function PremiumPage() {
             <Button
               size="lg"
               className="w-full bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white font-light text-lg py-6 hover:opacity-90 transition-all shadow-lg shadow-[#D91CD2]/30"
-              onClick={() => router.push('/discovery')}
+              onClick={() => router.push('/activities')}
             >
               Découvrir les profils
               <ArrowRight className="ml-2 h-5 w-5" />

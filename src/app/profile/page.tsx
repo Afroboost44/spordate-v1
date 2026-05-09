@@ -312,7 +312,7 @@ export default function ProfilePage() {
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
-        <BackButton fallbackUrl="/discovery" />
+        <BackButton fallbackUrl="/activities" />
         <Loader2 className="animate-spin mr-2" /> Chargement du profil...
       </div>
     );

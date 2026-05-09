@@ -105,9 +105,14 @@ export function ReserveButtonListing({ activity, className }: ReserveButtonListi
           title: '🎉 Réservation confirmée',
           description: `Tu as reçu ${data.creditsGranted ?? 5} crédits chat.`,
           className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+          duration: 7000,
         });
-        // Redirect dashboard (pas de sessionId pour free booking pour l'instant)
-        router.push('/dashboard?status=success');
+        // Phase 9.5 c8 BUG 2 : redirect /sessions/{bookingId} pour countdown ou état "en attente"
+        if (data?.bookingId) {
+          router.push(`/sessions/${data.bookingId}?status=success`);
+        } else {
+          router.push('/activities?status=success');
+        }
       } else {
         // Paid booking flow — existing Phase 3-9 mode='session' Stripe checkout
         // Note: spec listing utilise activityId mais existing /api/checkout requires sessionId.

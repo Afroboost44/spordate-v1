@@ -19,6 +19,7 @@ import {
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
 import Link from 'next/link';
+import { useFeatureFlags } from '@/lib/site/useFeatureFlags';
 
 type Tab = 'cockpit' | 'users' | 'partners' | 'credits' | 'promos' | 'tarifs' | 'site' | 'settings' | 'errors';
 
@@ -857,6 +858,10 @@ export default function AdminManagePage() {
               </Button>
             </div>
 
+            {/* Phase 9.5 c8 — Feature flags : toggle Rencontres */}
+            <DiscoveryToggleCard />
+
+
             {/* Couleur */}
             <Card className="bg-[#111] border-white/10">
               <CardContent className="p-4 space-y-3">
@@ -1041,5 +1046,82 @@ export default function AdminManagePage() {
 
       </div>
     </div>
+  );
+}
+
+/**
+ * Phase 9.5 c8 — Toggle "Rencontres" (settings/features.discoveryEnabled).
+ * Pattern POST /api/admin/site/discovery-toggle Bearer auth + audit log adminActions.
+ */
+function DiscoveryToggleCard() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const { discoveryEnabled, loading } = useFeatureFlags();
+  const [saving, setSaving] = useState(false);
+
+  const handleToggle = async (next: boolean) => {
+    if (!user) {
+      toast({ title: 'Non authentifié', variant: 'destructive' });
+      return;
+    }
+    setSaving(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/admin/site/discovery-toggle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ enabled: next }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({
+          title: 'Échec toggle',
+          description: data?.detail || data?.error || 'Réessaie.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      toast({
+        title: next ? 'Rencontres activé' : 'Rencontres désactivé',
+        description: next
+          ? 'L\'item nav apparaît + page accessible.'
+          : 'L\'item nav est masqué + page redirige vers /activities.',
+        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+      });
+    } catch (err) {
+      console.error('[DiscoveryToggle]', err);
+      toast({ title: 'Erreur réseau', variant: 'destructive' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card className="bg-[#111] border-white/10">
+      <CardContent className="p-4 space-y-2">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex flex-col">
+            <span className="text-sm text-white font-medium">Activer la page Rencontres</span>
+            <span className="text-[11px] text-white/50">
+              Toggle global — affiche/masque l&apos;item nav «&nbsp;Rencontres&nbsp;» + redirige /discovery vers /activities si OFF.
+            </span>
+          </div>
+          <Switch
+            checked={discoveryEnabled}
+            onCheckedChange={handleToggle}
+            disabled={loading || saving}
+          />
+        </div>
+        {saving && (
+          <div className="flex items-center gap-2 text-[11px] text-white/40">
+            <Loader2 className="h-3 w-3 animate-spin" />
+            Mise à jour…
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

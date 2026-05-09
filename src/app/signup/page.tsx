@@ -30,7 +30,7 @@ export default function SignupPage() {
   // Redirect if already logged in
   useEffect(() => {
     if (!authLoading && isLoggedIn) {
-      router.replace('/discovery');
+      router.replace('/activities');
     }
   }, [isLoggedIn, authLoading, router]);
 

@@ -16,6 +16,8 @@ import {
 import { useAuth } from '@/context/AuthContext';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { useFeatureFlags } from '@/lib/site/useFeatureFlags';
+import { CreditsBadge } from '@/components/layout/CreditsBadge';
 
 
 // ─── S LOGO COMPONENT ──────────────────────────────────────────
@@ -32,6 +34,7 @@ function SLogo({ className = "h-6 w-6" }: { className?: string }) {
 export default function Header() {
   const { t, setLanguage } = useLanguage();
   const { isLoggedIn, loading, logout, user, userProfile } = useAuth();
+  const { discoveryEnabled } = useFeatureFlags();
   const [isPartner, setIsPartner] = useState(false);
 
   // Check if current user is an active partner
@@ -55,9 +58,11 @@ export default function Header() {
   }, [isLoggedIn, user?.email]);
 
   const navLinks = [
-    { href: "/discovery", label: t('nav_discovery') || "Découvrir" },
-    { href: "/profile", label: t('nav_profile') || "Mon Profil" },
     { href: "/activities", label: t('nav_activities') || "Activités" },
+    ...(discoveryEnabled
+      ? [{ href: "/discovery", label: t('nav_discovery') || "Rencontres" }]
+      : []),
+    { href: "/profile", label: t('nav_profile') || "Mon Profil" },
     { href: "/premium", label: "Premium", isPremium: true },
   ];
 
@@ -128,6 +133,7 @@ export default function Header() {
                         {user.displayName}
                       </span>
                     )}
+                    <CreditsBadge />
                     <NotificationBadge />
                     {isPartner && (
                       <Button variant="ghost" asChild className="flex items-center gap-2 text-[#A855F7] hover:text-[#A855F7]/80">

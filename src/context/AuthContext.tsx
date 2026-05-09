@@ -140,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      router.push('/discovery');
+      router.push('/activities');
     } catch (err: any) {
       setError(getFirebaseErrorMessage(err.code));
       throw err;
@@ -157,7 +157,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       // Set display name
       await updateProfile(userCredential.user, { displayName });
-      router.push('/discovery');
+      router.push('/activities');
     } catch (err: any) {
       setError(getFirebaseErrorMessage(err.code));
       throw err;
@@ -173,7 +173,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const provider = new GoogleAuthProvider();
       await signInWithPopup(auth, provider);
-      router.push('/discovery');
+      router.push('/activities');
     } catch (err: any) {
       // Phase 9.5 hotfix — surface real err.code pour debug prod
       console.error('[loginWithGoogle] Firebase error code:', err?.code, 'message:', err?.message);

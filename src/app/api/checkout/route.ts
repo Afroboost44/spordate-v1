@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
       : isPremium
       ? `${baseUrl}/premium?status=cancel`
       : hasMatch
-      ? `${baseUrl}/discovery?payment=cancelled`
+      ? `${baseUrl}/activities?payment=cancelled`
       : `${baseUrl}/payment?status=cancel`;
 
     const paymentMethodTypes: ('card' | 'twint')[] = isSubscription ? ['card'] : ['card', 'twint'];
@@ -528,6 +528,10 @@ async function handleSessionFreeMode(
     const { computeBundledCredits } = await import('@/lib/billing/creditRules');
     const bundleCredits = computeBundledCredits(activity);
 
+    // Phase 9.5 c8 BUG 2 — activity.title peut être undefined (legacy: champ name).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const activityLabel = activity.title || (activity as any).name || 'Activité gratuite';
+
     // runTransaction : create booking + grant credits + creditTransaction log
     const { FieldValue } = await import('firebase-admin/firestore');
     const bookingRef = db.collection('bookings').doc();
@@ -570,7 +574,7 @@ async function handleSessionFreeMode(
         userId: body.userId,
         type: 'purchase',
         amount: bundleCredits,
-        description: `Free booking bundle — ${activity.title}`,
+        description: `Free booking bundle — ${activityLabel}`,
         relatedId: bookingId,
         source: 'free_booking_bundle',
         activityId: body.activityId,
@@ -590,7 +594,7 @@ async function handleSessionFreeMode(
           templateName: 'bookingConfirmation',
           templateData: {
             customerName: userName,
-            sessionTitle: activity.title,
+            sessionTitle: activityLabel,
             sessionDate: '',
             partnerName: activity.partnerName || '',
             amount: 0,

@@ -14,7 +14,7 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   DndContext,
   type DragEndEvent,
@@ -35,6 +35,7 @@ import { CSS } from '@dnd-kit/utilities';
 import {
   GripVertical,
   ImagePlus,
+  ImageIcon,
   Link as LinkIcon,
   Loader2,
   Trash2,
@@ -98,6 +99,10 @@ function SortableItem({ id, item, index, onRemove }: SortableItemProps) {
   const isPrimary = index === 0;
   const isVideo = item.type === 'video';
 
+  // Phase 9.5 c8 BUG 3 — state-based fallback (vs onError display:none qui laissait
+  // le carré bg-zinc-800 vide sans repère visuel). Affiche ImageIcon si broken URL.
+  const [imgBroken, setImgBroken] = useState(false);
+
   return (
     <div
       ref={setNodeRef}
@@ -119,15 +124,15 @@ function SortableItem({ id, item, index, onRemove }: SortableItemProps) {
       <div className="h-12 w-12 shrink-0 rounded overflow-hidden bg-zinc-800 flex items-center justify-center">
         {isVideo ? (
           <Video className="h-5 w-5 text-[#D91CD2]" />
+        ) : imgBroken ? (
+          <ImageIcon className="h-5 w-5 text-white/30" />
         ) : (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={item.url}
             alt=""
             className="h-full w-full object-cover"
-            onError={(e) => {
-              (e.currentTarget as HTMLImageElement).style.display = 'none';
-            }}
+            onError={() => setImgBroken(true)}
           />
         )}
       </div>
@@ -199,11 +204,26 @@ export function MediaManager({
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   );
 
+  // Phase 9.5 c8 BUG 3 — stable id PAR ITEM (pas par position). Sans cela, ids
+  // `media-${i}` étaient position-tied → arrayMove permute items mais ids
+  // restaient 0/1/2 → @dnd-kit ne détectait pas le mouvement.
+  // Strategy : id = `${source}__${url}` ; suffixe `#${count}` pour dédup si
+  // duplicate URL (rare edge case user ajoute 2× même URL).
+  const itemIds = useMemo(() => {
+    const seen = new Map<string, number>();
+    return value.map((item) => {
+      const base = `${item.source}__${item.url}`;
+      const count = (seen.get(base) ?? 0) + 1;
+      seen.set(base, count);
+      return count === 1 ? base : `${base}#${count}`;
+    });
+  }, [value]);
+
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
-    const oldIndex = value.findIndex((_, i) => `media-${i}` === active.id);
-    const newIndex = value.findIndex((_, i) => `media-${i}` === over.id);
+    const oldIndex = itemIds.findIndex((id) => id === active.id);
+    const newIndex = itemIds.findIndex((id) => id === over.id);
     if (oldIndex < 0 || newIndex < 0) return;
     onChange(arrayMove(value, oldIndex, newIndex));
   };
@@ -300,8 +320,6 @@ export function MediaManager({
     }
   };
 
-  const itemIds = value.map((_, i) => `media-${i}`);
-
   return (
     <div className="flex flex-col gap-3">
       <Label className="text-xs uppercase tracking-wider text-white/60 flex items-center justify-between">
@@ -324,8 +342,8 @@ export function MediaManager({
             <div className="flex flex-col gap-2">
               {value.map((item, i) => (
                 <SortableItem
-                  key={`media-${i}`}
-                  id={`media-${i}`}
+                  key={itemIds[i]}
+                  id={itemIds[i]}
                   item={item}
                   index={i}
                   onRemove={() => handleRemove(i)}

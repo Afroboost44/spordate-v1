@@ -162,7 +162,7 @@ export default async function InvitePage({
     <div className="min-h-screen bg-black">
       <div className="container mx-auto px-4 py-12 max-w-2xl">
         <Link
-          href="/discovery"
+          href="/activities"
           className="inline-flex items-center gap-2 text-gray-500 hover:text-white transition-colors mb-8 text-sm font-light"
         >
           <ArrowLeft className="h-4 w-4" />

@@ -33,6 +33,7 @@ import type { Metadata } from 'next';
 import {
   getSession,
   getActivity,
+  getBooking,
   getChatPhase,
 } from '@/services/firestore';
 import { SessionHero } from '@/components/sessions/SessionHero';
@@ -40,6 +41,9 @@ import { SessionDetailsPanel } from '@/components/sessions/SessionDetailsPanel';
 import { PricingTimeline } from '@/components/sessions/PricingTimeline';
 import { SessionTSActions } from '@/components/sessions/SessionTSActions';
 import { ParticipantsList } from '@/components/sessions/ParticipantsList';
+import { BookingPendingHero } from '@/components/sessions/BookingPendingHero';
+import { SessionSuccessToast } from '@/components/sessions/SessionSuccessToast';
+import { computeBundledCredits } from '@/lib/billing/creditRules';
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
@@ -111,7 +115,38 @@ export default async function SessionDetailPage({ params }: PageProps) {
     return null;
   });
 
-  if (!session) notFound();
+  // Phase 9.5 c8 BUG 2 : si pas de session avec cet id, fallback sur Booking
+  // (free booking → bookingId-as-id, pas de session formelle planifiée).
+  if (!session) {
+    const booking = await getBooking(sessionId).catch((err) => {
+      console.error('[SessionDetailPage] getBooking fallback failed', err);
+      return null;
+    });
+    if (!booking) notFound();
+
+    const bookingActivity = await getActivity(booking.activityId).catch(() => null);
+    let creditsGranted = 0;
+    if (bookingActivity) {
+      try {
+        creditsGranted = computeBundledCredits(bookingActivity);
+      } catch {
+        creditsGranted = 0;
+      }
+    }
+
+    return (
+      <div className="bg-black text-white">
+        <SessionSuccessToast creditsGranted={creditsGranted} />
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12">
+          <BookingPendingHero
+            booking={booking}
+            activity={bookingActivity}
+            creditsGranted={creditsGranted}
+          />
+        </div>
+      </div>
+    );
+  }
 
   const activity = await getActivity(session.activityId).catch((err) => {
     console.error('[SessionDetailPage] getActivity failed', err);
@@ -123,6 +158,12 @@ export default async function SessionDetailPage({ params }: PageProps) {
 
   return (
     <div className="bg-black text-white">
+      <SessionSuccessToast
+        creditsGranted={(() => {
+          if (!activity) return 0;
+          try { return computeBundledCredits(activity); } catch { return 0; }
+        })()}
+      />
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col gap-10 sm:gap-12">
         {/* ============= LIEN RETOUR ============= */}
         <Link
