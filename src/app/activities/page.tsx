@@ -1,16 +1,16 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, MapPin, ChevronLeft, ChevronRight, Play, Video } from "lucide-react";
+import { Loader2, MapPin, ChevronLeft, ChevronRight, Play, Video, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
 import BackButton from '@/components/BackButton';
 import { getMediaItems } from '@/lib/activities/media';
-import { getVideoThumbnail } from '@/lib/activities/mediaParser';
+import { getVideoThumbnail, getVideoEmbedUrl } from '@/lib/activities/mediaParser';
 import type { MediaItem } from '@/types/firestore';
 
 interface ActivityCard {
@@ -48,9 +48,58 @@ const AFROBOOST_FALLBACK: ActivityCard[] = [
   },
 ];
 
-/** Phase 9.5 c5 — render media item card preview (image OR video thumb + play overlay) */
-function CardMediaSlide({ item, fallbackSeed }: { item: MediaItem; fallbackSeed: string }) {
-  if (item.type === 'video') {
+/**
+ * Phase 9.5 c6 — Video iframe autoplay+loop+mute toggle + IntersectionObserver perf.
+ *
+ * Behavior :
+ *  - Mount iframe seulement quand visible viewport (threshold 0.5)
+ *  - Pause via postMessage quand sort viewport (économie ressource)
+ *  - Volume toggle button top-right corner (Volume2/VolumeX) avec stopPropagation
+ *  - Card click → /activities/[id] reste functional (iframe pointer-events: none)
+ */
+function CardVideoEmbed({ item }: { item: MediaItem }) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const [isVisible, setIsVisible] = useState(false);
+  const [muted, setMuted] = useState(true);
+
+  // IntersectionObserver : mount iframe only when visible
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+          } else {
+            // Pause via postMessage YouTube/Vimeo API quand sort viewport
+            const iframe = iframeRef.current;
+            if (iframe?.contentWindow) {
+              if (item.provider === 'youtube') {
+                iframe.contentWindow.postMessage(
+                  '{"event":"command","func":"pauseVideo","args":""}',
+                  '*',
+                );
+              } else if (item.provider === 'vimeo') {
+                iframe.contentWindow.postMessage(
+                  JSON.stringify({ method: 'pause' }),
+                  '*',
+                );
+              }
+            }
+          }
+        });
+      },
+      { threshold: 0.5 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [item.provider]);
+
+  const embedUrl = getVideoEmbedUrl(item, { autoplay: true, muted: true, loop: true });
+  // Si Drive ou autre non-embeddable → fallback thumbnail c5
+  if (!embedUrl) {
     const thumb = getVideoThumbnail(item);
     return (
       <div className="absolute inset-0 w-full h-full bg-zinc-900 flex items-center justify-center">
@@ -66,7 +115,6 @@ function CardMediaSlide({ item, fallbackSeed }: { item: MediaItem; fallbackSeed:
         ) : (
           <Video className="h-12 w-12 text-white/30" aria-hidden="true" />
         )}
-        {/* Play overlay center (Q4=A no autoplay — user click pour /activities/[id] embed) */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-black/50 rounded-full p-3 backdrop-blur-sm">
             <Play className="h-7 w-7 text-[#D91CD2] fill-[#D91CD2]" aria-hidden="true" />
@@ -74,6 +122,67 @@ function CardMediaSlide({ item, fallbackSeed }: { item: MediaItem; fallbackSeed:
         </div>
       </div>
     );
+  }
+
+  const handleToggleMute = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const iframe = iframeRef.current;
+    if (!iframe?.contentWindow) {
+      setMuted((m) => !m);
+      return;
+    }
+    const newMuted = !muted;
+    if (item.provider === 'youtube') {
+      const cmd = newMuted ? 'mute' : 'unMute';
+      iframe.contentWindow.postMessage(
+        `{"event":"command","func":"${cmd}","args":""}`,
+        '*',
+      );
+    } else if (item.provider === 'vimeo') {
+      iframe.contentWindow.postMessage(
+        JSON.stringify({ method: 'setMuted', value: newMuted }),
+        '*',
+      );
+    }
+    setMuted(newMuted);
+  };
+
+  return (
+    <div ref={containerRef} className="absolute inset-0 w-full h-full bg-zinc-900">
+      {isVisible && (
+        <iframe
+          ref={iframeRef}
+          src={embedUrl}
+          title=""
+          frameBorder={0}
+          allow="autoplay; encrypted-media; picture-in-picture"
+          allowFullScreen
+          className="w-full h-full pointer-events-none"
+          loading="lazy"
+        />
+      )}
+      {/* Volume toggle — z-10 + stopPropagation pour ne pas naviguer card click */}
+      <button
+        type="button"
+        onClick={handleToggleMute}
+        className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/60 backdrop-blur-sm text-[#D91CD2] hover:text-white hover:bg-[#D91CD2]/80 transition-colors"
+        aria-label={muted ? 'Activer le son' : 'Couper le son'}
+      >
+        {muted ? (
+          <VolumeX className="h-4 w-4" aria-hidden="true" />
+        ) : (
+          <Volume2 className="h-4 w-4" aria-hidden="true" />
+        )}
+      </button>
+    </div>
+  );
+}
+
+/** Phase 9.5 c5 + c6 — render media item card preview (image OR video autoplay loop muted toggle) */
+function CardMediaSlide({ item, fallbackSeed }: { item: MediaItem; fallbackSeed: string }) {
+  if (item.type === 'video') {
+    return <CardVideoEmbed item={item} />;
   }
   // type='image' OR fallback
   return (

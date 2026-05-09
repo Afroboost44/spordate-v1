@@ -95,6 +95,78 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoUrl | 
 }
 
 /**
+ * Phase 9.5 c6 — embed URL avec opts autoplay/muted/loop pour preview cards listing.
+ *
+ * Behaviors :
+ *  - YouTube : autoplay=1 nécessite mute=1 (browser policy). loop=1 nécessite playlist={videoId}.
+ *    controls=0 + modestbranding=1 + rel=0 → embed minimaliste sans branding.
+ *    playsinline=1 → iOS Safari respecte autoplay sur mobile.
+ *  - Vimeo : autoplay=1 nécessite muted=1. background=1 → pas de controls, autoplay+loop+muted activés
+ *    par défaut (idéal preview hero card). dnt=1 → no tracking.
+ *  - Drive : pas d'autoplay fiable côté Google Drive embed → return null (caller fallback thumbnail c5).
+ *
+ * Charte UX : opts.autoplay=true par défaut listing card, false sur detail page (MediaCarousel
+ * où user voit player full controls).
+ *
+ * @param item MediaItem (must be type='video')
+ * @param opts.autoplay default true
+ * @param opts.muted default true (browser policy autoplay requires muted)
+ * @param opts.loop default true (replay automatique listing card)
+ * @returns iframe src URL ou null si non embeddable autoplay (Drive)
+ */
+export function getVideoEmbedUrl(
+  item: { type: string; url?: string; provider?: string; videoId?: string; embedUrl?: string },
+  opts: { autoplay?: boolean; muted?: boolean; loop?: boolean } = {},
+): string | null {
+  if (item.type !== 'video') return null;
+  const autoplay = opts.autoplay !== false; // default true
+  const muted = opts.muted !== false;
+  const loop = opts.loop !== false;
+
+  // Récupère provider + videoId (re-parse si pas stocké, cohérent getVideoThumbnail c5)
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const stored = (item as any).videoId as string | undefined;
+  let provider = item.provider;
+  let videoId: string | undefined = stored;
+  if (!videoId && item.url) {
+    const parsed = parseVideoUrl(item.url);
+    if (parsed) {
+      provider = parsed.provider;
+      videoId = parsed.videoId;
+    }
+  }
+  if (!videoId) return null;
+
+  if (provider === 'youtube') {
+    const params = new URLSearchParams();
+    if (autoplay) params.set('autoplay', '1');
+    if (muted) params.set('mute', '1');
+    if (loop) {
+      params.set('loop', '1');
+      params.set('playlist', videoId); // YouTube requires playlist=videoId pour loop
+    }
+    params.set('controls', '0');
+    params.set('modestbranding', '1');
+    params.set('rel', '0');
+    params.set('playsinline', '1');
+    params.set('enablejsapi', '1'); // postMessage API (mute/unmute toggle c6)
+    return `https://www.youtube.com/embed/${videoId}?${params.toString()}`;
+  }
+  if (provider === 'vimeo') {
+    const params = new URLSearchParams();
+    if (autoplay) params.set('autoplay', '1');
+    if (muted) params.set('muted', '1');
+    if (loop) params.set('loop', '1');
+    params.set('background', autoplay && muted && loop ? '1' : '0');
+    params.set('dnt', '1');
+    params.set('playsinline', '1');
+    return `https://player.vimeo.com/video/${videoId}?${params.toString()}`;
+  }
+  // Drive : pas d'autoplay fiable → null (caller fallback thumbnail static c5)
+  return null;
+}
+
+/**
  * Phase 9.5 c5 — extract video thumbnail URL pour preview cards listing.
  *
  * Behaviors :

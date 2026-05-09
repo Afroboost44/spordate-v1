@@ -23,7 +23,12 @@
  *   - Firebase Storage URL (firebasestorage.googleapis.com) → image extension match
  */
 
-import { parseVideoUrl, isImageUrl, getVideoThumbnail } from '../../src/lib/activities/mediaParser';
+import {
+  parseVideoUrl,
+  isImageUrl,
+  getVideoThumbnail,
+  getVideoEmbedUrl,
+} from '../../src/lib/activities/mediaParser';
 
 // =====================================================================
 // Mini test runner
@@ -327,8 +332,130 @@ async function main(): Promise<void> {
     }
   }
 
+  // ===================================================================
+  // Phase 9.5 c6 — getVideoEmbedUrl tests (autoplay+loop+mute)
+  // ===================================================================
+  section('MP11 getVideoEmbedUrl YouTube avec autoplay+mute+loop+playlist={id}');
+  {
+    const item = {
+      type: 'video' as const,
+      url: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      provider: 'youtube' as const,
+      videoId: 'dQw4w9WgXcQ',
+    };
+    const url = getVideoEmbedUrl(item, { autoplay: true, muted: true, loop: true });
+    if (!url) {
+      fail('MP11 expected URL non-null');
+    } else {
+      const checks = [
+        ['autoplay=1', url.includes('autoplay=1')],
+        ['mute=1', url.includes('mute=1')],
+        ['loop=1', url.includes('loop=1')],
+        ['playlist=dQw4w9WgXcQ (loop fix)', url.includes('playlist=dQw4w9WgXcQ')],
+        ['controls=0', url.includes('controls=0')],
+        ['playsinline=1', url.includes('playsinline=1')],
+        ['enablejsapi=1 (postMessage API)', url.includes('enablejsapi=1')],
+        ['/embed/dQw4w9WgXcQ?', url.includes('/embed/dQw4w9WgXcQ?')],
+      ];
+      let allOk = true;
+      for (const [name, ok] of checks) {
+        if (!ok) {
+          allOk = false;
+          fail(`MP11 missing ${name}`, url);
+          break;
+        }
+      }
+      if (allOk) pass('MP11 YouTube embed URL avec tous params autoplay+mute+loop+playlist+controls+playsinline+enablejsapi');
+    }
+  }
+
+  section('MP12 getVideoEmbedUrl YouTube autoplay=false → no autoplay param');
+  {
+    const item = {
+      type: 'video' as const,
+      url: 'https://www.youtube.com/watch?v=abc12345678',
+      provider: 'youtube' as const,
+      videoId: 'abc12345678',
+    };
+    const url = getVideoEmbedUrl(item, { autoplay: false, muted: false, loop: false });
+    if (!url) {
+      fail('MP12 expected URL non-null');
+    } else if (
+      !url.includes('autoplay=1') &&
+      !url.includes('mute=1') &&
+      !url.includes('loop=1')
+    ) {
+      pass('MP12 autoplay=false → no autoplay/mute/loop params (detail page usage)');
+    } else {
+      fail('MP12 should not include autoplay params', url);
+    }
+  }
+
+  section('MP13 getVideoEmbedUrl Vimeo avec autoplay+muted+loop+background');
+  {
+    const item = {
+      type: 'video' as const,
+      url: 'https://vimeo.com/123456789',
+      provider: 'vimeo' as const,
+      videoId: '123456789',
+    };
+    const url = getVideoEmbedUrl(item, { autoplay: true, muted: true, loop: true });
+    if (!url) {
+      fail('MP13 expected URL non-null');
+    } else {
+      const checks = [
+        ['autoplay=1', url.includes('autoplay=1')],
+        ['muted=1', url.includes('muted=1')],
+        ['loop=1', url.includes('loop=1')],
+        ['background=1', url.includes('background=1')],
+        ['dnt=1 (no tracking)', url.includes('dnt=1')],
+        ['player.vimeo.com/video/123456789', url.includes('player.vimeo.com/video/123456789')],
+      ];
+      let allOk = true;
+      for (const [name, ok] of checks) {
+        if (!ok) {
+          allOk = false;
+          fail(`MP13 missing ${name}`, url);
+          break;
+        }
+      }
+      if (allOk) pass('MP13 Vimeo embed URL avec autoplay+muted+loop+background+dnt');
+    }
+  }
+
+  section('MP14 getVideoEmbedUrl Drive → null (no reliable autoplay)');
+  {
+    const item = {
+      type: 'video' as const,
+      url: 'https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/view',
+      provider: 'drive' as const,
+      videoId: '1aBc2DeF3GhI4JkL5MnO',
+    };
+    const url = getVideoEmbedUrl(item, { autoplay: true, muted: true, loop: true });
+    if (url === null) {
+      pass('MP14 Drive → null (caller fallback c5 thumbnail Lucide Play overlay)');
+    } else {
+      fail('MP14 Drive should be null', { url });
+    }
+  }
+
+  section('MP14 bonus getVideoEmbedUrl image type → null (defensive)');
+  {
+    const item = {
+      type: 'image' as const,
+      url: 'https://example.com/photo.jpg',
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const url = getVideoEmbedUrl(item as any);
+    if (url === null) {
+      pass('MP14 bonus image type → null (defensive skip)');
+    } else {
+      fail('MP14 image should be null', { url });
+    }
+  }
+
   console.log('');
-  console.log('====== Résumé Media Parser (MP1-MP6 + bonus + MP7-MP10 c5) ======');
+  console.log('====== Résumé Media Parser (MP1-MP6 + bonus + MP7-MP10 c5 + MP11-MP14 c6) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);
