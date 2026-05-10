@@ -60,7 +60,7 @@ import {
   StorageUploadError,
   STORAGE_UPLOAD_MAX_BYTES,
 } from '@/lib/storage/uploadActivityMedia';
-import { parseVideoUrl, isImageUrl, getVideoThumbnail } from '@/lib/activities/mediaParser';
+import { parseVideoUrl, isImageUrl, getVideoThumbnailChain } from '@/lib/activities/mediaParser';
 import type { MediaItem } from '@/types/firestore';
 
 // =====================================================================
@@ -79,6 +79,38 @@ interface SortableItemProps {
   item: MediaItem;
   index: number;
   onRemove: () => void;
+}
+
+/**
+ * Phase 9.5 c14 BUG3 — preview thumbnail vidéo avec fallback chain.
+ *
+ * YouTube : tente hqdefault → mqdefault → default (certaines vidéos n'ont pas
+ * de hqdefault → 404 → onError walk la chaîne avant fallback Video icon).
+ * Vimeo/Drive : chain vide → directement Video icon (pas de thumbnail public).
+ */
+function SortableVideoThumb({ item }: { item: MediaItem }) {
+  const chain = getVideoThumbnailChain(item);
+  const [idx, setIdx] = useState(0);
+  const exhausted = idx >= chain.length;
+
+  if (exhausted) {
+    return <Video className="h-5 w-5 text-[#D91CD2]" />;
+  }
+  return (
+    <>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={chain[idx]}
+        alt=""
+        className="h-full w-full object-cover"
+        loading="eager"
+        onError={() => setIdx((i) => i + 1)}
+      />
+      <span className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+        <Video className="h-4 w-4 text-white" />
+      </span>
+    </>
+  );
 }
 
 function SortableItem({ id, item, index, onRemove }: SortableItemProps) {
@@ -120,29 +152,12 @@ function SortableItem({ id, item, index, onRemove }: SortableItemProps) {
         <GripVertical className="h-4 w-4" />
       </button>
 
-      {/* Preview — c10.A : YouTube videos affichent leur thumbnail (avant : Video icon générique) */}
+      {/* Preview — c10.A + c14 BUG3 : chaîne hq → mq → default fallback (certaines
+          vidéos retournent 404 sur hqdefault.jpg, on tente mq puis default avant
+          de fallback sur l'icône Video). */}
       <div className="h-12 w-12 shrink-0 rounded overflow-hidden bg-zinc-800 flex items-center justify-center relative">
         {isVideo ? (
-          (() => {
-            const thumb = getVideoThumbnail(item);
-            if (thumb && !imgBroken) {
-              return (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={thumb}
-                    alt=""
-                    className="h-full w-full object-cover"
-                    onError={() => setImgBroken(true)}
-                  />
-                  <span className="absolute inset-0 flex items-center justify-center bg-black/30">
-                    <Video className="h-4 w-4 text-white" />
-                  </span>
-                </>
-              );
-            }
-            return <Video className="h-5 w-5 text-[#D91CD2]" />;
-          })()
+          <SortableVideoThumb item={item} />
         ) : imgBroken ? (
           <ImageIcon className="h-5 w-5 text-white/30" />
         ) : (

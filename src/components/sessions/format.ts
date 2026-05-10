@@ -6,12 +6,18 @@
  */
 
 import { breakdownMs } from '@/hooks/useCountdown';
+import { tsToMs } from '@/lib/firestore/timestamp';
 
-/** Convertit Date | Timestamp Firestore | epoch ms en epoch ms. */
-function toMs(target: Date | { toMillis: () => number } | number): number {
-  if (typeof target === 'number') return target;
-  if (target instanceof Date) return target.getTime();
-  return target.toMillis();
+/**
+ * Convertit Date | Timestamp Firestore | epoch ms | JSON {seconds,nanoseconds} en epoch ms.
+ *
+ * Phase 9.5 c14 BUG1 fix : utilise tsToMs centralisé qui gère les 4 formats
+ * incluant le Timestamp sérialisé SSR (cause du crash /sessions →
+ * SessionCard → CountdownBadge → formatBadge → toMs).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function toMs(target: any): number {
+  return tsToMs(target);
 }
 
 export interface FormatBadgeOptions {

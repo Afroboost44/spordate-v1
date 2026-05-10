@@ -21,14 +21,15 @@ export function HeroSection() {
       <div className="absolute inset-0 bg-black/60" />
       <div className="relative z-10 container px-4 md:px-6">
         <div className="max-w-3xl mx-auto">
-          <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl font-headline bg-clip-text text-transparent bg-gradient-to-r from-violet-400 to-rose-400">
+          {/* Phase 9.5 c14 BUG4 — charte stricte #D91CD2 magenta unifié (avant : gradient violet/rose). */}
+          <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl lg:text-7xl font-headline text-[#D91CD2]">
             Find Your Perfect Match.
           </h1>
           <p className="mt-4 md:mt-6 text-lg md:text-xl text-gray-200 max-w-2xl mx-auto">
             Connect with people who share your passion for sports. Spordateur helps you find a partner for your favorite activity, from tennis to yoga.
           </p>
           <div className="mt-8 flex justify-center">
-            <Button asChild size="lg" className="bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] text-white font-bold text-lg px-8 py-6 rounded-full transition-transform transform hover:scale-105 shadow-lg shadow-rose-500/30 hover:shadow-violet-500/40">
+            <Button asChild size="lg" className="bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white font-bold text-lg px-8 py-6 rounded-full transition-transform transform hover:scale-105 shadow-lg shadow-[#D91CD2]/30">
               <Link href="/signup">Get Started</Link>
             </Button>
           </div>

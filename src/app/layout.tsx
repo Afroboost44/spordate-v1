@@ -18,9 +18,16 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Spordateur",
   },
+  // Phase 9.5 c14 BUG5 — métadonnées icons explicites + sizes pour cache-bust browser
+  // Chrome n'utilise pas toujours `/favicon.ico` automatique, force le link rel via metadata.
   icons: {
-    icon: "/favicon.ico",
-    apple: "/apple-touch-icon.png",
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
+    shortcut: ["/favicon.ico"],
   },
   openGraph: {
     title: "Spordateur",

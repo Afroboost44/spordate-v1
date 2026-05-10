@@ -44,9 +44,40 @@ import { ParticipantsList } from '@/components/sessions/ParticipantsList';
 import { BookingPendingHero } from '@/components/sessions/BookingPendingHero';
 import { SessionSuccessToast } from '@/components/sessions/SessionSuccessToast';
 import { computeBundledCredits } from '@/lib/billing/creditRules';
+import { getMediaItems } from '@/lib/activities/media';
+import { getVideoThumbnail } from '@/lib/activities/mediaParser';
+import type { MediaItem } from '@/types/firestore';
 
 interface PageProps {
   params: Promise<{ sessionId: string }>;
+}
+
+/**
+ * Phase 9.5 c14 BUG2 — derive media pour SessionHero.
+ *
+ * Priorité :
+ *  1. activity.thumbnailMedia (champ legacy explicit) si défini
+ *  2. activity.mediaUrls[0] (rich Phase 9.5 c4) si présent
+ *     - type='image' → { type:'image', url }
+ *     - type='video' provider='youtube' → { type:'image', url: getVideoThumbnail() }
+ *       (SessionMediaPlayer attend type='image'|'video' avec url unique)
+ *  3. fallback null → SessionHero affiche placeholder Picsum (scenario zero-asset)
+ */
+function deriveSessionHeroMedia(
+  activity: { thumbnailMedia?: { type: 'image' | 'video'; url: string; posterUrl?: string }; mediaUrls?: MediaItem[]; images?: string[] } | null,
+): { type: 'image' | 'video'; url: string; posterUrl?: string } | undefined {
+  if (!activity) return undefined;
+  if (activity.thumbnailMedia?.url) return activity.thumbnailMedia;
+  const items = getMediaItems({ mediaUrls: activity.mediaUrls, images: activity.images });
+  const first = items[0];
+  if (!first) return undefined;
+  if (first.type === 'image') {
+    return { type: 'image', url: first.url };
+  }
+  // video : utiliser thumbnail YouTube si dispo, sinon skip
+  const thumb = getVideoThumbnail(first);
+  if (thumb) return { type: 'image', url: thumb };
+  return undefined;
 }
 
 // ISR 30s (équilibre fraîcheur tier/price vs coût Firestore)
@@ -72,11 +103,12 @@ export async function generateMetadata({
 
   const description = `${session.sport} à ${session.city}. Sport pour de vraies rencontres en Suisse romande.`;
 
-  // Image preview si activity.thumbnailMedia existe (Phase 5 : pas de fallback /og-default.jpg)
-  const ogImage = activity?.thumbnailMedia?.url
+  // Phase 9.5 c14 BUG2 — preview via deriveSessionHeroMedia (fallback mediaUrls + YouTube thumb)
+  const previewMedia = deriveSessionHeroMedia(activity);
+  const ogImage = previewMedia?.url
     ? [
         {
-          url: activity.thumbnailMedia.url,
+          url: previewMedia.url,
           width: 1200,
           height: 630,
           alt: session.title,
@@ -84,9 +116,7 @@ export async function generateMetadata({
       ]
     : undefined;
 
-  const twitterImage = activity?.thumbnailMedia?.url
-    ? [activity.thumbnailMedia.url]
-    : undefined;
+  const twitterImage = previewMedia?.url ? [previewMedia.url] : undefined;
 
   return {
     title: `${session.title} — Spordateur`,
@@ -167,18 +197,20 @@ export default async function SessionDetailPage({ params }: PageProps) {
       <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col gap-10 sm:gap-12">
         {/* ============= LIEN RETOUR ============= */}
         <Link
-          href="/sessions"
+          href="/activities"
           className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white font-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded self-start"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          <span>Toutes les sessions</span>
+          <span>Voir toutes les activités</span>
         </Link>
 
         {/* ============= HERO ============= */}
+        {/* Phase 9.5 c14 BUG2 : derive media depuis thumbnailMedia OU 1er mediaUrls
+            (sessions auto-créées Phase 9.5 c11 n'ont pas thumbnailMedia → fallback) */}
         <SessionHero
           session={session}
           phase={phase}
-          media={activity?.thumbnailMedia}
+          media={deriveSessionHeroMedia(activity)}
           partnerName={activity?.partnerName}
         />
 
