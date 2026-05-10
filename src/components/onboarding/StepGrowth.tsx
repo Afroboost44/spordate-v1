@@ -53,8 +53,8 @@ export function StepGrowth({ referralCode, onGoToProfile }: StepGrowthProps) {
           <Gift className="h-4 w-4" />
           <p className="text-sm">Ton code de parrainage :</p>
         </div>
-        <div className="p-4 bg-gradient-to-r from-purple-500/10 to-pink-500/10 border border-purple-500/30 rounded-xl">
-          <p className="font-mono text-2xl font-bold tracking-wider text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+        <div className="p-4 bg-[#D91CD2]/10 border border-[#D91CD2]/30 rounded-xl">
+          <p className="font-mono text-2xl font-bold tracking-wider text-[#D91CD2]">
             {referralCode}
           </p>
         </div>
@@ -84,7 +84,7 @@ export function StepGrowth({ referralCode, onGoToProfile }: StepGrowthProps) {
         </Button>
         <Button
           onClick={shareReferralLink}
-          className="flex-1 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] text-white font-semibold group"
+          className="flex-1 bg-[#D91CD2] text-white font-semibold group"
           data-testid="share-link"
         >
           <Share2 className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" /> 

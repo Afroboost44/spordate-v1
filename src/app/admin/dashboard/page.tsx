@@ -328,7 +328,7 @@ export default function AdminDashboard() {
               <span className="text-xs text-gray-500 w-10">{item.date}</span>
               <div className="flex-1 flex items-end gap-1 h-12">
                 <div
-                  className="bg-gradient-to-t from-[#7B1FA2] to-[#D91CD2] rounded-t w-full transition-all duration-300"
+                  className="bg-[#D91CD2] rounded-t w-full transition-all duration-300"
                   style={{ height: `${height}%` }}
                 />
               </div>
@@ -576,7 +576,7 @@ export default function AdminDashboard() {
                 <CardTitle>User Management</CardTitle>
                 <CardDescription>Ban, suspend, or monitor users</CardDescription>
               </div>
-              <Button onClick={loadAllData} disabled={loadingData} className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90">
+              <Button onClick={loadAllData} disabled={loadingData} className="bg-[#D91CD2] hover:opacity-90">
                 {loadingData ? 'Loading...' : 'Refresh'}
               </Button>
             </CardHeader>
@@ -655,7 +655,7 @@ export default function AdminDashboard() {
                 <CardTitle>Partner Management</CardTitle>
                 <CardDescription>Approve or reject partner applications</CardDescription>
               </div>
-              <Button onClick={loadAllData} disabled={loadingData} className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90">
+              <Button onClick={loadAllData} disabled={loadingData} className="bg-[#D91CD2] hover:opacity-90">
                 {loadingData ? 'Loading...' : 'Refresh'}
               </Button>
             </CardHeader>
@@ -733,7 +733,7 @@ export default function AdminDashboard() {
                 <CardTitle>Payout Management</CardTitle>
                 <CardDescription>Process creator payouts</CardDescription>
               </div>
-              <Button onClick={loadAllData} disabled={loadingData} className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90">
+              <Button onClick={loadAllData} disabled={loadingData} className="bg-[#D91CD2] hover:opacity-90">
                 {loadingData ? 'Loading...' : 'Refresh'}
               </Button>
             </CardHeader>
@@ -802,7 +802,7 @@ export default function AdminDashboard() {
                 <CardTitle>Recent Transactions</CardTitle>
                 <CardDescription>All payment activity</CardDescription>
               </div>
-              <Button onClick={loadAllData} disabled={loadingData} className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90">
+              <Button onClick={loadAllData} disabled={loadingData} className="bg-[#D91CD2] hover:opacity-90">
                 {loadingData ? 'Loading...' : 'Refresh'}
               </Button>
             </CardHeader>
@@ -853,7 +853,7 @@ export default function AdminDashboard() {
                 <CardTitle>Error Logs</CardTitle>
                 <CardDescription>Unresolved system errors</CardDescription>
               </div>
-              <Button onClick={loadAllData} disabled={loadingData} className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90">
+              <Button onClick={loadAllData} disabled={loadingData} className="bg-[#D91CD2] hover:opacity-90">
                 {loadingData ? 'Loading...' : 'Refresh'}
               </Button>
             </CardHeader>
@@ -926,7 +926,7 @@ export default function AdminDashboard() {
               </div>
               <Button
                 onClick={handleSendNotification}
-                className="w-full bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] hover:opacity-90"
+                className="w-full bg-[#D91CD2] hover:opacity-90"
               >
                 <Mail className="mr-2 h-4 w-4" />
                 Send to All Users

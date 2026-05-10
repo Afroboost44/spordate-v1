@@ -1307,7 +1307,7 @@ END:VCALENDAR`;
                 setIsMatch(false);
                 handleBookSession();
               }}
-              className="w-full h-14 rounded-2xl bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white font-semibold text-base tracking-wide flex items-center justify-center gap-2.5 hover:opacity-90 hover:scale-[1.01] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[#D91CD2]/20"
+              className="w-full h-14 rounded-2xl bg-[#D91CD2] text-white font-semibold text-base tracking-wide flex items-center justify-center gap-2.5 hover:opacity-90 hover:scale-[1.01] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[#D91CD2]/20"
             >
               <Zap className="h-5 w-5" />
               Réserver mon date maintenant
@@ -1326,10 +1326,10 @@ END:VCALENDAR`;
 
       {/* Partner Detail Modal */}
       <Dialog open={showPartnerModal} onOpenChange={setShowPartnerModal}>
-        <DialogContent className="max-w-md w-full bg-[#0a0a0a] border-violet-500/30 text-white p-0 overflow-hidden">
-          <DialogHeader className="p-6 pb-0 bg-gradient-to-b from-violet-900/20 to-transparent">
+        <DialogContent className="max-w-md w-full bg-[#0a0a0a] border-[#D91CD2]/30 text-white p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-0 bg-gradient-to-b from-[#D91CD2]/15 to-transparent">
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-16 h-16 rounded-xl bg-gradient-to-br from-[#7B1FA2] to-[#E91E63] flex items-center justify-center text-white font-bold text-2xl">
+              <div className="w-16 h-16 rounded-xl bg-[#D91CD2] flex items-center justify-center text-white font-bold text-2xl">
                 {selectedPartner?.name.charAt(0)}
               </div>
               <div>
@@ -1386,7 +1386,7 @@ END:VCALENDAR`;
                 <div className="flex -space-x-3">
                   {mockParticipants.map((p) => (
                     <Avatar key={p.id} className="border-2 border-[#0a0a0a] w-10 h-10">
-                      <AvatarFallback className="bg-gradient-to-br from-[#7B1FA2] to-[#E91E63] text-white text-sm">
+                      <AvatarFallback className="bg-[#D91CD2] text-white text-sm">
                         {p.avatar}
                       </AvatarFallback>
                     </Avatar>
@@ -1403,7 +1403,7 @@ END:VCALENDAR`;
             <div className="flex gap-3">
               <Button 
                 onClick={() => setShowPartnerModal(false)}
-                className="flex-1 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63]"
+                className="flex-1 bg-[#D91CD2]"
               >
                 <Ticket className="mr-2 h-4 w-4" />
                 Réserver ici
@@ -1446,7 +1446,7 @@ END:VCALENDAR`;
                 <Ticket className="h-5 w-5 text-violet-400" />
                 <span className="font-semibold">Votre ticket {lastBooking?.isDuo ? 'Duo' : 'Solo'}</span>
                 {lastBooking?.isDuo && (
-                  <Badge className="bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] text-white text-xs">
+                  <Badge className="bg-[#D91CD2] text-white text-xs">
                     <Gift className="h-3 w-3 mr-1" />
                     2 places
                   </Badge>
@@ -1505,7 +1505,7 @@ END:VCALENDAR`;
                 setShowTicketSuccess(false);
                 router.push(`/share?sport=${encodeURIComponent(lastBooking?.profile || 'Sport Date')}&partner=${encodeURIComponent(lastBooking?.partner || '')}`);
               }}
-              className="w-full bg-gradient-to-r from-[#D91CD2] to-[#E91E63] hover:from-[#E91E63] hover:to-[#D91CD2] text-white"
+              className="w-full bg-gradient-to-r from-[#D91CD2] to-[#E91E63] hover:bg-[#D91CD2]/90 text-white"
             >
               <Share2 className="mr-2 h-4 w-4" />
               Partager mon Sport Date

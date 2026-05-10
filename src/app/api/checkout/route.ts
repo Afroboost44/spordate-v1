@@ -494,10 +494,14 @@ async function handleSessionFreeMode(
       throw queryErr;
     }
     if (!recentBookings.empty) {
+      // Phase 9.5 c15 BUG A — retourne existingBookingId pour redirect UX direct
+      // (au lieu d'un toast destructif qui perd l'accès à la réservation existante).
+      const existingBookingId = recentBookings.docs[0].id;
       return NextResponse.json(
         {
           error: 'cooldown-active',
           detail: '1 réservation gratuite par activité par 24h',
+          existingBookingId,
         },
         { status: 429 },
       );

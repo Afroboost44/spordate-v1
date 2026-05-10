@@ -699,7 +699,7 @@ export default function ProfilePage() {
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="w-auto bg-gradient-to-r from-pink-600 to-purple-600 hover:from-pink-500 hover:to-purple-500 text-white font-medium h-11 px-8 rounded-full text-sm"
+            className="w-auto bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white font-medium h-11 px-8 rounded-full text-sm"
           >
             {isSaving ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
             Sauvegarder mon profil

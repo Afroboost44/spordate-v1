@@ -7,7 +7,7 @@ export default function Footer() {
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row justify-between items-center space-y-6 md:space-y-0">
           <div className="flex items-center space-x-2">
-            <Dumbbell className="h-6 w-6 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] rounded-md p-1 text-white" />
+            <Dumbbell className="h-6 w-6 bg-[#D91CD2] rounded-md p-1 text-white" />
             <span className="font-light text-lg text-white">Spordateur</span>
           </div>
 

@@ -58,20 +58,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       // Phase 9.5 c9 — auto-promote admin si email matche allowlist + role !== admin.
-      // Best-effort fire-and-forget vers /api/auth/admin-self-promote (Admin SDK bypass rules).
-      // Idempotent côté serveur : alreadyAdmin → no-op + no log doublon.
-      if (isAdminEmail(firebaseUser.email) && profile.role !== 'admin') {
+      // Phase 9.5 c15 BUG B — auto-DEMOTE si role='admin' mais email plus dans
+      // ADMIN_EMAILS (ex: bassicustomshoes@gmail.com retiré c15).
+      // Best-effort fire-and-forget vers /api/auth/admin-self-promote (Admin SDK
+      // bypass rules). Idempotent côté serveur : alreadyAdmin/alreadyNonAdmin → no-op.
+      const emailIsAdmin = isAdminEmail(firebaseUser.email);
+      const profileIsAdmin = profile.role === 'admin';
+      const needsPromote = emailIsAdmin && !profileIsAdmin;
+      const needsDemote = !emailIsAdmin && profileIsAdmin;
+      if (needsPromote || needsDemote) {
         try {
           const idToken = await firebaseUser.getIdToken();
           const res = await fetch('/api/auth/admin-self-promote', {
             method: 'POST',
-            headers: { Authorization: `Bearer ${idToken}` },
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${idToken}`,
+            },
+            body: JSON.stringify({ action: needsDemote ? 'demote' : 'promote' }),
           });
           if (res.ok) {
             const data = await res.json().catch(() => null);
-            if (data?.ok && data?.role === 'admin') {
-              console.log('[Auth] Auto-promote admin OK pour', firebaseUser.email);
-              // Refetch profile pour rendu immédiat (sinon stale)
+            if (data?.ok && (data?.role === 'admin' || data?.demoted)) {
+              const verb = needsDemote ? 'Auto-demote' : 'Auto-promote';
+              console.log(`[Auth] ${verb} OK pour`, firebaseUser.email, '→', data.role);
               const refreshed = await getUser(firebaseUser.uid);
               if (refreshed) profile = refreshed;
             }

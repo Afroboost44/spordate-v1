@@ -59,6 +59,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
     }
 
+    const body = await request.json().catch(() => ({}));
+    const action: 'promote' | 'demote' = body?.action === 'demote' ? 'demote' : 'promote';
+
     const db = await getAdminDb();
     const userSnap = await db.collection('users').doc(uid).get();
     if (!userSnap.exists) {
@@ -67,6 +70,57 @@ export async function POST(request: NextRequest) {
     const userData = userSnap.data() as { email?: string; role?: string };
     const email = userData?.email;
 
+    const { Timestamp, FieldValue } = await import('firebase-admin/firestore');
+
+    // ─── DEMOTE PATH (Phase 9.5 c15 BUG B) ──────────────────────────────
+    // Trigger : user a role='admin' MAIS email plus dans ADMIN_EMAILS allowlist
+    // (ex: bassicustomshoes@gmail.com retiré c15). Pas de demote pour autres users.
+    if (action === 'demote') {
+      // Server-side check : ne demote QUE les emails actuellement non-admin allowed
+      // (anti-spoof : un user ne peut pas demote un autre user via cet endpoint
+      //  car uid vient du Bearer token verifié — il agit sur lui-même).
+      if (isAdminEmail(email)) {
+        return NextResponse.json(
+          { error: 'still-eligible', detail: 'email is in admin allowlist, refuse demote' },
+          { status: 409 },
+        );
+      }
+      // Idempotent : déjà non-admin → no-op
+      if (userData?.role !== 'admin') {
+        return NextResponse.json(
+          { ok: true, alreadyNonAdmin: true, role: userData?.role || 'user' },
+          { status: 200 },
+        );
+      }
+
+      const newRole: 'partner' | 'user' = 'user';
+      await db.collection('users').doc(uid).update({
+        role: newRole,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      const demoAuditRef = db.collection('adminActions').doc();
+      await demoAuditRef.set({
+        actionId: demoAuditRef.id,
+        adminId: 'system',
+        actionType: 'auto_demote_admin',
+        targetType: 'user',
+        targetId: uid,
+        metadata: {
+          email,
+          previousRole: 'admin',
+          newRole,
+          source: 'login',
+          reason: 'email-removed-from-admin-allowlist',
+        },
+        createdAt: Timestamp.now(),
+      });
+      return NextResponse.json(
+        { ok: true, demoted: true, role: newRole },
+        { status: 200 },
+      );
+    }
+
+    // ─── PROMOTE PATH (Phase 9.5 c9, comportement original) ──────────────
     if (!isAdminEmail(email)) {
       return NextResponse.json(
         { error: 'not-eligible', detail: 'email not in admin allowlist' },
@@ -83,7 +137,6 @@ export async function POST(request: NextRequest) {
     }
 
     // Promote
-    const { Timestamp, FieldValue } = await import('firebase-admin/firestore');
     await db.collection('users').doc(uid).update({
       role: 'admin',
       updatedAt: FieldValue.serverTimestamp(),

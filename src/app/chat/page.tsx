@@ -515,7 +515,7 @@ function ChatWindow({
           <DialogFooter>
             <Button
               onClick={handleOnboardingDismiss}
-              className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white font-light hover:opacity-90 w-full"
+              className="bg-[#D91CD2] text-white font-light hover:opacity-90 w-full"
             >
               Compris
             </Button>
@@ -555,7 +555,7 @@ function ChatWindow({
             )}
             <AlertDialogAction
               onClick={() => setShowL3Dialog(false)}
-              className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white font-light hover:opacity-90"
+              className="bg-[#D91CD2] text-white font-light hover:opacity-90"
             >
               Compris
             </AlertDialogAction>
@@ -575,7 +575,7 @@ function ChatWindow({
               Réservez une activité avec {otherUser.displayName} pour débloquer la conversation.
             </p>
             <Button
-              className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white font-light hover:opacity-90"
+              className="bg-[#D91CD2] text-white font-light hover:opacity-90"
               onClick={() => router.push('/payment')}
             >
               <CreditCard className="mr-2 h-4 w-4" />
@@ -659,7 +659,7 @@ function ChatWindow({
                             className={cn(
                               "rounded-2xl px-3.5 py-2.5",
                               isMe
-                                ? "bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white rounded-br-md"
+                                ? "bg-[#D91CD2] text-white rounded-br-md"
                                 : "bg-zinc-800 text-gray-200 rounded-bl-md"
                             )}
                           >
@@ -704,7 +704,7 @@ function ChatWindow({
                 type="submit"
                 size="icon"
                 disabled={!inputValue.trim() || sending || insufficientCredits}
-                className="h-10 w-10 rounded-xl bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white hover:opacity-90 disabled:opacity-30 flex-shrink-0"
+                className="h-10 w-10 rounded-xl bg-[#D91CD2] text-white hover:opacity-90 disabled:opacity-30 flex-shrink-0"
               >
                 {sending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

@@ -170,7 +170,7 @@ export default function PremiumPage() {
 
             <Button
               size="lg"
-              className="w-full bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white font-light text-lg py-6 hover:opacity-90 transition-all shadow-lg shadow-[#D91CD2]/30"
+              className="w-full bg-[#D91CD2] text-white font-light text-lg py-6 hover:opacity-90 transition-all shadow-lg shadow-[#D91CD2]/30"
               onClick={() => router.push('/activities')}
             >
               Découvrir les profils
@@ -205,7 +205,7 @@ export default function PremiumPage() {
 
             <h1 className="text-4xl md:text-6xl font-light text-white tracking-tight">
               Passez au niveau
-              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2]">
+              <span className="block text-transparent bg-clip-text bg-[#D91CD2]">
                 supérieur
               </span>
             </h1>
@@ -316,7 +316,7 @@ export default function PremiumPage() {
                       onClick={() => handleSubscribe(plan.id)}
                       className={`w-full text-base py-6 font-light transition-all ${
                         isYearly
-                          ? 'bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white hover:opacity-90 shadow-lg shadow-[#D91CD2]/30'
+                          ? 'bg-[#D91CD2] text-white hover:opacity-90 shadow-lg shadow-[#D91CD2]/30'
                           : 'bg-zinc-800 text-white hover:bg-zinc-700 border border-zinc-700'
                       }`}
                     >

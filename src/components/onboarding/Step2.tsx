@@ -166,7 +166,7 @@ export function Step2({ data, onDataChange, onBack, onSubmit, loading, sports }:
         </Button>
         <Button
           type="submit"
-          className="flex-1 h-11 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] text-white font-semibold"
+          className="flex-1 h-11 bg-[#D91CD2] text-white font-semibold"
           disabled={loading}
           data-testid="step2-submit"
         >

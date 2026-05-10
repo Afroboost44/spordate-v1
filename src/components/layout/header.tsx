@@ -158,7 +158,7 @@ export default function Header() {
                     <Button variant="ghost" asChild>
                         <Link href="/login">{t('nav_login') || "Connexion"}</Link>
                     </Button>
-                    <Button asChild className="bg-gradient-to-r from-[#9333EA] to-[#C026D3] text-white font-semibold">
+                    <Button asChild className="bg-[#D91CD2] text-white font-semibold">
                         <Link href="/signup">{t('nav_signup') || "Inscription"}</Link>
                     </Button>
                 </>
@@ -209,7 +209,7 @@ export default function Header() {
                         <Button variant="outline" asChild className="w-full">
                            <Link href="/login">{t('nav_login') || "Connexion"}</Link>
                         </Button>
-                        <Button asChild className="w-full bg-gradient-to-r from-[#9333EA] to-[#C026D3] text-white font-semibold">
+                        <Button asChild className="w-full bg-[#D91CD2] text-white font-semibold">
                           <Link href="/signup">{t('nav_signup') || "Inscription"}</Link>
                         </Button>
                     </>

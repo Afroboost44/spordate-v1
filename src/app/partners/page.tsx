@@ -124,7 +124,7 @@ export default function PartnersPage() {
           <div className="flex items-center gap-3">
             <button onClick={() => router.back()} className="text-white/40 hover:text-white/70 transition mr-2"><ArrowLeft className="h-5 w-5" /></button>
             <Link href="/" className="flex items-center gap-2">
-              <Dumbbell className="h-7 w-7 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63] rounded-md p-1 text-white" />
+              <Dumbbell className="h-7 w-7 bg-[#D91CD2] rounded-md p-1 text-white" />
               <span className="text-lg font-light tracking-widest uppercase">Spordateur</span>
             </Link>
           </div>

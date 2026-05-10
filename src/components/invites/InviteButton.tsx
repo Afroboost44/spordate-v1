@@ -360,7 +360,7 @@ export function InviteButton({
             <Button
               onClick={handleSubmit}
               disabled={loading || messageOver}
-              className="bg-gradient-to-r from-[#7B1FA2] to-[#D91CD2] text-white font-light hover:opacity-90"
+              className="bg-[#D91CD2] text-white font-light hover:opacity-90"
             >
               {loading ? (
                 <>

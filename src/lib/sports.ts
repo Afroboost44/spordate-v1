@@ -25,12 +25,14 @@ export const DEFAULT_SPORTS: Sport[] = [
 ];
 
 // Phase 9.5 c9 — ADMIN_EMAILS list (auto-promote au login).
+// Phase 9.5 c15 BUG B — bassicustomshoes@gmail.com retiré (test only). Bassi gère
+// l'admin avec contact.artboost@gmail.com uniquement. AuthContext déclenche
+// auto-demote si user a role='admin' mais email pas dans cette liste.
 // Ajouter une entrée ici pour qu'un nouvel email devienne admin sans édition Firestore manuelle.
 // Note : email comparison via isAdminEmail() : case-insensitive + trim() pour
 // neutraliser les copy-paste avec espaces ou casse mixte.
 export const ADMIN_EMAILS = [
   'contact.artboost@gmail.com',
-  'bassicustomshoes@gmail.com',
 ] as const;
 
 /** Backward-compat (existing /admin/dashboard + TandSReviewsPanel). */

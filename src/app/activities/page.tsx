@@ -277,7 +277,7 @@ function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
         </p>
         <p className="text-xs text-foreground/30 mb-4">{activity.schedule}</p>
         <div className="flex justify-between items-center">
-          <p className="text-xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-rose-400">
+          <p className="text-xl font-bold text-[#D91CD2]">
             {activity.price === 0 ? 'Gratuit' : `${activity.price} CHF`}
           </p>
           <div className="flex items-center gap-2">

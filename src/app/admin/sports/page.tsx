@@ -211,7 +211,7 @@ export default function AdminSportsPage() {
             </div>
             <Button
               onClick={handleAddSport}
-              className="w-full h-9 bg-gradient-to-r from-[#7B1FA2] to-[#E91E63]"
+              className="w-full h-9 bg-[#D91CD2]"
             >
               <Plus className="h-4 w-4 mr-2" />
               Ajouter

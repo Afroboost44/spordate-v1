@@ -68,6 +68,18 @@ export function ReserveButtonListing({ activity, className }: ReserveButtonListi
         });
         const data = await res.json();
         if (!res.ok) {
+          // Phase 9.5 c15 BUG A — 429 cooldown : si server renvoie existingBookingId,
+          // redirect direct vers la réservation existante (au lieu d'un toast destructif).
+          if (res.status === 429 && typeof data?.existingBookingId === 'string') {
+            toast({
+              title: 'Tu as déjà réservé',
+              description: 'On t\'amène à ta réservation existante.',
+              className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+              duration: 4000,
+            });
+            router.push(`/sessions/${data.existingBookingId}?status=success`);
+            return;
+          }
           if (res.status === 429) {
             toast({
               title: 'Déjà réservée',
