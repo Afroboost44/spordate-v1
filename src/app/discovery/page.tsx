@@ -321,9 +321,6 @@ export default function DiscoveryPage() {
           where('expiresAt', '>', now)
         );
         const snapshot = await getDocs(q);
-        // Phase 9.5 c37-debug — logs temporaires pour diagnostic modal vide
-        console.log('[DBG c37] boosts query response — count:', snapshot.docs.length);
-        console.log('[DBG c37] boosts raw data:', snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
         const ids = new Set<string>();
         const boostDocs: any[] = [];
         snapshot.forEach(doc => {
@@ -333,7 +330,6 @@ export default function DiscoveryPage() {
           }
           boostDocs.push({ id: doc.id, ...data });
         });
-        console.log('[DBG c37] boostedPartnerIds Set:', Array.from(ids));
         setBoostedPartnerIds(ids);
         setBoostedActivities_db(boostDocs);
         console.log(`[Discovery] ${ids.size} partenaires boostés chargés`);
@@ -354,9 +350,6 @@ export default function DiscoveryPage() {
           snap = await getDocs(q);
         }
         const acts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        // Phase 9.5 c37-debug — logs temporaires
-        console.log('[DBG c37] realActivities count:', acts.length);
-        console.log('[DBG c37] realActivities partnerIds:', acts.map((a: any) => ({ id: a.id, name: a.name, partnerId: a.partnerId, isActive: a.isActive })));
         setRealActivities(acts);
       } catch (err) {
         console.warn('[Discovery] Erreur chargement activités:', err);
@@ -423,14 +416,6 @@ export default function DiscoveryPage() {
   const visibleActivities = realActivities.filter((act) =>
     boostedPartnerIds.has(act.partnerId)
   );
-  // Phase 9.5 c37-debug — log render-time pour diagnostic intersection
-  console.log('[DBG c37] visibleActivities (render):', {
-    realActivitiesLength: realActivities.length,
-    boostedPartnerIdsCount: boostedPartnerIds.size,
-    boostedPartnerIdsArray: Array.from(boostedPartnerIds),
-    visibleActivitiesLength: visibleActivities.length,
-    visibleActivitiesIds: visibleActivities.map((a: any) => ({ id: a.id, partnerId: a.partnerId })),
-  });
 
   const handleNextProfile = () => {
     setCurrentIndex(prev => prev + 1);
