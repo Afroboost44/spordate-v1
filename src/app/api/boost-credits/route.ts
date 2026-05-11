@@ -77,7 +77,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
-    const partnerId = (body?.partnerId as string) || uid;
+    // Phase 9.5 c33 BUG#4 — Forcer partnerId = uid (Bearer auth) au lieu de body.partnerId.
+    // Cohérent avec Activity.partnerId écrit côté partner/offers (= user.uid) et empêche
+    // un partner d'écrire un boost pour un autre partner. Le client pouvait envoyer un
+    // partner doc id != user.uid (cas Partner créé en flow séparé), provoquant
+    // un mismatch silencieux côté lecture (/partner/boost et /discovery).
+    const partnerId = uid;
     const duration = body?.duration as string;
     const city = (body?.city as string) || '';
     const country = (body?.country as string) || '';

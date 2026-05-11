@@ -139,17 +139,21 @@ export default function PartnerBoostPage() {
   }, [searchParams, partnerId, user]);
 
   const handleBoost = async () => {
+    if (!user) return;
     setIsLoading(true);
     try {
+      // Phase 9.5 c33 BUG#4 — Bearer auth ajouté (server force partnerId = uid)
+      const idToken = await user.getIdToken();
       const res = await fetch('/api/boost-checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
         body: JSON.stringify({
           duration: selectedDuration,
           city: selectedCity,
           country: selectedCountry || undefined,
-          partnerId: partnerId || user?.uid || '',
-          userId: user?.uid || '',
         }),
       });
 
@@ -184,7 +188,7 @@ export default function PartnerBoostPage() {
           Authorization: `Bearer ${idToken}`,
         },
         body: JSON.stringify({
-          partnerId: partnerId || user.uid,
+          // Phase 9.5 c33 BUG#4 — partnerId retiré du body (server force = uid Bearer).
           duration: selectedDuration,
           city: selectedCity,
           country: selectedCountry || undefined,

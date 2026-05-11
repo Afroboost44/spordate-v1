@@ -31,8 +31,9 @@ import { useAuth } from "@/context/AuthContext";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import {
   collection, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc,
-  serverTimestamp, orderBy
+  serverTimestamp, orderBy, Timestamp
 } from 'firebase/firestore';
+import { computeFallbackTiers } from '@/services/firestore';
 
 interface Activity {
   activityId: string;
@@ -355,7 +356,53 @@ export default function PartnerOffersPage() {
       };
       if (editing) {
         await updateDoc(doc(db, 'activities', editing.activityId), data);
-        toast({ title: 'Activité mise à jour !' });
+
+        // Phase 9.5 c33 BUG#2 — Propagation aux sessions futures SANS réservations.
+        // Bassi voyait /sessions/{X} avec anciens prix 8/10/12 alors qu'il avait
+        // updaté l'Activity à 25 CHF côté /partner/offers. Sync uniquement les
+        // sessions sans bookings (currentParticipants===0) pour respecter le V9
+        // anti-cheat freeze + cohérence contractuelle envers les users payants.
+        let synced = 0;
+        let preserved = 0;
+        try {
+          const now = Timestamp.now();
+          const sessionsQ = query(
+            collection(db, 'sessions'),
+            where('activityId', '==', editing.activityId),
+            where('startAt', '>', now),
+          );
+          const sessionsSnap = await getDocs(sessionsQ);
+          // Tiers à appliquer : priorité defaultPricingTiers (partner config),
+          // sinon fallback automatique sur le nouveau price (cohérent c29a).
+          const newTiers =
+            pricingTiersPayload.length > 0
+              ? pricingTiersPayload
+              : computeFallbackTiers(data.price);
+          const earlyTier = newTiers.find((t) => t.kind === 'early');
+          for (const sdoc of sessionsSnap.docs) {
+            const sdata = sdoc.data();
+            if ((sdata.currentParticipants || 0) > 0) {
+              preserved++;
+              continue;
+            }
+            await updateDoc(sdoc.ref, {
+              pricingTiers: newTiers,
+              currentTier: 'early',
+              currentPrice: earlyTier?.price ?? 0,
+            });
+            synced++;
+          }
+        } catch (syncErr) {
+          console.warn('[Offers] Session sync failed:', syncErr);
+        }
+
+        toast({
+          title: 'Activité mise à jour !',
+          description:
+            synced + preserved === 0
+              ? undefined
+              : `${synced} session(s) future(s) synchronisée(s). ${preserved} préservée(s) (réservations).`,
+        });
       } else {
         const ref = doc(collection(db, 'activities'));
         await setDoc(ref, { ...data, activityId: ref.id, currentParticipants: 0, rating: 0, reviewCount: 0, createdAt: serverTimestamp() });
@@ -594,25 +641,26 @@ export default function PartnerOffersPage() {
                   <Input value={formAddress} onChange={e => setFormAddress(e.target.value)} placeholder="Rue du Sport 12" className="bg-[#1A1A1A] border-white/10 h-12" />
                 </div>
               </div>
-              <div className="grid gap-2">
-                <Label className="text-white/50">Horaires *</Label>
-                <Input value={formSchedule} onChange={e => setFormSchedule(e.target.value)} placeholder="Mar 19h, Jeu 19h, Sam 10h" className="bg-[#1A1A1A] border-white/10 h-12" required />
-              </div>
-              {/* Phase 9.5 c11 — Date prochaine séance (optionnel) — déclenche countdown auto sur free booking */}
+              {/* Phase 9.5 c33 BUG#1 — Champ "Horaires *" texte libre retiré pour
+                  simplification (confusion 2 champs horaires côté Bassi). Le seul
+                  champ de planning est désormais "Prochaine séance" (datetime-local
+                  structuré), maintenant OBLIGATOIRE. Backward-compat : on conserve
+                  schedule:formSchedule dans le payload (vide pour les nouvelles
+                  activités) pour ne pas casser les Activities legacy en lecture. */}
               <div className="grid gap-2">
                 <Label className="text-white/50 flex items-center justify-between">
-                  <span>Prochaine séance — date et heure</span>
-                  <span className="text-[10px] uppercase tracking-wider text-white/30 normal-case">Optionnel</span>
+                  <span>Prochaine séance — date et heure *</span>
                 </Label>
                 <Input
                   type="datetime-local"
                   value={formScheduledAt}
                   onChange={e => setFormScheduledAt(e.target.value)}
                   className="bg-[#1A1A1A] border-white/10 h-12 text-white"
+                  required
                 />
                 <p className="text-[11px] text-white/40">
-                  Si défini : un compte à rebours s&apos;affiche aux participants sur la page de leur réservation.
-                  Sinon : page &quot;En attente de planification&quot; affichée.
+                  Date et heure de la prochaine séance disponible à la réservation.
+                  Un compte à rebours s&apos;affiche aux participants sur leur page de réservation.
                 </p>
               </div>
               {/* Phase 9 SC6 c1/4 — Audience type selector (Q1=A enum) */}

@@ -4,8 +4,10 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { verifyAuth } from '@/lib/auth/verifyAuth';
 
 export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
 
 const BOOST_PRICES: Record<string, { price: number; label: string; description: string }> = {
   '24h': { price: 1500, label: 'Boost 24h', description: 'Visibilité boostée pendant 24 heures' },
@@ -15,7 +17,15 @@ const BOOST_PRICES: Record<string, { price: number; label: string; description: 
 
 export async function POST(request: NextRequest) {
   try {
-    const { duration, city, country, partnerId, userId } = await request.json();
+    // Phase 9.5 c33 BUG#4 — Bearer auth + forcer partnerId = uid (cohérent
+    // Activity.partnerId = user.uid côté partner/offers, et empêche un partner
+    // d'acheter un boost pour un autre partner).
+    const uid = await verifyAuth(request);
+    if (!uid) {
+      return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    }
+
+    const { duration, city, country } = await request.json();
 
     if (!duration || !BOOST_PRICES[duration]) {
       return NextResponse.json({ error: 'Durée invalide' }, { status: 400 });
@@ -23,9 +33,8 @@ export async function POST(request: NextRequest) {
     if (!city) {
       return NextResponse.json({ error: 'Ville requise' }, { status: 400 });
     }
-    if (!partnerId && !userId) {
-      return NextResponse.json({ error: 'partnerId ou userId requis' }, { status: 400 });
-    }
+
+    const partnerId = uid;
 
     const apiKey = process.env.STRIPE_SECRET_KEY;
     if (!apiKey) {
@@ -57,7 +66,7 @@ export async function POST(request: NextRequest) {
       }],
       metadata: {
         type: 'boost',
-        partnerId: partnerId || userId || '',
+        partnerId,
         duration,
         city,
         country: country || 'Suisse',

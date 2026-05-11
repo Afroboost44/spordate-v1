@@ -293,13 +293,15 @@ function ActivityCardComponent({
         {activity.description && (
           <p className="text-foreground/50 text-sm mb-2 line-clamp-2">{activity.description}</p>
         )}
-        {/* Phase 9.5 c11 — date prochaine séance si scheduledAt défini, sinon fallback schedule legacy */}
-        <p className="text-xs text-[#D91CD2] mb-1 font-medium">
+        {/* Phase 9.5 c33 BUG#1 — affichage simplifié : uniquement scheduledAt (le champ
+            schedule texte libre est obsolète, retiré du formulaire partner). Backward-
+            compat : si Activity legacy a schedule mais pas scheduledAt, on affiche
+            "Date à venir" plutôt que le texte schedule non structuré. */}
+        <p className="text-xs text-[#D91CD2] mb-4 font-medium">
           {activity.scheduledAt
             ? `Prochaine séance : ${formatScheduledLabel(activity)}`
             : 'Date à venir'}
         </p>
-        <p className="text-xs text-foreground/30 mb-4">{activity.schedule}</p>
         <div className="flex justify-between items-center">
           <p className="text-xl font-bold text-[#D91CD2]">
             {activity.price === 0 ? 'Gratuit' : `${activity.price} CHF`}
