@@ -231,9 +231,15 @@ export interface TemplateDataMap {
 // =====================================================================
 
 function layout(opts: { headerBadgeText: string; bodyHtml: string; footerNote?: string }): string {
+  // Phase 9.5 c38c — Adresse postale + email retirés du footer pour
+  // confidentialité. Coordonnées complètes accessibles uniquement via
+  // /legal (Mentions légales) et /terms (CGU) pour conformité LCD/RGPD.
+  // L'email contact@afroboosteur.com reste mentionné DANS le corps du message
+  // quand pertinent (support, appeal sanction, etc.) — c'est uniquement le
+  // footer générique qui est nettoyé.
   const footer =
     opts.footerNote ??
-    '© 2026 Association Afroboosteur — contact@afroboosteur.com — Rue des Maillefer 39, 2000 Neuchâtel';
+    '© 2026 Association Afroboosteur · Neuchâtel, Suisse · spordateur.com';
   return `<!DOCTYPE html>
 <html lang="fr">
 <head>
