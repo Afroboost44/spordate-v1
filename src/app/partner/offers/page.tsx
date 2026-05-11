@@ -501,13 +501,14 @@ export default function PartnerOffersPage() {
 
                 {formPricingEnabled ? (
                   <div className="space-y-3">
-                    {/* Phase 9.5 c31.1 hotfix CSS — grid responsive (stack mobile,
-                        3 col sm+) + min-w-0 sur cols pour empêcher l'overflow modal
-                        sm:max-w-[500px]. Labels en text-[10px] + leading tight pour
-                        tenir sur 2 lignes sans pousser la largeur. */}
-                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                      <div className="grid gap-1 min-w-0">
-                        <Label className="text-[10px] text-white/50 leading-tight">
+                    {/* Phase 9.5 c32.1 fix radical — stack vertical permanent (label
+                        + input fixe à droite + CHF). Anciens grid-cols-3 (c31) puis
+                        responsive grid (c31.1) débordaient encore sur modal ~470px.
+                        Layout label flex-1 + input w-20 fixe + "CHF" trailing : pas de
+                        possibilité d'overflow horizontal quel que soit le viewport. */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3">
+                        <Label className="text-xs text-white/50 flex-1 min-w-0 truncate">
                           {t('partner_pricing_early_label')}
                         </Label>
                         <Input
@@ -515,11 +516,12 @@ export default function PartnerOffersPage() {
                           value={formEarlyPrice}
                           onChange={(e) => setFormEarlyPrice(e.target.value)}
                           placeholder="12"
-                          className="w-full bg-[#0D0D0D] border-white/10 h-10 text-sm"
+                          className="w-20 h-9 text-sm bg-[#0D0D0D] border-white/10"
                         />
+                        <span className="text-xs text-white/30 w-8 text-right">CHF</span>
                       </div>
-                      <div className="grid gap-1 min-w-0">
-                        <Label className="text-[10px] text-white/50 leading-tight">
+                      <div className="flex items-center gap-3">
+                        <Label className="text-xs text-white/50 flex-1 min-w-0 truncate">
                           {t('partner_pricing_standard_label')}
                         </Label>
                         <Input
@@ -527,11 +529,12 @@ export default function PartnerOffersPage() {
                           value={formStandardPrice}
                           onChange={(e) => setFormStandardPrice(e.target.value)}
                           placeholder="15"
-                          className="w-full bg-[#0D0D0D] border-white/10 h-10 text-sm"
+                          className="w-20 h-9 text-sm bg-[#0D0D0D] border-white/10"
                         />
+                        <span className="text-xs text-white/30 w-8 text-right">CHF</span>
                       </div>
-                      <div className="grid gap-1 min-w-0">
-                        <Label className="text-[10px] text-white/50 leading-tight">
+                      <div className="flex items-center gap-3">
+                        <Label className="text-xs text-white/50 flex-1 min-w-0 truncate">
                           {t('partner_pricing_last_label')}
                         </Label>
                         <Input
@@ -539,8 +542,9 @@ export default function PartnerOffersPage() {
                           value={formLastPrice}
                           onChange={(e) => setFormLastPrice(e.target.value)}
                           placeholder="18"
-                          className="w-full bg-[#0D0D0D] border-white/10 h-10 text-sm"
+                          className="w-20 h-9 text-sm bg-[#0D0D0D] border-white/10"
                         />
+                        <span className="text-xs text-white/30 w-8 text-right">CHF</span>
                       </div>
                     </div>
                     {(() => {
