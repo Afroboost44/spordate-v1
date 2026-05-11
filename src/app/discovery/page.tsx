@@ -442,20 +442,23 @@ export default function DiscoveryPage() {
     }
 
     try {
-      // 1. Créer doc likes/{fromUid}_{toUid} — idempotent via composite doc id.
-      //    Si déjà liké, setDoc with merge no-op (le like existe déjà, on
-      //    continue le flow de détection mutuelle).
+      // 1. Phase 9.5 c38a-fix3 — Stratégie skip-if-exists au lieu de setDoc merge.
+      //    Avant : setDoc({merge:true}) déclenchait UPDATE si doc existait → rules
+      //    create-only rejetaient avec permission-denied. Maintenant : getDoc
+      //    check, puis setDoc CREATE seulement si absent. Idempotence préservée
+      //    (un re-like = no-op DB-side, le flow mutual check continue normalement).
       const likeId = `${user.uid}_${targetUid}`;
-      await setDoc(
-        doc(db, 'likes', likeId),
-        {
+      const ownLikeRef = doc(db, 'likes', likeId);
+      const ownLikeSnap = await getDoc(ownLikeRef);
+      if (!ownLikeSnap.exists()) {
+        await setDoc(ownLikeRef, {
           fromUid: user.uid,
           toUid: targetUid,
           createdAt: serverTimestamp(),
           seen: false,
-        },
-        { merge: true },
-      );
+        });
+      }
+      // Si like existait déjà : skip write, continue le flow mutual check ci-dessous.
 
       // 2. Check si l'autre user m'a liké en retour (likes/{targetUid}_{user.uid}).
       const reverseLikeSnap = await getDoc(doc(db, 'likes', `${targetUid}_${user.uid}`));

@@ -74,18 +74,17 @@ service cloud.firestore {
         && request.resource.data.fromUid is string
         && request.resource.data.toUid is string
         && request.resource.data.fromUid != request.resource.data.toUid;
-      // c38a-fix2 : update autorisé par le créateur (fromUid). Nécessaire car
-      // handleLike utilise setDoc(..., { merge: true }) : si le doc existe déjà
-      // (re-like idempotent OU future Premium feature toggle seen=true), c'est
-      // un update Firestore qui était bloqué isAdmin only.
-      allow update: if request.auth != null
-        && request.auth.uid == resource.data.fromUid;
+      // c38a-fix3 : rollback update permission. handleLike utilise désormais
+      // getDoc check + setDoc create only (skip-if-exists), donc les writes
+      // sont uniquement CREATE — pas d'UPDATE. Likes immutables côté user :
+      // pas de retrait Tinder-style, pas de toggle seen via client. Future
+      // Premium feature (mark as seen) passera par /api/admin si besoin.
       allow read: if request.auth != null && (
         request.auth.uid == resource.data.fromUid
         || request.auth.uid == resource.data.toUid
         || isAdmin()
       );
-      allow delete: if isAdmin();
+      allow update, delete: if isAdmin();
     }
 
     // === ACTIVITIES (public read, partner CRUD) ===
