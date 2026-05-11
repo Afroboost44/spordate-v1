@@ -101,31 +101,41 @@ export async function POST(request: NextRequest) {
         } as const;
       }
 
-      // b. Idempotence : check existing match entre uid & targetUid.
-      const existingMatchesSnap = await tx.get(
-        matchesCol.where('userIds', 'array-contains', uid),
-      );
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const existingMatch = existingMatchesSnap.docs.find((d: any) =>
-        (d.data().userIds || []).includes(targetUid),
-      );
-      if (existingMatch) {
+      // Phase 9.5 c39 Bug C — Deterministic match doc ID = sorted uids joined.
+      // Avant : auto-id + idempotence par query. Problème : si un match legacy
+      // existait avec chatUnlocked: false, il était retourné tel quel → user
+      // redirigé sur un chat verrouillé. Maintenant : doc id déterministe →
+      // setDoc(merge: true) force toujours chatUnlocked:true sur le BON doc,
+      // jamais de duplicate possible (idempotent par design via Firestore).
+      const sortedUids = [uid, targetUid].sort();
+      const deterministicMatchId = `${sortedUids[0]}_${sortedUids[1]}`;
+      const matchRef = matchesCol.doc(deterministicMatchId);
+      const existingMatchSnap = await tx.get(matchRef);
+
+      if (existingMatchSnap.exists) {
+        // Match existait déjà (mutual antérieur, direct-paid précédent, ou
+        // legacy migré). Force chatUnlocked:true au passage pour upgrade UX,
+        // PAS de débit crédits (idempotent — un re-click direct n'est pas
+        // facturé). Si l'ancien initiatedBy était 'mutual'/'accepted', on le
+        // préserve (ne pas overwriter l'historique).
+        const existing = existingMatchSnap.data() ?? {};
+        if (!existing.chatUnlocked) {
+          tx.update(matchRef, { chatUnlocked: true });
+        }
         return {
           success: true as const,
-          matchId: existingMatch.id,
+          matchId: deterministicMatchId,
           creditsRemaining: credits,
           alreadyExisted: true,
         };
       }
 
-      // c. Debit credits.
+      // c. Debit credits (uniquement si nouveau match créé).
       tx.update(userRef, { credits: FieldValue.increment(-cost) });
 
-      // d. Create match doc (chatUnlocked: true).
-      const sortedUids = [uid, targetUid].sort();
-      const matchRef = matchesCol.doc();
+      // d. Create match doc avec ID déterministe + chatUnlocked: true.
       tx.set(matchRef, {
-        matchId: matchRef.id,
+        matchId: deterministicMatchId,
         userIds: sortedUids,
         status: 'accepted',
         initiatedBy: 'direct-paid',

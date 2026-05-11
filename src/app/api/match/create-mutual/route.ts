@@ -96,32 +96,31 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: true, mutual: false }, { status: 200 });
     }
 
-    // 4. Mutual confirmé. Idempotence : check existing match entre ces 2 users.
-    // Query matches where userIds array-contains fromUid + filter en mémoire
-    // (Firestore ne supporte pas 2 array-contains dans la même query).
-    const existingMatchesSnap = await db
-      .collection('matches')
-      .where('userIds', 'array-contains', fromUid)
-      .get();
-    type MatchDoc = {
-      id: string;
-      data: () => { userIds?: string[] };
-    };
-    const existingMatch = (existingMatchesSnap.docs as MatchDoc[]).find((d) =>
-      (d.data().userIds || []).includes(targetUid),
-    );
-    if (existingMatch) {
+    // 4. Phase 9.5 c39 Bug C — Deterministic match doc ID + idempotent setDoc merge.
+    // Avant : auto-id + idempotence par query → pouvait retourner match legacy
+    // sans chatUnlocked:true. Maintenant : ID = sorted uids joined → setDoc
+    // crée OU met à jour le même doc. Pas de duplicate possible.
+    const sortedUids = [fromUid, targetUid].sort();
+    const deterministicMatchId = `${sortedUids[0]}_${sortedUids[1]}`;
+    const matchRef = db.collection('matches').doc(deterministicMatchId);
+    const existingMatchSnap = await matchRef.get();
+
+    if (existingMatchSnap.exists) {
+      // Match déjà créé (par un précédent mutual ou direct-paid). Force
+      // chatUnlocked:true au passage pour upgrade UX si pas déjà set.
+      const existing = existingMatchSnap.data() ?? {};
+      if (!existing.chatUnlocked) {
+        await matchRef.update({ chatUnlocked: true });
+      }
       return NextResponse.json(
-        { ok: true, mutual: true, matchId: existingMatch.id, alreadyExisted: true },
+        { ok: true, mutual: true, matchId: deterministicMatchId, alreadyExisted: true },
         { status: 200 },
       );
     }
 
-    // 5. Create match doc atomique (Admin SDK bypass rules).
-    const sortedUids = [fromUid, targetUid].sort();
-    const matchRef = db.collection('matches').doc();
+    // 5. Create match doc avec ID déterministe (Admin SDK bypass rules).
     await matchRef.set({
-      matchId: matchRef.id,
+      matchId: deterministicMatchId,
       userIds: sortedUids,
       status: 'accepted',
       initiatedBy: 'mutual',
@@ -134,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     // 6. Push notif → deferred c38b
     return NextResponse.json(
-      { ok: true, mutual: true, matchId: matchRef.id, alreadyExisted: false },
+      { ok: true, mutual: true, matchId: deterministicMatchId, alreadyExisted: false },
       { status: 200 },
     );
   } catch (err) {
