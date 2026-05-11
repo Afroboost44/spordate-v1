@@ -25,7 +25,12 @@ export default function PWARegister() {
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as any).standalone === true;
 
-    if (isStandalone) {
+    // Phase 9.5 c22 BUG R — skip custom splash sur iOS pour éviter le doublon
+    // avec le splash natif iOS (qui s'affiche automatiquement depuis
+    // apple-touch-icon en mode standalone). Sur Android, pas de splash natif
+    // équivalent → on garde le custom magenta-glow brand reinforcement.
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    if (isStandalone && !isIOS) {
       setShowSplash(true);
       setTimeout(() => setShowSplash(false), 2500);
     }

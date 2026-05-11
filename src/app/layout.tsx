@@ -29,16 +29,18 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Spordateur",
   },
-  // Phase 9.5 c14 BUG5 — métadonnées icons explicites + sizes pour cache-bust browser
-  // Chrome n'utilise pas toujours `/favicon.ico` automatique, force le link rel via metadata.
+  // Phase 9.5 c14/c18/c22 — métadonnées icons + cache-bust query param.
+  // Chrome cache aggressivement les favicons : versionner les URLs force re-fetch.
+  // Bump v22 = version logo c22 (cercle Afroboost Bassi). À incrémenter à chaque
+  // regénération d'asset pour éviter d'avoir à demander Cmd+Shift+Delete au user.
   icons: {
     icon: [
-      { url: "/favicon.ico", sizes: "any" },
-      { url: "/icon-192.png", type: "image/png", sizes: "192x192" },
-      { url: "/icon-512.png", type: "image/png", sizes: "512x512" },
+      { url: "/favicon.ico?v=22", sizes: "any" },
+      { url: "/icon-192.png?v=22", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png?v=22", type: "image/png", sizes: "512x512" },
     ],
-    apple: [{ url: "/apple-touch-icon.png", sizes: "180x180" }],
-    shortcut: ["/favicon.ico"],
+    apple: [{ url: "/apple-touch-icon.png?v=22", sizes: "180x180" }],
+    shortcut: ["/favicon.ico?v=22"],
   },
   openGraph: {
     title: "Spordateur",
@@ -77,7 +79,7 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`dark ${jakarta.variable}`}>
       <head>
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=22" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>

@@ -210,6 +210,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setError(null);
     try {
       const provider = new GoogleAuthProvider();
+      // Phase 9.5 c22 BUG T — force le sélecteur de compte Google à chaque login
+      // (au lieu de connecter direct le dernier compte mis en cache). UX critique
+      // pour les users multi-comptes (Bassi a souvent contact.artboost + autre).
+      provider.setCustomParameters({ prompt: 'select_account' });
       await signInWithPopup(auth, provider);
       router.push('/activities');
     } catch (err: any) {

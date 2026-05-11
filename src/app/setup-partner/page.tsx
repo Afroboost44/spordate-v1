@@ -108,6 +108,8 @@ export default function SetupPartnerPage() {
 
     try {
       const provider = new GoogleAuthProvider();
+      // Phase 9.5 c22 BUG T — force account selector (UX multi-comptes)
+      provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       setStatus(`Connecté en tant que ${user.email} ✓`);
