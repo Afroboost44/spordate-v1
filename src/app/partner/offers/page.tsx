@@ -501,9 +501,13 @@ export default function PartnerOffersPage() {
 
                 {formPricingEnabled ? (
                   <div className="space-y-3">
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="grid gap-1">
-                        <Label className="text-[11px] text-white/50">
+                    {/* Phase 9.5 c31.1 hotfix CSS — grid responsive (stack mobile,
+                        3 col sm+) + min-w-0 sur cols pour empêcher l'overflow modal
+                        sm:max-w-[500px]. Labels en text-[10px] + leading tight pour
+                        tenir sur 2 lignes sans pousser la largeur. */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      <div className="grid gap-1 min-w-0">
+                        <Label className="text-[10px] text-white/50 leading-tight">
                           {t('partner_pricing_early_label')}
                         </Label>
                         <Input
@@ -511,11 +515,11 @@ export default function PartnerOffersPage() {
                           value={formEarlyPrice}
                           onChange={(e) => setFormEarlyPrice(e.target.value)}
                           placeholder="12"
-                          className="bg-[#0D0D0D] border-white/10 h-10 text-sm"
+                          className="w-full bg-[#0D0D0D] border-white/10 h-10 text-sm"
                         />
                       </div>
-                      <div className="grid gap-1">
-                        <Label className="text-[11px] text-white/50">
+                      <div className="grid gap-1 min-w-0">
+                        <Label className="text-[10px] text-white/50 leading-tight">
                           {t('partner_pricing_standard_label')}
                         </Label>
                         <Input
@@ -523,11 +527,11 @@ export default function PartnerOffersPage() {
                           value={formStandardPrice}
                           onChange={(e) => setFormStandardPrice(e.target.value)}
                           placeholder="15"
-                          className="bg-[#0D0D0D] border-white/10 h-10 text-sm"
+                          className="w-full bg-[#0D0D0D] border-white/10 h-10 text-sm"
                         />
                       </div>
-                      <div className="grid gap-1">
-                        <Label className="text-[11px] text-white/50">
+                      <div className="grid gap-1 min-w-0">
+                        <Label className="text-[10px] text-white/50 leading-tight">
                           {t('partner_pricing_last_label')}
                         </Label>
                         <Input
@@ -535,7 +539,7 @@ export default function PartnerOffersPage() {
                           value={formLastPrice}
                           onChange={(e) => setFormLastPrice(e.target.value)}
                           placeholder="18"
-                          className="bg-[#0D0D0D] border-white/10 h-10 text-sm"
+                          className="w-full bg-[#0D0D0D] border-white/10 h-10 text-sm"
                         />
                       </div>
                     </div>
