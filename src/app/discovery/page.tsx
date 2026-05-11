@@ -29,7 +29,7 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
-import { registerBooking, getConfirmedTickets, getPartners, DEFAULT_PARTNERS, type Partner } from "@/lib/db";
+import { registerBooking, getConfirmedTickets, getPartners, type Partner } from "@/lib/db";
 
 import { sendPartnerNotification } from "@/lib/notifications";
 import { isFirebaseConfigured, getMissingConfig, db } from "@/lib/firebase";
@@ -103,7 +103,9 @@ export default function DiscoveryPage() {
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [confirmedTickets, setConfirmedTickets] = useState<number[]>([]);
-  const [partners, setPartners] = useState<Partner[]>(DEFAULT_PARTNERS);
+  // Phase 9.5 c23 BUG V — state initialisé vide (au lieu de DEFAULT_PARTNERS mock).
+  // Real partners chargés via getPartners() Firestore au mount.
+  const [partners, setPartners] = useState<Partner[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
   const [boostedPartnerIds, setBoostedPartnerIds] = useState<Set<string>>(new Set());
   const [boostedActivities_db, setBoostedActivities_db] = useState<any[]>([]);
@@ -281,14 +283,17 @@ export default function DiscoveryPage() {
   }, [user, userProfile]);
 
   // Load partners function (extracted for reuse)
+  // Phase 9.5 c23 BUG V — pas de fallback DEFAULT_PARTNERS si Firestore vide.
+  // setPartners([]) → la section "Où pratiquer ?" ET le dropdown booking sont
+  // skip ou affichent un message empty-state.
   const loadPartnersData = async () => {
     try {
       const loadedPartners = await getPartners();
       const activePartners = loadedPartners.filter(p => p.active);
-      // Keep defaults if no active partners found (avoids empty sidebar flash)
-      setPartners(activePartners.length > 0 ? activePartners : DEFAULT_PARTNERS);
+      setPartners(activePartners);
     } catch (e) {
-      setPartners(DEFAULT_PARTNERS);
+      console.warn('[Discovery] loadPartnersData failed:', e);
+      setPartners([]);
     }
   };
 

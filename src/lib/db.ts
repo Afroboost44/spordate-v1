@@ -345,7 +345,7 @@ export function generatePartnerReferralId(name: string): string {
  * Get all partners
  */
 export async function getPartners(): Promise<Partner[]> {
-  // Try Firestore first
+  // Try Firestore first — source of truth pour les VRAIS partners launch (c23 BUG V)
   if (isFirebaseConfigured && db) {
     try {
       const querySnapshot = await getDocs(collection(db, 'partners'));
@@ -356,12 +356,15 @@ export async function getPartners(): Promise<Partner[]> {
           createdAt: new Date(doc.data().createdAt),
         })) as Partner[];
       }
+      // Firestore queried OK mais 0 partner → retourne [] (pas de mock)
+      return [];
     } catch (error) {
       console.error('[Firestore] Error getting partners:', error);
     }
   }
 
-  // Fallback to localStorage
+  // Phase 9.5 c23 BUG V — Fallback localStorage uniquement si Firebase NON configuré.
+  // Sinon retourne [] pour ne plus jamais afficher de mock partners en prod.
   if (typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(PARTNERS_STORAGE_KEY);
@@ -373,7 +376,8 @@ export async function getPartners(): Promise<Partner[]> {
     }
   }
 
-  return DEFAULT_PARTNERS;
+  // Firebase pas configuré + pas de localStorage → empty list (skip mock)
+  return [];
 }
 
 /**

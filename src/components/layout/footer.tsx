@@ -1,7 +1,13 @@
+"use client";
+
 import { Twitter, Linkedin } from "lucide-react";
 import Link from 'next/link';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function Footer() {
+  // Phase 9.5 c23 BUG X — i18n via useLanguage t() pour footer links + copyright.
+  const { t } = useLanguage();
+
   return (
     <footer className="border-t border-zinc-800 bg-black relative">
       <div className="container mx-auto px-4 py-8">
@@ -14,9 +20,9 @@ export default function Footer() {
           </div>
 
           <nav className="flex flex-wrap items-center justify-center gap-6 text-xs text-gray-500 font-light">
-            <Link href="/terms" className="hover:text-white transition-colors">CGU</Link>
-            <Link href="/privacy" className="hover:text-white transition-colors">Confidentialité</Link>
-            <Link href="/legal" className="hover:text-white transition-colors">Mentions légales</Link>
+            <Link href="/terms" className="hover:text-white transition-colors">{t('footer_cgu')}</Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">{t('footer_privacy')}</Link>
+            <Link href="/legal" className="hover:text-white transition-colors">{t('footer_legal')}</Link>
           </nav>
 
           <div className="flex items-center space-x-4">
