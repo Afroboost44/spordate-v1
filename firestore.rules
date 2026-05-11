@@ -62,18 +62,23 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
-    // === LIKES (Phase 9.5 c38a — flow Tinder-like, doc id = ${fromUid}_${toUid}) ===
+    // === LIKES (Phase 9.5 c38a / c38a-fix — flow Tinder-like, doc id = ${fromUid}_${toUid}) ===
     // - create : auth uid == fromUid (un user ne peut liker qu'en son nom)
     // - read : auth uid in [fromUid, toUid] (visibilité bilatérale) ou admin
     // - update/delete : admin only (likes immutables côté user)
+    // c38a-fix : ajout `is string` defensive pour rejeter explicitement les
+    // champs falsy/undefined (au lieu de comparer silencieusement à null).
     match /likes/{likeId} {
-      allow create: if isAuth()
+      allow create: if request.auth != null
         && request.auth.uid == request.resource.data.fromUid
+        && request.resource.data.fromUid is string
+        && request.resource.data.toUid is string
         && request.resource.data.fromUid != request.resource.data.toUid;
-      allow read: if isAuth()
-        && (request.auth.uid == resource.data.fromUid
-            || request.auth.uid == resource.data.toUid
-            || isAdmin());
+      allow read: if request.auth != null && (
+        request.auth.uid == resource.data.fromUid
+        || request.auth.uid == resource.data.toUid
+        || isAdmin()
+      );
       allow update, delete: if isAdmin();
     }
 
