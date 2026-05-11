@@ -118,6 +118,11 @@ const defaultTranslations: any = {
     partner_pricing_reset_button: "Réinitialiser aux valeurs suggérées",
     partner_pricing_validation_order: "Les prix doivent être croissants : Early < Standard < Last Minute",
     partner_pricing_disabled_info: "Prix unique appliqué : {price} CHF",
+    // Phase 9.5 c32 — Raison contextuelle si bouton boost désactivé (prêt pour
+    // i18n Phase 10 ; pour l'instant strings hardcoded FR dans partner/boost/page.tsx).
+    boost_disabled_reason_city: "Sélectionnez d'abord une ville ciblée",
+    boost_disabled_reason_duration: "Choisissez la durée du boost",
+    boost_disabled_reason_loading: "Traitement en cours...",
     // Profile onboarding (c25 NEW)
     profile_about_section_title: "À propos de moi",
     profile_first_name_label: "Prénom *",
@@ -243,6 +248,9 @@ const defaultTranslations: any = {
     partner_pricing_reset_button: "Reset to suggested values",
     partner_pricing_validation_order: "Prices must increase: Early < Standard < Last Minute",
     partner_pricing_disabled_info: "Single price applied: {price} CHF",
+    boost_disabled_reason_city: "Select a target city first",
+    boost_disabled_reason_duration: "Choose the boost duration",
+    boost_disabled_reason_loading: "Processing...",
     // Profile onboarding
     profile_about_section_title: "About me",
     profile_first_name_label: "First name *",
@@ -368,6 +376,9 @@ const defaultTranslations: any = {
     partner_pricing_reset_button: "Auf vorgeschlagene Werte zurücksetzen",
     partner_pricing_validation_order: "Preise müssen aufsteigend sein: Early < Standard < Last Minute",
     partner_pricing_disabled_info: "Einheitspreis angewendet: {price} CHF",
+    boost_disabled_reason_city: "Wählen Sie zuerst eine Zielstadt",
+    boost_disabled_reason_duration: "Wählen Sie die Boost-Dauer",
+    boost_disabled_reason_loading: "Verarbeitung läuft...",
     // Profile onboarding
     profile_about_section_title: "Über mich",
     profile_first_name_label: "Vorname *",

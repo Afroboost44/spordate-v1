@@ -60,6 +60,19 @@ export default function PartnerBoostPage() {
   const currentCreditCost = selectedDuration ? BOOST_CREDITS_COST[selectedDuration] || 0 : 0;
   const hasEnoughCredits = credits >= currentCreditCost;
 
+  // Phase 9.5 c32 — Helper PURE qui retourne la raison la plus prioritaire qui
+  // bloque l'activation du boost. null si tout OK (bouton actif). Affiché sous
+  // le bouton désactivé pour éviter le "ghost button silencieux" vécu en c29b.
+  // Branche `credits` saute le check hasEnoughCredits (déjà géré par le bouton
+  // alternatif "Solde insuffisant — Recharger" qui remplace le bouton normal).
+  const getDisabledReason = (): string | null => {
+    if (!selectedCity) return "Sélectionnez d'abord une ville ciblée";
+    if (!selectedDuration) return 'Choisissez la durée du boost';
+    if (isLoading) return 'Traitement en cours...';
+    return null;
+  };
+  const disabledReason = getDisabledReason();
+
   // Load partner ID and active boosts
   useEffect(() => {
     if (!user?.uid || !db) return;
@@ -484,6 +497,12 @@ export default function PartnerBoostPage() {
                       <><Zap className="mr-2 h-5 w-5" /> Payer et activer</>
                     )}
                   </Button>
+                  {/* Phase 9.5 c32 — raison contextuelle si bouton désactivé */}
+                  {disabledReason && (
+                    <p className="text-center text-xs text-amber-400/80">
+                      {disabledReason}
+                    </p>
+                  )}
                   <p className="mt-3 text-center text-[11px] text-zinc-500">
                     Visa · Mastercard · TWINT
                   </p>
@@ -524,6 +543,15 @@ export default function PartnerBoostPage() {
                         <><Coins className="mr-2 h-5 w-5" /> Activer avec mes crédits</>
                       )}
                     </Button>
+                  )}
+                  {/* Phase 9.5 c32 — raison contextuelle si bouton désactivé (uniquement
+                      sur la branche bouton "normal" — la branche "Solde insuffisant" ci-dessus
+                      ne s'affiche que si selectedDuration+!hasEnoughCredits, donc city/loading
+                      sont les seules raisons restantes ici). */}
+                  {disabledReason && hasEnoughCredits && (
+                    <p className="text-center text-xs text-amber-400/80">
+                      {disabledReason}
+                    </p>
                   )}
                   <p className="mt-3 text-center text-[11px] text-zinc-500">
                     Débit instantané · pas de redirection
