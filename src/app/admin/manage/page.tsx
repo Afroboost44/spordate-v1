@@ -861,6 +861,9 @@ export default function AdminManagePage() {
             {/* Phase 9.5 c8 — Feature flags : toggle Rencontres */}
             <DiscoveryToggleCard />
 
+            {/* Phase 9.5 c29a CH2 — Migration pricingTiers vide */}
+            <MigratePricingTiersCard />
+
 
             {/* Couleur */}
             <Card className="bg-[#111] border-white/10">
@@ -1170,6 +1173,127 @@ function DiscoveryToggleCard() {
           <div className="flex items-center gap-2 text-[11px] text-white/40">
             <Loader2 className="h-3 w-3 animate-spin" />
             Mise à jour…
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* =========================================================================
+ * Phase 9.5 c29a CH2 — Bouton migration sessions legacy pricingTiers vide.
+ * POST /api/admin/migrate-pricing (Bearer auth + admin role + audit log).
+ * Confirme avant write réel : run dryRun d'abord, affiche le rapport, puis
+ * propose de confirmer pour appliquer.
+ * ========================================================================= */
+function MigratePricingTiersCard() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [running, setRunning] = useState(false);
+  const [report, setReport] = useState<{
+    dryRun: boolean;
+    totalScanned: number;
+    totalMigrated: number;
+    totalSkipped: number;
+    errors: Array<{ sessionId: string; reason: string }>;
+  } | null>(null);
+
+  const runMigration = async (dryRun: boolean) => {
+    if (!user) {
+      toast({ title: 'Non authentifié', variant: 'destructive' });
+      return;
+    }
+    setRunning(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/admin/migrate-pricing', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ dryRun }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast({
+          title: 'Migration échouée',
+          description: data?.detail || data?.error || 'Réessaie.',
+          variant: 'destructive',
+        });
+        return;
+      }
+      setReport({
+        dryRun: data.dryRun,
+        totalScanned: data.totalScanned,
+        totalMigrated: data.totalMigrated,
+        totalSkipped: data.totalSkipped,
+        errors: data.errors ?? [],
+      });
+      toast({
+        title: dryRun ? 'Simulation OK' : 'Migration appliquée',
+        description: `${data.totalMigrated}/${data.totalScanned} sessions ${dryRun ? 'à migrer' : 'migrées'} (${data.totalSkipped} skip, ${data.errors?.length ?? 0} err).`,
+        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+      });
+    } catch (err) {
+      console.error('[MigratePricingTiers]', err);
+      toast({ title: 'Erreur réseau', variant: 'destructive' });
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  return (
+    <Card className="bg-[#111] border-white/10">
+      <CardContent className="p-4 space-y-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-white font-medium">Migrer prix progressifs</span>
+          <span className="text-[11px] text-white/50">
+            Re-seed pricingTiers (80/100/120% de Activity.price) pour les sessions legacy qui affichent 0/0/0 CHF. Idempotent : skip celles déjà configurées.
+          </span>
+        </div>
+        <div className="flex gap-2">
+          <Button
+            onClick={() => runMigration(true)}
+            disabled={running}
+            size="sm"
+            variant="outline"
+            className="border-white/20 text-white/80 text-xs h-9"
+          >
+            {running ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+            Simuler (dry-run)
+          </Button>
+          <Button
+            onClick={() => runMigration(false)}
+            disabled={running || !report}
+            size="sm"
+            className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-xs h-9"
+          >
+            {running ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
+            Appliquer
+          </Button>
+        </div>
+        {report && (
+          <div className="mt-2 text-[11px] text-white/60 space-y-1">
+            <p>
+              <span className="text-white/40">Mode :</span>{' '}
+              <span className="text-[#D91CD2]">{report.dryRun ? 'simulation' : 'appliqué'}</span>{' · '}
+              <span className="text-white/40">Scanned :</span> {report.totalScanned}{' · '}
+              <span className="text-white/40">Migrated :</span> {report.totalMigrated}{' · '}
+              <span className="text-white/40">Skip :</span> {report.totalSkipped}
+            </p>
+            {report.errors.length > 0 && (
+              <details className="text-white/40">
+                <summary className="cursor-pointer">{report.errors.length} erreur(s)</summary>
+                <ul className="pl-4 mt-1 space-y-0.5">
+                  {report.errors.slice(0, 10).map((e, i) => (
+                    <li key={i}>
+                      <span className="text-white/30">{e.sessionId}</span>: {e.reason}
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
           </div>
         )}
       </CardContent>

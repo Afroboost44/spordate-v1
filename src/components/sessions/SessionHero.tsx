@@ -50,6 +50,9 @@ export interface SessionHeroProps {
   imageUrlFallbacks?: string[];
   /** Nom du partenaire (depuis Activity.partnerName). */
   partnerName?: string;
+  /** Phase 9.5 c29a CH4 — Activity.price (CHF vitrine). Passé à ReserveButton pour
+   *  détecter le mismatch "currentPrice=0 mais activité payante". */
+  activityPrice?: number;
   className?: string;
 }
 
@@ -70,6 +73,7 @@ export function SessionHero({
   media,
   imageUrlFallbacks,
   partnerName,
+  activityPrice,
   className = '',
 }: SessionHeroProps) {
   const target = getCountdownTarget(session, phase);
@@ -125,7 +129,7 @@ export function SessionHero({
         </div>
 
         {/* Bouton Réserver (Client Component) — phase-aware copy + état */}
-        <ReserveButton session={session} phase={phase} isFull={isFull} />
+        <ReserveButton session={session} phase={phase} isFull={isFull} activityPrice={activityPrice} />
       </div>
     </header>
   );

@@ -257,6 +257,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
               media={heroMedia}
               imageUrlFallbacks={imageUrlFallbacks}
               partnerName={activity?.partnerName}
+              activityPrice={activity?.price}
             />
           );
         })()}

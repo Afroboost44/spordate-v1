@@ -258,6 +258,18 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
     }
     const session = sessionSnap.data() as unknown as Session;
 
+    // Phase 9.5 c29a CH3 — Guard sécurité : refuser paiement si pricingTiers vide.
+    // Sans ce filet, computePricingTier renverrait price=0 (silently "free booking"),
+    // ce qui contredit l'attente partner (Activity.price > 0). La migration script
+    // CH2 doit avoir purgé les sessions legacy, mais on garde le guard en filet.
+    if (!session.pricingTiers || session.pricingTiers.length === 0) {
+      console.error(`[Checkout] Session ${body.sessionId} has empty pricingTiers — refusing payment`);
+      return NextResponse.json(
+        { error: 'Session has no pricing configured. Please contact support.' },
+        { status: 400 },
+      );
+    }
+
     // 3. Recompute tier server-side (anti-cheat — on ignore tout amount/tier envoyé par le client)
     const now = new Date();
     if (!isSessionBookable(session, now)) {
@@ -765,6 +777,15 @@ async function handleInviteAcceptMode(
       return NextResponse.json({ error: 'session-not-found' }, { status: 404 });
     }
     const session = sessionSnap.data() as unknown as Session;
+
+    // Phase 9.5 c29a CH3 — Guard pricingTiers vide (cf. branche session ci-dessus).
+    if (!session.pricingTiers || session.pricingTiers.length === 0) {
+      console.error(`[Checkout/invite-accept] Session ${invite.sessionId} has empty pricingTiers — refusing payment`);
+      return NextResponse.json(
+        { error: 'session-no-pricing', detail: 'Session has no pricing configured' },
+        { status: 400 },
+      );
+    }
 
     const now = new Date();
     if (!isSessionBookable(session, now)) {

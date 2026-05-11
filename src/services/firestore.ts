@@ -1401,21 +1401,65 @@ function getSessionsDb(): Firestore {
 // ----- CRUD Sessions -----
 
 /**
+ * Phase 9.5 c29a BUG EE — Fallback automatique des 3 paliers de prix.
+ *
+ * Fonction PURE qui dérive 3 PricingTier à partir d'un prix unique (le Activity.price
+ * vitrine /activities, en CHF entier). Utilisé par createSession() quand ni l'input
+ * ni activity.defaultPricingTiers ne fournissent de tiers, pour éviter le bug où
+ * /sessions/{id} affichait tous les paliers à 0 CHF.
+ *
+ * Multiplicateurs : Early Bird -20%, Standard base, Last Minute +20%.
+ * Triggers : Early dès la création (7j avant + 0% fill),
+ *            Standard à 24h avant OU 50% rempli,
+ *            Last Minute à 1h avant OU 90% rempli.
+ * Unité : Activity.price est en CHF entier ; PricingTier.price en CHF centimes.
+ *
+ * @param activityPriceCHF — prix vitrine en CHF entier (ex: 10 pour "10 CHF")
+ * @returns 3 PricingTier (early/standard/last_minute) en centimes, prêts à stocker.
+ */
+export function computeFallbackTiers(activityPriceCHF: number): PricingTier[] {
+  const baseCentimes = Math.round(activityPriceCHF * 100);
+  return [
+    {
+      kind: 'early',
+      price: Math.round(baseCentimes * 0.8),
+      activateMinutesBeforeStart: 10080, // 7 jours
+      activateAtFillRate: 0,
+    },
+    {
+      kind: 'standard',
+      price: baseCentimes,
+      activateMinutesBeforeStart: 1440, // 24 heures
+      activateAtFillRate: 0.5,
+    },
+    {
+      kind: 'last_minute',
+      price: Math.round(baseCentimes * 1.2),
+      activateMinutesBeforeStart: 60, // 1 heure
+      activateAtFillRate: 0.9,
+    },
+  ];
+}
+
+/**
  * Crée une nouvelle session datée à partir d'une activity template.
  *
- * Comportement :
+ * Comportement (Phase 9.5 c29a BUG EE — ajout du fallback automatique) :
  * 1. Lit l'activity (doit exister) pour récupérer partnerId, createdBy, sport, title, city,
  *    defaultPricingTiers, chatOpenOffsetMinutes.
- * 2. Si input.pricingTiers est fourni, l'utilise tel quel ; sinon copie depuis activity.defaultPricingTiers.
- * 3. Si aucun pricingTiers n'est disponible (ni input ni default sur l'activity) → throw.
- * 4. Calcule chatOpenAt et chatCloseAt depuis input.startAt/endAt et l'offset.
- * 5. Initialise currentTier='early', currentPrice = (tier early)?.price ?? 0.
- * 6. status='scheduled' à la création (l'admin / partner publiera ensuite à 'open').
+ * 2. Résout les pricingTiers selon cette priorité :
+ *    a. input.pricingTiers si fourni (non vide)
+ *    b. activity.defaultPricingTiers si configuré (non vide)
+ *    c. computeFallbackTiers(activity.price) — fallback automatique, log un warn
+ *    d. throw si activity.price <= 0 (activité sans prix → pas de fallback possible)
+ * 3. Calcule chatOpenAt et chatCloseAt depuis input.startAt/endAt et l'offset.
+ * 4. Initialise currentTier='early', currentPrice = (tier early)?.price ?? 0.
+ * 5. status='scheduled' à la création (l'admin / partner publiera ensuite à 'open').
  *
  * Permission Firestore : l'appelant doit être le partnerId de l'activity, ou admin.
  *
  * @returns sessionId de la session créée.
- * @throws si activity introuvable, si pas de pricingTiers disponibles, si rules denied.
+ * @throws si activity introuvable, si activity.price <= 0 sans tiers définis, si rules denied.
  */
 export async function createSession(input: CreateSessionInput): Promise<string> {
   const fbDb = getSessionsDb();
@@ -1425,10 +1469,26 @@ export async function createSession(input: CreateSessionInput): Promise<string> 
   if (!activitySnap.exists()) throw new Error('Activity introuvable');
   const activity = activitySnap.data() as Activity;
 
-  // 2. Résoudre les pricingTiers
-  const pricingTiers = input.pricingTiers ?? activity.defaultPricingTiers;
+  // 2. Résoudre les pricingTiers selon la priorité (input > default > fallback)
+  let pricingTiers: PricingTier[] | undefined;
+  if (input.pricingTiers && input.pricingTiers.length > 0) {
+    pricingTiers = input.pricingTiers;
+  } else if (activity.defaultPricingTiers && activity.defaultPricingTiers.length > 0) {
+    pricingTiers = activity.defaultPricingTiers;
+  } else {
+    // Fallback automatique basé sur activity.price (vitrine /activities).
+    if (!activity.price || activity.price <= 0) {
+      throw new Error(
+        `Cannot create session: activity ${input.activityId} has no price (${activity.price}) and no defaultPricingTiers`,
+      );
+    }
+    pricingTiers = computeFallbackTiers(activity.price);
+    console.warn(
+      `[createSession] No tiers configured for activity ${input.activityId}, using auto-fallback (80/100/120% of base price ${activity.price} CHF)`,
+    );
+  }
   if (!pricingTiers || pricingTiers.length === 0) {
-    throw new Error('Pas de pricingTiers disponibles (ni input.pricingTiers ni activity.defaultPricingTiers)');
+    throw new Error('Pas de pricingTiers disponibles (ni input.pricingTiers ni activity.defaultPricingTiers ni fallback)');
   }
 
   // 3. Calculer la fenêtre chat

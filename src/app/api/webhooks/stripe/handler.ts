@@ -280,6 +280,15 @@ async function handleSessionPayment(
       if (!sessionSnap.exists) throw new Error(`Session ${sessionId} introuvable`);
       const session = sessionSnap.data() as unknown as Session;
 
+      // Phase 9.5 c29a CH3 — filet de sécurité : si pricingTiers vide, refuser
+      // de finaliser le payment (jamais grant 0 CHF silencieux). Devrait être
+      // impossible après migration CH2, mais on garde le guard.
+      if (!session.pricingTiers || session.pricingTiers.length === 0) {
+        throw new Error(
+          `[handleSessionPayment] Session ${sessionId} has empty pricingTiers — refusing payment finalization`,
+        );
+      }
+
       // 3a. Verify bookable
       if (!isSessionBookable(session, new Date())) {
         throw new Error(

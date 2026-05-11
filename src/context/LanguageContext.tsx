@@ -94,6 +94,8 @@ const defaultTranslations: any = {
     payment_stripe_notice: "Paiement sécurisé Stripe",
     // Phase 9.5 c28 — Badge moyens de paiement acceptés (TWINT natif Stripe CH)
     payment_methods_accepted: "Visa · Mastercard · TWINT",
+    // Phase 9.5 c29a CH4 — bouton désactivé quand pricingTiers absent/0 sur activité payante
+    reserve_button_pricing_pending: "Configuration prix en cours",
     // Profile onboarding (c25 NEW)
     profile_about_section_title: "À propos de moi",
     profile_first_name_label: "Prénom *",
@@ -199,6 +201,7 @@ const defaultTranslations: any = {
     payment_button_loading_paid: "Redirecting to Stripe...",
     payment_stripe_notice: "Secure payment by Stripe",
     payment_methods_accepted: "Visa · Mastercard · TWINT",
+    reserve_button_pricing_pending: "Pricing setup in progress",
     // Profile onboarding
     profile_about_section_title: "About me",
     profile_first_name_label: "First name *",
@@ -304,6 +307,7 @@ const defaultTranslations: any = {
     payment_button_loading_paid: "Weiterleitung zu Stripe...",
     payment_stripe_notice: "Sichere Zahlung mit Stripe",
     payment_methods_accepted: "Visa · Mastercard · TWINT",
+    reserve_button_pricing_pending: "Preiskonfiguration läuft",
     // Profile onboarding
     profile_about_section_title: "Über mich",
     profile_first_name_label: "Vorname *",

@@ -43,6 +43,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/context/LanguageContext';
 import type { Session, PricingTierKind } from '@/types/firestore';
 import type { SessionPhase } from '@/hooks/useSessionWindow';
 
@@ -52,6 +53,9 @@ export interface ReserveButtonProps {
   isFull: boolean;
   /** Si true, autorise la réservation même phase='started' (late join). Défaut false. */
   allowLateJoin?: boolean;
+  /** Phase 9.5 c29a CH4 — prix de référence côté Activity (vitrine). Sert à détecter
+   *  l'edge case currentPrice=0 alors que activity.price>0 (pricingTiers mal seed). */
+  activityPrice?: number;
   className?: string;
 }
 
@@ -88,6 +92,8 @@ function computeButtonState(
   phase: SessionPhase,
   isFull: boolean,
   allowLateJoin: boolean,
+  pricingPendingLabel: string,
+  activityPrice?: number,
 ): ButtonState {
   const priceText = formatPrice(session.currentPrice);
   const tierText = TIER_LABEL[session.currentTier];
@@ -97,6 +103,16 @@ function computeButtonState(
   }
   if (isFull) {
     return { label: 'Complet · Plus de places', enabled: false };
+  }
+  // Phase 9.5 c29a CH4 — Edge case "tiers pas seed" : prix 0 alors que activity
+  // payante. On préfère un bouton désactivé clair plutôt qu'un free booking
+  // silencieux. activity.price === 0 reste un flow gratuit légitime (c11).
+  if (
+    session.currentPrice === 0 &&
+    typeof activityPrice === 'number' &&
+    activityPrice > 0
+  ) {
+    return { label: pricingPendingLabel, enabled: false };
   }
   if (phase === 'started' && !allowLateJoin) {
     return { label: 'Session démarrée', enabled: false };
@@ -113,14 +129,23 @@ export function ReserveButton({
   phase,
   isFull,
   allowLateJoin = false,
+  activityPrice,
   className = '',
 }: ReserveButtonProps) {
   const router = useRouter();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
 
-  const state = computeButtonState(session, phase, isFull, allowLateJoin);
+  const state = computeButtonState(
+    session,
+    phase,
+    isFull,
+    allowLateJoin,
+    t('reserve_button_pricing_pending'),
+    activityPrice,
+  );
 
   const handleClick = async () => {
     if (!state.enabled || loading) return;
