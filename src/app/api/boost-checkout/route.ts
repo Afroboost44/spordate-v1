@@ -36,6 +36,51 @@ export async function POST(request: NextRequest) {
 
     const partnerId = uid;
 
+    // Phase 9.5 c35 BUG5 — Idempotence métier AVANT redirect Stripe : 1 seul
+    // boost actif par (partnerId, city). Évite que le partner paie avant
+    // d'être refusé côté webhook. Symétrique au check dans /api/boost-credits.
+    const { initializeApp, getApps, cert } = await import('firebase-admin/app');
+    const { getFirestore } = await import('firebase-admin/firestore');
+    if (!getApps().length) {
+      if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+        initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+      } else {
+        initializeApp({
+          projectId:
+            process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+            process.env.GCLOUD_PROJECT ||
+            'spordateur-claude',
+        });
+      }
+    }
+    const adminDb = getFirestore();
+    const activeBoostsSnap = await adminDb
+      .collection('boosts')
+      .where('partnerId', '==', partnerId)
+      .where('active', '==', true)
+      .where('city', '==', city)
+      .get();
+    const nowMs = Date.now();
+    const hasActive = activeBoostsSnap.docs.some((d) => {
+      const exp = d.data().expiresAt;
+      const expMs =
+        typeof exp?.toMillis === 'function'
+          ? exp.toMillis()
+          : exp instanceof Date
+            ? exp.getTime()
+            : 0;
+      return expMs > nowMs;
+    });
+    if (hasActive) {
+      return NextResponse.json(
+        {
+          error: 'already-boosted',
+          detail: `Un boost est déjà actif pour ${city}. Attends son expiration ou cible une autre ville.`,
+        },
+        { status: 409 },
+      );
+    }
+
     const apiKey = process.env.STRIPE_SECRET_KEY;
     if (!apiKey) {
       return NextResponse.json({ error: 'Stripe non configuré' }, { status: 503 });

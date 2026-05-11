@@ -126,11 +126,16 @@ export async function POST(request: NextRequest) {
         } as const;
       }
 
-      // Idempotence : aucun boost actif simultané (active=true + expiresAt>now)
-      // pour ce partnerId. Évite qu'un partner pile up 3 boosts d'un coup.
+      // Phase 9.5 c35 BUG5 — Idempotence : aucun boost actif simultané pour
+      // ce partnerId+city. Avant c35 le filtre n'incluait pas city, donc un
+      // partner avec boost actif à Genève était bloqué pour acheter Lausanne.
+      // Désormais : 1 boost actif par (partnerId, city), villes distinctes OK.
       const now = Date.now();
       const activeBoostsSnap = await tx.get(
-        boostsCol.where('partnerId', '==', partnerId).where('active', '==', true),
+        boostsCol
+          .where('partnerId', '==', partnerId)
+          .where('active', '==', true)
+          .where('city', '==', city),
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const hasActive = activeBoostsSnap.docs.some((d: any) => {
@@ -148,7 +153,7 @@ export async function POST(request: NextRequest) {
         return {
           error: 'already-boosted',
           status: 409,
-          detail: 'Un boost est déjà actif pour ce partenaire. Attends son expiration.',
+          detail: `Un boost est déjà actif pour ${city}. Attends son expiration ou cible une autre ville.`,
         } as const;
       }
 

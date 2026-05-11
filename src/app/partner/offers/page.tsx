@@ -487,7 +487,12 @@ export default function PartnerOffersPage() {
       )}
 
       <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); resetForm(); } }}>
-        <DialogContent className="sm:max-w-[500px] bg-black border-white/10">
+        {/* Phase 9.5 c35 BUG2 — override DialogContent shadcn p-6 → p-4 (Option B).
+            Réduit le padding interne 24px → 16px sur cette modal uniquement, sans
+            impacter les autres modals du site. Résout la "zone vide à droite" qui
+            persistait malgré c31.1/c32.1/c34 (cause = DialogContent.p-6, jamais
+            touché précédemment, pas la grid pricing). */}
+        <DialogContent className="sm:max-w-[500px] bg-black border-white/10 p-4">
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle className="text-white text-xl font-light">{editing ? "Modifier l'activité" : "Nouvelle activité"}</DialogTitle>
