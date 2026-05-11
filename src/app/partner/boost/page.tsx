@@ -1,13 +1,19 @@
 "use client";
 
 import { useState, useEffect } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Rocket, Zap, MapPin, Clock, TrendingUp, Eye, Users, Loader2, Globe, ChevronLeft, CheckCircle, XCircle } from 'lucide-react';
+import { Rocket, Zap, MapPin, Clock, TrendingUp, Eye, Users, Loader2, Globe, ChevronLeft, CheckCircle, XCircle, CreditCard, Coins } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/context/AuthContext';
+import { useCredits } from '@/hooks/useCredits';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+// Phase 9.5 c29b — coût en crédits par durée (réutilise les constants serveur pour cohérence)
+const BOOST_CREDITS_COST: Record<string, number> = { '24h': 30, '3d': 70, '7d': 100 };
+const CHF_PER_CREDIT = 0.5;
+
+type PaymentMethod = 'stripe' | 'credits';
 
 const SWISS_CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Fribourg', 'Neuchâtel', 'Toute la Suisse'];
 
@@ -36,8 +42,10 @@ type LocationMode = 'choose' | 'swiss' | 'international-country' | 'internationa
 
 export default function PartnerBoostPage() {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { credits } = useCredits();
   const [locationMode, setLocationMode] = useState<LocationMode>('choose');
   const [selectedCountry, setSelectedCountry] = useState('');
   const [selectedCity, setSelectedCity] = useState('');
@@ -46,8 +54,12 @@ export default function PartnerBoostPage() {
   const [partnerId, setPartnerId] = useState('');
   const [activeBoosts, setActiveBoosts] = useState<any[]>([]);
   const [paymentStatus, setPaymentStatus] = useState<'success' | 'cancel' | null>(null);
+  // Phase 9.5 c29b — méthode de paiement choisie (Stripe par défaut, switch vers Credits)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('stripe');
 
   const currentPrice = DURATIONS.find(d => d.value === selectedDuration)?.price || 0;
+  const currentCreditCost = selectedDuration ? BOOST_CREDITS_COST[selectedDuration] || 0 : 0;
+  const hasEnoughCredits = credits >= currentCreditCost;
 
   // Load partner ID and active boosts
   useEffect(() => {
@@ -140,6 +152,64 @@ export default function PartnerBoostPage() {
         title: "Erreur",
         description: err.message || "Impossible de lancer le paiement.",
         variant: "destructive",
+      });
+      setIsLoading(false);
+    }
+  };
+
+  // Phase 9.5 c29b BUG FF — Paiement via crédits Spordate (alternative à Stripe).
+  // Atomic côté serveur via /api/boost-credits (runTransaction : check credits +
+  // idempotence + debit + create boost + log transaction).
+  const handleBoostWithCredits = async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/boost-credits', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          partnerId: partnerId || user.uid,
+          duration: selectedDuration,
+          city: selectedCity,
+          country: selectedCountry || undefined,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error === 'insufficient-credits') {
+          toast({
+            title: 'Solde insuffisant',
+            description: `Tu as ${data.have} crédits, il en faut ${data.need}.`,
+            variant: 'destructive',
+          });
+        } else if (data.error === 'already-boosted') {
+          toast({
+            title: 'Boost déjà actif',
+            description: data.detail || 'Attends son expiration avant d\'en activer un autre.',
+            variant: 'destructive',
+          });
+        } else {
+          throw new Error(data.detail || data.error || 'Erreur inconnue');
+        }
+        setIsLoading(false);
+        return;
+      }
+      toast({
+        title: 'Boost activé !',
+        description: `Solde restant : ${data.creditsRemaining} crédits.`,
+        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+      });
+      setPaymentStatus('success');
+    } catch (err: any) {
+      console.error('[BoostCredits]', err);
+      toast({
+        title: 'Erreur',
+        description: err.message || 'Impossible d\'activer le boost.',
+        variant: 'destructive',
       });
       setIsLoading(false);
     }
@@ -348,34 +418,119 @@ export default function PartnerBoostPage() {
               </div>
             </div>
 
-            {/* Price + CTA */}
-            <div className="border-t border-white/5 pt-6 space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-white/40 font-light">Prix du boost</span>
-                <span className="text-3xl font-extralight text-white">
-                  {currentPrice} <span className="text-sm text-white/30">CHF</span>
-                </span>
+            {/* Phase 9.5 c29b BUG FF — Méthode de paiement (Stripe ou Crédits Spordate) */}
+            <div className="border-t border-white/5 pt-6 space-y-3">
+              <label className="text-xs text-white/30 uppercase tracking-wider font-light">
+                Méthode de paiement
+              </label>
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Méthode de paiement">
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={paymentMethod === 'stripe'}
+                  onClick={() => setPaymentMethod('stripe')}
+                  className={`flex items-center justify-center gap-2 p-3 rounded-xl text-sm font-light transition border ${
+                    paymentMethod === 'stripe'
+                      ? 'bg-[#D91CD2]/10 border-[#D91CD2]/40 text-[#D91CD2]'
+                      : 'bg-white/5 border-white/5 text-white/40 hover:text-white/60'
+                  }`}
+                >
+                  <CreditCard className="h-4 w-4" />
+                  Carte / TWINT
+                </button>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={paymentMethod === 'credits'}
+                  onClick={() => setPaymentMethod('credits')}
+                  className={`flex items-center justify-center gap-2 p-3 rounded-xl text-sm font-light transition border ${
+                    paymentMethod === 'credits'
+                      ? 'bg-[#D91CD2]/10 border-[#D91CD2]/40 text-[#D91CD2]'
+                      : 'bg-white/5 border-white/5 text-white/40 hover:text-white/60'
+                  }`}
+                >
+                  <Coins className="h-4 w-4" />
+                  Crédits Spordateur
+                </button>
               </div>
+              {paymentMethod === 'credits' && (
+                <p className="text-[11px] text-white/40 font-light pl-1">
+                  Solde : <span className="text-white">{credits}</span> crédits
+                </p>
+              )}
+            </div>
 
-              <Button
-                onClick={handleBoost}
-                disabled={!selectedCity || !selectedDuration || isLoading}
-                className={`w-full rounded-full h-14 text-base font-semibold ${
-                  selectedCity && selectedDuration
-                    ? 'bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white'
-                    : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
-                }`}
-              >
-                {isLoading ? (
-                  <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Redirection vers Stripe...</>
-                ) : (
-                  <><Zap className="mr-2 h-5 w-5" /> Payer et activer</>
-                )}
-              </Button>
-              {/* Phase 9.5 c28 — Badge moyens de paiement (TWINT natif Stripe CH) */}
-              <p className="mt-3 text-center text-[11px] text-zinc-500">
-                Visa · Mastercard · TWINT
-              </p>
+            {/* Price + CTA */}
+            <div className="pt-2 space-y-4">
+              {paymentMethod === 'stripe' ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/40 font-light">Prix du boost</span>
+                    <span className="text-3xl font-extralight text-white">
+                      {currentPrice} <span className="text-sm text-white/30">CHF</span>
+                    </span>
+                  </div>
+                  <Button
+                    onClick={handleBoost}
+                    disabled={!selectedCity || !selectedDuration || isLoading}
+                    className={`w-full rounded-full h-14 text-base font-semibold ${
+                      selectedCity && selectedDuration
+                        ? 'bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white'
+                        : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
+                    }`}
+                  >
+                    {isLoading ? (
+                      <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Redirection vers Stripe...</>
+                    ) : (
+                      <><Zap className="mr-2 h-5 w-5" /> Payer et activer</>
+                    )}
+                  </Button>
+                  <p className="mt-3 text-center text-[11px] text-zinc-500">
+                    Visa · Mastercard · TWINT
+                  </p>
+                </>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/40 font-light">Coût en crédits</span>
+                    <div className="text-right">
+                      <span className="text-3xl font-extralight text-white">
+                        {currentCreditCost} <span className="text-sm text-white/30">crédits</span>
+                      </span>
+                      <p className="text-[11px] text-white/30 font-light mt-0.5">
+                        ≈ {(currentCreditCost * CHF_PER_CREDIT).toFixed(2)} CHF
+                      </p>
+                    </div>
+                  </div>
+                  {selectedDuration && !hasEnoughCredits ? (
+                    <Button
+                      onClick={() => router.push('/payment')}
+                      className="w-full rounded-full h-14 text-base font-semibold bg-white/5 hover:bg-white/10 text-white/60 border border-white/10"
+                    >
+                      Solde insuffisant — Recharger
+                    </Button>
+                  ) : (
+                    <Button
+                      onClick={handleBoostWithCredits}
+                      disabled={!selectedCity || !selectedDuration || isLoading || !hasEnoughCredits}
+                      className={`w-full rounded-full h-14 text-base font-semibold ${
+                        selectedCity && selectedDuration && hasEnoughCredits
+                          ? 'bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white'
+                          : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
+                      }`}
+                    >
+                      {isLoading ? (
+                        <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Activation...</>
+                      ) : (
+                        <><Coins className="mr-2 h-5 w-5" /> Activer avec mes crédits</>
+                      )}
+                    </Button>
+                  )}
+                  <p className="mt-3 text-center text-[11px] text-zinc-500">
+                    Débit instantané · pas de redirection
+                  </p>
+                </>
+              )}
             </div>
           </div>
         </div>
