@@ -7,8 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, MapPin, ChevronLeft, ChevronRight, Play, Video, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
-import { collection, query, where, getDocs, orderBy } from "firebase/firestore";
+import { collection, query, where, getDocs, orderBy, limit, Timestamp } from "firebase/firestore";
+import { useAuth } from '@/context/AuthContext';
 import BackButton from '@/components/BackButton';
+import { CheckCircle } from 'lucide-react';
 import { getMediaItems } from '@/lib/activities/media';
 import { getVideoThumbnailChain, getVideoEmbedUrl } from '@/lib/activities/mediaParser';
 import type { MediaItem } from '@/types/firestore';
@@ -212,7 +214,14 @@ function CardMediaSlide({ item, fallbackSeed }: { item: MediaItem; fallbackSeed:
   );
 }
 
-function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
+function ActivityCardComponent({
+  activity,
+  existingBookingId,
+}: {
+  activity: ActivityCard;
+  /** Phase 9.5 c16 BUG F — bookingId du user pour cette activity (si réservée < 24h). */
+  existingBookingId?: string;
+}) {
   const [imgIndex, setImgIndex] = useState(0);
   // Phase 9.5 c5 — unified media items via getMediaItems (rich type — image+video).
   // Fallback : seed picsum si zéro media.
@@ -230,7 +239,11 @@ function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
   const hasMultiple = items.length > 1;
 
   return (
-    <Card className="overflow-hidden bg-card border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20 transition-all duration-300 transform hover:-translate-y-2">
+    <Card className={`overflow-hidden bg-card transition-all duration-300 transform hover:-translate-y-2 ${
+      existingBookingId
+        ? 'border-[#D91CD2]/60 shadow-lg shadow-[#D91CD2]/20'
+        : 'border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20'
+    }`}>
       <div className="relative h-56 w-full group">
         <BackButton fallbackUrl="/" />
         <CardMediaSlide item={items[imgIndex]} fallbackSeed={activity.sport} />
@@ -238,6 +251,13 @@ function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
         <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
           {activity.duration || 60} min
         </div>
+        {/* Phase 9.5 c16 BUG F — badge "Déjà réservée" si user a un booking actif */}
+        {existingBookingId && (
+          <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 bg-[#D91CD2] text-white text-xs px-3 py-1 rounded-full font-medium shadow-lg">
+            <CheckCircle className="h-3.5 w-3.5" />
+            Déjà réservée
+          </div>
+        )}
         {hasMultiple && (
           <>
             <button
@@ -289,13 +309,25 @@ function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
                 name: activity.name,
               }}
             />
-            <ReserveButtonListing
-              activity={{
-                activityId: activity.activityId,
-                title: activity.title,
-                price: activity.price,
-              }}
-            />
+            {existingBookingId ? (
+              /* Phase 9.5 c16 BUG F — lien direct vers réservation existante (skip flow réservation) */
+              <Button
+                asChild
+                className="bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white text-sm font-semibold px-4"
+              >
+                <Link href={`/sessions/${existingBookingId}?status=success`}>
+                  Voir ma réservation →
+                </Link>
+              </Button>
+            ) : (
+              <ReserveButtonListing
+                activity={{
+                  activityId: activity.activityId,
+                  title: activity.title,
+                  price: activity.price,
+                }}
+              />
+            )}
           </div>
         </div>
       </CardContent>
@@ -306,6 +338,43 @@ function ActivityCardComponent({ activity }: { activity: ActivityCard }) {
 export default function ActivitiesPage() {
   const [activities, setActivities] = useState<ActivityCard[]>([]);
   const [loading, setLoading] = useState(true);
+  // Phase 9.5 c16 BUG F — map activityId → bookingId pour les bookings actifs (< 24h) du user.
+  // Single-query batch au mount (limit 50, ordered DESC) pour éviter N×M queries.
+  const { user } = useAuth();
+  const [activeBookings, setActiveBookings] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    if (!user || !db || !isFirebaseConfigured) {
+      setActiveBookings({});
+      return;
+    }
+    const fbDb = db;
+    const cutoffMs = Date.now() - 24 * 60 * 60 * 1000;
+    (async () => {
+      try {
+        const q = query(
+          collection(fbDb, 'bookings'),
+          where('userId', '==', user.uid),
+          where('createdAt', '>=', Timestamp.fromMillis(cutoffMs)),
+          orderBy('createdAt', 'desc'),
+          limit(50),
+        );
+        const snap = await getDocs(q);
+        const map: Record<string, string> = {};
+        snap.docs.forEach((d) => {
+          const data = d.data() as { activityId?: string };
+          if (data.activityId && !map[data.activityId]) {
+            map[data.activityId] = d.id;
+          }
+        });
+        setActiveBookings(map);
+      } catch (err) {
+        // Fallback gracieux : si index pas prêt OU permission denied, ignore (pas de marquage UI)
+        console.warn('[Activities] active bookings fetch failed (silent):', err);
+        setActiveBookings({});
+      }
+    })();
+  }, [user]);
 
   useEffect(() => {
     const load = async () => {
@@ -420,7 +489,11 @@ export default function ActivitiesPage() {
                 {/* Activities grid */}
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                   {partnerActivities.map((activity) => (
-                    <ActivityCardComponent key={activity.activityId} activity={activity} />
+                    <ActivityCardComponent
+                      key={activity.activityId}
+                      activity={activity}
+                      existingBookingId={activeBookings[activity.activityId]}
+                    />
                   ))}
                 </div>
               </section>

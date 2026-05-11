@@ -45,7 +45,7 @@ import { BookingPendingHero } from '@/components/sessions/BookingPendingHero';
 import { SessionSuccessToast } from '@/components/sessions/SessionSuccessToast';
 import { computeBundledCredits } from '@/lib/billing/creditRules';
 import { getMediaItems } from '@/lib/activities/media';
-import { getVideoThumbnail } from '@/lib/activities/mediaParser';
+import { getVideoThumbnailChain } from '@/lib/activities/mediaParser';
 import type { MediaItem } from '@/types/firestore';
 
 interface PageProps {
@@ -53,31 +53,42 @@ interface PageProps {
 }
 
 /**
- * Phase 9.5 c14 BUG2 — derive media pour SessionHero.
+ * Phase 9.5 c14 BUG2 + c16 BUG G — derive media + fallback chain pour SessionHero.
  *
  * Priorité :
  *  1. activity.thumbnailMedia (champ legacy explicit) si défini
  *  2. activity.mediaUrls[0] (rich Phase 9.5 c4) si présent
  *     - type='image' → { type:'image', url }
- *     - type='video' provider='youtube' → { type:'image', url: getVideoThumbnail() }
- *       (SessionMediaPlayer attend type='image'|'video' avec url unique)
- *  3. fallback null → SessionHero affiche placeholder Picsum (scenario zero-asset)
+ *     - type='video' provider='youtube' → { type:'image', url: chain[0] }
+ *       + fallbacks: chain[1..] (mq + default) si hqdefault 404
+ *  3. fallback undefined → SessionHero affiche placeholder Picsum
+ *
+ * Returns { media, imageUrlFallbacks } pour passer au SessionHero qui passe
+ * à SessionMediaPlayer (walker chain via state onError).
  */
 function deriveSessionHeroMedia(
   activity: { thumbnailMedia?: { type: 'image' | 'video'; url: string; posterUrl?: string }; mediaUrls?: MediaItem[]; images?: string[] } | null,
-): { type: 'image' | 'video'; url: string; posterUrl?: string } | undefined {
-  if (!activity) return undefined;
-  if (activity.thumbnailMedia?.url) return activity.thumbnailMedia;
+): {
+  media: { type: 'image' | 'video'; url: string; posterUrl?: string } | undefined;
+  imageUrlFallbacks: string[];
+} {
+  if (!activity) return { media: undefined, imageUrlFallbacks: [] };
+  if (activity.thumbnailMedia?.url) {
+    return { media: activity.thumbnailMedia, imageUrlFallbacks: [] };
+  }
   const items = getMediaItems({ mediaUrls: activity.mediaUrls, images: activity.images });
   const first = items[0];
-  if (!first) return undefined;
+  if (!first) return { media: undefined, imageUrlFallbacks: [] };
   if (first.type === 'image') {
-    return { type: 'image', url: first.url };
+    return { media: { type: 'image', url: first.url }, imageUrlFallbacks: [] };
   }
-  // video : utiliser thumbnail YouTube si dispo, sinon skip
-  const thumb = getVideoThumbnail(first);
-  if (thumb) return { type: 'image', url: thumb };
-  return undefined;
+  // video : utiliser chain YouTube hq → mq → default
+  const chain = getVideoThumbnailChain(first);
+  if (chain.length === 0) return { media: undefined, imageUrlFallbacks: [] };
+  return {
+    media: { type: 'image', url: chain[0] },
+    imageUrlFallbacks: chain.slice(1),
+  };
 }
 
 // ISR 30s (équilibre fraîcheur tier/price vs coût Firestore)
@@ -103,8 +114,8 @@ export async function generateMetadata({
 
   const description = `${session.sport} à ${session.city}. Sport pour de vraies rencontres en Suisse romande.`;
 
-  // Phase 9.5 c14 BUG2 — preview via deriveSessionHeroMedia (fallback mediaUrls + YouTube thumb)
-  const previewMedia = deriveSessionHeroMedia(activity);
+  // Phase 9.5 c14 BUG2 + c16 BUG G — preview via deriveSessionHeroMedia (chain fallback)
+  const { media: previewMedia } = deriveSessionHeroMedia(activity);
   const ogImage = previewMedia?.url
     ? [
         {
@@ -205,14 +216,20 @@ export default async function SessionDetailPage({ params }: PageProps) {
         </Link>
 
         {/* ============= HERO ============= */}
-        {/* Phase 9.5 c14 BUG2 : derive media depuis thumbnailMedia OU 1er mediaUrls
-            (sessions auto-créées Phase 9.5 c11 n'ont pas thumbnailMedia → fallback) */}
-        <SessionHero
-          session={session}
-          phase={phase}
-          media={deriveSessionHeroMedia(activity)}
-          partnerName={activity?.partnerName}
-        />
+        {/* Phase 9.5 c14 BUG2 + c16 BUG G : derive media + fallback chain
+            (sessions auto-créées Phase 9.5 c11 n'ont pas thumbnailMedia → fallback mediaUrls → YouTube chain) */}
+        {(() => {
+          const { media: heroMedia, imageUrlFallbacks } = deriveSessionHeroMedia(activity);
+          return (
+            <SessionHero
+              session={session}
+              phase={phase}
+              media={heroMedia}
+              imageUrlFallbacks={imageUrlFallbacks}
+              partnerName={activity?.partnerName}
+            />
+          );
+        })()}
 
         {/* ============= DÉTAILS + PRICING (2 cols desktop, stacked mobile) ============= */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">

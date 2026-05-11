@@ -64,7 +64,7 @@ export default function PWARegister() {
           position: 'fixed',
           inset: 0,
           zIndex: 9999,
-          background: 'linear-gradient(135deg, #9333EA 0%, #A855F7 50%, #C026D3 100%)',
+          background: 'linear-gradient(135deg, #9333EA 0%, #D91CD2 50%, #C026D3 100%)',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',

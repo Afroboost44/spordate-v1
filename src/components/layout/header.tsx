@@ -93,7 +93,7 @@ export default function Header() {
                 href={link.href}
                 className={
                   (link as { isPremium?: boolean }).isPremium
-                    ? "transition-colors hover:text-[#A855F7] text-[#A855F7]/70 flex items-center gap-1"
+                    ? "transition-colors hover:text-[#D91CD2] text-[#D91CD2]/70 flex items-center gap-1"
                     : "transition-colors hover:text-foreground/80 text-foreground/60"
                 }
               >
@@ -140,7 +140,7 @@ export default function Header() {
                     <CreditsBadge />
                     <NotificationBadge />
                     {isPartner && (
-                      <Button variant="ghost" asChild className="flex items-center gap-2 text-[#A855F7] hover:text-[#A855F7]/80">
+                      <Button variant="ghost" asChild className="flex items-center gap-2 text-[#D91CD2] hover:text-[#D91CD2]/80">
                         <Link href="/partner/offers">
                           <Building className="h-4 w-4" />
                           Espace Partenaire
@@ -189,7 +189,7 @@ export default function Header() {
                   </Link>
                 ))}
                 {isLoggedIn && isPartner && (
-                  <Link href="/partner/offers" className="px-4 py-2 rounded-md hover:bg-accent/10 text-[#A855F7] flex items-center gap-2">
+                  <Link href="/partner/offers" className="px-4 py-2 rounded-md hover:bg-accent/10 text-[#D91CD2] flex items-center gap-2">
                     <Building className="h-5 w-5" />
                     Espace Partenaire
                   </Link>

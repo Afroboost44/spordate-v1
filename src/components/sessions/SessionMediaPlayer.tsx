@@ -35,6 +35,12 @@ import Image from 'next/image';
 export interface SessionMediaPlayerProps {
   /** Média à afficher. Si absent, affiche un placeholder Picsum. */
   media?: { type: 'image' | 'video'; url: string; posterUrl?: string };
+  /**
+   * Phase 9.5 c16 BUG G — Chaîne de fallback URLs pour image.
+   * Utilisée si `media.url` (ou la précédente du chain) renvoie 404.
+   * Walk via state imgIdx + onError. Ex: YouTube hq → mq → default.
+   */
+  imageUrlFallbacks?: string[];
   /** Texte alternatif (skill: alt-text). */
   alt: string;
   /** Ratio d'aspect CSS. Défaut '16/9'. */
@@ -58,6 +64,7 @@ function picsumPlaceholder(alt: string): string {
 
 export function SessionMediaPlayer({
   media,
+  imageUrlFallbacks,
   alt,
   aspectRatio = '16/9',
   priority = false,
@@ -67,6 +74,8 @@ export function SessionMediaPlayer({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [videoFailed, setVideoFailed] = useState(false);
   const [reducedMotion, setReducedMotion] = useState(false);
+  // Phase 9.5 c16 BUG G — index dans la fallback chain pour l'image
+  const [imgFallbackIdx, setImgFallbackIdx] = useState(0);
 
   // Détecte prefers-reduced-motion (au mount + écoute changements)
   useEffect(() => {
@@ -108,7 +117,16 @@ export function SessionMediaPlayer({
   const aspectClass = ASPECT_CLASS[aspectRatio];
   const isVideo = media?.type === 'video' && !videoFailed;
   const fallbackUrl = picsumPlaceholder(alt);
-  const imageUrl = media?.type === 'image' ? media.url : (media?.posterUrl ?? fallbackUrl);
+
+  // Phase 9.5 c16 BUG G — chaîne d'URLs à essayer pour l'image (primary + fallbacks).
+  // Walk via state imgFallbackIdx ; quand toutes échouent → placeholder picsum.
+  const primaryImg = media?.type === 'image' ? media.url : (media?.posterUrl ?? null);
+  const imgChain: string[] = [
+    ...(primaryImg ? [primaryImg] : []),
+    ...(imageUrlFallbacks ?? []),
+  ];
+  const imageUrl = imgChain[imgFallbackIdx] ?? fallbackUrl;
+  const exhaustedChain = imgFallbackIdx >= imgChain.length;
 
   // Si vidéo demandée mais reduced-motion → on affiche juste le poster (image)
   const showImageInsteadOfVideo = isVideo && reducedMotion;
@@ -133,13 +151,25 @@ export function SessionMediaPlayer({
         />
       ) : (
         <Image
-          src={showImageInsteadOfVideo ? (media?.posterUrl ?? fallbackUrl) : imageUrl}
+          src={
+            showImageInsteadOfVideo
+              ? (media?.posterUrl ?? fallbackUrl)
+              : exhaustedChain
+                ? fallbackUrl
+                : imageUrl
+          }
           alt={alt}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           priority={priority}
           loading={priority ? undefined : 'lazy'}
           className="object-cover"
+          // Phase 9.5 c16 BUG G — walker la chaîne fallback si l'image courante 404
+          onError={() => {
+            if (!exhaustedChain) {
+              setImgFallbackIdx((i) => i + 1);
+            }
+          }}
         />
       )}
     </div>

@@ -34,6 +34,11 @@ export interface SessionHeroProps {
   phase: SessionPhase;
   /** Média de l'activity parent (optionnel — fallback Picsum sinon). */
   media?: { type: 'image' | 'video'; url: string; posterUrl?: string };
+  /**
+   * Phase 9.5 c16 BUG G — fallback chain pour image (e.g. YouTube hq → mq → default).
+   * Walk via state onError dans SessionMediaPlayer.
+   */
+  imageUrlFallbacks?: string[];
   /** Nom du partenaire (depuis Activity.partnerName). */
   partnerName?: string;
   className?: string;
@@ -54,6 +59,7 @@ export function SessionHero({
   session,
   phase,
   media,
+  imageUrlFallbacks,
   partnerName,
   className = '',
 }: SessionHeroProps) {
@@ -66,6 +72,7 @@ export function SessionHero({
       <div className="lg:w-3/5 flex-shrink-0">
         <SessionMediaPlayer
           media={media}
+          imageUrlFallbacks={imageUrlFallbacks}
           alt={session.title}
           aspectRatio="16/9"
           priority

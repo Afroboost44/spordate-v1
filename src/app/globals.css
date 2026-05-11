@@ -22,7 +22,9 @@ body {
     --popover: 0 0% 6%;
     --popover-foreground: 0 0% 100%;
 
-    --primary: 300 85% 49%;
+    /* Phase 9.5 c16 BUG E — primary aligné sur charte stricte #D91CD2 (302 77% 48%)
+       au lieu du précédent 300 85% 49% (légèrement plus saturé/différent). */
+    --primary: 302 77% 48%;
     --primary-foreground: 0 0% 100%;
 
     --secondary: 0 0% 10%;
@@ -50,7 +52,8 @@ body {
     --chart-5: 340 75% 55%;
     --sidebar-background: 0 0% 3%;
     --sidebar-foreground: 0 0% 95%;
-    --sidebar-primary: 300 85% 49%;
+    /* Phase 9.5 c16 BUG E — sidebar-primary aligné #D91CD2 charte. */
+    --sidebar-primary: 302 77% 48%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 0 0% 10%;
     --sidebar-accent-foreground: 0 0% 95%;
