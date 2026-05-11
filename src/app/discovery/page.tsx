@@ -127,12 +127,13 @@ export default function DiscoveryPage() {
   const { toast } = useToast();
   const { user, userProfile } = useAuth();
   const { credits: creditCount, hasCredits, useCredit, canLike, canSuperMatch, canSkip, requireCreditsForChat } = useCredits();
-  const { discoveryEnabled, loading: flagsLoading } = useFeatureFlags();
+  const { discoveryMode, loading: flagsLoading } = useFeatureFlags();
 
-  // Phase 9.5 c8 — gate page derrière feature flag (default OFF launch)
+  // Phase 9.5 c8 + c21 — gate page derrière feature flag 3-state
+  // 'disabled' → redirect /activities ; sinon page accessible
   useEffect(() => {
     if (flagsLoading) return;
-    if (!discoveryEnabled) {
+    if (discoveryMode === 'disabled') {
       toast({
         title: 'Bientôt disponible',
         description: 'La section Rencontres sera activée prochainement.',
@@ -140,7 +141,7 @@ export default function DiscoveryPage() {
       });
       router.replace('/activities');
     }
-  }, [flagsLoading, discoveryEnabled, router, toast]);
+  }, [flagsLoading, discoveryMode, router, toast]);
 
   // Load REAL profiles from Firestore with matching
   useEffect(() => {
@@ -175,7 +176,79 @@ export default function DiscoveryPage() {
           console.warn('[Discovery] getMutualBlockSet failed (non-blocking, defaulting empty)', err);
           return new Set<string>();
         });
-        const visibleUsers = firestoreUsers.filter((u) => !blockSet.has(u.uid));
+        let visibleUsers = firestoreUsers.filter((u) => !blockSet.has(u.uid));
+
+        // Phase 9.5 c21 — filter par opt-in partners si discoveryMode='participants-only'.
+        // Query batch bookings confirmés → activities → partners.includeInDiscovery → set userIds
+        // éligibles. Pas appliqué si mode='open-to-all' (legacy comportement préservé).
+        if (discoveryMode === 'participants-only') {
+          try {
+            const fbDb = db;
+            const bookingsSnap = await getDocs(
+              query(
+                collection(fbDb, 'bookings'),
+                where('status', '==', 'confirmed'),
+                firestoreLimit(500),
+              ),
+            );
+            // userId → set of activityIds (pour grouper par user)
+            const userBookings = new Map<string, Set<string>>();
+            const activityIds = new Set<string>();
+            bookingsSnap.forEach((d) => {
+              const data = d.data() as { userId?: string; activityId?: string };
+              if (data.userId && data.activityId) {
+                const set = userBookings.get(data.userId) ?? new Set<string>();
+                set.add(data.activityId);
+                userBookings.set(data.userId, set);
+                activityIds.add(data.activityId);
+              }
+            });
+            // Activity → partnerId
+            const activityToPartner = new Map<string, string>();
+            await Promise.all(
+              [...activityIds].map(async (aid) => {
+                const aq = await getDocs(
+                  query(collection(fbDb, 'activities'), where('activityId', '==', aid), firestoreLimit(1)),
+                );
+                aq.forEach((d) => {
+                  const data = d.data() as { partnerId?: string };
+                  if (data.partnerId) activityToPartner.set(aid, data.partnerId);
+                });
+              }),
+            );
+            const partnerIds = new Set(activityToPartner.values());
+            // partnerId → includeInDiscovery
+            const partnerOptIn = new Map<string, boolean>();
+            await Promise.all(
+              [...partnerIds].map(async (pid) => {
+                const pq = await getDocs(
+                  query(collection(fbDb, 'partners'), where('partnerId', '==', pid), firestoreLimit(1)),
+                );
+                pq.forEach((d) => {
+                  const data = d.data() as { includeInDiscovery?: boolean };
+                  // Default true (opt-in par défaut quand champ absent)
+                  partnerOptIn.set(pid, data.includeInDiscovery !== false);
+                });
+              }),
+            );
+            // Compute eligible userIds : has ≥ 1 booking on activity from opt-in partner
+            const eligibleUserIds = new Set<string>();
+            userBookings.forEach((acts, uid) => {
+              for (const aid of acts) {
+                const pid = activityToPartner.get(aid);
+                if (pid && partnerOptIn.get(pid) === true) {
+                  eligibleUserIds.add(uid);
+                  break;
+                }
+              }
+            });
+            visibleUsers = visibleUsers.filter((u) => eligibleUserIds.has(u.uid));
+            console.log(`[Discovery] participants-only filter : ${visibleUsers.length} eligible users`);
+          } catch (err) {
+            console.warn('[Discovery] participants-only filter failed (silent, all visible):', err);
+            // Fallback gracieux : si query fail, laisse passer (UX dégradée mais pas blank screen)
+          }
+        }
 
         if (visibleUsers.length > 0) {
           // Convert to card format and compute match scores

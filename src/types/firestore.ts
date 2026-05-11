@@ -521,6 +521,12 @@ export interface Partner {
    *  Utilisé pour destination charges modes Split/Gift (transfer_data.destination).
    *  Absent = partner pas onboardé Connect (Stripe Connect required pour invites Split/Gift). */
   stripeAccountId?: string;
+  /** Phase 9.5 c21 — opt-in du partner pour le système Rencontres mode 'participants-only'.
+   *  Si admin discoveryMode='participants-only' ET partner.includeInDiscovery=true,
+   *  les users avec booking confirmé sur les activities de ce partner sont visibles
+   *  dans /discovery swipe pool. Default true (partners opt-in par défaut quand mode actif).
+   *  Toggle via /partner/dashboard (visible UNIQUEMENT si admin mode='participants-only'). */
+  includeInDiscovery?: boolean;
 }
 
 // ===================== COMMISSION SETTINGS =====================

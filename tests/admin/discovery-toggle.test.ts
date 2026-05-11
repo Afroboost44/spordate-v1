@@ -123,13 +123,16 @@ async function main(): Promise<void> {
       .get();
     if (auditSnap.size === 1) {
       const a = auditSnap.docs[0].data();
+      // Phase 9.5 c21 — targetId changé pour 'features.discoveryMode'.
+      // metadata contient maintenant {mode, enabled} (backward compat boolean preserved).
       if (
         a.adminId === ADMIN_UID &&
         a.targetType === 'site_setting' &&
-        a.targetId === 'features.discoveryEnabled' &&
-        a.metadata?.enabled === true
+        a.targetId === 'features.discoveryMode' &&
+        a.metadata?.enabled === true &&
+        a.metadata?.mode === 'open-to-all'
       ) {
-        pass('DT2 adminActions audit log {actionType:toggle_discovery, metadata.enabled:true}');
+        pass('DT2 adminActions audit log {actionType:toggle_discovery, metadata.{mode:open-to-all, enabled:true}}');
       } else {
         fail('DT2 audit shape', a);
       }

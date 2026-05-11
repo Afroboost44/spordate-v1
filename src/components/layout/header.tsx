@@ -38,7 +38,10 @@ function SLogo({ className = "h-7 w-7" }: { className?: string }) {
 export default function Header() {
   const { t, setLanguage } = useLanguage();
   const { isLoggedIn, loading, logout, user, userProfile } = useAuth();
-  const { discoveryEnabled } = useFeatureFlags();
+  // Phase 9.5 c21 — utilise discoveryMode 3-state (vs ancien boolean discoveryEnabled).
+  // L'item nav 'Rencontres' apparaît si mode !== 'disabled' (préserve comportement c8).
+  const { discoveryMode } = useFeatureFlags();
+  const discoveryEnabled = discoveryMode !== 'disabled';
   const [isPartner, setIsPartner] = useState(false);
 
   // Check if current user is an active partner

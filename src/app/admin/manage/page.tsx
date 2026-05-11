@@ -1050,20 +1050,45 @@ export default function AdminManagePage() {
 }
 
 /**
- * Phase 9.5 c8 — Toggle "Rencontres" (settings/features.discoveryEnabled).
+ * Phase 9.5 c8 + c21 — Mode "Rencontres" 3-state (settings/features.discoveryMode).
  * Pattern POST /api/admin/site/discovery-toggle Bearer auth + audit log adminActions.
  */
+type DiscoveryMode = 'disabled' | 'participants-only' | 'open-to-all';
+
+const DISCOVERY_MODE_OPTIONS: ReadonlyArray<{
+  value: DiscoveryMode;
+  label: string;
+  description: string;
+}> = [
+  {
+    value: 'disabled',
+    label: 'Désactivé',
+    description: 'Page Rencontres cachée + nav item masqué. /discovery redirige vers /activities. Default au launch.',
+  },
+  {
+    value: 'participants-only',
+    label: 'Participants uniquement (recommandé)',
+    description: 'Page visible. Users affichés UNIQUEMENT ceux qui ont au moins 1 réservation confirmée sur une activité dont le partner a opt-in (toggle côté /partner/dashboard).',
+  },
+  {
+    value: 'open-to-all',
+    label: 'Ouvert à tous',
+    description: 'Page visible. TOUS les users inscrits + actifs sont dans le swipe pool (legacy comportement c8).',
+  },
+];
+
 function DiscoveryToggleCard() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const { discoveryEnabled, loading } = useFeatureFlags();
+  const { discoveryMode, loading } = useFeatureFlags();
   const [saving, setSaving] = useState(false);
 
-  const handleToggle = async (next: boolean) => {
+  const handleSelectMode = async (next: DiscoveryMode) => {
     if (!user) {
       toast({ title: 'Non authentifié', variant: 'destructive' });
       return;
     }
+    if (next === discoveryMode) return; // no-op
     setSaving(true);
     try {
       const idToken = await user.getIdToken();
@@ -1073,22 +1098,21 @@ function DiscoveryToggleCard() {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${idToken}`,
         },
-        body: JSON.stringify({ enabled: next }),
+        body: JSON.stringify({ mode: next }),
       });
       const data = await res.json();
       if (!res.ok) {
         toast({
-          title: 'Échec toggle',
+          title: 'Échec changement mode',
           description: data?.detail || data?.error || 'Réessaie.',
           variant: 'destructive',
         });
         return;
       }
+      const opt = DISCOVERY_MODE_OPTIONS.find((o) => o.value === next);
       toast({
-        title: next ? 'Rencontres activé' : 'Rencontres désactivé',
-        description: next
-          ? 'L\'item nav apparaît + page accessible.'
-          : 'L\'item nav est masqué + page redirige vers /activities.',
+        title: `Mode Rencontres : ${opt?.label || next}`,
+        description: opt?.description || '',
         className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
       });
     } catch (err) {
@@ -1101,19 +1125,46 @@ function DiscoveryToggleCard() {
 
   return (
     <Card className="bg-[#111] border-white/10">
-      <CardContent className="p-4 space-y-2">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex flex-col">
-            <span className="text-sm text-white font-medium">Activer la page Rencontres</span>
-            <span className="text-[11px] text-white/50">
-              Toggle global — affiche/masque l&apos;item nav «&nbsp;Rencontres&nbsp;» + redirige /discovery vers /activities si OFF.
-            </span>
-          </div>
-          <Switch
-            checked={discoveryEnabled}
-            onCheckedChange={handleToggle}
-            disabled={loading || saving}
-          />
+      <CardContent className="p-4 space-y-3">
+        <div className="flex flex-col gap-1">
+          <span className="text-sm text-white font-medium">Mode page Rencontres</span>
+          <span className="text-[11px] text-white/50">
+            3 niveaux d&apos;activation pour la page /discovery (swipe matching entre users).
+          </span>
+        </div>
+        <div role="radiogroup" aria-label="Mode Rencontres" className="flex flex-col gap-2">
+          {DISCOVERY_MODE_OPTIONS.map((opt) => {
+            const selected = discoveryMode === opt.value;
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                disabled={loading || saving}
+                onClick={() => handleSelectMode(opt.value)}
+                className={`flex items-start gap-3 rounded-md border p-3 text-left transition-colors ${
+                  selected
+                    ? 'border-[#D91CD2]/60 bg-[#D91CD2]/10'
+                    : 'border-white/10 bg-zinc-900/40 hover:border-white/20'
+                } disabled:opacity-50`}
+              >
+                <span
+                  className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                    selected ? 'border-[#D91CD2] bg-[#D91CD2]' : 'border-white/30'
+                  }`}
+                >
+                  {selected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
+                </span>
+                <span className="flex flex-col gap-0.5 min-w-0">
+                  <span className={`text-sm font-medium ${selected ? 'text-[#D91CD2]' : 'text-white'}`}>
+                    {opt.label}
+                  </span>
+                  <span className="text-[11px] text-white/50">{opt.description}</span>
+                </span>
+              </button>
+            );
+          })}
         </div>
         {saving && (
           <div className="flex items-center gap-2 text-[11px] text-white/40">

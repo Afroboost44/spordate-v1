@@ -53,6 +53,7 @@
     "test:checkout:free-booking": "firebase emulators:exec --only firestore 'npx tsx tests/checkout/free-booking.test.ts'",
     "test:checkout:commission": "firebase emulators:exec --only firestore 'npx tsx tests/checkout/commission.test.ts'",
     "test:admin:discovery-toggle": "firebase emulators:exec --only firestore 'npx tsx tests/admin/discovery-toggle.test.ts'",
+    "test:admin:discovery-mode": "firebase emulators:exec --only firestore 'npx tsx tests/admin/discovery-mode.test.ts'",
     "test:integration:booking-redirect": "firebase emulators:exec --only firestore 'npx tsx tests/integration/booking-redirect.test.ts'",
     "test:components:media-manager-reorder": "npx tsx tests/components/media-manager-reorder.test.ts",
     "test:components:credits-badge": "npx tsx tests/components/credits-badge.test.ts",

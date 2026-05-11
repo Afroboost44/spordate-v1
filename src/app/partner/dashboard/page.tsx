@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import type { Session, Activity } from '@/types/firestore';
 import { CoInscribedWarning } from '@/components/partner/CoInscribedWarning';
+import { PartnerDiscoveryOptInCard } from '@/components/partner/PartnerDiscoveryOptInCard';
 
 interface RecentSessionForCheckIn {
   sessionId: string;
@@ -125,6 +126,9 @@ export default function PartnerDashboardPage() {
 
       {/* Phase 7 sub-chantier 4 commit 3/4 — warning co-inscrits bloqués (doctrine §9.sexies E) */}
       {user?.uid && <CoInscribedWarning partnerId={user.uid} />}
+
+      {/* Phase 9.5 c21 — toggle opt-in Rencontres (visible UNIQUEMENT si admin mode='participants-only') */}
+      <PartnerDiscoveryOptInCard />
 
       {/* Stats */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

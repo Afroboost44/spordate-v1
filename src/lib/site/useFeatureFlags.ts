@@ -1,5 +1,6 @@
 /**
  * Phase 9.5 c8 — Client hook useFeatureFlags (real-time onSnapshot Firestore).
+ * Phase 9.5 c21 — étendu pour discoveryMode 3-state via normalizeFlags.
  *
  * Séparé de `./featureFlags` pour éviter mix client/server import (Next.js 15
  * détecte useEffect/useState et refuse de bundler côté serveur).
@@ -14,7 +15,7 @@
 import { useEffect, useState } from 'react';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
-import { type FeatureFlags, DEFAULT_FLAGS } from './featureFlags';
+import { type FeatureFlags, DEFAULT_FLAGS, normalizeFlags } from './featureFlags';
 
 /**
  * Subscribe en temps réel aux flags via Firestore onSnapshot.
@@ -34,10 +35,7 @@ export function useFeatureFlags(): FeatureFlags & { loading: boolean } {
       ref,
       (snap) => {
         if (snap.exists()) {
-          const data = snap.data() as Partial<FeatureFlags>;
-          setFlags({
-            discoveryEnabled: data.discoveryEnabled === true,
-          });
+          setFlags(normalizeFlags(snap.data()));
         } else {
           setFlags(DEFAULT_FLAGS);
         }

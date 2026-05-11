@@ -1,16 +1,17 @@
 /**
  * Phase 9.5 c8 — Feature flags central (settings/features Firestore doc).
+ * Phase 9.5 c21 — discoveryMode 3-state (disabled / participants-only / open-to-all)
+ *               + backward compat boolean discoveryEnabled (legacy c8).
  *
  * Doctrine launch :
- *  - discoveryEnabled : false par défaut (page Rencontres cachée)
- *  - L'admin peut activer via /admin/manage → tab Site → toggle Rencontres
+ *  - discoveryMode='disabled' par défaut (page Rencontres cachée)
+ *  - L'admin peut activer via /admin/manage → tab Site → radio 3 options :
+ *    1. 'disabled' : page cachée
+ *    2. 'participants-only' : page visible, users filtrés par partners opt-in
+ *    3. 'open-to-all' : page visible, tous users (legacy comportement)
  *
- * Cache server :
- *  - getFeatureFlagsAdmin() : lazy + 60s in-memory TTL
- *  - invalidateFeatureFlagsCache() : appelé après write admin (toggle)
- *
- * Le hook client `useFeatureFlags` est dans `./useFeatureFlags` (séparation
- * imposée par Next.js 15 pour éviter mix client/server dans un même module).
+ * Backward compat c8 : si Firestore contient encore discoveryEnabled boolean
+ * (pas encore migré), on map true → 'open-to-all', false → 'disabled'.
  *
  * @module
  */
@@ -19,14 +20,51 @@
 // Types
 // =====================================================================
 
+export type DiscoveryMode = 'disabled' | 'participants-only' | 'open-to-all';
+
 export interface FeatureFlags {
-  /** Active la page /discovery (Rencontres) + nav item header. Default false (launch). */
+  /** Phase 9.5 c21 — mode 3-state pour /discovery. */
+  discoveryMode: DiscoveryMode;
+  /**
+   * Backward compat c8 — boolean dérivé (true si mode !== 'disabled').
+   * @deprecated Utiliser `discoveryMode` directement. Conservé pour ne pas casser
+   * les consumers c8 (Header navigation, /discovery redirect) durant migration.
+   */
   discoveryEnabled: boolean;
 }
 
 export const DEFAULT_FLAGS: FeatureFlags = {
+  discoveryMode: 'disabled',
   discoveryEnabled: false,
 };
+
+/**
+ * Phase 9.5 c21 — Normalise Firestore raw data → FeatureFlags.
+ *
+ * Backward compat : si `discoveryMode` absent mais `discoveryEnabled` présent
+ * (legacy c8 Firestore docs pas encore migrés), dérive mode depuis boolean :
+ *   - true  → 'open-to-all' (préserve comportement legacy)
+ *   - false → 'disabled'
+ *
+ * Si NI `discoveryMode` NI `discoveryEnabled` → 'disabled' (default launch).
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function normalizeFlags(raw: any): FeatureFlags {
+  if (!raw) return DEFAULT_FLAGS;
+  let mode: DiscoveryMode;
+  if (raw.discoveryMode === 'open-to-all' || raw.discoveryMode === 'participants-only' || raw.discoveryMode === 'disabled') {
+    mode = raw.discoveryMode;
+  } else if (raw.discoveryEnabled === true) {
+    // Legacy c8 boolean true → 'open-to-all' (préserve comportement)
+    mode = 'open-to-all';
+  } else {
+    mode = 'disabled';
+  }
+  return {
+    discoveryMode: mode,
+    discoveryEnabled: mode !== 'disabled',
+  };
+}
 
 // =====================================================================
 // Server-side cache (Admin SDK paths)
@@ -48,10 +86,8 @@ export async function getFeatureFlagsAdmin(db: any): Promise<FeatureFlags> {
   if (_cachedFlags && Date.now() - _cacheTs < CACHE_TTL_MS) return _cachedFlags;
   try {
     const snap = await db.collection('settings').doc('features').get();
-    const data = snap.exists ? (snap.data() as Partial<FeatureFlags>) : null;
-    _cachedFlags = {
-      discoveryEnabled: data?.discoveryEnabled === true,
-    };
+    const data = snap.exists ? snap.data() : null;
+    _cachedFlags = normalizeFlags(data);
     _cacheTs = Date.now();
     return _cachedFlags;
   } catch (err) {

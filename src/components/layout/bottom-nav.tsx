@@ -18,7 +18,9 @@ const PROFILE_ITEM: NavItem = { href: '/profile', icon: User, label: 'Profil' };
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const { discoveryEnabled } = useFeatureFlags();
+  // Phase 9.5 c21 — discoveryMode 3-state. Item Rencontres visible si mode !== 'disabled'.
+  const { discoveryMode } = useFeatureFlags();
+  const discoveryEnabled = discoveryMode !== 'disabled';
 
   // Phase 9.5 c8 — Activités en premier (default landing post-login).
   // Rencontres conditionné à discoveryEnabled (feature flag /admin).
