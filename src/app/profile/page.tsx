@@ -20,6 +20,7 @@ import { Switch } from "@/components/ui/switch";
 import { DANCE_ACTIVITIES, DANCE_LEVELS } from "@/types/firestore";
 import type { DanceCategory, DanceLevel } from "@/types/firestore";
 import BackButton from '@/components/BackButton';
+import { useLanguage } from '@/context/LanguageContext';
 
 // Sports disponibles
 const AVAILABLE_SPORTS = [
@@ -54,6 +55,7 @@ const DANCE_LEVEL_OPTIONS: { id: DanceLevel; label: string; emoji: string }[] = 
 export default function ProfilePage() {
   const { toast } = useToast();
   const { user, userProfile, refreshProfile } = useAuth();
+  const { t } = useLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Form state
@@ -343,7 +345,7 @@ export default function ProfilePage() {
         <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
           <CardHeader>
             <CardTitle>Photos</CardTitle>
-            <p className="text-xs text-gray-500">Max 5 photos. Montrez-vous en action !</p>
+            <p className="text-xs text-gray-500">{t('profile_photos_subtitle')}</p>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
@@ -371,7 +373,7 @@ export default function ProfilePage() {
                   className="aspect-square rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center text-gray-500 hover:border-[#D91CD2] hover:text-[#D91CD2] transition-colors bg-black/20"
                 >
                   <Plus className="h-6 w-6 mb-2" />
-                  <span className="text-xs font-bold">Ajouter</span>
+                  <span className="text-xs font-bold">{t('profile_add_photo_button')}</span>
                 </button>
               )}
               {Array.from({ length: Math.max(0, 5 - (photos.length + 1)) }).map((_, i) => (
@@ -385,30 +387,30 @@ export default function ProfilePage() {
 
         {/* SECTION INFOS */}
         <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
-          <CardHeader><CardTitle>À propos de moi</CardTitle></CardHeader>
+          <CardHeader><CardTitle>{t('profile_about_section_title')}</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
-              <label className="text-sm text-gray-400">Prénom *</label>
+              <label className="text-sm text-gray-400">{t('profile_first_name_label')}</label>
               <Input
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 className="bg-black/50 border-gray-700"
-                placeholder="Votre prénom"
+                placeholder={t('profile_first_name_placeholder')}
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-gray-400">Bio</label>
+              <label className="text-sm text-gray-400">{t('profile_bio_label')}</label>
               <Textarea
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 className="bg-black/50 border-gray-700 min-h-[100px]"
-                placeholder="Parlez de vos sports favoris..."
+                placeholder={t('profile_bio_placeholder')}
                 maxLength={300}
               />
               <p className="text-xs text-gray-600 text-right">{bio.length}/300</p>
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-gray-400">Ville *</label>
+              <label className="text-sm text-gray-400">{t('profile_city_label')}</label>
               <div className="relative">
                 <MapPin className="absolute left-3 top-3 h-4 w-4 text-gray-500" />
                 <select
@@ -416,7 +418,7 @@ export default function ProfilePage() {
                   onChange={(e) => setCity(e.target.value)}
                   className="w-full pl-10 pr-4 py-2 bg-black/50 border border-gray-700 rounded-md text-white appearance-none"
                 >
-                  <option value="">Sélectionnez votre ville</option>
+                  <option value="">{t('profile_city_placeholder')}</option>
                   {SWISS_CITIES.map(c => (
                     <option key={c} value={c}>{c}</option>
                   ))}
@@ -424,12 +426,12 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="space-y-2">
-              <label className="text-sm text-gray-400">Genre</label>
+              <label className="text-sm text-gray-400">{t('profile_gender_label')}</label>
               <div className="flex gap-2">
                 {[
-                  { id: 'female' as const, label: 'Femme' },
-                  { id: 'male' as const, label: 'Homme' },
-                  { id: 'other' as const, label: 'Autre' },
+                  { id: 'female' as const, label: t('profile_gender_female') },
+                  { id: 'male' as const, label: t('profile_gender_male') },
+                  { id: 'other' as const, label: t('profile_gender_other') },
                 ].map(g => (
                   <Badge
                     key={g.id}
@@ -451,8 +453,8 @@ export default function ProfilePage() {
         {/* SECTION SPORTS */}
         <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
           <CardHeader>
-            <CardTitle>Mes Sports *</CardTitle>
-            <p className="text-xs text-gray-500">Sélectionnez vos sports favoris</p>
+            <CardTitle>{t('profile_sports_section_title')}</CardTitle>
+            <p className="text-xs text-gray-500">{t('profile_sports_subtitle')}</p>
           </CardHeader>
           <CardContent>
             <div className="flex flex-wrap gap-2">
@@ -477,8 +479,8 @@ export default function ProfilePage() {
         {/* SECTION DANSE */}
         <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 font-light tracking-wide">Mes Danses</CardTitle>
-            <p className="text-xs text-gray-500">Sélectionnez vos styles de danse</p>
+            <CardTitle className="flex items-center gap-2 font-light tracking-wide">{t('profile_dances_section_title')}</CardTitle>
+            <p className="text-xs text-gray-500">{t('profile_dances_subtitle')}</p>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-wrap gap-2">

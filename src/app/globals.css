@@ -81,38 +81,41 @@ body {
   text-shadow: 0 0 20px rgba(217, 28, 210, 0.5);
 }
 
-/* Phase 9.5 c3 + c23 BUG W — scrollbar auto-hide style macOS native :
-   - Container avec className="scrollbar-thin"
-   - Scrollbar invisible par défaut (thumb opacity 0 + track transparent)
-   - Apparait subtilement au :hover du container (transition 200ms)
-   - Couleurs cohérentes charte stricte black/zinc/#D91CD2
-   - Firefox + Chrome/Safari/Edge support */
-.scrollbar-thin {
+/* Phase 9.5 c25 BUG Z — scrollbar premium GLOBAL (auto-hide style macOS native).
+   Promoted from .scrollbar-thin opt-in class (c3/c23) to *-selector global rule
+   because c23 fix ne touchait pas les modals (ex: "Réserver une séance" gardait
+   la grosse scrollbar blanche). Charte stricte black/zinc/#D91CD2.
+   - Firefox : scrollbar-width thin + scrollbar-color hover-only.
+   - WebKit (Chrome/Safari/Edge) : thumb invisible par défaut, apparait au hover. */
+* {
   scrollbar-width: thin;
-  /* Firefox : thumb transparent par défaut */
   scrollbar-color: transparent transparent;
-  transition: scrollbar-color 0.2s ease;
 }
-.scrollbar-thin:hover {
+*:hover {
   scrollbar-color: rgba(63, 63, 70, 0.6) transparent;
 }
-.scrollbar-thin::-webkit-scrollbar {
+::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
-.scrollbar-thin::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: transparent;
 }
-.scrollbar-thin::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
   background-color: transparent;
   border-radius: 9999px;
   transition: background-color 0.2s ease;
 }
-.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+*:hover::-webkit-scrollbar-thumb {
   background-color: rgba(63, 63, 70, 0.6);
 }
-.scrollbar-thin::-webkit-scrollbar-thumb:hover {
-  background-color: rgba(217, 28, 210, 0.5);
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(217, 28, 210, 0.8);
+}
+/* Backward-compat : .scrollbar-thin existant garde le même style (no-op) */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
 }
 
 /* Phase 9.5 c8 — credits badge pulse (animation déclenchée quand count augmente).

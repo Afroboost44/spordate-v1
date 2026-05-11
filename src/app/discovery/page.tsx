@@ -36,6 +36,7 @@ import { isFirebaseConfigured, getMissingConfig, db } from "@/lib/firebase";
 import { ConfigErrorScreen } from "@/components/ConfigErrorScreen";
 import { useAuth } from "@/context/AuthContext";
 import { collection, query, where, getDocs, limit as firestoreLimit, orderBy, Timestamp } from 'firebase/firestore';
+import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
 import { createMatch } from '@/services/firestore';
@@ -97,6 +98,7 @@ function firestoreProfileToCard(user: UserProfile, index: number) {
 
 
 export default function DiscoveryPage() {
+  const { t } = useLanguage();
   const [profiles, setProfiles] = useState(fallbackProfiles);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isMatch, setIsMatch] = useState(false);
@@ -1012,7 +1014,7 @@ END:VCALENDAR`;
                     className="flex-[4] h-14 rounded-full bg-white/5 backdrop-blur-xl border border-[#D91CD2] text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 hover:bg-[#D91CD2]/10 transition-all active:scale-[0.98]"
                   >
                     <Zap className="h-4 w-4 text-[#D91CD2]" />
-                    {currentProfile.price === 0 ? 'Essai gratuit' : `Réserver · ${currentProfile.price} CHF`}
+                    {currentProfile.price === 0 ? t('discovery_free_trial_button') : t('discovery_reserve_button', { price: currentProfile.price })}
                   </button>
                 ) : (
                   <button
@@ -1039,7 +1041,7 @@ END:VCALENDAR`;
             <div className="md:sticky md:top-20">
               <div className="flex items-center gap-2 mb-4">
                 <Building2 className="h-5 w-5 text-[#D91CD2]" />
-                <h3 className="text-lg font-semibold text-white">Où pratiquer ?</h3>
+                <h3 className="text-lg font-semibold text-white">{t('discovery_where_to_practice')}</h3>
               </div>
               <div className="space-y-2">
                 {[...partners]
@@ -1076,7 +1078,7 @@ END:VCALENDAR`;
                         <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
                         {isBoosted && (
                           <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] whitespace-nowrap flex items-center gap-0.5">
-                            <Zap className="h-2.5 w-2.5" />Recommandé
+                            <Zap className="h-2.5 w-2.5" />{t('discovery_location_recommended')}
                           </span>
                         )}
                       </div>
@@ -1085,7 +1087,7 @@ END:VCALENDAR`;
                       </p>
                     </div>
                     {selectedMeetingPlace === partner.id ? (
-                      <span className="text-xs text-[#D91CD2] font-medium">Sélectionné</span>
+                      <span className="text-xs text-[#D91CD2] font-medium">{t('discovery_location_selected')}</span>
                     ) : (
                       <ChevronRight className="h-4 w-4 text-white/20" />
                     )}
@@ -1101,11 +1103,11 @@ END:VCALENDAR`;
           <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
             <Heart className="h-10 w-10 text-white/20" />
           </div>
-          <h2 className="text-2xl font-semibold text-white mb-2">Plus de profils pour le moment</h2>
-          <p className="text-white/40 mb-6">Revenez plus tard ou recommencez</p>
+          <h2 className="text-2xl font-semibold text-white mb-2">{t('discovery_no_profiles_title')}</h2>
+          <p className="text-white/40 mb-6">{t('discovery_no_profiles_subtitle')}</p>
           <Button onClick={resetProfiles} variant="outline" className="border-white/20 text-white hover:bg-white/10">
             <Undo2 className="mr-2 h-4 w-4" />
-            Recommencer
+            {t('discovery_reset_button')}
           </Button>
         </div>
       )}
@@ -1116,7 +1118,7 @@ END:VCALENDAR`;
           <DialogHeader className="p-6 pb-0 bg-gradient-to-b from-[#D91CD2]/20 to-transparent">
             <DialogTitle className="text-2xl font-bold flex items-center gap-2">
               <Zap className="h-6 w-6 text-yellow-400" />
-              Réserver une séance Afroboost
+              {t('payment_modal_title', { title: 'Afroboost' })}
             </DialogTitle>
             <DialogDescription className="text-gray-400">
               Séance avec {currentProfile?.name.split(',')[0]} à {currentProfile?.location}
@@ -1132,8 +1134,8 @@ END:VCALENDAR`;
                     <Gift className="h-5 w-5 text-white" />
                   </div>
                   <div>
-                    <p className="font-semibold text-white">J'invite mon partenaire</p>
-                    <p className="text-xs text-gray-400">Offrir la séance (2 places)</p>
+                    <p className="font-semibold text-white">{t('payment_duo_option_title')}</p>
+                    <p className="text-xs text-gray-400">{t('payment_duo_option_subtitle')}</p>
                   </div>
                 </div>
                 <Switch
@@ -1155,7 +1157,7 @@ END:VCALENDAR`;
                 <span className="text-gray-400">
                   {isDuoTicket ? 'Séance Duo Afroboost (2x 1h)' : 'Séance Afroboost (1h)'}
                 </span>
-                <span className="font-semibold">{getCurrentPrice() === 0 ? 'SÉANCE D\'ESSAI' : `${getCurrentPrice()} CHF`}</span>
+                <span className="font-semibold">{getCurrentPrice() === 0 ? t('payment_free_session_label') : `${getCurrentPrice()} CHF`}</span>
               </div>
               {isDuoTicket && (
                 <div className="flex justify-between items-center text-sm text-violet-300 mb-2">
@@ -1166,13 +1168,13 @@ END:VCALENDAR`;
                 </div>
               )}
               <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-500">Frais de service</span>
+                <span className="text-gray-500">{t('payment_service_fee')}</span>
                 <span className="text-gray-500">0 CHF</span>
               </div>
               <Separator className="my-3 bg-white/10" />
               <div className="flex justify-between items-center text-lg font-bold">
-                <span>Total</span>
-                <span className="text-green-400">{getCurrentPrice() === 0 ? 'OFFERT' : `${getCurrentPrice()} CHF`}</span>
+                <span>{t('payment_total_label')}</span>
+                <span className="text-green-400">{getCurrentPrice() === 0 ? t('payment_free_label') : `${getCurrentPrice()} CHF`}</span>
               </div>
             </div>
 
@@ -1180,11 +1182,11 @@ END:VCALENDAR`;
             <div className="space-y-3">
               <Label className="text-sm text-gray-400 flex items-center gap-2">
                 <Building2 className="h-4 w-4" />
-                Lieu de rendez-vous (optionnel)
+                {t('payment_meeting_place_label')}
               </Label>
               <Select value={selectedMeetingPlace} onValueChange={setSelectedMeetingPlace}>
                 <SelectTrigger className="bg-black border-gray-700">
-                  <SelectValue placeholder="Choisir un lieu partenaire..." />
+                  <SelectValue placeholder={t('payment_location_placeholder')} />
                 </SelectTrigger>
                 <SelectContent>
                   {partners.map((partner) => (
@@ -1209,12 +1211,12 @@ END:VCALENDAR`;
               {isProcessing ? (
                 <div className="flex items-center gap-3">
                   <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>{getCurrentPrice() === 0 ? 'Confirmation...' : 'Redirection vers Stripe...'}</span>
+                  <span>{getCurrentPrice() === 0 ? t('payment_button_loading_free') : t('payment_button_loading_paid')}</span>
                 </div>
               ) : (
                 <div className="flex items-center gap-2">
                   <CheckCircle className="h-5 w-5" />
-                  <span>{getCurrentPrice() === 0 ? 'Confirmer ma séance d\'essai' : `Payer ${getCurrentPrice()} CHF`}</span>
+                  <span>{getCurrentPrice() === 0 ? t('payment_confirm_free_button') : t('payment_pay_button', { price: getCurrentPrice() })}</span>
                   {isDuoTicket && <Badge className="bg-white/20 text-white text-xs ml-1">Duo</Badge>}
                 </div>
               )}
@@ -1225,7 +1227,7 @@ END:VCALENDAR`;
               <div className="flex items-center gap-3">
                 <CreditCard className="h-5 w-5 text-[#D91CD2]" />
                 <div>
-                  <p className="text-xs font-medium text-white/60">Paiement sécurisé Stripe</p>
+                  <p className="text-xs font-medium text-white/60">{t('payment_stripe_notice')}</p>
                   <p className="text-[11px] text-white/30">TWINT • Carte bancaire • Apple Pay</p>
                 </div>
                 <Lock className="h-3.5 w-3.5 text-white/20 ml-auto" />
@@ -1618,13 +1620,13 @@ END:VCALENDAR`;
               <div className="flex items-center justify-between mb-5">
                 <div className="flex items-center gap-2">
                   <MapPin className="h-5 w-5 text-[#D91CD2]" />
-                  <h3 className="text-lg font-semibold text-white">Où pratiquer ?</h3>
+                  <h3 className="text-lg font-semibold text-white">{t('discovery_where_to_practice')}</h3>
                 </div>
                 <button
                   onClick={() => setShowLocationsSheet(false)}
                   className="text-xs text-white/30 hover:text-white/60 transition"
                 >
-                  Fermer
+                  {t('common_close')}
                 </button>
               </div>
 
@@ -1666,7 +1668,7 @@ END:VCALENDAR`;
                         <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
                         {isBoosted && (
                           <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] whitespace-nowrap flex items-center gap-0.5">
-                            <Zap className="h-2.5 w-2.5" />Recommandé
+                            <Zap className="h-2.5 w-2.5" />{t('discovery_location_recommended')}
                           </span>
                         )}
                       </div>

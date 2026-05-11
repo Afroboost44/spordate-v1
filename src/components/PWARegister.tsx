@@ -1,11 +1,13 @@
 "use client";
 
 import { useEffect, useState } from 'react';
+import { useLanguage } from '@/context/LanguageContext';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let deferredPrompt: any = null;
 
 export default function PWARegister() {
+  const { t } = useLanguage();
   const [showInstall, setShowInstall] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
 
@@ -125,10 +127,10 @@ export default function PWARegister() {
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ color: 'white', margin: 0, fontWeight: 600, fontSize: 15 }}>
-            Installer Spordateur
+            {t('pwa_install_title')}
           </p>
           <p style={{ color: '#aaa', margin: '4px 0 0', fontSize: 13 }}>
-            Accès rapide depuis ton écran d'accueil
+            {t('pwa_install_subtitle')}
           </p>
         </div>
         <button
@@ -145,11 +147,11 @@ export default function PWARegister() {
             whiteSpace: 'nowrap',
           }}
         >
-          Installer
+          {t('pwa_install_button')}
         </button>
         <button
           onClick={() => setShowInstall(false)}
-          aria-label="Fermer"
+          aria-label={t('common_close')}
           style={{
             background: 'none',
             border: 'none',

@@ -31,6 +31,7 @@
 import { useCountdown } from '@/hooks/useCountdown';
 import type { SessionPhase } from '@/hooks/useSessionWindow';
 import type { Timestamp } from 'firebase/firestore';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface CountdownHeroProps {
   /** Cible : Date, Timestamp Firestore, ou epoch ms. */
@@ -42,11 +43,12 @@ export interface CountdownHeroProps {
   className?: string;
 }
 
-const PHASE_SUBTITLE: Record<SessionPhase, string> = {
-  before: 'Le chat ouvre dans',
-  'chat-open': 'Démarre dans',
-  started: 'En cours · termine dans',
-  ended: 'Terminé',
+// Phase 9.5 c25 BUG AA — clés i18n par phase (résolution dynamique via t()).
+const PHASE_SUBTITLE_KEY: Record<SessionPhase, string> = {
+  before: 'countdown_phase_before',
+  'chat-open': 'countdown_phase_chat_open',
+  started: 'countdown_phase_started',
+  ended: 'countdown_phase_ended',
 };
 
 /** Pad une valeur sur 2 chiffres : 5 → "05", 12 → "12". */
@@ -61,6 +63,7 @@ export function CountdownHero({
   className = '',
 }: CountdownHeroProps) {
   const { days, hours, minutes, seconds, totalMs, isExpired } = useCountdown(target);
+  const { t } = useLanguage();
 
   const isCritical = !isExpired && totalMs < 60_000;
   const ariaLive: 'polite' | 'off' = isCritical ? 'polite' : 'off';
@@ -73,19 +76,19 @@ export function CountdownHero({
         aria-live="polite"
       >
         <p className="text-white/60 text-sm uppercase tracking-wider font-light">
-          {expiredTitle ?? (phase === 'ended' ? 'Terminé' : 'Démarré')}
+          {expiredTitle ?? t(phase === 'ended' ? 'countdown_phase_ended' : 'countdown_started')}
         </p>
       </div>
     );
   }
 
-  const subtitle = phase ? PHASE_SUBTITLE[phase] : null;
+  const subtitle = phase ? t(PHASE_SUBTITLE_KEY[phase]) : null;
 
   const segments = [
-    { value: days, label: 'JOURS' },
-    { value: hours, label: 'HEURES' },
-    { value: minutes, label: 'MIN' },
-    { value: seconds, label: 'SEC' },
+    { id: 'd', value: days, label: t('countdown_days') },
+    { id: 'h', value: hours, label: t('countdown_hours') },
+    { id: 'm', value: minutes, label: t('countdown_minutes') },
+    { id: 's', value: seconds, label: t('countdown_seconds') },
   ];
 
   return (
@@ -97,7 +100,7 @@ export function CountdownHero({
         aria-hidden={isCritical ? undefined : true}
       >
         {segments.map((seg) => (
-          <div key={seg.label} className="flex flex-col items-center">
+          <div key={seg.id} className="flex flex-col items-center">
             <span className="text-5xl sm:text-6xl md:text-7xl font-light text-white leading-none">
               {pad2(seg.value)}
             </span>

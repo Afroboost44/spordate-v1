@@ -50,6 +50,62 @@ const defaultTranslations: any = {
     landing_how_it_works: "Comment ça marche",
     landing_join: "Rejoindre",
     landing_start: "Commencer",
+    // Countdown (c25 NEW)
+    countdown_days: "JOURS",
+    countdown_hours: "HEURES",
+    countdown_minutes: "MIN",
+    countdown_seconds: "SEC",
+    countdown_phase_before: "Le chat ouvre dans",
+    countdown_phase_chat_open: "Démarre dans",
+    countdown_phase_started: "En cours · termine dans",
+    countdown_phase_ended: "Terminé",
+    countdown_started: "Démarré",
+    // PWA install banner (c25 NEW)
+    pwa_install_title: "Installer Spordateur",
+    pwa_install_subtitle: "Accès rapide depuis ton écran d'accueil",
+    pwa_install_button: "Installer",
+    // Discovery (c25 NEW)
+    discovery_where_to_practice: "Où pratiquer ?",
+    discovery_location_selected: "Sélectionné",
+    discovery_location_recommended: "Recommandé",
+    discovery_no_profiles_title: "Plus de profils pour le moment",
+    discovery_no_profiles_subtitle: "Revenez plus tard ou recommencez",
+    discovery_reset_button: "Recommencer",
+    discovery_free_trial_button: "Essai gratuit",
+    discovery_reserve_button: "Réserver · {price} CHF",
+    // Payment modal (c25 NEW)
+    payment_modal_title: "Réserver une séance {title}",
+    payment_duo_option_title: "J'invite mon partenaire",
+    payment_duo_option_subtitle: "Offrir la séance (2 places)",
+    payment_service_fee: "Frais de service",
+    payment_total_label: "Total",
+    payment_free_label: "OFFERT",
+    payment_free_session_label: "SÉANCE D'ESSAI",
+    payment_meeting_place_label: "Lieu de rendez-vous (optionnel)",
+    payment_location_placeholder: "Choisir un lieu partenaire...",
+    payment_pay_button: "Payer {price} CHF",
+    payment_confirm_free_button: "Confirmer ma séance d'essai",
+    payment_button_loading_free: "Confirmation...",
+    payment_button_loading_paid: "Redirection vers Stripe...",
+    payment_stripe_notice: "Paiement sécurisé Stripe",
+    // Profile onboarding (c25 NEW)
+    profile_about_section_title: "À propos de moi",
+    profile_first_name_label: "Prénom *",
+    profile_first_name_placeholder: "Votre prénom",
+    profile_bio_label: "Bio",
+    profile_bio_placeholder: "Parlez de vos sports favoris...",
+    profile_city_label: "Ville *",
+    profile_city_placeholder: "Sélectionnez votre ville",
+    profile_gender_label: "Genre",
+    profile_gender_female: "Femme",
+    profile_gender_male: "Homme",
+    profile_gender_other: "Autre",
+    profile_sports_section_title: "Mes Sports *",
+    profile_sports_subtitle: "Sélectionnez vos sports favoris",
+    profile_dances_section_title: "Mes Danses",
+    profile_dances_subtitle: "Sélectionnez vos styles de danse",
+    profile_photos_subtitle: "Max 5 photos. Montrez-vous en action !",
+    profile_add_photo_button: "Ajouter",
   },
   en: {
     hero_title: "Find Your Perfect Sports Partner",
@@ -95,6 +151,62 @@ const defaultTranslations: any = {
     landing_how_it_works: "How it works",
     landing_join: "Join",
     landing_start: "Get started",
+    // Countdown
+    countdown_days: "DAYS",
+    countdown_hours: "HOURS",
+    countdown_minutes: "MIN",
+    countdown_seconds: "SEC",
+    countdown_phase_before: "Chat opens in",
+    countdown_phase_chat_open: "Starts in",
+    countdown_phase_started: "Ongoing · ends in",
+    countdown_phase_ended: "Ended",
+    countdown_started: "Started",
+    // PWA install
+    pwa_install_title: "Install Spordateur",
+    pwa_install_subtitle: "Quick access from your home screen",
+    pwa_install_button: "Install",
+    // Discovery
+    discovery_where_to_practice: "Where to practice?",
+    discovery_location_selected: "Selected",
+    discovery_location_recommended: "Recommended",
+    discovery_no_profiles_title: "No more profiles for now",
+    discovery_no_profiles_subtitle: "Come back later or restart",
+    discovery_reset_button: "Restart",
+    discovery_free_trial_button: "Free trial",
+    discovery_reserve_button: "Book · {price} CHF",
+    // Payment modal
+    payment_modal_title: "Book a {title} session",
+    payment_duo_option_title: "Invite my partner",
+    payment_duo_option_subtitle: "Gift the session (2 spots)",
+    payment_service_fee: "Service fee",
+    payment_total_label: "Total",
+    payment_free_label: "FREE",
+    payment_free_session_label: "TRIAL SESSION",
+    payment_meeting_place_label: "Meeting place (optional)",
+    payment_location_placeholder: "Choose a partner venue...",
+    payment_pay_button: "Pay {price} CHF",
+    payment_confirm_free_button: "Confirm my trial session",
+    payment_button_loading_free: "Confirming...",
+    payment_button_loading_paid: "Redirecting to Stripe...",
+    payment_stripe_notice: "Secure payment by Stripe",
+    // Profile onboarding
+    profile_about_section_title: "About me",
+    profile_first_name_label: "First name *",
+    profile_first_name_placeholder: "Your first name",
+    profile_bio_label: "Bio",
+    profile_bio_placeholder: "Tell us about your favourite sports...",
+    profile_city_label: "City *",
+    profile_city_placeholder: "Select your city",
+    profile_gender_label: "Gender",
+    profile_gender_female: "Female",
+    profile_gender_male: "Male",
+    profile_gender_other: "Other",
+    profile_sports_section_title: "My Sports *",
+    profile_sports_subtitle: "Pick your favourite sports",
+    profile_dances_section_title: "My Dances",
+    profile_dances_subtitle: "Pick your dance styles",
+    profile_photos_subtitle: "Max 5 photos. Show yourself in action!",
+    profile_add_photo_button: "Add",
   },
   de: {
     hero_title: "Finde deinen idealen Sportpartner",
@@ -140,6 +252,62 @@ const defaultTranslations: any = {
     landing_how_it_works: "So funktioniert's",
     landing_join: "Beitreten",
     landing_start: "Starten",
+    // Countdown
+    countdown_days: "TAGE",
+    countdown_hours: "STUNDEN",
+    countdown_minutes: "MIN",
+    countdown_seconds: "SEK",
+    countdown_phase_before: "Chat öffnet in",
+    countdown_phase_chat_open: "Beginnt in",
+    countdown_phase_started: "Läuft · endet in",
+    countdown_phase_ended: "Beendet",
+    countdown_started: "Gestartet",
+    // PWA install
+    pwa_install_title: "Spordateur installieren",
+    pwa_install_subtitle: "Schneller Zugriff vom Startbildschirm",
+    pwa_install_button: "Installieren",
+    // Discovery
+    discovery_where_to_practice: "Wo trainieren?",
+    discovery_location_selected: "Ausgewählt",
+    discovery_location_recommended: "Empfohlen",
+    discovery_no_profiles_title: "Keine Profile mehr",
+    discovery_no_profiles_subtitle: "Komm später wieder oder starte neu",
+    discovery_reset_button: "Neustarten",
+    discovery_free_trial_button: "Kostenlos testen",
+    discovery_reserve_button: "Buchen · {price} CHF",
+    // Payment modal
+    payment_modal_title: "{title}-Sitzung buchen",
+    payment_duo_option_title: "Partner einladen",
+    payment_duo_option_subtitle: "Sitzung schenken (2 Plätze)",
+    payment_service_fee: "Servicegebühr",
+    payment_total_label: "Gesamt",
+    payment_free_label: "GRATIS",
+    payment_free_session_label: "PROBESTUNDE",
+    payment_meeting_place_label: "Treffpunkt (optional)",
+    payment_location_placeholder: "Partner-Ort wählen...",
+    payment_pay_button: "{price} CHF zahlen",
+    payment_confirm_free_button: "Probestunde bestätigen",
+    payment_button_loading_free: "Bestätige...",
+    payment_button_loading_paid: "Weiterleitung zu Stripe...",
+    payment_stripe_notice: "Sichere Zahlung mit Stripe",
+    // Profile onboarding
+    profile_about_section_title: "Über mich",
+    profile_first_name_label: "Vorname *",
+    profile_first_name_placeholder: "Dein Vorname",
+    profile_bio_label: "Bio",
+    profile_bio_placeholder: "Erzähl uns von deinen Lieblingssportarten...",
+    profile_city_label: "Stadt *",
+    profile_city_placeholder: "Wähle deine Stadt",
+    profile_gender_label: "Geschlecht",
+    profile_gender_female: "Weiblich",
+    profile_gender_male: "Männlich",
+    profile_gender_other: "Andere",
+    profile_sports_section_title: "Meine Sportarten *",
+    profile_sports_subtitle: "Wähle deine Lieblingssportarten",
+    profile_dances_section_title: "Meine Tänze",
+    profile_dances_subtitle: "Wähle deine Tanzstile",
+    profile_photos_subtitle: "Max. 5 Fotos. Zeig dich in Aktion!",
+    profile_add_photo_button: "Hinzufügen",
   }
 };
 
@@ -172,8 +340,15 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem('spordate_translations', JSON.stringify(newTrans));
   };
 
-  const t = (key: string) => {
-    return translations[language]?.[key] || defaultTranslations['fr'][key] || key;
+  // Phase 9.5 c25 BUG AA — t() supporte interpolation {placeholder} pour les
+  // strings paramétrés (ex: t('payment_pay_button', { price: 25 }) →
+  // "Payer 25 CHF" / "Pay 25 CHF" / "25 CHF zahlen").
+  const t = (key: string, params?: Record<string, string | number>) => {
+    const raw = translations[language]?.[key] || defaultTranslations['fr'][key] || key;
+    if (!params || typeof raw !== 'string') return raw;
+    return raw.replace(/\{(\w+)\}/g, (_, name) =>
+      params[name] !== undefined ? String(params[name]) : `{${name}}`
+    );
   };
 
   if (!isLoaded) return <div className="bg-black h-screen"></div>;
