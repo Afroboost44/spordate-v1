@@ -1250,7 +1250,7 @@ END:VCALENDAR`;
                 <CreditCard className="h-5 w-5 text-[#D91CD2]" />
                 <div>
                   <p className="text-xs font-medium text-white/60">{t('payment_stripe_notice')}</p>
-                  <p className="text-[11px] text-white/30">TWINT • Carte bancaire • Apple Pay</p>
+                  <p className="text-[11px] text-white/30">{t('payment_methods_accepted')}</p>
                 </div>
                 <Lock className="h-3.5 w-3.5 text-white/20 ml-auto" />
               </div>

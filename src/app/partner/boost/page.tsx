@@ -372,6 +372,10 @@ export default function PartnerBoostPage() {
                   <><Zap className="mr-2 h-5 w-5" /> Payer et activer</>
                 )}
               </Button>
+              {/* Phase 9.5 c28 — Badge moyens de paiement (TWINT natif Stripe CH) */}
+              <p className="mt-3 text-center text-[11px] text-zinc-500">
+                Visa · Mastercard · TWINT
+              </p>
             </div>
           </div>
         </div>

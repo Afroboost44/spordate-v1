@@ -92,6 +92,8 @@ const defaultTranslations: any = {
     payment_button_loading_free: "Confirmation...",
     payment_button_loading_paid: "Redirection vers Stripe...",
     payment_stripe_notice: "Paiement sécurisé Stripe",
+    // Phase 9.5 c28 — Badge moyens de paiement acceptés (TWINT natif Stripe CH)
+    payment_methods_accepted: "Visa · Mastercard · TWINT",
     // Profile onboarding (c25 NEW)
     profile_about_section_title: "À propos de moi",
     profile_first_name_label: "Prénom *",
@@ -196,6 +198,7 @@ const defaultTranslations: any = {
     payment_button_loading_free: "Confirming...",
     payment_button_loading_paid: "Redirecting to Stripe...",
     payment_stripe_notice: "Secure payment by Stripe",
+    payment_methods_accepted: "Visa · Mastercard · TWINT",
     // Profile onboarding
     profile_about_section_title: "About me",
     profile_first_name_label: "First name *",
@@ -300,6 +303,7 @@ const defaultTranslations: any = {
     payment_button_loading_free: "Bestätige...",
     payment_button_loading_paid: "Weiterleitung zu Stripe...",
     payment_stripe_notice: "Sichere Zahlung mit Stripe",
+    payment_methods_accepted: "Visa · Mastercard · TWINT",
     // Profile onboarding
     profile_about_section_title: "Über mich",
     profile_first_name_label: "Vorname *",
