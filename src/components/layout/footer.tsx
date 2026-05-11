@@ -1,4 +1,4 @@
-import { Dumbbell, Twitter, Github, Linkedin } from "lucide-react";
+import { Twitter, Linkedin } from "lucide-react";
 import Link from 'next/link';
 
 export default function Footer() {
@@ -7,7 +7,9 @@ export default function Footer() {
       <div className="container mx-auto px-4 py-8">
         <div className="flex flex-col md:flex-row justify-between items-center space-y-6 md:space-y-0">
           <div className="flex items-center space-x-2">
-            <Dumbbell className="h-6 w-6 bg-[#D91CD2] rounded-md p-1 text-white" />
+            {/* Phase 9.5 c17 — vrai logo Afroboost SVG (icon-192.png généré depuis SVG master) */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon-192.png" alt="Spordateur" width={28} height={28} />
             <span className="font-light text-lg text-white">Spordateur</span>
           </div>
 
