@@ -62,6 +62,21 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // === LIKES (Phase 9.5 c38a — flow Tinder-like, doc id = ${fromUid}_${toUid}) ===
+    // - create : auth uid == fromUid (un user ne peut liker qu'en son nom)
+    // - read : auth uid in [fromUid, toUid] (visibilité bilatérale) ou admin
+    // - update/delete : admin only (likes immutables côté user)
+    match /likes/{likeId} {
+      allow create: if isAuth()
+        && request.auth.uid == request.resource.data.fromUid
+        && request.resource.data.fromUid != request.resource.data.toUid;
+      allow read: if isAuth()
+        && (request.auth.uid == resource.data.fromUid
+            || request.auth.uid == resource.data.toUid
+            || isAdmin());
+      allow update, delete: if isAdmin();
+    }
+
     // === ACTIVITIES (public read, partner CRUD) ===
     // Phase 9 SC6 c1/4 — audienceType enum validation (Q1=A whitelist)
     function validAudienceType(data) {

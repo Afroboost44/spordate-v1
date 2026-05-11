@@ -35,7 +35,7 @@ import { sendPartnerNotification } from "@/lib/notifications";
 import { isFirebaseConfigured, getMissingConfig, db } from "@/lib/firebase";
 import { ConfigErrorScreen } from "@/components/ConfigErrorScreen";
 import { useAuth } from "@/context/AuthContext";
-import { collection, query, where, getDocs, limit as firestoreLimit, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp, limit as firestoreLimit, orderBy, Timestamp } from 'firebase/firestore';
 import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
@@ -421,42 +421,90 @@ export default function DiscoveryPage() {
     setCurrentIndex(prev => prev + 1);
   };
 
+  // Phase 9.5 c38a CH2 — Refactor flow Tinder-like.
+  // AVANT : like débitait crédit + créait match unilatéral chatUnlocked=false +
+  //         ouvrait modal "Tu veux rencontrer X" pour choisir une activité.
+  // APRÈS : like crée un doc likes/{fromUid_toUid}, AUCUN crédit débité, AUCUNE
+  //         modal. Si like inverse existe → POST /api/match/create-mutual qui
+  //         crée matches/{id} avec chatUnlocked=true (chat ouvert d'office sur
+  //         match mutuel). Sinon toast soft "Like envoyé".
+  // Le crédit est désormais débité UNIQUEMENT à l'envoi de message dans le chat.
   const handleLike = async () => {
-    // Use credit via hook (real-time check + toast + redirect)
-    const creditUsed = await useCredit();
-    if (!creditUsed) return;
-
-    // Create a real match in Firestore
-    if (user && currentProfile && (currentProfile as any).firestoreUid) {
-      try {
-        const otherUid = (currentProfile as any).firestoreUid;
-        const matchId = await createMatch({
-          userIds: [user.uid, otherUid],
-          user1: {
-            uid: user.uid,
-            displayName: userProfile?.displayName || user.displayName || 'Utilisateur',
-            photoURL: userProfile?.photoURL || user.photoURL || '',
-          },
-          user2: {
-            uid: otherUid,
-            displayName: currentProfile.name.split(',')[0],
-            photoURL: (currentProfile as any).photoURL || '',
-          },
-          status: 'accepted',
-          activityId: '',
-          sport: currentProfile.sports?.[0] || 'Sport',
-          chatUnlocked: false,
-          initiatedBy: user.uid,
-          expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
-        });
-        setCurrentMatchId(matchId);
-          // Credit already deducted at start of handleLike
-        console.log('[Discovery] Match créé:', matchId);
-      } catch (err) {
-        console.error('[Discovery] Erreur création match:', err);
-      }
+    if (!user || !db || !currentProfile || !(currentProfile as any).firestoreUid) {
+      handleNextProfile();
+      return;
     }
-    setIsMatch(true);
+    const targetUid = (currentProfile as any).firestoreUid as string;
+    if (targetUid === user.uid) {
+      // Self-like impossible
+      handleNextProfile();
+      return;
+    }
+
+    try {
+      // 1. Créer doc likes/{fromUid}_{toUid} — idempotent via composite doc id.
+      //    Si déjà liké, setDoc with merge no-op (le like existe déjà, on
+      //    continue le flow de détection mutuelle).
+      const likeId = `${user.uid}_${targetUid}`;
+      await setDoc(
+        doc(db, 'likes', likeId),
+        {
+          fromUid: user.uid,
+          toUid: targetUid,
+          createdAt: serverTimestamp(),
+          seen: false,
+        },
+        { merge: true },
+      );
+
+      // 2. Check si l'autre user m'a liké en retour (likes/{targetUid}_{user.uid}).
+      const reverseLikeSnap = await getDoc(doc(db, 'likes', `${targetUid}_${user.uid}`));
+
+      if (reverseLikeSnap.exists()) {
+        // 3a. Match mutuel détecté → création atomique server-side.
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/match/create-mutual', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ targetUid }),
+        });
+        const data = await res.json();
+        if (res.ok && data.matchId) {
+          setCurrentMatchId(data.matchId);
+          toast({
+            title: "💖 C'est un match !",
+            description: `Tu peux maintenant discuter avec ${currentProfile.name.split(',')[0]}.`,
+            className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+          });
+        } else {
+          // Server refus (mutual likes manquant côté DB, etc.) — toast neutre,
+          // pas d'erreur effrayante côté user (le like est créé même si match fail).
+          toast({
+            title: 'Like envoyé 💌',
+            description: "Si l'intérêt est mutuel, vous serez notifiés.",
+          });
+        }
+      } else {
+        // 3b. Pas de like inverse → toast soft. Suspense, pas de "match" affiché.
+        toast({
+          title: 'Like envoyé 💌',
+          description: "Si l'intérêt est mutuel, vous serez notifiés.",
+        });
+      }
+    } catch (err) {
+      console.error('[Discovery] handleLike error:', err);
+      toast({
+        title: 'Erreur',
+        description: 'Le like n\'a pas pu être enregistré. Réessaie.',
+        variant: 'destructive',
+      });
+    }
+
+    // Avancer au profil suivant après le like (peu importe match ou pas).
+    handleNextProfile();
   };
   
   const resetProfiles = () => {
