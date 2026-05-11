@@ -4,7 +4,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PlusCircle, Edit, Trash2, Loader2, Clock, MapPin, Users, ImagePlus, X } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, Clock, MapPin, Users, ImagePlus, X, Video, Play } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter, DialogClose,
@@ -18,6 +18,7 @@ import type { AudienceType } from "@/lib/audience";
 import { MediaManager } from "@/components/partner/MediaManager";
 import type { MediaItem } from "@/types/firestore";
 import { getMediaItems } from "@/lib/activities/media";
+import { getVideoThumbnailChain } from "@/lib/activities/mediaParser";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
@@ -58,6 +59,104 @@ const SPORTS = [
 const CITIES = [
   'Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Lucerne', 'Fribourg', 'Neuchâtel',
 ];
+
+/**
+ * Phase 9.5 c20 — Card media partner-side (thumbnail-only, pas iframe live).
+ *
+ * Priorité d'affichage :
+ *  1. mediaUrls[0] type='video' (YouTube) → thumbnail chain hq→mq→default + Play overlay
+ *  2. mediaUrls[0] type='image' → <img> direct
+ *  3. images[0] / imageUrl legacy → <img> direct
+ *  4. Si rien → null (pas de section media affichée)
+ *
+ * Note : pour partner UI on garde thumbnail static (pas autoplay iframe pour
+ * éviter les requests réseau N×N sur la liste). L'iframe live est sur
+ * /sessions/[id] détail page uniquement (c18).
+ */
+function PartnerCardMedia({ act }: { act: Activity }) {
+  const [imgIdx, setImgIdx] = useState(0);
+  const items = getMediaItems({ mediaUrls: act.mediaUrls, images: act.images });
+  const first = items[0];
+
+  // Rien à afficher → card sans media
+  if (!first && !act.imageUrl) return null;
+
+  // Cas 1 : video → thumbnail chain
+  if (first?.type === 'video') {
+    const chain = getVideoThumbnailChain(first);
+    const exhausted = imgIdx >= chain.length;
+    return (
+      <div className="relative h-36 w-full bg-zinc-900 overflow-hidden">
+        {!exhausted ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={chain[imgIdx]}
+            alt={act.name}
+            className="w-full h-full object-cover"
+            onError={() => setImgIdx((i) => i + 1)}
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <Video className="h-12 w-12 text-white/30" aria-hidden="true" />
+          </div>
+        )}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <div className="bg-black/50 rounded-full p-2 backdrop-blur-sm">
+            <Play className="h-5 w-5 text-[#D91CD2] fill-[#D91CD2]" aria-hidden="true" />
+          </div>
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent pointer-events-none" />
+        {items.length > 1 && (
+          <span className="absolute top-2 right-2 bg-black/60 text-white/70 text-[10px] px-2 py-0.5 rounded-full">
+            {items.length} médias
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // Cas 2 : image — mosaic si plusieurs (legacy comportement préservé)
+  const legacyImages = act.images && act.images.length > 0
+    ? act.images
+    : (act.imageUrl ? [act.imageUrl] : []);
+  const firstImageUrl = first?.type === 'image' ? first.url : legacyImages[0];
+  const extraImages = first?.type === 'image'
+    ? items.slice(1).filter((i) => i.type === 'image').map((i) => i.url)
+    : legacyImages.slice(1);
+
+  if (!firstImageUrl) return null;
+
+  return (
+    <div className="relative h-36 w-full">
+      {extraImages.length > 0 ? (
+        <div className="flex h-full">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={firstImageUrl} alt={act.name} className="w-1/2 h-full object-cover" />
+          <div className="w-1/2 flex flex-col">
+            {extraImages.slice(0, 2).map((img, i) => (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                key={i}
+                src={img}
+                alt={`${act.name} ${i + 2}`}
+                className={`w-full ${extraImages.length > 1 ? 'h-1/2' : 'h-full'} object-cover`}
+              />
+            ))}
+          </div>
+        </div>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={firstImageUrl} alt={act.name} className="w-full h-full object-cover" />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent" />
+      {(extraImages.length > 0 || items.length > 1) && (
+        <span className="absolute top-2 right-2 bg-black/60 text-white/70 text-[10px] px-2 py-0.5 rounded-full">
+          {items.length > 0 ? `${items.length} médias` : `${legacyImages.length} photos`}
+        </span>
+      )}
+    </div>
+  );
+}
 
 export default function PartnerOffersPage() {
   const { user } = useAuth();
@@ -226,28 +325,12 @@ export default function PartnerOffersPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {activities.map((act) => (
             <Card key={act.activityId} className={`bg-[#1A1A1A] border-white/5 transition-all overflow-hidden ${!act.isActive ? 'opacity-50' : ''}`}>
-              {((act.images && act.images.length > 0) || act.imageUrl) && (
-                <div className="relative h-36 w-full">
-                  {act.images && act.images.length > 1 ? (
-                    <div className="flex h-full">
-                      <img src={act.images[0]} alt={act.name} className="w-1/2 h-full object-cover" />
-                      <div className="w-1/2 flex flex-col">
-                        {act.images.slice(1, 3).map((img, i) => (
-                          <img key={i} src={img} alt={`${act.name} ${i + 2}`} className={`w-full ${act.images!.length > 2 ? 'h-1/2' : 'h-full'} object-cover`} />
-                        ))}
-                      </div>
-                    </div>
-                  ) : (
-                    <img src={act.images?.[0] || act.imageUrl} alt={act.name} className="w-full h-full object-cover" />
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent" />
-                  {act.images && act.images.length > 1 && (
-                    <span className="absolute top-2 right-2 bg-black/60 text-white/70 text-[10px] px-2 py-0.5 rounded-full">
-                      {act.images.length} photos
-                    </span>
-                  )}
-                </div>
-              )}
+              {/* Phase 9.5 c20 BUG M — card media supporte mediaUrls (image + YouTube vidéo).
+                  Avant : check uniquement images[]/imageUrl → card vide si partner avait
+                  ajouté seulement une URL YouTube. Maintenant : utilise getMediaItems +
+                  thumbnail chain pour les vidéos. */}
+              <PartnerCardMedia act={act} />
+
               <CardContent className="p-5">
                 <div className="flex items-start justify-between mb-3">
                   <div>
