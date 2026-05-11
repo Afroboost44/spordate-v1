@@ -9,9 +9,12 @@ export default {
   ],
   theme: {
     extend: {
+      // Phase 9.5 c18 BUG K — Plus Jakarta Sans (alternative libre Canva Sans).
+      // Le var(--font-jakarta) est injecté par next/font dans layout.tsx.
       fontFamily: {
-        body: ['Poppins', 'sans-serif'],
-        headline: ['Poppins', 'sans-serif'],
+        sans: ['var(--font-jakarta)', 'system-ui', 'sans-serif'],
+        body: ['var(--font-jakarta)', 'system-ui', 'sans-serif'],
+        headline: ['var(--font-jakarta)', 'system-ui', 'sans-serif'],
         code: ['monospace'],
       },
       colors: {

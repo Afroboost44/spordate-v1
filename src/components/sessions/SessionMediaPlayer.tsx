@@ -33,8 +33,21 @@ import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 
 export interface SessionMediaPlayerProps {
-  /** Média à afficher. Si absent, affiche un placeholder Picsum. */
-  media?: { type: 'image' | 'video'; url: string; posterUrl?: string };
+  /**
+   * Média à afficher. Si absent, affiche un placeholder Picsum.
+   *
+   * Pour type='video' :
+   *  - Si `embedUrl` fourni (YouTube/Vimeo/Drive iframe URL) → rendu <iframe>
+   *    (cohérent MediaCarousel c4 + autoplay c6)
+   *  - Sinon `url` direct .mp4 → rendu <video> autoplay muted IntersectionObserver
+   */
+  media?: {
+    type: 'image' | 'video';
+    url: string;
+    posterUrl?: string;
+    embedUrl?: string;
+    provider?: 'youtube' | 'vimeo' | 'drive' | 'direct';
+  };
   /**
    * Phase 9.5 c16 BUG G — Chaîne de fallback URLs pour image.
    * Utilisée si `media.url` (ou la précédente du chain) renvoie 404.
@@ -115,7 +128,9 @@ export function SessionMediaPlayer({
   }, [reducedMotion, media?.type, videoFailed]);
 
   const aspectClass = ASPECT_CLASS[aspectRatio];
-  const isVideo = media?.type === 'video' && !videoFailed;
+  // Phase 9.5 c18 BUG J — si media.embedUrl présent (YouTube/Vimeo/Drive), rendu iframe
+  const isIframeEmbed = media?.type === 'video' && !!media.embedUrl;
+  const isVideo = media?.type === 'video' && !videoFailed && !isIframeEmbed;
   const fallbackUrl = picsumPlaceholder(alt);
 
   // Phase 9.5 c16 BUG G — chaîne d'URLs à essayer pour l'image (primary + fallbacks).
@@ -136,7 +151,18 @@ export function SessionMediaPlayer({
       ref={containerRef}
       className={`relative w-full ${aspectClass} bg-black overflow-hidden ${className}`}
     >
-      {isVideo && !showImageInsteadOfVideo ? (
+      {isIframeEmbed ? (
+        /* Phase 9.5 c18 BUG J — iframe embed YouTube/Vimeo/Drive (cohérent MediaCarousel c4) */
+        <iframe
+          src={media!.embedUrl}
+          title={`Vidéo ${media!.provider ?? ''}`.trim()}
+          className="absolute inset-0 w-full h-full"
+          frameBorder="0"
+          allow="accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; autoplay"
+          allowFullScreen
+          loading={priority ? 'eager' : 'lazy'}
+        />
+      ) : isVideo && !showImageInsteadOfVideo ? (
         <video
           ref={videoRef}
           src={media!.url}

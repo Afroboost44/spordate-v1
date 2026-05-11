@@ -45,7 +45,7 @@ import { BookingPendingHero } from '@/components/sessions/BookingPendingHero';
 import { SessionSuccessToast } from '@/components/sessions/SessionSuccessToast';
 import { computeBundledCredits } from '@/lib/billing/creditRules';
 import { getMediaItems } from '@/lib/activities/media';
-import { getVideoThumbnailChain } from '@/lib/activities/mediaParser';
+import { getVideoThumbnailChain, getVideoEmbedUrl } from '@/lib/activities/mediaParser';
 import type { MediaItem } from '@/types/firestore';
 
 interface PageProps {
@@ -53,42 +53,72 @@ interface PageProps {
 }
 
 /**
- * Phase 9.5 c14 BUG2 + c16 BUG G — derive media + fallback chain pour SessionHero.
+ * Phase 9.5 c14/c16/c18 — derive media + fallback chain pour SessionHero.
  *
  * Priorité :
- *  1. activity.thumbnailMedia (champ legacy explicit) si défini
- *  2. activity.mediaUrls[0] (rich Phase 9.5 c4) si présent
- *     - type='image' → { type:'image', url }
- *     - type='video' provider='youtube' → { type:'image', url: chain[0] }
- *       + fallbacks: chain[1..] (mq + default) si hqdefault 404
- *  3. fallback undefined → SessionHero affiche placeholder Picsum
+ *  1. activity.mediaUrls[0] type='video' (YouTube/Vimeo) → iframe embed autoplay
+ *     (c18 BUG J — vidéo prime sur thumbnail pour engagement)
+ *  2. activity.thumbnailMedia (champ legacy explicit) si défini
+ *  3. activity.mediaUrls[0] type='image' → { type:'image', url }
+ *  4. activity.mediaUrls[0] type='video' sans embedUrl (Drive non-embeddable)
+ *     → thumbnail YouTube chain hq → mq → default
+ *  5. fallback undefined → SessionHero affiche placeholder Picsum
  *
  * Returns { media, imageUrlFallbacks } pour passer au SessionHero qui passe
- * à SessionMediaPlayer (walker chain via state onError).
+ * à SessionMediaPlayer.
  */
 function deriveSessionHeroMedia(
   activity: { thumbnailMedia?: { type: 'image' | 'video'; url: string; posterUrl?: string }; mediaUrls?: MediaItem[]; images?: string[] } | null,
 ): {
-  media: { type: 'image' | 'video'; url: string; posterUrl?: string } | undefined;
+  media: {
+    type: 'image' | 'video';
+    url: string;
+    posterUrl?: string;
+    embedUrl?: string;
+    provider?: 'youtube' | 'vimeo' | 'drive' | 'direct';
+  } | undefined;
   imageUrlFallbacks: string[];
 } {
   if (!activity) return { media: undefined, imageUrlFallbacks: [] };
+
+  const items = getMediaItems({ mediaUrls: activity.mediaUrls, images: activity.images });
+  const first = items[0];
+
+  // Priorité 1 — vidéo embeddable (YouTube/Vimeo) → iframe (BUG J c18)
+  if (first?.type === 'video') {
+    const embed = getVideoEmbedUrl(first, { autoplay: true, muted: true, loop: true });
+    if (embed) {
+      return {
+        media: {
+          type: 'video',
+          url: first.url,
+          embedUrl: embed,
+          provider: first.provider as 'youtube' | 'vimeo' | 'drive' | 'direct' | undefined,
+        },
+        imageUrlFallbacks: [],
+      };
+    }
+    // video non-embeddable (Drive) → fallback thumbnail chain
+    const chain = getVideoThumbnailChain(first);
+    if (chain.length > 0) {
+      return {
+        media: { type: 'image', url: chain[0] },
+        imageUrlFallbacks: chain.slice(1),
+      };
+    }
+  }
+
+  // Priorité 2 — thumbnailMedia legacy
   if (activity.thumbnailMedia?.url) {
     return { media: activity.thumbnailMedia, imageUrlFallbacks: [] };
   }
-  const items = getMediaItems({ mediaUrls: activity.mediaUrls, images: activity.images });
-  const first = items[0];
-  if (!first) return { media: undefined, imageUrlFallbacks: [] };
-  if (first.type === 'image') {
+
+  // Priorité 3 — première image
+  if (first?.type === 'image') {
     return { media: { type: 'image', url: first.url }, imageUrlFallbacks: [] };
   }
-  // video : utiliser chain YouTube hq → mq → default
-  const chain = getVideoThumbnailChain(first);
-  if (chain.length === 0) return { media: undefined, imageUrlFallbacks: [] };
-  return {
-    media: { type: 'image', url: chain[0] },
-    imageUrlFallbacks: chain.slice(1),
-  };
+
+  return { media: undefined, imageUrlFallbacks: [] };
 }
 
 // ISR 30s (équilibre fraîcheur tier/price vs coût Firestore)

@@ -32,8 +32,17 @@ export interface SessionHeroProps {
   session: Session;
   /** Phase actuelle (depuis useSessionWindow Phase 4). */
   phase: SessionPhase;
-  /** Média de l'activity parent (optionnel — fallback Picsum sinon). */
-  media?: { type: 'image' | 'video'; url: string; posterUrl?: string };
+  /**
+   * Média de l'activity parent (optionnel — fallback Picsum sinon).
+   * Phase 9.5 c18 BUG J — type étendu pour embedUrl + provider (iframe YouTube/Vimeo).
+   */
+  media?: {
+    type: 'image' | 'video';
+    url: string;
+    posterUrl?: string;
+    embedUrl?: string;
+    provider?: 'youtube' | 'vimeo' | 'drive' | 'direct';
+  };
   /**
    * Phase 9.5 c16 BUG G — fallback chain pour image (e.g. YouTube hq → mq → default).
    * Walk via state onError dans SessionMediaPlayer.

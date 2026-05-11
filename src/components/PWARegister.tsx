@@ -64,7 +64,7 @@ export default function PWARegister() {
           position: 'fixed',
           inset: 0,
           zIndex: 9999,
-          background: 'linear-gradient(135deg, #9333EA 0%, #D91CD2 50%, #C026D3 100%)',
+          background: '#000000',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
@@ -77,12 +77,12 @@ export default function PWARegister() {
           alt="Spordateur"
           width={120}
           height={120}
-          style={{ borderRadius: 28, marginBottom: 24, boxShadow: '0 8px 32px rgba(0,0,0,0.3)' }}
+          style={{ marginBottom: 24, boxShadow: '0 0 60px rgba(217,28,210,0.4)' }}
         />
-        <h1 style={{ color: 'white', fontSize: 36, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>
+        <h1 style={{ color: '#D91CD2', fontSize: 36, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>
           Spordateur
         </h1>
-        <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: 15, marginTop: 8 }}>
+        <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 15, marginTop: 8 }}>
           Rencontres sportives en Suisse
         </p>
         <style>{`@keyframes splashFade { to { opacity: 0; pointer-events: none; } }`}</style>
@@ -99,7 +99,7 @@ export default function PWARegister() {
           left: 16,
           right: 16,
           zIndex: 9998,
-          background: 'rgba(26, 26, 46, 0.95)',
+          background: 'rgba(0, 0, 0, 0.95)',
           backdropFilter: 'blur(12px)',
           borderRadius: 16,
           padding: '16px 20px',
@@ -107,7 +107,7 @@ export default function PWARegister() {
           alignItems: 'center',
           gap: 12,
           boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-          border: '1px solid rgba(147, 51, 234, 0.3)',
+          border: '1px solid rgba(217, 28, 210, 0.3)',
         }}
       >
         <img
@@ -115,7 +115,6 @@ export default function PWARegister() {
           alt=""
           width={48}
           height={48}
-          style={{ borderRadius: 12 }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ color: 'white', margin: 0, fontWeight: 600, fontSize: 15 }}>
@@ -128,7 +127,7 @@ export default function PWARegister() {
         <button
           onClick={handleInstall}
           style={{
-            background: 'linear-gradient(135deg, #9333EA, #C026D3)',
+            background: '#D91CD2',
             color: 'white',
             border: 'none',
             borderRadius: 12,
