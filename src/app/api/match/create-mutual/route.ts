@@ -79,7 +79,11 @@ export async function POST(request: NextRequest) {
     const db = await getAdminDb();
     const { Timestamp, FieldValue } = await import('firebase-admin/firestore');
 
-    // 3. Verify both likes/ docs exist (anti-fraud — server source of truth).
+    // 3. Phase 9.5 c38a-fix5 — Check des 2 likes/ docs côté serveur (admin SDK).
+    // Bypass complet des rules Firestore qui rejetaient le getDoc reverseLike
+    // côté client. Si UN seul ou ZÉRO existe → return { mutual: false } 200,
+    // pas une erreur (le like fwd a déjà été créé client-side, on attend juste
+    // le retour de l'autre). Pas d'erreur 412 effrayante.
     const fwdLikeId = `${fromUid}_${targetUid}`;
     const revLikeId = `${targetUid}_${fromUid}`;
     const [fwdSnap, revSnap] = await Promise.all([
@@ -87,19 +91,14 @@ export async function POST(request: NextRequest) {
       db.collection('likes').doc(revLikeId).get(),
     ]);
     if (!fwdSnap.exists || !revSnap.exists) {
-      return NextResponse.json(
-        {
-          error: 'no-mutual-likes',
-          detail: `Both likes/${fwdLikeId} and likes/${revLikeId} must exist`,
-        },
-        { status: 412 },
-      );
+      // Pas mutuel encore — le client a juste créé son like, l'autre n'a pas
+      // (encore) liké en retour. Toast soft "Like envoyé" côté UI.
+      return NextResponse.json({ ok: true, mutual: false }, { status: 200 });
     }
 
-    // 4. Idempotence : check existing match between these 2 users.
-    // Strategy : query matches where userIds array-contains fromUid, filter in
-    // memory by targetUid presence (Firestore ne supporte pas 2 array-contains
-    // dans la même query).
+    // 4. Mutual confirmé. Idempotence : check existing match entre ces 2 users.
+    // Query matches where userIds array-contains fromUid + filter en mémoire
+    // (Firestore ne supporte pas 2 array-contains dans la même query).
     const existingMatchesSnap = await db
       .collection('matches')
       .where('userIds', 'array-contains', fromUid)
@@ -113,29 +112,29 @@ export async function POST(request: NextRequest) {
     );
     if (existingMatch) {
       return NextResponse.json(
-        { ok: true, matchId: existingMatch.id, alreadyExisted: true },
+        { ok: true, mutual: true, matchId: existingMatch.id, alreadyExisted: true },
         { status: 200 },
       );
     }
 
-    // 5. Create match doc.
+    // 5. Create match doc atomique (Admin SDK bypass rules).
     const sortedUids = [fromUid, targetUid].sort();
     const matchRef = db.collection('matches').doc();
     await matchRef.set({
       matchId: matchRef.id,
       userIds: sortedUids,
       status: 'accepted',
-      initiatedBy: 'mutual', // distingue des matches legacy (initiatedBy = uid)
-      chatUnlocked: true, // KEY CHANGE — chat ouvert d'office sur mutual
+      initiatedBy: 'mutual',
+      chatUnlocked: true,
       activityId: '',
       sport: '',
       expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    // 6. Push notif → deferred c38b (sendPushNotification helper × 2 users)
+    // 6. Push notif → deferred c38b
     return NextResponse.json(
-      { ok: true, matchId: matchRef.id, alreadyExisted: false },
+      { ok: true, mutual: true, matchId: matchRef.id, alreadyExisted: false },
       { status: 200 },
     );
   } catch (err) {

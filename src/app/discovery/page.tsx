@@ -434,13 +434,7 @@ export default function DiscoveryPage() {
       handleNextProfile();
       return;
     }
-    // Phase 9.5 c38a-fix4 — validation défensive + logs debug temporaires.
-    // Erreur persiste : hypothèse targetUid undefined/invalid → rule `is string`
-    // rejette le create. Log raw pour confirmer le state avant write.
     const targetUid = (currentProfile as any).firestoreUid as string | undefined;
-    console.log('[handleLike DEBUG] currentProfile:', currentProfile);
-    console.log('[handleLike DEBUG] targetUid:', targetUid, 'type:', typeof targetUid);
-    console.log('[handleLike DEBUG] user.uid:', user.uid, 'type:', typeof user.uid);
     if (!targetUid || typeof targetUid !== 'string' || targetUid.length < 5) {
       console.warn('[handleLike] targetUid invalid, skip:', targetUid);
       toast({
@@ -458,59 +452,45 @@ export default function DiscoveryPage() {
     }
 
     try {
-      // 1. Phase 9.5 c38a-fix3 — Stratégie skip-if-exists au lieu de setDoc merge.
-      //    Avant : setDoc({merge:true}) déclenchait UPDATE si doc existait → rules
-      //    create-only rejetaient avec permission-denied. Maintenant : getDoc
-      //    check, puis setDoc CREATE seulement si absent. Idempotence préservée
-      //    (un re-like = no-op DB-side, le flow mutual check continue normalement).
+      // 1. Phase 9.5 c38a-fix3 — skip-if-exists pour éviter UPDATE rejeté par rules.
       const likeId = `${user.uid}_${targetUid}`;
       const ownLikeRef = doc(db, 'likes', likeId);
       const ownLikeSnap = await getDoc(ownLikeRef);
-      console.log('[handleLike DEBUG] ownLike exists:', ownLikeSnap.exists(), 'likeId:', likeId);
       if (!ownLikeSnap.exists()) {
-        const payload = {
+        await setDoc(ownLikeRef, {
           fromUid: user.uid,
           toUid: targetUid,
           createdAt: serverTimestamp(),
           seen: false,
-        };
-        console.log('[handleLike DEBUG] setDoc payload:', payload);
-        await setDoc(ownLikeRef, payload);
-      }
-      // Si like existait déjà : skip write, continue le flow mutual check ci-dessous.
-
-      // 2. Check si l'autre user m'a liké en retour (likes/{targetUid}_{user.uid}).
-      const reverseLikeSnap = await getDoc(doc(db, 'likes', `${targetUid}_${user.uid}`));
-
-      if (reverseLikeSnap.exists()) {
-        // 3a. Match mutuel détecté → création atomique server-side.
-        const idToken = await user.getIdToken();
-        const res = await fetch('/api/match/create-mutual', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${idToken}`,
-          },
-          body: JSON.stringify({ targetUid }),
         });
-        const data = await res.json();
-        if (res.ok && data.matchId) {
-          setCurrentMatchId(data.matchId);
-          toast({
-            title: "💖 C'est un match !",
-            description: `Tu peux maintenant discuter avec ${currentProfile.name.split(',')[0]}.`,
-            className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
-          });
-        } else {
-          // Server refus (mutual likes manquant côté DB, etc.) — toast neutre,
-          // pas d'erreur effrayante côté user (le like est créé même si match fail).
-          toast({
-            title: 'Like envoyé 💌',
-            description: "Si l'intérêt est mutuel, vous serez notifiés.",
-          });
-        }
+      }
+
+      // 2. Phase 9.5 c38a-fix5 — Mutual check 100% server-side (admin SDK bypass
+      //    rules). Avant : getDoc(likes/${targetUid}_${user.uid}) côté client
+      //    rejetait avec permission-denied (un user ne peut pas read un like
+      //    où il est toUid only — rule read exige in [fromUid, toUid]; mais
+      //    via le rule path "auth.uid == resource.data.toUid" ça marche... sauf
+      //    si race/cache rules). On contourne en déléguant 100% au serveur :
+      //    /api/match/create-mutual fait les 2 getDoc + détection + création
+      //    atomique, return { mutual: true/false, matchId? } toujours 200.
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/match/create-mutual', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ targetUid }),
+      });
+      const data = await res.json();
+      if (res.ok && data.mutual === true && data.matchId) {
+        setCurrentMatchId(data.matchId);
+        toast({
+          title: "💖 C'est un match !",
+          description: `Tu peux maintenant discuter avec ${currentProfile.name.split(',')[0]}.`,
+          className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        });
       } else {
-        // 3b. Pas de like inverse → toast soft. Suspense, pas de "match" affiché.
         toast({
           title: 'Like envoyé 💌',
           description: "Si l'intérêt est mutuel, vous serez notifiés.",
