@@ -7,7 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import {
-  Dumbbell, ArrowRight, CheckCircle, X, TrendingUp, Users, Wallet,
+  ArrowRight, CheckCircle, X, TrendingUp, Users, Wallet,
   CalendarCheck, Star, Shield, Zap, Gift, Loader2, ArrowLeft
 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
@@ -124,7 +124,9 @@ export default function PartnersPage() {
           <div className="flex items-center gap-3">
             <button onClick={() => router.back()} className="text-white/40 hover:text-white/70 transition mr-2"><ArrowLeft className="h-5 w-5" /></button>
             <Link href="/" className="flex items-center gap-2">
-              <Dumbbell className="h-7 w-7 bg-[#D91CD2] rounded-md p-1 text-white" />
+              {/* Phase 9.5 c19 — vrai logo Afroboost cercle */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icon-192.png" alt="Spordateur" width={32} height={32} />
               <span className="text-lg font-light tracking-widest uppercase">Spordateur</span>
             </Link>
           </div>

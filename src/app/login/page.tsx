@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Dumbbell, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -135,7 +135,9 @@ export default function LoginPage() {
           <form onSubmit={handleResetPassword}>
             <CardHeader className="items-center text-center">
               <Link href="/" className="flex items-center justify-center space-x-2 mb-4">
-                <Dumbbell className="h-8 w-8 bg-[#D91CD2] rounded-md p-1 text-white" />
+                {/* Phase 9.5 c19 — vrai logo Afroboost cercle (était Dumbbell placeholder) */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icon-192.png" alt="Spordateur" width={40} height={40} />
                 <span className="font-bold text-2xl">Spordateur</span>
               </Link>
               <CardTitle className="text-2xl font-bold">Mot de passe oublié</CardTitle>
@@ -186,7 +188,9 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit}>
             <CardHeader className="items-center text-center">
               <Link href="/" className="flex items-center justify-center space-x-2 mb-4">
-                <Dumbbell className="h-8 w-8 bg-[#D91CD2] rounded-md p-1 text-white" />
+                {/* Phase 9.5 c19 — vrai logo Afroboost cercle (était Dumbbell placeholder) */}
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/icon-192.png" alt="Spordateur" width={40} height={40} />
                 <span className="font-bold text-2xl">Spordateur</span>
               </Link>
               <CardTitle className="text-2xl font-bold">Connexion</CardTitle>

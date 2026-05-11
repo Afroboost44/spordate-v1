@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
-  Dumbbell, LayoutDashboard, Building, LogOut, Wallet, Loader2,
+  LayoutDashboard, Building, LogOut, Wallet, Loader2,
   ShieldAlert, Rocket, Menu, X, Compass, Home
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -107,7 +107,9 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
             <Link href="/" className="flex items-center gap-2">
-              <Dumbbell className="h-7 w-7 bg-[#D91CD2] rounded-md p-1 text-white" />
+              {/* Phase 9.5 c19 — vrai logo Afroboost cercle (était Dumbbell placeholder) */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/icon-192.png" alt="Spordateur" width={32} height={32} />
               <span className="text-lg font-light tracking-widest uppercase hidden sm:block">Spordateur</span>
             </Link>
             {partner && (

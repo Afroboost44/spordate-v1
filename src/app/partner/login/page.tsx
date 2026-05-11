@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
-  Dumbbell, Building, Lock, Loader2, CheckCircle, AlertTriangle,
+  Building, Lock, Loader2, CheckCircle, AlertTriangle,
   CreditCard, ShieldAlert, ArrowLeft, Eye, EyeOff
 } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -268,7 +268,9 @@ export default function PartnerLoginPage() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <Link href="/" className="flex items-center gap-2">
-            <Dumbbell className="h-7 w-7 bg-[#D91CD2] rounded-md p-1 text-white" />
+            {/* Phase 9.5 c19 — vrai logo Afroboost cercle (était Dumbbell placeholder) */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/icon-192.png" alt="Spordateur" width={32} height={32} />
             <span className="text-lg font-light tracking-widest uppercase">Spordateur</span>
           </Link>
         </div>
