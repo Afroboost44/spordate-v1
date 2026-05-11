@@ -7,7 +7,7 @@ import { Rocket, Zap, MapPin, Clock, TrendingUp, Eye, Users, Loader2, Globe, Che
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/context/AuthContext';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, limit, addDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 
 const SWISS_CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Fribourg', 'Neuchâtel', 'Toute la Suisse'];
 
@@ -94,24 +94,16 @@ export default function PartnerBoostPage() {
     if (status === 'success' && sessionId) {
       setPaymentStatus('success');
 
-      // Save boost to Firestore
-      if (db && (partnerId || user?.uid)) {
-        const durationHours: Record<string, number> = { '24h': 24, '3d': 72, '7d': 168 };
-        const hours = durationHours[duration || '24h'] || 24;
-        const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
-
-        addDoc(collection(db, 'boosts'), {
-          partnerId: partnerId || user?.uid || '',
-          city: city ? decodeURIComponent(city) : '',
-          duration: duration || '24h',
-          active: true,
-          stripeSessionId: sessionId,
-          createdAt: serverTimestamp(),
-          expiresAt,
-        }).then(() => {
-          toast({ title: "Boost activé", description: `Votre boost est actif pour ${DURATIONS.find(d => d.value === duration)?.label || duration}.` });
-        }).catch(err => console.error('[Boost] Save error:', err));
-      }
+      // Phase 9.5 c26 BUG DD — La création du doc boosts/ est désormais
+      // SERVER-SIDE via le webhook Stripe (handlers/stripe/handler.ts →
+      // handleBoostPayment). Ne plus addDoc côté client : un user pouvait
+      // sinon visiter /partner/boost?status=success&session_id=fake et
+      // activer un boost sans avoir payé. Toast informatif côté client,
+      // refresh activeBoosts au prochain useEffect mount (load() relit boosts/).
+      toast({
+        title: "Boost activé",
+        description: `Activation en cours (quelques secondes)… Le boost ${DURATIONS.find(d => d.value === duration)?.label || duration} sera visible dans /partner/dashboard.`,
+      });
 
       // Clean URL
       window.history.replaceState({}, '', '/partner/boost');

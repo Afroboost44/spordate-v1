@@ -64,6 +64,13 @@ export async function handlePaymentSuccess(session: Record<string, unknown>, str
     return handleInvitePrepayPayment(session, stripe);
   }
 
+  // Phase 9.5 c26 BUG DD — boost partner flow (metadata.type='boost' depuis
+  // /api/boost-checkout). Création server-side du doc boosts/ pour éviter
+  // que le client ne forge un sessionId factice et active un boost gratuit.
+  if (meta.type === 'boost') {
+    return handleBoostPayment(session);
+  }
+
   const { db, FV } = await initAdmin();
   const userId = meta.userId;
   const packageId = meta.packageId || '';
@@ -981,4 +988,71 @@ async function logErr(db: FirebaseFirestore.Firestore, FV: typeof import('fireba
     stackTrace: '', userId: rid, url: '/api/webhooks/stripe', userAgent: 'server',
     metadata: {}, resolved: false, resolvedAt: null, createdAt: FV.serverTimestamp(),
   });
+}
+
+// =============================================================
+// Phase 9.5 c26 BUG DD — Boost partner Stripe webhook handler.
+//
+// Dispatched depuis handlePaymentSuccess quand metadata.type === 'boost'
+// (set par /api/boost-checkout/route.ts). Crée le doc boosts/{auto-id}
+// SERVER-SIDE pour empêcher qu'un user puisse forger un sessionId factice
+// et activer un boost gratuit en visitant /partner/boost?status=success.
+//
+// Idempotence : check qu'un doc avec ce stripeSessionId n'existe pas déjà
+// avant d'écrire (les webhooks Stripe peuvent être rejoués sur retry).
+// =============================================================
+const BOOST_DURATION_HOURS: Record<string, number> = {
+  '24h': 24,
+  '3d': 72,
+  '7d': 168,
+};
+
+async function handleBoostPayment(session: Record<string, unknown>) {
+  const { db, FV } = await initAdmin();
+  const meta = (session.metadata || {}) as Record<string, string>;
+  const stripeSessionId = session.id as string;
+  const amountTotal = (session.amount_total as number) || 0;
+
+  const partnerId = meta.partnerId || '';
+  const duration = meta.duration || '';
+  const city = meta.city || '';
+  const country = meta.country || '';
+
+  if (!partnerId || !BOOST_DURATION_HOURS[duration]) {
+    await logErr(
+      db,
+      FV,
+      `[Boost] metadata invalide partnerId="${partnerId}" duration="${duration}"`,
+      stripeSessionId,
+    );
+    return;
+  }
+
+  // Idempotence : skip si webhook rejoué (doc déjà créé pour ce sessionId).
+  const existing = await db
+    .collection('boosts')
+    .where('stripeSessionId', '==', stripeSessionId)
+    .limit(1)
+    .get();
+  if (!existing.empty) {
+    console.log(`[Boost] Webhook rejoué, doc déjà présent : ${existing.docs[0].id}`);
+    return;
+  }
+
+  const hours = BOOST_DURATION_HOURS[duration];
+  const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
+
+  const ref = await db.collection('boosts').add({
+    partnerId,
+    city,
+    country,
+    duration,
+    active: true,
+    stripeSessionId,
+    amountChf: amountTotal / 100,
+    expiresAt,
+    createdAt: FV.serverTimestamp(),
+  });
+
+  console.log(`[Boost] Activé doc=${ref.id} partnerId=${partnerId} duration=${duration} city=${city}`);
 }

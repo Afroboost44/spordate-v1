@@ -79,6 +79,9 @@ function firestoreProfileToCard(user: UserProfile, index: number) {
     return danceInfo ? danceInfo.label : s.name;
   });
 
+  // Phase 9.5 c26 BUG BB — `price` retiré de la card profil. Le prix réel
+  // vient de l'Activity choisie dans la modal "Tu veux rencontrer X ?" et
+  // est porté par selectedActivity (state component-level).
   return {
     id: index + 1000, // Offset to avoid collision with fallback IDs
     firestoreUid: user.uid,
@@ -88,7 +91,6 @@ function firestoreProfileToCard(user: UserProfile, index: number) {
     bio: user.bio || 'Passionné de sport, à la recherche de partenaires !',
     imageId: 'discovery-' + ((index % 3) + 1), // Cycle through placeholder images
     photoURL: user.photoURL || '',
-    price: 25, // Default session price
     matchScore: 0, // Will be computed
   };
 }
@@ -112,6 +114,11 @@ export default function DiscoveryPage() {
   const [boostedPartnerIds, setBoostedPartnerIds] = useState<Set<string>>(new Set());
   const [boostedActivities_db, setBoostedActivities_db] = useState<any[]>([]);
   const [realActivities, setRealActivities] = useState<any[]>([]);
+  // Phase 9.5 c26 BUG BB — activity choisie dans la modal "Tu veux rencontrer X ?".
+  // Source de vérité du prix affiché dans la payment modal (à la place de
+  // currentProfile.price retiré). Pre-sélectionnée auto par handleBookSession()
+  // si l'utilisateur clique le CTA principal sans en choisir une.
+  const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
 
   // New states for social features
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
@@ -402,6 +409,14 @@ export default function DiscoveryPage() {
   const discoveryImages = PlaceHolderImages.filter(p => p.id.startsWith('discovery-'));
   const activityImages = PlaceHolderImages.filter(p => p.id.startsWith('activity-'));
 
+  // Phase 9.5 c26 BUG CC — ne montrer dans la modal "Tu veux rencontrer X ?"
+  // que les activités dont le partenaire est ACTUELLEMENT boosté (présent dans
+  // la collection boosts/ avec active=true et expiresAt>now, cf. ligne 310).
+  // Boostés en tête (sort stable : tous boostés donc ordre Firestore conservé).
+  const visibleActivities = realActivities.filter((act) =>
+    boostedPartnerIds.has(act.partnerId)
+  );
+
   const handleNextProfile = () => {
     setCurrentIndex(prev => prev + 1);
   };
@@ -487,16 +502,23 @@ export default function DiscoveryPage() {
   };
 
   // Open payment modal
-  const handleBookSession = () => {
-      // Don't reset selectedMeetingPlace if already set from partner selection
+  // Phase 9.5 c26 BUG BB+CC — accepte une activity optionnelle (depuis le clic
+  // sur une card d'activité dans la modal). Si absente, pre-select la première
+  // de la liste filtrée par boost (visibleActivities) pour ne pas pousser un
+  // flow "free booking" par accident (basePrice 0 sinon).
+  const handleBookSession = (activity?: any) => {
+    const pick = activity ?? visibleActivities[0] ?? null;
+    setSelectedActivity(pick);
+    // Don't reset selectedMeetingPlace if already set from partner selection
     setIsDuoTicket(false);
     setShowPaymentModal(true);
   };
 
-  // Calculate current price based on solo/duo
+  // Phase 9.5 c26 BUG BB — prix lu sur selectedActivity (Activity choisie),
+  // plus jamais sur la card profil (qui ne porte plus de prix). Duo = ×2.
   const getCurrentPrice = () => {
-    if (!currentProfile) return 25;
-    return isDuoTicket ? 50 : currentProfile.price;
+    const basePrice = Number(selectedActivity?.price ?? 0);
+    return isDuoTicket ? basePrice * 2 : basePrice;
   };
 
   // Poll payment status from Stripe
@@ -1014,7 +1036,7 @@ END:VCALENDAR`;
                     className="flex-[4] h-14 rounded-full bg-white/5 backdrop-blur-xl border border-[#D91CD2] text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 hover:bg-[#D91CD2]/10 transition-all active:scale-[0.98]"
                   >
                     <Zap className="h-4 w-4 text-[#D91CD2]" />
-                    {currentProfile.price === 0 ? t('discovery_free_trial_button') : t('discovery_reserve_button', { price: currentProfile.price })}
+                    {t('discovery_reserve_button')}
                   </button>
                 ) : (
                   <button
@@ -1164,7 +1186,7 @@ END:VCALENDAR`;
                   <span className="flex items-center gap-1">
                     <Gift className="h-3 w-3" /> Place offerte incluse
                   </span>
-                  <span className="line-through text-gray-500">{(currentProfile?.price || 25) * 2} CHF</span>
+                  <span className="line-through text-gray-500">{(Number(selectedActivity?.price ?? 0)) * 2} CHF</span>
                 </div>
               )}
               <div className="flex justify-between items-center text-sm">
@@ -1289,16 +1311,9 @@ END:VCALENDAR`;
           <div className="px-5 pb-2 pt-1">
             <p className="text-[11px] text-white/30 uppercase tracking-widest mb-3 font-semibold">Choisis une activité</p>
             <div className="space-y-2.5">
-              {realActivities.length > 0 ? (
+              {visibleActivities.length > 0 ? (
                 <>
-                  {[...realActivities]
-                    .sort((a, b) => {
-                      const aBoosted = boostedPartnerIds.has(a.partnerId);
-                      const bBoosted = boostedPartnerIds.has(b.partnerId);
-                      if (aBoosted && !bBoosted) return -1;
-                      if (!aBoosted && bBoosted) return 1;
-                      return 0;
-                    })
+                  {visibleActivities
                     .map((act, idx) => {
                       const isBoosted = boostedPartnerIds.has(act.partnerId);
                       const imgUrl = act.images?.[0] || act.imageUrl || '';
@@ -1308,7 +1323,7 @@ END:VCALENDAR`;
                           key={act.id}
                           onClick={() => {
                             setIsMatch(false);
-                            handleBookSession();
+                            handleBookSession(act);
                           }}
                           className={`w-full rounded-2xl transition-all duration-200 active:scale-[0.97] hover:scale-[1.01] ${
                             isFirst
@@ -1354,9 +1369,19 @@ END:VCALENDAR`;
                     })}
                 </>
               ) : (
-                <div className="text-center py-6">
-                  <p className="text-sm text-white/30 mb-1">Aucune activité disponible</p>
-                  <p className="text-xs text-white/20">De nouvelles activités arrivent bientôt</p>
+                /* Phase 9.5 c26 BUG CC — empty state when no boosted partner has
+                   activities currently. Bouton secondaire ferme la modal et
+                   ramène l'utilisateur au feed de profils (pas de redirect). */
+                <div className="text-center py-8 px-4">
+                  <div className="text-4xl mb-3">🚀</div>
+                  <p className="text-sm text-white/60 mb-1 font-medium">{t('discovery_no_boosted_activities')}</p>
+                  <p className="text-xs text-white/30 mb-5">{t('discovery_no_boosted_activities_subtitle')}</p>
+                  <button
+                    onClick={closeMatchModal}
+                    className="text-sm text-[#D91CD2] hover:text-[#D91CD2]/80 font-medium transition-colors"
+                  >
+                    {t('discovery_view_all_profiles')}
+                  </button>
                 </div>
               )}
             </div>
@@ -1380,19 +1405,23 @@ END:VCALENDAR`;
             </div>
           </div>
 
-          {/* Primary CTA */}
-          <div className="px-5 pb-2">
-            <button
-              onClick={() => {
-                setIsMatch(false);
-                handleBookSession();
-              }}
-              className="w-full h-14 rounded-2xl bg-[#D91CD2] text-white font-semibold text-base tracking-wide flex items-center justify-center gap-2.5 hover:opacity-90 hover:scale-[1.01] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[#D91CD2]/20"
-            >
-              <Zap className="h-5 w-5" />
-              Réserver mon date maintenant
-            </button>
-          </div>
+          {/* Primary CTA — Phase 9.5 c26 BUG CC : caché si aucune activité boostée
+              visible (sinon clic ouvrirait la payment modal avec price=0 ⇒ free flow
+              non voulu). L'empty state au-dessus offre déjà le retour au feed. */}
+          {visibleActivities.length > 0 && (
+            <div className="px-5 pb-2">
+              <button
+                onClick={() => {
+                  setIsMatch(false);
+                  handleBookSession();
+                }}
+                className="w-full h-14 rounded-2xl bg-[#D91CD2] text-white font-semibold text-base tracking-wide flex items-center justify-center gap-2.5 hover:opacity-90 hover:scale-[1.01] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[#D91CD2]/20"
+              >
+                <Zap className="h-5 w-5" />
+                Réserver mon date maintenant
+              </button>
+            </div>
+          )}
 
           {/* Secondary CTA — subtle */}
           <div className="px-5 pb-6 pt-1">

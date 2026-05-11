@@ -72,7 +72,11 @@ const defaultTranslations: any = {
     discovery_no_profiles_subtitle: "Revenez plus tard ou recommencez",
     discovery_reset_button: "Recommencer",
     discovery_free_trial_button: "Essai gratuit",
-    discovery_reserve_button: "Réserver · {price} CHF",
+    discovery_reserve_button: "Réserver",
+    // Phase 9.5 c26 BUG CC — empty state quand aucun partenaire boosté n'a d'activité
+    discovery_no_boosted_activities: "Aucune activité boostée disponible pour le moment",
+    discovery_no_boosted_activities_subtitle: "Reviens bientôt — de nouvelles activités sont mises en avant chaque jour.",
+    discovery_view_all_profiles: "Voir tous les profils",
     // Payment modal (c25 NEW)
     payment_modal_title: "Réserver une séance {title}",
     payment_duo_option_title: "J'invite mon partenaire",
@@ -173,7 +177,10 @@ const defaultTranslations: any = {
     discovery_no_profiles_subtitle: "Come back later or restart",
     discovery_reset_button: "Restart",
     discovery_free_trial_button: "Free trial",
-    discovery_reserve_button: "Book · {price} CHF",
+    discovery_reserve_button: "Book",
+    discovery_no_boosted_activities: "No boosted activities available right now",
+    discovery_no_boosted_activities_subtitle: "Come back soon — new activities are featured every day.",
+    discovery_view_all_profiles: "Back to all profiles",
     // Payment modal
     payment_modal_title: "Book a {title} session",
     payment_duo_option_title: "Invite my partner",
@@ -274,7 +281,10 @@ const defaultTranslations: any = {
     discovery_no_profiles_subtitle: "Komm später wieder oder starte neu",
     discovery_reset_button: "Neustarten",
     discovery_free_trial_button: "Kostenlos testen",
-    discovery_reserve_button: "Buchen · {price} CHF",
+    discovery_reserve_button: "Buchen",
+    discovery_no_boosted_activities: "Derzeit keine geboosteten Aktivitäten verfügbar",
+    discovery_no_boosted_activities_subtitle: "Komm bald wieder — jeden Tag werden neue Aktivitäten hervorgehoben.",
+    discovery_view_all_profiles: "Zurück zu allen Profilen",
     // Payment modal
     payment_modal_title: "{title}-Sitzung buchen",
     payment_duo_option_title: "Partner einladen",
