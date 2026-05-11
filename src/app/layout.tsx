@@ -35,12 +35,12 @@ export const metadata: Metadata = {
   // regénération d'asset pour éviter d'avoir à demander Cmd+Shift+Delete au user.
   icons: {
     icon: [
-      { url: "/favicon.ico?v=22", sizes: "any" },
-      { url: "/icon-192.png?v=22", type: "image/png", sizes: "192x192" },
-      { url: "/icon-512.png?v=22", type: "image/png", sizes: "512x512" },
+      { url: "/favicon.ico?v=24", sizes: "any" },
+      { url: "/icon-192.png?v=24", type: "image/png", sizes: "192x192" },
+      { url: "/icon-512.png?v=24", type: "image/png", sizes: "512x512" },
     ],
-    apple: [{ url: "/apple-touch-icon.png?v=22", sizes: "180x180" }],
-    shortcut: ["/favicon.ico?v=22"],
+    apple: [{ url: "/apple-touch-icon.png?v=24", sizes: "180x180" }],
+    shortcut: ["/favicon.ico?v=24"],
   },
   openGraph: {
     title: "Spordateur",
@@ -79,7 +79,7 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`dark ${jakarta.variable}`}>
       <head>
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=22" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=24" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>

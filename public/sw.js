@@ -1,15 +1,18 @@
-// Spordateur Service Worker v2.0
-const CACHE_NAME = 'spordate-v2';
+// Spordateur Service Worker v24 (Phase 9.5 c24 — bump CACHE_NAME force invalidate
+// tous les caches précédents au prochain activate event → re-fetch les NEW icons
+// Bassi (cercle Afroboost) et purge l'ancien logo placeholder caché par iOS PWA).
+const CACHE_NAME = 'spordate-v24';
 const OFFLINE_URL = '/offline.html';
 
-// Assets to pre-cache
+// Assets to pre-cache (cache-bust via ?v=24 cohérent manifest + layout.tsx)
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json',
-  '/icons/icon.svg',
-  '/icon-192.png',
-  '/icon-512.png',
-  '/apple-touch-icon.png',
+  '/icon-192.png?v=24',
+  '/icon-512.png?v=24',
+  '/icon-maskable-512.png?v=24',
+  '/apple-touch-icon.png?v=24',
+  '/favicon.ico?v=24',
   '/offline.html',
 ];
 

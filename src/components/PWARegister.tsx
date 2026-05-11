@@ -31,8 +31,10 @@ export default function PWARegister() {
     // équivalent → on garde le custom magenta-glow brand reinforcement.
     const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
     if (isStandalone && !isIOS) {
+      // Phase 9.5 c24 — splash custom raccourci 2500→800ms (réduit chance de
+      // doublon visible avec splash natif Android, brand reinforcement maintenu).
       setShowSplash(true);
-      setTimeout(() => setShowSplash(false), 2500);
+      setTimeout(() => setShowSplash(false), 800);
     }
 
     const handleBeforeInstall = (e: Event) => {
@@ -74,7 +76,7 @@ export default function PWARegister() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          animation: 'splashFade 0.5s ease 2s forwards',
+          animation: 'splashFade 0.3s ease 0.5s forwards',
         }}
       >
         <img
