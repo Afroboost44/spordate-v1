@@ -103,7 +103,11 @@ export async function POST(request: NextRequest) {
     const sortedUids = [fromUid, targetUid].sort();
     const deterministicMatchId = `${sortedUids[0]}_${sortedUids[1]}`;
     const matchRef = db.collection('matches').doc(deterministicMatchId);
-    const existingMatchSnap = await matchRef.get();
+    const chatRef = db.collection('chats').doc(deterministicMatchId);
+    const [existingMatchSnap, chatSnap] = await Promise.all([
+      matchRef.get(),
+      chatRef.get(),
+    ]);
 
     if (existingMatchSnap.exists) {
       // Match déjà créé (par un précédent mutual ou direct-paid). Force
@@ -111,6 +115,17 @@ export async function POST(request: NextRequest) {
       const existing = existingMatchSnap.data() ?? {};
       if (!existing.chatUnlocked) {
         await matchRef.update({ chatUnlocked: true });
+      }
+      // Phase 9.5 c40 — chats/{matchId} sibling créé s'il manque (legacy).
+      if (!chatSnap.exists) {
+        await chatRef.set({
+          chatId: deterministicMatchId,
+          participants: sortedUids,
+          lastMessage: '',
+          lastMessageAt: FieldValue.serverTimestamp(),
+          unreadCount: { [sortedUids[0]]: 0, [sortedUids[1]]: 0 },
+          createdAt: FieldValue.serverTimestamp(),
+        });
       }
       return NextResponse.json(
         { ok: true, mutual: true, matchId: deterministicMatchId, alreadyExisted: true },
@@ -128,6 +143,18 @@ export async function POST(request: NextRequest) {
       activityId: '',
       sport: '',
       expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+      createdAt: FieldValue.serverTimestamp(),
+    });
+
+    // 5-bis. Phase 9.5 c40 — créer chats/{matchId} sibling (architecture
+    // historique services/firestore.ts createMatch:193). Indispensable pour
+    // que les rules messages/ check chats/{chatId}.participants succeed.
+    await chatRef.set({
+      chatId: deterministicMatchId,
+      participants: sortedUids,
+      lastMessage: '',
+      lastMessageAt: FieldValue.serverTimestamp(),
+      unreadCount: { [sortedUids[0]]: 0, [sortedUids[1]]: 0 },
       createdAt: FieldValue.serverTimestamp(),
     });
 

@@ -105,13 +105,20 @@ export async function POST(request: NextRequest) {
       // Avant : auto-id + idempotence par query. Problème : si un match legacy
       // existait avec chatUnlocked: false, il était retourné tel quel → user
       // redirigé sur un chat verrouillé. Maintenant : doc id déterministe →
-      // setDoc(merge: true) force toujours chatUnlocked:true sur le BON doc,
-      // jamais de duplicate possible (idempotent par design via Firestore).
+      // setDoc force toujours chatUnlocked:true sur le BON doc, jamais de
+      // duplicate possible (idempotent par design via Firestore).
       const sortedUids = [uid, targetUid].sort();
       const deterministicMatchId = `${sortedUids[0]}_${sortedUids[1]}`;
       const matchRef = matchesCol.doc(deterministicMatchId);
-      const existingMatchSnap = await tx.get(matchRef);
+      const chatRef = db.collection('chats').doc(deterministicMatchId);
 
+      // PHASE 1 : tous les reads upfront (Firestore TX exige reads avant writes).
+      const [existingMatchSnap, chatSnap] = await Promise.all([
+        tx.get(matchRef),
+        tx.get(chatRef),
+      ]);
+
+      // PHASE 2 : décider + écrire selon les états lus.
       if (existingMatchSnap.exists) {
         // Match existait déjà (mutual antérieur, direct-paid précédent, ou
         // legacy migré). Force chatUnlocked:true au passage pour upgrade UX,
@@ -121,6 +128,18 @@ export async function POST(request: NextRequest) {
         const existing = existingMatchSnap.data() ?? {};
         if (!existing.chatUnlocked) {
           tx.update(matchRef, { chatUnlocked: true });
+        }
+        // Phase 9.5 c40 — créer chats/{matchId} sibling s'il manque (legacy
+        // match d'avant c40 OU dedupe winner sans chats/ associé).
+        if (!chatSnap.exists) {
+          tx.set(chatRef, {
+            chatId: deterministicMatchId,
+            participants: sortedUids,
+            lastMessage: '',
+            lastMessageAt: FieldValue.serverTimestamp(),
+            unreadCount: { [sortedUids[0]]: 0, [sortedUids[1]]: 0 },
+            createdAt: FieldValue.serverTimestamp(),
+          });
         }
         return {
           success: true as const,
@@ -144,6 +163,19 @@ export async function POST(request: NextRequest) {
         sport: '',
         creditsSpent: cost,
         expiresAt: Timestamp.fromDate(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
+        createdAt: FieldValue.serverTimestamp(),
+      });
+
+      // d-bis. Phase 9.5 c40 — créer aussi le doc chats/{matchId} sibling
+      // (architecture historique : services/firestore.ts createMatch:193).
+      // Sans ce doc, la rule messages/ check `chats/{chatId}.participants`
+      // throws → permission-denied → toast "session annulée — lecture seule".
+      tx.set(chatRef, {
+        chatId: deterministicMatchId,
+        participants: sortedUids,
+        lastMessage: '',
+        lastMessageAt: FieldValue.serverTimestamp(),
+        unreadCount: { [sortedUids[0]]: 0, [sortedUids[1]]: 0 },
         createdAt: FieldValue.serverTimestamp(),
       });
 
