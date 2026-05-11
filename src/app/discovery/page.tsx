@@ -103,7 +103,7 @@ export default function DiscoveryPage() {
   const { t } = useLanguage();
   const [profiles, setProfiles] = useState(fallbackProfiles);
   const [currentIndex, setCurrentIndex] = useState(0);
-  const [isMatch, setIsMatch] = useState(false);
+  // Phase 9.5 c38b CH5 — isMatch state retiré (modal "Tu veux rencontrer X" supprimée)
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [confirmedTickets, setConfirmedTickets] = useState<number[]>([]);
@@ -417,6 +417,7 @@ export default function DiscoveryPage() {
     boostedPartnerIds.has(act.partnerId)
   );
 
+
   const handleNextProfile = () => {
     setCurrentIndex(prev => prev + 1);
   };
@@ -509,16 +510,76 @@ export default function DiscoveryPage() {
     handleNextProfile();
   };
   
+  // Phase 9.5 c38b CH1 — Chat direct payant (5 crédits, court-circuite mutual).
+  // Distinct du ❤️ Like (gratuit, attend mutuel) : ici on paie pour parler.
+  // Server-side via /api/chat/unlock-direct (Bearer + runTransaction atomic).
+  const DIRECT_CHAT_COST = 5;
+  const handleDirectChat = async () => {
+    if (!user || !db || !currentProfile) return;
+    const targetUid = (currentProfile as any).firestoreUid as string | undefined;
+    if (!targetUid || typeof targetUid !== 'string' || targetUid === user.uid) return;
+
+    // UX fast-feedback côté client (server re-check faisant autorité).
+    if (creditCount < DIRECT_CHAT_COST) {
+      toast({
+        title: 'Solde insuffisant',
+        description: t('discovery_direct_chat_insufficient', {
+          have: creditCount,
+          need: DIRECT_CHAT_COST,
+        }),
+        variant: 'destructive',
+      });
+      router.push('/payment');
+      return;
+    }
+
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/chat/unlock-direct', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ targetUid }),
+      });
+      const data = await res.json();
+      if (res.ok && data.matchId) {
+        toast({
+          title: t('discovery_direct_chat_success'),
+          description: `Tu peux maintenant discuter avec ${currentProfile.name.split(',')[0]}.`,
+          className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        });
+        router.push(`/chat?match=${data.matchId}`);
+      } else if (data.error === 'insufficient-credits') {
+        toast({
+          title: 'Solde insuffisant',
+          description: t('discovery_direct_chat_insufficient', {
+            have: data.have ?? 0,
+            need: data.need ?? DIRECT_CHAT_COST,
+          }),
+          variant: 'destructive',
+        });
+        router.push('/payment');
+      } else {
+        toast({
+          title: 'Erreur',
+          description: data.detail || data.error || 'Impossible de débloquer le chat.',
+          variant: 'destructive',
+        });
+      }
+    } catch (err) {
+      console.error('[handleDirectChat]', err);
+      toast({ title: 'Erreur réseau', variant: 'destructive' });
+    }
+  };
+
   const resetProfiles = () => {
     setCurrentIndex(0);
     setProfiles(fallbackProfiles);
   }
 
-  const closeMatchModal = () => {
-    setIsMatch(false);
-    setCurrentMatchId(null);
-    handleNextProfile();
-  }
+  // Phase 9.5 c38b CH5 — closeMatchModal retiré (modal supprimée)
 
   const bookActivity = () => {
     router.push('/activities');
@@ -557,7 +618,18 @@ export default function DiscoveryPage() {
   // de la liste filtrée par boost (visibleActivities) pour ne pas pousser un
   // flow "free booking" par accident (basePrice 0 sinon).
   const handleBookSession = (activity?: any) => {
-    const pick = activity ?? visibleActivities[0] ?? null;
+    // Phase 9.5 c38b CH3 — Pre-select dans partnerActivities (filtré au profil
+    // courant) au lieu de visibleActivities. Empty state → toast au lieu d'ouvrir
+    // une modal vide (avant c38b la modal s'ouvrait avec une activité d'un autre
+    // partner par accident).
+    if (!activity && partnerActivities.length === 0) {
+      toast({
+        title: 'Aucune activité disponible',
+        description: t('discovery_no_boosted_activity_partner'),
+      });
+      return;
+    }
+    const pick = activity ?? partnerActivities[0] ?? null;
     setSelectedActivity(pick);
     // Don't reset selectedMeetingPlace if already set from partner selection
     setIsDuoTicket(false);
@@ -980,6 +1052,17 @@ END:VCALENDAR`;
   const profileImage = discoveryImages.find(img => img.id === currentProfile?.imageId);
   const hasTicket = currentProfile && confirmedTickets.includes(currentProfile.id);
 
+  // Phase 9.5 c38b CH3 — Activités boostées DU PARTNER ACTUELLEMENT REGARDÉ.
+  // Sous-ensemble de visibleActivities, filtré sur Activity.partnerId ==
+  // currentProfile.firestoreUid (= le user/partner dont la card est affichée).
+  // Utilisé par la modal "Réserver" dropdown pour proposer uniquement ses
+  // activités à lui (pas celles d'autres partners boostés).
+  const partnerActivities = currentProfile
+    ? visibleActivities.filter(
+        (act) => act.partnerId === (currentProfile as any).firestoreUid,
+      )
+    : [];
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-black">
       {currentProfile ? (
@@ -1043,19 +1126,30 @@ END:VCALENDAR`;
                 </p>
               </div>
 
-              {/* Like / Dislike floating on photo */}
+              {/* Like / Dislike / Chat Direct floating on photo */}
               <div className="absolute bottom-6 right-6 z-20 flex items-center gap-3">
                 <button
                   onClick={handleNextProfile}
+                  aria-label="Passer"
                   className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/60 hover:text-red-400 hover:border-red-400/40 transition-all active:scale-90"
                 >
                   <X size={22} />
                 </button>
                 <button
                   onClick={handleLike}
+                  aria-label="Like"
                   className="w-12 h-12 rounded-full bg-[#D91CD2]/30 backdrop-blur-md border border-[#D91CD2]/40 flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
                 >
                   <Heart size={20} fill="currentColor" />
+                </button>
+                {/* Phase 9.5 c38b CH1 — 3e bouton : Chat direct payant (5 crédits) */}
+                <button
+                  onClick={handleDirectChat}
+                  aria-label={`${t('discovery_direct_chat_button')} — ${t('discovery_direct_chat_cost')}`}
+                  title={`${t('discovery_direct_chat_button')} — ${t('discovery_direct_chat_cost')}`}
+                  className="w-12 h-12 rounded-full bg-[#D91CD2] backdrop-blur-md border border-[#D91CD2] flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
+                >
+                  <MessageCircle size={20} />
                 </button>
               </div>
             </div>
@@ -1198,6 +1292,39 @@ END:VCALENDAR`;
           </DialogHeader>
           
           <div className="p-6 space-y-6">
+            {/* Phase 9.5 c38b CH4 — Dropdown choix activité parmi celles boostées
+                du partner regardé. Avant c38b : selection cliquant sur card dans
+                modal isMatch (supprimée). Maintenant : dropdown explicite. */}
+            {partnerActivities.length > 1 && (
+              <div className="space-y-2">
+                <Label className="text-sm text-gray-400 flex items-center gap-2">
+                  <Zap className="h-4 w-4 text-[#D91CD2]" />
+                  {t('discovery_choose_activity')}
+                </Label>
+                <Select
+                  value={selectedActivity?.id ?? ''}
+                  onValueChange={(id) => {
+                    const next = partnerActivities.find((a) => a.id === id);
+                    if (next) setSelectedActivity(next);
+                  }}
+                >
+                  <SelectTrigger className="bg-black border-gray-700">
+                    <SelectValue placeholder={t('discovery_activity_placeholder')} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {partnerActivities.map((act) => (
+                      <SelectItem key={act.id} value={act.id}>
+                        <div className="flex items-center gap-2">
+                          <span>{act.name}</span>
+                          <span className="text-xs text-muted-foreground">— {act.price} CHF</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Duo Option Toggle */}
             <div data-testid="duo-option-toggle" className="bg-gradient-to-r from-[#D91CD2]/30 to-[#E91E63]/30 rounded-xl p-4 border border-[#D91CD2]/30">
               <div className="flex items-center justify-between">
@@ -1309,179 +1436,11 @@ END:VCALENDAR`;
         </DialogContent>
       </Dialog>
 
-      {/* Match Modal — Improved UX/UI for conversion */}
-      <Dialog open={isMatch} onOpenChange={setIsMatch}>
-        <DialogContent className="max-w-md w-full bg-black border-[#D91CD2]/20 text-white p-0 overflow-hidden max-h-[90vh] flex flex-col animate-in fade-in-0 zoom-in-95 duration-300">
-          <div className="overflow-y-auto flex-1 scrollbar-thin scrollbar-thumb-white/10 scrollbar-track-transparent">
-
-          {/* Match Header — Emotional & Personal */}
-          <div className="relative px-6 pt-8 pb-5 text-center bg-gradient-to-b from-[#D91CD2]/20 via-[#D91CD2]/5 to-transparent">
-            {/* Animated glow */}
-            <div className="absolute inset-0 bg-[#D91CD2]/5 animate-pulse" />
-            
-            <div className="relative z-10">
-              {/* Dual avatars */}
-              <div className="flex justify-center items-center gap-3 mb-5">
-                <div className="relative">
-                  <Avatar className="h-16 w-16 ring-2 ring-[#D91CD2]/50">
-                    <AvatarImage src={userProfile?.photoURL || ''} className="object-cover" />
-                    <AvatarFallback className="bg-zinc-800 text-white text-lg">
-                      {(userProfile?.displayName || 'T').charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-                <div className="relative">
-                  <div className="absolute inset-0 bg-[#D91CD2]/40 rounded-full blur-xl animate-pulse" />
-                  <Heart className="h-8 w-8 text-[#D91CD2] relative z-10" fill="currentColor" />
-                </div>
-                <div className="relative">
-                  <Avatar className="h-16 w-16 ring-2 ring-[#D91CD2]/50">
-                    <AvatarImage src={(currentProfile as any)?.photoURL || ''} className="object-cover" />
-                    <AvatarFallback className="bg-zinc-800 text-white text-lg">
-                      {(currentProfile?.name || '?').charAt(0)}
-                    </AvatarFallback>
-                  </Avatar>
-                </div>
-              </div>
-
-              <DialogHeader className="items-center">
-                <DialogTitle className="text-2xl font-bold tracking-tight text-white leading-tight">
-                  Tu veux rencontrer {currentProfile?.name.split(',')[0]} ?
-                </DialogTitle>
-                <DialogDescription className="text-sm text-white/50 mt-2 max-w-[280px] mx-auto leading-relaxed">
-                  Passe du virtuel au réel. Réserve ton activité et rencontre{' '}
-                  <span className="text-[#D91CD2] font-medium">{currentProfile?.name.split(',')[0]}</span>{' '}
-                  dans la vraie vie.
-                </DialogDescription>
-              </DialogHeader>
-            </div>
-          </div>
-
-          {/* Activity Cards — Premium Design */}
-          <div className="px-5 pb-2 pt-1">
-            <p className="text-[11px] text-white/30 uppercase tracking-widest mb-3 font-semibold">Choisis une activité</p>
-            <div className="space-y-2.5">
-              {visibleActivities.length > 0 ? (
-                <>
-                  {visibleActivities
-                    .map((act, idx) => {
-                      const isBoosted = boostedPartnerIds.has(act.partnerId);
-                      const imgUrl = act.images?.[0] || act.imageUrl || '';
-                      const isFirst = idx === 0;
-                      return (
-                        <button
-                          key={act.id}
-                          onClick={() => {
-                            setIsMatch(false);
-                            handleBookSession(act);
-                          }}
-                          className={`w-full rounded-2xl transition-all duration-200 active:scale-[0.97] hover:scale-[1.01] ${
-                            isFirst
-                              ? 'bg-gradient-to-r from-[#D91CD2]/15 to-[#7B1FA2]/15 border-2 border-[#D91CD2]/40 p-0.5'
-                              : 'bg-white/5 border border-white/10 hover:bg-white/8'
-                          }`}
-                        >
-                          <div className={`flex items-center gap-3.5 p-3.5 ${isFirst ? 'bg-black/60 rounded-[14px]' : ''}`}>
-                            {imgUrl ? (
-                              <img src={imgUrl} alt={act.name} className={`${isFirst ? 'w-16 h-16' : 'w-12 h-12'} rounded-xl object-cover flex-shrink-0`} />
-                            ) : (
-                              <div className={`${isFirst ? 'w-16 h-16' : 'w-12 h-12'} rounded-xl bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-white font-bold flex-shrink-0`}>
-                                {act.sport?.charAt(0) || '?'}
-                              </div>
-                            )}
-                            <div className="flex-1 text-left min-w-0">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <p className={`${isFirst ? 'text-base' : 'text-sm'} font-semibold text-white truncate`}>{act.name}</p>
-                              </div>
-                              {isFirst && (
-                                <p className="text-[11px] text-[#D91CD2]/70 font-medium mb-1">Fun • Énergie • Connexion immédiate</p>
-                              )}
-                              <p className="text-[11px] text-white/40 flex items-center gap-1.5">
-                                <span>{act.sport}</span>
-                                <span className="text-white/20">·</span>
-                                <span className="font-medium text-white/60">{act.price} CHF</span>
-                                <span className="text-white/20">·</span>
-                                <MapPin className="h-2.5 w-2.5 inline" />
-                                <span>{act.city}</span>
-                              </p>
-                            </div>
-                            <div className="flex flex-col items-end gap-1 flex-shrink-0">
-                              {(isBoosted || isFirst) && (
-                                <span className="text-[9px] font-bold px-2 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] flex items-center gap-0.5 whitespace-nowrap">
-                                  <Zap className="h-2.5 w-2.5" />{isBoosted ? 'Boost' : 'Recommandé'}
-                                </span>
-                              )}
-                              <ChevronRight className="h-4 w-4 text-white/20" />
-                            </div>
-                          </div>
-                        </button>
-                      );
-                    })}
-                </>
-              ) : (
-                /* Phase 9.5 c26 BUG CC — empty state when no boosted partner has
-                   activities currently. Bouton secondaire ferme la modal et
-                   ramène l'utilisateur au feed de profils (pas de redirect). */
-                <div className="text-center py-8 px-4">
-                  <div className="text-4xl mb-3">🚀</div>
-                  <p className="text-sm text-white/60 mb-1 font-medium">{t('discovery_no_boosted_activities')}</p>
-                  <p className="text-xs text-white/30 mb-5">{t('discovery_no_boosted_activities_subtitle')}</p>
-                  <button
-                    onClick={closeMatchModal}
-                    className="text-sm text-[#D91CD2] hover:text-[#D91CD2]/80 font-medium transition-colors"
-                  >
-                    {t('discovery_view_all_profiles')}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* Reassurance badges */}
-          <div className="px-5 py-4">
-            <div className="grid grid-cols-1 gap-2">
-              <div className="flex items-center gap-2.5 bg-white/[0.03] rounded-xl px-3.5 py-2.5">
-                <CheckCircle size={14} className="text-green-400 flex-shrink-0" />
-                <span className="text-xs text-white/50">Chat débloqué après réservation</span>
-              </div>
-              <div className="flex items-center gap-2.5 bg-white/[0.03] rounded-xl px-3.5 py-2.5">
-                <RefreshCcw size={14} className="text-blue-400 flex-shrink-0" />
-                <span className="text-xs text-white/50">Annulation gratuite</span>
-              </div>
-              <div className="flex items-center gap-2.5 bg-white/[0.03] rounded-xl px-3.5 py-2.5">
-                <Users size={14} className="text-[#D91CD2] flex-shrink-0" />
-                <span className="text-xs text-white/50">Rencontre garantie (groupe si besoin)</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Primary CTA — Phase 9.5 c26 BUG CC : caché si aucune activité boostée
-              visible (sinon clic ouvrirait la payment modal avec price=0 ⇒ free flow
-              non voulu). L'empty state au-dessus offre déjà le retour au feed. */}
-          {visibleActivities.length > 0 && (
-            <div className="px-5 pb-2">
-              <button
-                onClick={() => {
-                  setIsMatch(false);
-                  handleBookSession();
-                }}
-                className="w-full h-14 rounded-2xl bg-[#D91CD2] text-white font-semibold text-base tracking-wide flex items-center justify-center gap-2.5 hover:opacity-90 hover:scale-[1.01] active:scale-[0.98] transition-all duration-200 shadow-lg shadow-[#D91CD2]/20"
-              >
-                <Zap className="h-5 w-5" />
-                Réserver mon date maintenant
-              </button>
-            </div>
-          )}
-
-          {/* Secondary CTA — subtle */}
-          <div className="px-5 pb-6 pt-1">
-            <button onClick={closeMatchModal} className="w-full text-center text-xs text-white/20 hover:text-white/40 transition-colors py-2 font-light">
-              Je réfléchirai plus tard
-            </button>
-          </div>
-          </div>{/* end scroll wrapper */}
-        </DialogContent>
-      </Dialog>
+      {/* Phase 9.5 c38b CH5 — Modal "Tu veux rencontrer X" supprimée définitivement.
+          Avant : ouvrait après handleLike() avec liste d'activités boostées + CTA
+          Réserver. Remplacée par flow Tinder classique (c38a) : ❤️ Like soft +
+          bouton "Réserver" direct sur la card photo (qui ouvre showPaymentModal
+          avec dropdown activités dans la modal, cf CH3-CH4). */}
 
       {/* Partner Detail Modal */}
       <Dialog open={showPartnerModal} onOpenChange={setShowPartnerModal}>
