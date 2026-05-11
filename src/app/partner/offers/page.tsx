@@ -16,8 +16,15 @@ import { Switch } from "@/components/ui/switch";
 import { AudienceTypeSelector } from "@/components/partner/AudienceTypeSelector";
 import type { AudienceType } from "@/lib/audience";
 import { MediaManager } from "@/components/partner/MediaManager";
-import type { MediaItem } from "@/types/firestore";
+import type { MediaItem, PricingTier } from "@/types/firestore";
 import { getMediaItems } from "@/lib/activities/media";
+import {
+  buildPricingTiersPayload,
+  parsePricingTiersFromFirestore,
+  suggestPricingTiersFromBase,
+  validatePricingTiers,
+} from "@/lib/billing/pricingTiersBuilder";
+import { useLanguage } from "@/context/LanguageContext";
 import { getVideoThumbnailChain } from "@/lib/activities/mediaParser";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -49,6 +56,8 @@ interface Activity {
   /** Phase 9.5 c11 — Date prochaine séance (Firestore Timestamp côté lecture). */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   scheduledAt?: any;
+  /** Phase 9.5 c31 BUG HH — 3 paliers de prix progressifs (optionnel — fallback c29a si absent). */
+  defaultPricingTiers?: PricingTier[];
 }
 
 const SPORTS = [
@@ -182,6 +191,12 @@ export default function PartnerOffersPage() {
   const [formAudienceType, setFormAudienceType] = useState<AudienceType>('all');
   // Phase 9.5 c11 — date prochaine séance (optionnel, datetime-local format)
   const [formScheduledAt, setFormScheduledAt] = useState('');
+  // Phase 9.5 c31 BUG HH — édition pricing tiers
+  const [formPricingEnabled, setFormPricingEnabled] = useState(false);
+  const [formEarlyPrice, setFormEarlyPrice] = useState('');
+  const [formStandardPrice, setFormStandardPrice] = useState('');
+  const [formLastPrice, setFormLastPrice] = useState('');
+  const { t } = useLanguage();
 
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
@@ -212,6 +227,11 @@ export default function PartnerOffersPage() {
     setFormMediaItems([]);
     setFormAudienceType('all');
     setFormScheduledAt('');
+    // Phase 9.5 c31 — reset pricing tiers
+    setFormPricingEnabled(false);
+    setFormEarlyPrice('');
+    setFormStandardPrice('');
+    setFormLastPrice('');
   };
 
   const openCreate = () => { setEditing(null); resetForm(); setOpen(true); };
@@ -240,12 +260,69 @@ export default function PartnerOffersPage() {
     } else {
       setFormScheduledAt('');
     }
+    // Phase 9.5 c31 — pré-remplir les 3 inputs depuis defaultPricingTiers Firestore
+    const parsed = parsePricingTiersFromFirestore(act.defaultPricingTiers);
+    if (parsed) {
+      setFormPricingEnabled(true);
+      setFormEarlyPrice(String(parsed.earlyCHF));
+      setFormStandardPrice(String(parsed.standardCHF));
+      setFormLastPrice(String(parsed.lastMinuteCHF));
+    } else {
+      setFormPricingEnabled(false);
+      setFormEarlyPrice('');
+      setFormStandardPrice('');
+      setFormLastPrice('');
+    }
     setOpen(true);
+  };
+
+  // Phase 9.5 c31 — toggle ON depuis OFF : pré-remplir avec les valeurs suggérées
+  // (80/100/120% du formPrice actuel). Aussi appelé par "Réinitialiser".
+  const populateSuggestedTiers = () => {
+    const base = parseInt(formPrice) || 0;
+    const sug = suggestPricingTiersFromBase(base);
+    setFormEarlyPrice(String(sug.earlyCHF));
+    setFormStandardPrice(String(sug.standardCHF));
+    setFormLastPrice(String(sug.lastMinuteCHF));
+  };
+
+  const handleTogglePricing = (next: boolean) => {
+    setFormPricingEnabled(next);
+    // Au passage OFF→ON, pré-remplir si les inputs sont vides
+    if (next && !formEarlyPrice && !formStandardPrice && !formLastPrice) {
+      populateSuggestedTiers();
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!db || !user) return;
+
+    // Phase 9.5 c31 — Validation pricing tiers AVANT submit (bloquant si invalide)
+    let pricingTiersPayload: PricingTier[] = [];
+    if (formPricingEnabled) {
+      const tiersInput = {
+        earlyCHF: parseFloat(formEarlyPrice) || 0,
+        standardCHF: parseFloat(formStandardPrice) || 0,
+        lastMinuteCHF: parseFloat(formLastPrice) || 0,
+      };
+      try {
+        validatePricingTiers(tiersInput);
+      } catch (validationErr) {
+        const code = validationErr instanceof Error ? validationErr.message : 'invalid';
+        toast({
+          variant: 'destructive',
+          title: 'Prix progressif invalide',
+          description:
+            code === 'order'
+              ? t('partner_pricing_validation_order')
+              : 'Tous les prix doivent être supérieurs à 0.',
+        });
+        return;
+      }
+      pricingTiersPayload = buildPricingTiersPayload(true, tiersInput);
+    }
+
     setSaving(true);
     try {
       const filteredImages = formImages.filter(url => url.trim() !== '');
@@ -272,6 +349,8 @@ export default function PartnerOffersPage() {
         mediaUrls: formMediaItems,
         audienceType: formAudienceType,
         scheduledAt: scheduledAtValue,
+        // Phase 9.5 c31 BUG HH — défaut tiers (vide = fallback c29a auto)
+        defaultPricingTiers: pricingTiersPayload,
         partnerId: user.uid, isActive: true, updatedAt: serverTimestamp(),
       };
       if (editing) {
@@ -395,6 +474,97 @@ export default function PartnerOffersPage() {
                   <Label className="text-white/50">Prix (CHF) *</Label>
                   <Input value={formPrice} onChange={e => setFormPrice(e.target.value)} type="number" placeholder="25" className="bg-[#1A1A1A] border-white/10 h-12" required />
                 </div>
+              </div>
+
+              {/* Phase 9.5 c31 BUG HH — Section Prix progressif (optionnel) */}
+              <div className="rounded-xl border border-white/10 bg-[#1A1A1A]/40 p-4 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <Label className="text-white text-sm font-medium">
+                      {t('partner_pricing_section_title')}
+                    </Label>
+                    <p className="text-xs text-white/40 mt-1">
+                      {t('partner_pricing_helper')}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 pt-1">
+                    <Switch
+                      checked={formPricingEnabled}
+                      onCheckedChange={handleTogglePricing}
+                      aria-label={t('partner_pricing_toggle_label')}
+                    />
+                    <span className="text-xs text-white/60">
+                      {t('partner_pricing_toggle_label')}
+                    </span>
+                  </div>
+                </div>
+
+                {formPricingEnabled ? (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="grid gap-1">
+                        <Label className="text-[11px] text-white/50">
+                          {t('partner_pricing_early_label')}
+                        </Label>
+                        <Input
+                          type="number"
+                          value={formEarlyPrice}
+                          onChange={(e) => setFormEarlyPrice(e.target.value)}
+                          placeholder="12"
+                          className="bg-[#0D0D0D] border-white/10 h-10 text-sm"
+                        />
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px] text-white/50">
+                          {t('partner_pricing_standard_label')}
+                        </Label>
+                        <Input
+                          type="number"
+                          value={formStandardPrice}
+                          onChange={(e) => setFormStandardPrice(e.target.value)}
+                          placeholder="15"
+                          className="bg-[#0D0D0D] border-white/10 h-10 text-sm"
+                        />
+                      </div>
+                      <div className="grid gap-1">
+                        <Label className="text-[11px] text-white/50">
+                          {t('partner_pricing_last_label')}
+                        </Label>
+                        <Input
+                          type="number"
+                          value={formLastPrice}
+                          onChange={(e) => setFormLastPrice(e.target.value)}
+                          placeholder="18"
+                          className="bg-[#0D0D0D] border-white/10 h-10 text-sm"
+                        />
+                      </div>
+                    </div>
+                    {(() => {
+                      const e = parseFloat(formEarlyPrice) || 0;
+                      const s = parseFloat(formStandardPrice) || 0;
+                      const l = parseFloat(formLastPrice) || 0;
+                      if (e && s && l && !(e < s && s < l)) {
+                        return (
+                          <p className="text-[11px] text-red-400/80">
+                            {t('partner_pricing_validation_order')}
+                          </p>
+                        );
+                      }
+                      return null;
+                    })()}
+                    <button
+                      type="button"
+                      onClick={populateSuggestedTiers}
+                      className="text-[11px] text-[#D91CD2]/70 hover:text-[#D91CD2] underline transition-colors"
+                    >
+                      {t('partner_pricing_reset_button')}
+                    </button>
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-white/30 font-light">
+                    {t('partner_pricing_disabled_info', { price: parseInt(formPrice) || 0 })}
+                  </p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">

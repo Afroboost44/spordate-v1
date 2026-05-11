@@ -27,36 +27,18 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
+// Phase 9.5 c30 — constants déplacées dans src/lib/billing/boostCredits.ts
+// (contrainte Next.js 15 : route files ne peuvent pas exporter autre chose que
+// POST/GET/etc). Les tests + UI consomment depuis @/lib/billing/boostCredits.
+import {
+  BOOST_CREDITS_COST,
+  BOOST_DURATION_HOURS,
+  CHF_PER_CREDIT,
+  computeBoostCost,
+} from '@/lib/billing/boostCredits';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-// =====================================================================
-// Tarification crédits (exporté pour tests + UI)
-// =====================================================================
-export const BOOST_CREDITS_COST: Record<string, number> = {
-  '24h': 30,
-  '3d': 70,
-  '7d': 100,
-};
-
-export const BOOST_DURATION_HOURS: Record<string, number> = {
-  '24h': 24,
-  '3d': 72,
-  '7d': 168,
-};
-
-/** Coût en crédits pour une durée donnée. Throw si durée invalide. */
-export function computeBoostCost(duration: string): number {
-  const cost = BOOST_CREDITS_COST[duration];
-  if (!cost) {
-    throw new Error(`Invalid boost duration: ${duration}`);
-  }
-  return cost;
-}
-
-/** Taux de conversion CHF/crédit (cohérent bundle Phase 3 : 50 crédits = 25 CHF). */
-const CHF_PER_CREDIT = 0.5;
 
 // =====================================================================
 // Lazy Admin SDK init (cohérent pattern admin routes)

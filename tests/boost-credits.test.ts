@@ -7,7 +7,9 @@
  * Couvre le mapping duration→cost et la cohérence avec le taux 0.5 CHF/crédit.
  */
 
-import { computeBoostCost, BOOST_CREDITS_COST } from '../src/app/api/boost-credits/route';
+// Phase 9.5 c30 — import depuis lib (extrait du route.ts pour respecter
+// la contrainte Next.js 15 sur les exports route files).
+import { computeBoostCost, BOOST_CREDITS_COST } from '../src/lib/billing/boostCredits';
 
 let passes = 0;
 let failures = 0;

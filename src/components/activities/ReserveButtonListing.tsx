@@ -22,6 +22,7 @@ import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/context/LanguageContext';
 import { isFreeBooking } from '@/lib/billing/creditRules';
 
 export interface ReserveButtonListingProps {
@@ -31,16 +32,25 @@ export interface ReserveButtonListingProps {
     title: string;
     price: number;
   };
+  /** Phase 9.5 c30 BUG GG — sessionId de la prochaine séance future pour cette
+   *  activity (résolu par /activities/page.tsx via batch query sessions). Si
+   *  undefined → activity sans session planifiée, bouton désactivé. */
+  nextSessionId?: string;
   className?: string;
 }
 
-export function ReserveButtonListing({ activity, className }: ReserveButtonListingProps) {
+export function ReserveButtonListing({ activity, nextSessionId, className }: ReserveButtonListingProps) {
   const { user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
 
   const free = isFreeBooking(activity);
+  // Phase 9.5 c30 — pour activité payante, le bouton n'est utilisable que si une
+  // session future est disponible. Free flow inchangé (createSession server-side
+  // via mode 'session-free' qui utilise activity.scheduledAt).
+  const paidButNoSession = !free && !nextSessionId;
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -125,12 +135,19 @@ export function ReserveButtonListing({ activity, className }: ReserveButtonListi
         } else {
           router.push('/activities?status=success');
         }
+      } else if (nextSessionId) {
+        // Phase 9.5 c30 BUG GG — paid flow : route directement vers la prochaine
+        // session future (countdown + tabs prix + bouton Réserver phase-aware).
+        // Avant c30 ça redirigeait vers /activities/{activityId} (page statique
+        // sans countdown ni tabs prix → impossible de finaliser le checkout).
+        router.push(`/sessions/${nextSessionId}`);
       } else {
-        // Paid booking flow — existing Phase 3-9 mode='session' Stripe checkout
-        // Note: spec listing utilise activityId mais existing /api/checkout requires sessionId.
-        // Pour MVP : redirect vers /activities/[id] où user choisit session puis booking.
-        // (Phase 10 polish : skip session selection si activity has unique upcoming session)
-        router.push(`/activities/${activity.activityId}`);
+        // Aucune session future → état impossible (le bouton aurait dû être
+        // désactivé). Filet : afficher un toast informatif et rester sur page.
+        toast({
+          title: t('reserve_no_upcoming_session'),
+          variant: 'destructive',
+        });
       }
     } catch (err) {
       console.error('[ReserveButtonListing] failed', err);
@@ -144,16 +161,23 @@ export function ReserveButtonListing({ activity, className }: ReserveButtonListi
     }
   };
 
-  const label = free
-    ? 'Réserver gratuitement'
-    : `Réserver — ${activity.price} CHF`;
+  const label = paidButNoSession
+    ? t('reserve_no_upcoming_session')
+    : free
+      ? 'Réserver gratuitement'
+      : `Réserver — ${activity.price} CHF`;
 
   return (
     <Button
       type="button"
       onClick={handleClick}
-      disabled={loading}
-      className={`font-semibold bg-primary hover:bg-primary/90 text-sm px-4 ${className ?? ''}`}
+      disabled={loading || paidButNoSession}
+      aria-disabled={paidButNoSession}
+      className={`font-semibold text-sm px-4 ${
+        paidButNoSession
+          ? 'bg-white/5 text-white/30 cursor-not-allowed hover:bg-white/5'
+          : 'bg-primary hover:bg-primary/90'
+      } ${className ?? ''}`}
     >
       {loading ? (
         <Loader2 className="h-4 w-4 animate-spin mr-2" />

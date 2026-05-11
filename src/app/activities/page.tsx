@@ -217,10 +217,14 @@ function CardMediaSlide({ item, fallbackSeed }: { item: MediaItem; fallbackSeed:
 function ActivityCardComponent({
   activity,
   existingBookingId,
+  nextSessionId,
 }: {
   activity: ActivityCard;
   /** Phase 9.5 c16 BUG F — bookingId du user pour cette activity (si réservée < 24h). */
   existingBookingId?: string;
+  /** Phase 9.5 c30 BUG GG — sessionId de la prochaine séance future, forward au
+   *  ReserveButtonListing pour route vers /sessions/{id} au lieu de /activities/{id}. */
+  nextSessionId?: string;
 }) {
   const [imgIndex, setImgIndex] = useState(0);
   // Phase 9.5 c5 — unified media items via getMediaItems (rich type — image+video).
@@ -326,6 +330,7 @@ function ActivityCardComponent({
                   title: activity.title,
                   price: activity.price,
                 }}
+                nextSessionId={nextSessionId}
               />
             )}
           </div>
@@ -337,6 +342,10 @@ function ActivityCardComponent({
 
 export default function ActivitiesPage() {
   const [activities, setActivities] = useState<ActivityCard[]>([]);
+  // Phase 9.5 c30 BUG GG — Map activityId → sessionId de la prochaine séance future.
+  // Permet à ReserveButtonListing (paid flow) de router vers /sessions/{nextSessionId}
+  // au lieu de /activities/{activityId} (page sans countdown ni tabs prix).
+  const [nextSessionByActivity, setNextSessionByActivity] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   // Phase 9.5 c16 BUG F — map activityId → bookingId pour les bookings actifs (< 24h) du user.
   // Single-query batch au mount (limit 50, ordered DESC) pour éviter N×M queries.
@@ -428,6 +437,32 @@ export default function ActivitiesPage() {
           } as ActivityCard;
         });
         setActivities(data.length > 0 ? data : AFROBOOST_FALLBACK);
+
+        // Phase 9.5 c30 BUG GG — charge les sessions futures pour mapper
+        // activityId → nextSessionId. Une seule query ordonnée par startAt asc :
+        // la première occurrence de chaque activityId est la séance la plus proche.
+        try {
+          const sessionsQ = query(
+            collection(db, 'sessions'),
+            where('startAt', '>', Timestamp.now()),
+            orderBy('startAt', 'asc'),
+            limit(200),
+          );
+          const sessionsSnap = await getDocs(sessionsQ);
+          const map: Record<string, string> = {};
+          sessionsSnap.docs.forEach((sd) => {
+            const sdata = sd.data();
+            const aid = sdata?.activityId as string | undefined;
+            if (aid && !map[aid]) {
+              map[aid] = sd.id;
+            }
+          });
+          setNextSessionByActivity(map);
+        } catch (sessErr) {
+          console.warn('[Activities] nextSession load failed:', sessErr);
+          // Non-bloquant : sans la map, le bouton sera désactivé "Pas de session
+          // planifiée" pour les activités payantes — comportement correct.
+        }
       } catch (err) {
         console.error('[Activities] Error loading:', err);
         setActivities(AFROBOOST_FALLBACK);
@@ -493,6 +528,7 @@ export default function ActivitiesPage() {
                       key={activity.activityId}
                       activity={activity}
                       existingBookingId={activeBookings[activity.activityId]}
+                      nextSessionId={nextSessionByActivity[activity.activityId]}
                     />
                   ))}
                 </div>

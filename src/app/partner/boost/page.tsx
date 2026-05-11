@@ -9,9 +9,8 @@ import { useAuth } from '@/context/AuthContext';
 import { useCredits } from '@/hooks/useCredits';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
-// Phase 9.5 c29b — coût en crédits par durée (réutilise les constants serveur pour cohérence)
-const BOOST_CREDITS_COST: Record<string, number> = { '24h': 30, '3d': 70, '7d': 100 };
-const CHF_PER_CREDIT = 0.5;
+// Phase 9.5 c30 — constants partagées avec /api/boost-credits/route.ts via lib.
+import { BOOST_CREDITS_COST, CHF_PER_CREDIT } from '@/lib/billing/boostCredits';
 
 type PaymentMethod = 'stripe' | 'credits';
 
