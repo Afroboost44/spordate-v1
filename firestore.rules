@@ -74,12 +74,18 @@ service cloud.firestore {
         && request.resource.data.fromUid is string
         && request.resource.data.toUid is string
         && request.resource.data.fromUid != request.resource.data.toUid;
+      // c38a-fix2 : update autorisé par le créateur (fromUid). Nécessaire car
+      // handleLike utilise setDoc(..., { merge: true }) : si le doc existe déjà
+      // (re-like idempotent OU future Premium feature toggle seen=true), c'est
+      // un update Firestore qui était bloqué isAdmin only.
+      allow update: if request.auth != null
+        && request.auth.uid == resource.data.fromUid;
       allow read: if request.auth != null && (
         request.auth.uid == resource.data.fromUid
         || request.auth.uid == resource.data.toUid
         || isAdmin()
       );
-      allow update, delete: if isAdmin();
+      allow delete: if isAdmin();
     }
 
     // === ACTIVITIES (public read, partner CRUD) ===
