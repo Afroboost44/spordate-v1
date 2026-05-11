@@ -430,11 +430,27 @@ export default function DiscoveryPage() {
   //         match mutuel). Sinon toast soft "Like envoyé".
   // Le crédit est désormais débité UNIQUEMENT à l'envoi de message dans le chat.
   const handleLike = async () => {
-    if (!user || !db || !currentProfile || !(currentProfile as any).firestoreUid) {
+    if (!user || !db || !currentProfile) {
       handleNextProfile();
       return;
     }
-    const targetUid = (currentProfile as any).firestoreUid as string;
+    // Phase 9.5 c38a-fix4 — validation défensive + logs debug temporaires.
+    // Erreur persiste : hypothèse targetUid undefined/invalid → rule `is string`
+    // rejette le create. Log raw pour confirmer le state avant write.
+    const targetUid = (currentProfile as any).firestoreUid as string | undefined;
+    console.log('[handleLike DEBUG] currentProfile:', currentProfile);
+    console.log('[handleLike DEBUG] targetUid:', targetUid, 'type:', typeof targetUid);
+    console.log('[handleLike DEBUG] user.uid:', user.uid, 'type:', typeof user.uid);
+    if (!targetUid || typeof targetUid !== 'string' || targetUid.length < 5) {
+      console.warn('[handleLike] targetUid invalid, skip:', targetUid);
+      toast({
+        title: 'Profil incomplet',
+        description: "Ce profil n'a pas d'identifiant valide. Profil suivant.",
+        variant: 'destructive',
+      });
+      handleNextProfile();
+      return;
+    }
     if (targetUid === user.uid) {
       // Self-like impossible
       handleNextProfile();
@@ -450,13 +466,16 @@ export default function DiscoveryPage() {
       const likeId = `${user.uid}_${targetUid}`;
       const ownLikeRef = doc(db, 'likes', likeId);
       const ownLikeSnap = await getDoc(ownLikeRef);
+      console.log('[handleLike DEBUG] ownLike exists:', ownLikeSnap.exists(), 'likeId:', likeId);
       if (!ownLikeSnap.exists()) {
-        await setDoc(ownLikeRef, {
+        const payload = {
           fromUid: user.uid,
           toUid: targetUid,
           createdAt: serverTimestamp(),
           seen: false,
-        });
+        };
+        console.log('[handleLike DEBUG] setDoc payload:', payload);
+        await setDoc(ownLikeRef, payload);
       }
       // Si like existait déjà : skip write, continue le flow mutual check ci-dessous.
 
