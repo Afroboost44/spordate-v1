@@ -29,6 +29,8 @@ import { Label } from "@/components/ui/label";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Coins } from 'lucide-react';
 import { registerBooking, getConfirmedTickets, getPartners, type Partner } from "@/lib/db";
 
 import { sendPartnerNotification } from "@/lib/notifications";
@@ -815,15 +817,118 @@ export default function DiscoveryPage() {
     }
   }, [searchParams]);
 
+  // Phase 9.5 c45 — Méthode de paiement sélectionnée dans la modal (Stripe vs Crédits).
+  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'credits'>('stripe');
+  // Phase 9.5 c45 BUG 5 — Taux conversion crédits ↔ CHF (cohérent c29b boost + API credits).
+  // 1 crédit = 0.50 CHF → 2 crédits par CHF. Round-up sur le total (anti sous-facturation).
+  const computeCreditsCost = (priceCHF: number): number => Math.ceil((priceCHF * 100) / 50);
+
+  // Phase 9.5 c45 BUG 1 — helper ensure Session pour l'Activity sélectionnée
+  // (réutilise /api/sessions/ensure-from-activity créé en c42). Sans Session
+  // matérialisée, le checkout mode='session' renvoie 404.
+  const ensureSessionForActivity = async (activityId: string): Promise<string | null> => {
+    if (!user) return null;
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/sessions/ensure-from-activity', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ activityId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.sessionId) return data.sessionId as string;
+      console.warn('[Discovery] ensureSessionForActivity failed', { status: res.status, data });
+      return null;
+    } catch (err) {
+      console.warn('[Discovery] ensureSessionForActivity threw', err);
+      return null;
+    }
+  };
+
+  // Phase 9.5 c45 BUG 5 — Paiement 100% crédits via /api/checkout/credits.
+  const handlePaymentCredits = async () => {
+    if (!currentProfile || !user || !selectedActivity) return;
+    const finalPrice = getCurrentPrice();
+    if (finalPrice <= 0) {
+      // Cohérence avec flow Stripe (le bouton "Réserver gratuitement" reste dans handlePayment).
+      void handlePayment();
+      return;
+    }
+    const cost = computeCreditsCost(finalPrice);
+    if (creditCount < cost) {
+      toast({
+        title: t('discovery_credits_insufficient_title') || 'Solde insuffisant',
+        description: t('discovery_credits_insufficient_desc', { have: creditCount, need: cost })
+          || `Tu as ${creditCount} crédits, il en faut ${cost}.`,
+        variant: 'destructive',
+      });
+      router.push('/payment');
+      return;
+    }
+    setIsProcessing(true);
+    try {
+      const sessionId = await ensureSessionForActivity(selectedActivity.activityId);
+      if (!sessionId) {
+        toast({ title: 'Erreur', description: 'Impossible de résoudre la session.', variant: 'destructive' });
+        return;
+      }
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/checkout/credits', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({
+          sessionId,
+          isDuoTicket,
+          matchId: currentMatchId || '',
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok && data?.bookingId) {
+        setShowPaymentModal(false);
+        toast({
+          title: t('discovery_credits_success_title') || 'Réservation confirmée ! 🎉',
+          description: t('discovery_credits_success_desc', { cost })
+            || `${cost} crédits débités. Il te reste ${data.creditsRemaining} crédits.`,
+          className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        });
+        router.push(`/sessions/${sessionId}?status=success`);
+      } else if (data?.error === 'insufficient-credits') {
+        toast({
+          title: t('discovery_credits_insufficient_title') || 'Solde insuffisant',
+          description: t('discovery_credits_insufficient_desc', { have: data.have ?? 0, need: data.need ?? cost }),
+          variant: 'destructive',
+        });
+        router.push('/payment');
+      } else {
+        toast({
+          title: 'Erreur',
+          description: data?.detail || data?.error || 'Réservation impossible.',
+          variant: 'destructive',
+        });
+      }
+    } catch (err) {
+      console.error('[handlePaymentCredits]', err);
+      toast({ title: 'Erreur réseau', variant: 'destructive' });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   // Process payment with Stripe
   const handlePayment = async () => {
     if (typeof window === 'undefined' || !currentProfile) return;
-    
+
     setIsProcessing(true);
-    
+
     const finalPrice = getCurrentPrice();
     const meetingPartner = partners.find(p => p.id === selectedMeetingPlace);
-    
+
     try {
       // Save pending booking info (including matchId for post-payment redirect)
       const pendingBooking = {
@@ -866,18 +971,34 @@ export default function DiscoveryPage() {
         return;
       }
 
-      // Use real Firebase userId
-      const userId = user?.uid || localStorage.getItem('spordate_user_code') || `user_${Date.now()}`;
-
-      // Call Stripe checkout API with correct packageId format
+      // Phase 9.5 c45 BUG 1 — paiement Session via Stripe Checkout mode='session'.
+      // Avant c45 : packageId='1_date' (bundle Starter 10 CHF) → Stripe facturait
+      // 10 CHF au lieu des 80 CHF Duo affichés dans la modal. Maintenant on
+      // résout d'abord la Session (ensure-from-activity c42), puis on route via
+      // handleSessionMode avec isDuoTicket → server-side amount × 2 si Duo.
+      if (!user || !selectedActivity) {
+        throw new Error('Activity ou user manquant');
+      }
+      const sessionId = await ensureSessionForActivity(selectedActivity.activityId);
+      if (!sessionId) {
+        toast({ title: 'Erreur', description: 'Impossible de résoudre la session.', variant: 'destructive' });
+        setIsProcessing(false);
+        return;
+      }
+      const idToken = await user.getIdToken();
       const response = await fetch('/api/checkout', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
         body: JSON.stringify({
-          packageId: '1_date',
-          userId: userId,
+          mode: 'session',
+          sessionId,
+          userId: user.uid,
           matchId: currentMatchId || '',
           referralCode: '',
+          isDuoTicket,
         }),
       });
 
@@ -1400,17 +1521,80 @@ END:VCALENDAR`;
               </Select>
             </div>
 
+            {/* Phase 9.5 c45 BUG 5 — Tabs méthode de paiement (Carte/TWINT vs Crédits).
+                Cohérent avec /partner/boost (c29b) : 0.50 CHF/crédit, 2 crédits/CHF. */}
+            {getCurrentPrice() > 0 && (
+              <div data-testid="payment-method-tabs">
+                <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'stripe' | 'credits')}>
+                  <TabsList className="grid grid-cols-2 w-full bg-zinc-900 border border-white/10 rounded-xl p-1 h-auto">
+                    <TabsTrigger
+                      value="stripe"
+                      className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-2 py-2.5"
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      <span className="text-sm">{t('payment_method_stripe') || 'Carte / TWINT'}</span>
+                    </TabsTrigger>
+                    <TabsTrigger
+                      value="credits"
+                      className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-2 py-2.5"
+                    >
+                      <Coins className="h-4 w-4" />
+                      <span className="text-sm">{t('payment_method_credits') || 'Crédits'}</span>
+                    </TabsTrigger>
+                  </TabsList>
+                  <TabsContent value="credits" className="mt-3">
+                    <div className="bg-zinc-900/50 rounded-xl p-4 border border-white/10 space-y-2">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-400">{t('payment_credits_balance') || 'Solde'}</span>
+                        <span className="font-semibold text-white">{creditCount} {t('payment_credits_unit') || 'crédits'}</span>
+                      </div>
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-gray-400">{t('payment_credits_cost') || 'Coût'}</span>
+                        <span className="font-semibold text-[#D91CD2]">
+                          {computeCreditsCost(getCurrentPrice())} {t('payment_credits_unit') || 'crédits'}
+                          <span className="text-xs text-white/40 font-normal ml-1">
+                            ≈ {getCurrentPrice()} CHF
+                          </span>
+                        </span>
+                      </div>
+                      {creditCount < computeCreditsCost(getCurrentPrice()) && (
+                        <p className="text-xs text-red-400 pt-1">
+                          {t('payment_credits_insufficient_hint') || 'Solde insuffisant — recharge requise'}
+                        </p>
+                      )}
+                    </div>
+                  </TabsContent>
+                </Tabs>
+              </div>
+            )}
+
             {/* Pay Button - FIRST */}
             <Button
               data-testid="pay-button"
-              onClick={handlePayment}
-              disabled={isProcessing}
+              onClick={paymentMethod === 'credits' ? handlePaymentCredits : handlePayment}
+              disabled={
+                isProcessing ||
+                (paymentMethod === 'credits' &&
+                  getCurrentPrice() > 0 &&
+                  creditCount < computeCreditsCost(getCurrentPrice()))
+              }
               className="w-full h-14 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white font-semibold text-lg disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             >
               {isProcessing ? (
                 <div className="flex items-center gap-3">
                   <Loader2 className="h-5 w-5 animate-spin" />
                   <span>{getCurrentPrice() === 0 ? t('payment_button_loading_free') : t('payment_button_loading_paid')}</span>
+                </div>
+              ) : paymentMethod === 'credits' && getCurrentPrice() > 0 ? (
+                <div className="flex items-center gap-2">
+                  <Coins className="h-5 w-5" />
+                  <span>
+                    {creditCount < computeCreditsCost(getCurrentPrice())
+                      ? (t('payment_credits_topup_button') || 'Recharger mes crédits')
+                      : (t('payment_credits_pay_button', { cost: computeCreditsCost(getCurrentPrice()) })
+                          || `Réserver avec ${computeCreditsCost(getCurrentPrice())} crédits`)}
+                  </span>
+                  {isDuoTicket && <Badge className="bg-white/20 text-white text-xs ml-1">Duo</Badge>}
                 </div>
               ) : (
                 <div className="flex items-center gap-2">

@@ -222,6 +222,11 @@ interface SessionCheckoutBody {
   userId: string;
   matchId?: string;
   referralCode?: string;
+  /** Phase 9.5 c45 — flag Duo (×2 unit_amount + ×2 seats). Discovery modal
+   *  Duo toggle + activity.price = 40 CHF → Stripe checkout 80 CHF. Avant
+   *  c45 ce flag n'existait pas → la modal Duo affichait 80 CHF mais Stripe
+   *  facturait 10 CHF (route bundle Starter par erreur). */
+  isDuoTicket?: boolean;
 }
 
 /**
@@ -344,9 +349,16 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
       }
       throw err;
     }
+    // Phase 9.5 c45 BUG 1 — flag Duo multiplie unit_amount + bundleCredits ×2.
+    // Le Stripe checkout affiche un seul line_item avec amount = price × seats.
+    const isDuo = body.isDuoTicket === true;
+    const seats = isDuo ? 2 : 1;
+    const unitAmount = price * seats;
+    const grantedCredits = bundleCredits * seats;
+
     const { getApplicationFeePct } = await import('@/lib/invites/splitMath');
     const feePct = getApplicationFeePct();
-    const applicationFeeAmount = Math.round((price * feePct) / 100);
+    const applicationFeeAmount = Math.round((unitAmount * feePct) / 100);
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const paymentIntentData: Record<string, any> = {
@@ -364,11 +376,11 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
           price_data: {
             currency: 'chf',
             product_data: {
-              name: session.title,
-              description: `${tierLabel[tier]} • Inclut ${bundleCredits} crédits chat`,
+              name: isDuo ? `${session.title} (Duo — 2 places)` : session.title,
+              description: `${tierLabel[tier]} • ${seats} place${seats > 1 ? 's' : ''} • ${grantedCredits} crédits chat inclus`,
               images: ['https://spordateur.com/logo.png'],
             },
-            unit_amount: price, // SERVER-recomputed (centimes CHF)
+            unit_amount: unitAmount, // SERVER-recomputed (centimes CHF) × seats Duo
           },
           quantity: 1,
         },
@@ -381,10 +393,12 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
         matchId: body.matchId || '',
         referralCode: body.referralCode || '',
         tier,
-        amount: String(price),
+        amount: String(unitAmount),
+        seats: String(seats),
+        isDuoTicket: isDuo ? 'true' : 'false',
         activityId: session.activityId,
         partnerId: session.partnerId,
-        bundleCredits: String(bundleCredits),
+        bundleCredits: String(grantedCredits),
         applicationFeeAmount: String(applicationFeeAmount),
         partnerStripeAccount,
       },
