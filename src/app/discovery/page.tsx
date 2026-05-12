@@ -31,6 +31,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Coins } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { registerBooking, getConfirmedTickets, getPartners, type Partner } from "@/lib/db";
 
 import { sendPartnerNotification } from "@/lib/notifications";
@@ -41,7 +42,8 @@ import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp
 import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
-import { createMatch } from '@/services/firestore';
+import { createMatch, getUserMatches } from '@/services/firestore';
+import type { Match } from '@/types/firestore';
 import { getMutualBlockSet } from '@/lib/blocks';
 import { computeMatchScore } from '@/lib/matching/computeMatchScore';
 import { useCredits } from '@/hooks/useCredits';
@@ -819,9 +821,64 @@ export default function DiscoveryPage() {
 
   // Phase 9.5 c45 — Méthode de paiement sélectionnée dans la modal (Stripe vs Crédits).
   const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'credits'>('stripe');
+  // Phase 9.5 c47 BUG B — Sélection invitee Duo via match Tinder (méthode "link"
+  // WhatsApp reportée c48). Quand toggle Duo ON, on charge les matches actifs du
+  // user et il sélectionne qui inviter ; inviteeUid passé au checkout → webhook
+  // ou /api/checkout/credits crée le 2e booking + notification.
+  const [invitationMethod, setInvitationMethod] = useState<'match' | 'link'>('match');
+  const [selectedInviteeUid, setSelectedInviteeUid] = useState<string | null>(null);
+  const [userMatches, setUserMatches] = useState<Match[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [matchProfiles, setMatchProfiles] = useState<Record<string, { displayName: string; photoURL: string }>>({});
   // Phase 9.5 c45 BUG 5 — Taux conversion crédits ↔ CHF (cohérent c29b boost + API credits).
   // 1 crédit = 0.50 CHF → 2 crédits par CHF. Round-up sur le total (anti sous-facturation).
   const computeCreditsCost = (priceCHF: number): number => Math.ceil((priceCHF * 100) / 50);
+
+  // Phase 9.5 c47 BUG B — Charge les matches actifs du user quand le toggle Duo passe
+  // ON (lazy). Filtre status='accepted' OU chatUnlocked. Display name/photo récupérés
+  // via getUser parallel (cache in matchProfiles state).
+  useEffect(() => {
+    if (!isDuoTicket || !user?.uid || !db) return;
+    if (userMatches.length > 0) return; // déjà chargé, skip
+    let cancelled = false;
+    (async () => {
+      setLoadingMatches(true);
+      try {
+        const matches = await getUserMatches(user.uid);
+        if (cancelled) return;
+        const relevant = matches.filter((m) => m.status === 'accepted' || m.chatUnlocked);
+        setUserMatches(relevant);
+        // Resolve other-user display info (parallel)
+        const { getUser } = await import('@/services/firestore');
+        const otherUids = relevant
+          .map((m) => m.userIds.find((uid) => uid !== user.uid))
+          .filter((uid): uid is string => !!uid);
+        const uniqueUids = Array.from(new Set(otherUids));
+        const profileEntries = await Promise.all(
+          uniqueUids.map(async (uid) => {
+            try {
+              const p = await getUser(uid);
+              return [uid, { displayName: p?.displayName || 'Utilisateur', photoURL: p?.photoURL || '' }] as const;
+            } catch {
+              return [uid, { displayName: 'Utilisateur', photoURL: '' }] as const;
+            }
+          }),
+        );
+        if (cancelled) return;
+        setMatchProfiles(Object.fromEntries(profileEntries));
+      } catch (err) {
+        console.warn('[Discovery c47] load matches failed', err);
+      } finally {
+        if (!cancelled) setLoadingMatches(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [isDuoTicket, user?.uid]);
+
+  // Reset invitee sélectionné quand toggle Duo OFF (anti-stale state)
+  useEffect(() => {
+    if (!isDuoTicket) setSelectedInviteeUid(null);
+  }, [isDuoTicket]);
 
   // Phase 9.5 c45 BUG 1 — helper ensure Session pour l'Activity sélectionnée
   // (réutilise /api/sessions/ensure-from-activity créé en c42). Sans Session
@@ -886,6 +943,9 @@ export default function DiscoveryPage() {
           sessionId,
           isDuoTicket,
           matchId: currentMatchId || '',
+          // Phase 9.5 c47 BUG B — invitee Duo (match Tinder). Endpoint credits crée
+          // alors le 2e booking + notification à l'invité atomiquement dans la même TX.
+          inviteeUid: isDuoTicket && invitationMethod === 'match' ? selectedInviteeUid : undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -999,6 +1059,9 @@ export default function DiscoveryPage() {
           matchId: currentMatchId || '',
           referralCode: '',
           isDuoTicket,
+          // Phase 9.5 c47 BUG B — invitee Duo (match Tinder). Passé en metadata
+          // Stripe → webhook handleSessionPayment crée le 2e booking + notif.
+          inviteeUid: isDuoTicket && invitationMethod === 'match' ? selectedInviteeUid : undefined,
         }),
       });
 
@@ -1413,36 +1476,70 @@ END:VCALENDAR`;
           </DialogHeader>
           
           <div className="p-6 space-y-6">
-            {/* Phase 9.5 c38b CH4 — Dropdown choix activité parmi celles boostées
-                du partner regardé. Avant c38b : selection cliquant sur card dans
-                modal isMatch (supprimée). Maintenant : dropdown explicite. */}
+            {/* Phase 9.5 c47 BUG A — Cards visuelles activités (replace dropdown).
+                Liste verticale scrollable max-h 300px : miniature 60×60 + nom + prix
+                + ville + description tronquée. Card sélectionnée mise en évidence
+                border magenta + bg highlight. Avant c47 : <Select> texte brut. */}
             {partnerActivities.length > 1 && (
               <div className="space-y-2">
                 <Label className="text-sm text-gray-400 flex items-center gap-2">
                   <Zap className="h-4 w-4 text-[#D91CD2]" />
                   {t('discovery_choose_activity')}
                 </Label>
-                <Select
-                  value={selectedActivity?.id ?? ''}
-                  onValueChange={(id) => {
-                    const next = partnerActivities.find((a) => a.id === id);
-                    if (next) setSelectedActivity(next);
-                  }}
-                >
-                  <SelectTrigger className="bg-black border-gray-700">
-                    <SelectValue placeholder={t('discovery_activity_placeholder')} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {partnerActivities.map((act) => (
-                      <SelectItem key={act.id} value={act.id}>
-                        <div className="flex items-center gap-2">
-                          <span>{act.name}</span>
-                          <span className="text-xs text-muted-foreground">— {act.price} CHF</span>
+                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
+                  {partnerActivities.map((act) => {
+                    const isSelected = selectedActivity?.activityId === act.activityId;
+                    const thumbnail = act.imageUrl || act.mediaUrls?.[0]?.url || act.mediaUrls?.[0] || '';
+                    return (
+                      <button
+                        key={act.activityId || act.id}
+                        type="button"
+                        data-testid="activity-card"
+                        onClick={() => setSelectedActivity(act)}
+                        className={cn(
+                          'w-full flex gap-3 p-3 rounded-xl border transition-all text-left',
+                          isSelected
+                            ? 'border-[#D91CD2] bg-[#D91CD2]/10'
+                            : 'border-white/10 hover:border-white/30 bg-zinc-900/30'
+                        )}
+                      >
+                        {thumbnail ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={thumbnail}
+                            alt={act.name || act.title}
+                            className="w-14 h-14 rounded-lg object-cover flex-shrink-0 bg-zinc-800"
+                          />
+                        ) : (
+                          <div className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                            <Zap className="h-5 w-5 text-white/30" />
+                          </div>
+                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex justify-between items-start gap-2">
+                            <h4 className="text-white text-sm font-medium truncate">
+                              {act.name || act.title}
+                            </h4>
+                            <span className="text-[#D91CD2] text-sm font-semibold whitespace-nowrap">
+                              {act.price === 0 ? t('payment_free_label') : `${act.price} CHF`}
+                            </span>
+                          </div>
+                          {(act.description || act.sport) && (
+                            <p className="text-white/60 text-xs line-clamp-1 mt-0.5">
+                              {act.description || act.sport}
+                            </p>
+                          )}
+                          {act.city && (
+                            <div className="flex items-center gap-1 mt-1 text-white/40 text-xs">
+                              <MapPin className="h-3 w-3" />
+                              <span className="truncate">{act.city}</span>
+                            </div>
+                          )}
                         </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 
@@ -1465,8 +1562,84 @@ END:VCALENDAR`;
                 />
               </div>
               {isDuoTicket && (
-                <div className="mt-3 pt-3 border-t border-white/10 text-xs text-violet-300">
-                  ✨ Vous recevrez un lien WhatsApp à partager avec votre invité(e)
+                <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
+                  {/* Phase 9.5 c47 BUG B — Tabs méthode d'invitation. Pour l'instant
+                      seul 'match' fonctionnel (Tinder match-list) ; 'link' WhatsApp
+                      reporté à c48 (endpoint /api/invites/create-duo + page accept). */}
+                  <Tabs value={invitationMethod} onValueChange={(v) => setInvitationMethod(v as 'match' | 'link')}>
+                    <TabsList className="grid grid-cols-2 w-full bg-zinc-900 border border-white/10 rounded-lg p-1 h-auto">
+                      <TabsTrigger
+                        value="match"
+                        className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-md text-xs py-2"
+                      >
+                        {t('invitation_method_match') || 'Inviter un match'}
+                      </TabsTrigger>
+                      <TabsTrigger
+                        value="link"
+                        disabled
+                        title={t('invitation_method_link_soon') || 'Bientôt disponible'}
+                        className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/40 rounded-md text-xs py-2 disabled:opacity-40 disabled:cursor-not-allowed"
+                      >
+                        {t('invitation_method_link') || 'Lien WhatsApp'}
+                        <span className="ml-1 text-[10px] opacity-60">({t('common_soon') || 'bientôt'})</span>
+                      </TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="match" className="mt-2">
+                      {loadingMatches ? (
+                        <div className="flex items-center justify-center py-6 text-white/40 text-xs gap-2">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          {t('invitation_loading_matches') || 'Chargement des matches…'}
+                        </div>
+                      ) : userMatches.length === 0 ? (
+                        <div className="text-center py-4 text-white/50 text-xs">
+                          {t('invitation_no_matches') || 'Aucun match actif pour inviter — fais un match d\'abord !'}
+                        </div>
+                      ) : (
+                        <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
+                          {userMatches.map((m) => {
+                            const otherUid = m.userIds.find((uid) => uid !== user?.uid) || '';
+                            const profile = matchProfiles[otherUid] || { displayName: 'Utilisateur', photoURL: '' };
+                            const isSelectedInvitee = selectedInviteeUid === otherUid;
+                            // Match age en jours
+                            const createdMs = m.createdAt?.toMillis?.() ?? 0;
+                            const ageDays = createdMs ? Math.max(0, Math.floor((Date.now() - createdMs) / 86_400_000)) : 0;
+                            return (
+                              <button
+                                key={m.matchId}
+                                type="button"
+                                data-testid="invitee-match-card"
+                                onClick={() => setSelectedInviteeUid(otherUid)}
+                                className={cn(
+                                  'w-full flex items-center gap-2.5 p-2 rounded-lg border transition-all text-left',
+                                  isSelectedInvitee
+                                    ? 'border-[#D91CD2] bg-[#D91CD2]/15'
+                                    : 'border-white/10 hover:border-white/30 bg-zinc-900/40'
+                                )}
+                              >
+                                <Avatar className="h-8 w-8">
+                                  <AvatarImage src={profile.photoURL} />
+                                  <AvatarFallback className="bg-zinc-800 text-white/60 text-xs">
+                                    {profile.displayName.charAt(0).toUpperCase()}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-white text-sm font-medium truncate">{profile.displayName}</p>
+                                  <p className="text-white/40 text-[11px]">
+                                    {ageDays === 0
+                                      ? (t('invitation_match_today') || 'Match aujourd\'hui')
+                                      : ageDays === 1
+                                      ? (t('invitation_match_yesterday') || 'Match hier')
+                                      : (t('invitation_match_days_ago', { days: ageDays }) || `Match depuis ${ageDays}j`)}
+                                  </p>
+                                </div>
+                                {isSelectedInvitee && <Check className="h-4 w-4 text-[#D91CD2] flex-shrink-0" />}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </TabsContent>
+                  </Tabs>
                 </div>
               )}
             </div>
@@ -1576,7 +1749,9 @@ END:VCALENDAR`;
                 isProcessing ||
                 (paymentMethod === 'credits' &&
                   getCurrentPrice() > 0 &&
-                  creditCount < computeCreditsCost(getCurrentPrice()))
+                  creditCount < computeCreditsCost(getCurrentPrice())) ||
+                // Phase 9.5 c47 BUG B — Duo + tab match → invitee uid requis avant paiement
+                (isDuoTicket && invitationMethod === 'match' && !selectedInviteeUid)
               }
               className="w-full h-14 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white font-semibold text-lg disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
             >

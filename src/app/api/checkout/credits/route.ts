@@ -99,9 +99,17 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const sessionId = body?.sessionId as string | undefined;
     const isDuoTicket = body?.isDuoTicket === true;
+    const inviteeUid = (body?.inviteeUid as string | undefined) || '';
     if (!sessionId || typeof sessionId !== 'string') {
       return NextResponse.json(
         { error: 'invalid-input', detail: 'sessionId required' },
+        { status: 400 },
+      );
+    }
+    // Phase 9.5 c47 BUG B — invitee Duo (match Tinder) doit être différent de user
+    if (inviteeUid && inviteeUid === uid) {
+      return NextResponse.json(
+        { error: 'invalid-input', detail: 'inviteeUid cannot equal payer uid' },
         { status: 400 },
       );
     }
@@ -216,6 +224,48 @@ export async function POST(request: NextRequest) {
         status: 'succeeded',
         createdAt: FieldValue.serverTimestamp(),
       });
+
+      // Phase 9.5 c47 BUG B — Duo invitee : crée 2e booking + notification
+      // atomiquement dans la même TX. inviteeUid validé != uid plus haut.
+      if (inviteeUid && isDuoTicket) {
+        const inviteeBookingRef = bookingsCol.doc();
+        tx.set(inviteeBookingRef, {
+          bookingId: inviteeBookingRef.id,
+          userId: inviteeUid,
+          userName: '',
+          matchId: (body?.matchId as string | undefined) ?? '',
+          activityId: session.activityId,
+          partnerId: session.partnerId,
+          sport: session.sport,
+          ticketType: 'solo', // Le invitee n'invite personne (sa place est solo dans le booking)
+          sessionDate: session.startAt ?? Timestamp.now(),
+          sessionId,
+          status: 'confirmed',
+          transactionId: '',
+          amount: 0, // Payé par l'inviteur
+          currency: 'CHF',
+          paymentMethod: 'duo-invite',
+          creditsUsed: 0,
+          tier,
+          invitedBy: uid,
+          paymentIntentId: `credits-invite-${Date.now()}-${inviteeBookingRef.id}`,
+          createdAt: FieldValue.serverTimestamp(),
+          updatedAt: FieldValue.serverTimestamp(),
+        });
+        const inviterName = (userSnap.data()?.displayName as string | undefined) || 'Quelqu’un';
+        const sessionTitle = (session.title as string | undefined) || 'la séance';
+        const notifRef = db.collection('notifications').doc();
+        tx.set(notifRef, {
+          notificationId: notifRef.id,
+          userId: inviteeUid,
+          type: 'duo-invitation',
+          title: `🎁 ${inviterName} t'a invité(e) !`,
+          body: `Tu es invité(e) à ${sessionTitle}. Réserve gratuite confirmée ✨`,
+          data: { sessionId, matchId: (body?.matchId as string | undefined) ?? '', senderUid: uid, bookingId: inviteeBookingRef.id },
+          isRead: false,
+          createdAt: FieldValue.serverTimestamp(),
+        });
+      }
 
       void activity; // référencé pour audience future, pas de lecture supplémentaire pour l'instant
 

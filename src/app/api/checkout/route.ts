@@ -222,11 +222,11 @@ interface SessionCheckoutBody {
   userId: string;
   matchId?: string;
   referralCode?: string;
-  /** Phase 9.5 c45 — flag Duo (×2 unit_amount + ×2 seats). Discovery modal
-   *  Duo toggle + activity.price = 40 CHF → Stripe checkout 80 CHF. Avant
-   *  c45 ce flag n'existait pas → la modal Duo affichait 80 CHF mais Stripe
-   *  facturait 10 CHF (route bundle Starter par erreur). */
+  /** Phase 9.5 c45 — flag Duo (×2 unit_amount + ×2 seats). */
   isDuoTicket?: boolean;
+  /** Phase 9.5 c47 BUG B — uid invité Duo (match Tinder). Passé en metadata
+   *  Stripe → webhook handleSessionPayment crée 2e booking + notification. */
+  inviteeUid?: string;
 }
 
 /**
@@ -396,6 +396,8 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
         amount: String(unitAmount),
         seats: String(seats),
         isDuoTicket: isDuo ? 'true' : 'false',
+        // Phase 9.5 c47 BUG B — uid invité Duo lu par webhook pour créer 2e booking + notif
+        inviteeUid: body.inviteeUid || '',
         activityId: session.activityId,
         partnerId: session.partnerId,
         bundleCredits: String(grantedCredits),

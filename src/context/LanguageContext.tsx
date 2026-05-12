@@ -98,6 +98,16 @@ const defaultTranslations: any = {
     payment_stripe_notice: "Paiement sécurisé Stripe",
     // Phase 9.5 c28 — Badge moyens de paiement acceptés (TWINT natif Stripe CH)
     payment_methods_accepted: "Visa · Mastercard · TWINT",
+    // Phase 9.5 c47 BUG B — Sélecteur invitation Duo (match Tinder, link reporté c48)
+    invitation_method_match: "Inviter un match",
+    invitation_method_link: "Lien WhatsApp",
+    invitation_method_link_soon: "Bientôt disponible (c48)",
+    invitation_loading_matches: "Chargement des matches…",
+    invitation_no_matches: "Aucun match actif pour inviter — fais un match d'abord !",
+    invitation_match_today: "Match aujourd'hui",
+    invitation_match_yesterday: "Match hier",
+    invitation_match_days_ago: "Match depuis {days}j",
+    common_soon: "bientôt",
     // Phase 9.5 c45 BUG 5 — Paiement crédits dans modal Réserver (cohérent c29b boost)
     payment_method_stripe: "Carte / TWINT",
     payment_method_credits: "Crédits Spordateur",
@@ -257,6 +267,16 @@ const defaultTranslations: any = {
     payment_button_loading_paid: "Redirecting to Stripe...",
     payment_stripe_notice: "Secure payment by Stripe",
     payment_methods_accepted: "Visa · Mastercard · TWINT",
+    // Phase 9.5 c47 BUG B — Duo invitation selector (match-only, link deferred c48)
+    invitation_method_match: "Invite a match",
+    invitation_method_link: "WhatsApp link",
+    invitation_method_link_soon: "Coming soon (c48)",
+    invitation_loading_matches: "Loading matches…",
+    invitation_no_matches: "No active match to invite — make a match first!",
+    invitation_match_today: "Match today",
+    invitation_match_yesterday: "Match yesterday",
+    invitation_match_days_ago: "Matched {days}d ago",
+    common_soon: "soon",
     // Phase 9.5 c45 BUG 5 — Credits payment in reservation modal
     payment_method_stripe: "Card / TWINT",
     payment_method_credits: "Spordateur Credits",

@@ -246,6 +246,10 @@ async function handleSessionPayment(
   const tierFromMeta = (meta.tier as PricingTierKind) || 'early';
   const amountFromMeta = parseInt(meta.amount || '0');
   const bundleCredits = parseInt(meta.bundleCredits || '50');
+  // Phase 9.5 c45+c47 — seats (Duo) + inviteeUid (match Tinder invitation).
+  const seats = Math.max(1, parseInt(meta.seats || '1'));
+  const isDuoTicket = meta.isDuoTicket === 'true';
+  const inviteeUid = meta.inviteeUid || '';
   const stripeSessionId = stripeCheckout.id as string;
   const paymentIntentId = (stripeCheckout.payment_intent as string) || '';
   const amountTotal = (stripeCheckout.amount_total as number) || 0;
@@ -271,6 +275,7 @@ async function handleSessionPayment(
 
   // 3. Transaction atomique
   let bookingIdResult = '';
+  let inviteeBookingIdResult = '';
   let sessionTitleForNotif = '';
   let sessionStartAtForNotif: { toDate: () => Date } | null = null;
   try {
@@ -304,22 +309,42 @@ async function handleSessionPayment(
         );
       }
 
-      // 3d. Create booking
+      // 3d. Create booking (place inviteur)
       const bookingRef = db.collection('bookings').doc();
       bookingIdResult = bookingRef.id;
       tx.set(bookingRef, {
         bookingId: bookingRef.id,
         userId, userName: '', matchId,
         activityId: session.activityId, partnerId: session.partnerId, sport: session.sport,
-        ticketType: 'solo', sessionDate: session.startAt,
+        ticketType: isDuoTicket ? 'duo' : 'solo', sessionDate: session.startAt,
         status: 'confirmed', transactionId: '',
         amount: amountTotal, currency: 'CHF', creditsUsed: 0,
         sessionId, paymentIntentId, tier: tierFromMeta,
         createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
       });
 
-      // 3e. Increment session.currentParticipants + recompute tier/price/status
-      const newParticipants = session.currentParticipants + 1;
+      // Phase 9.5 c47 BUG B — Duo invitee : create 2e booking pour l'invité
+      // dans la même TX. invitee = match Tinder sélectionné côté discovery,
+      // payé 0 CHF (couvert par inviteur via Duo). Notif post-commit.
+      if (isDuoTicket && inviteeUid) {
+        const inviteeBookingRef = db.collection('bookings').doc();
+        inviteeBookingIdResult = inviteeBookingRef.id;
+        tx.set(inviteeBookingRef, {
+          bookingId: inviteeBookingRef.id,
+          userId: inviteeUid, userName: '', matchId,
+          activityId: session.activityId, partnerId: session.partnerId, sport: session.sport,
+          ticketType: 'solo', sessionDate: session.startAt,
+          status: 'confirmed', transactionId: '',
+          amount: 0, currency: 'CHF', creditsUsed: 0,
+          sessionId,
+          paymentIntentId: `stripe-invite-${paymentIntentId}-${inviteeBookingRef.id}`,
+          tier: tierFromMeta, invitedBy: userId, paymentMethod: 'duo-invite',
+          createdAt: FV.serverTimestamp(), updatedAt: FV.serverTimestamp(),
+        });
+      }
+
+      // 3e. Increment session.currentParticipants (par seats Duo) + recompute tier/price/status
+      const newParticipants = session.currentParticipants + seats;
       const { tier: newTier, price: newPrice } = computePricingTier(session, new Date(), newParticipants);
       const newStatus: SessionStatus = newParticipants >= session.maxParticipants ? 'full' : 'open';
       tx.update(sessionRef, {
@@ -329,6 +354,7 @@ async function handleSessionPayment(
         status: newStatus,
         updatedAt: FV.serverTimestamp(),
       });
+
 
       // 3f. Match chat unlock
       if (matchId) {
@@ -398,6 +424,32 @@ async function handleSessionPayment(
       createdAt: FV.serverTimestamp(),
     });
   } catch { /* silent */ }
+
+  // Phase 9.5 c47 BUG B — Notification 'duo-invitation' à l'invité (post-commit).
+  // L'invitee voit le badge cloche + entrée dans /notifications → click → /sessions/{id}.
+  if (isDuoTicket && inviteeUid && inviteeBookingIdResult) {
+    try {
+      const dateStr = sessionStartAtForNotif ? formatNotifDate(sessionStartAtForNotif) : '';
+      // Récupère le displayName de l'inviteur pour personnaliser
+      let inviterName = 'Quelqu’un';
+      try {
+        const inviterSnap = await db.collection('users').doc(userId).get();
+        const inviterData = inviterSnap.exists ? inviterSnap.data() : null;
+        if (inviterData?.displayName) inviterName = inviterData.displayName as string;
+      } catch { /* ignore */ }
+      const nRef = db.collection('notifications').doc();
+      await nRef.set({
+        notificationId: nRef.id,
+        userId: inviteeUid,
+        type: 'duo-invitation',
+        title: `🎁 ${inviterName} t'a invité(e) !`,
+        body: `Séance ${sessionTitleForNotif}${dateStr ? ` le ${dateStr}` : ''} — ta place est réservée ✨`,
+        data: { sessionId, bookingId: inviteeBookingIdResult, senderUid: userId, matchId },
+        isRead: false,
+        createdAt: FV.serverTimestamp(),
+      });
+    } catch { /* silent */ }
+  }
 
   try {
     await db.collection('analytics').doc('global').set({
