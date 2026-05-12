@@ -109,7 +109,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
             <Link href="/" className="flex items-center gap-2">
               {/* Phase 9.5 c19 — vrai logo Afroboost cercle (était Dumbbell placeholder) */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icon-192.png" alt="Spordateur" width={32} height={32} />
+              <img src="/icons/icon-192.png?v=27" alt="Spordateur" width={32} height={32} />
               <span className="text-lg font-light tracking-widest uppercase hidden sm:block">Spordateur</span>
             </Link>
             {partner && (

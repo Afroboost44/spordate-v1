@@ -29,18 +29,21 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Spordateur",
   },
-  // Phase 9.5 c14/c18/c22 — métadonnées icons + cache-bust query param.
+  // Phase 9.5 c14/c18/c22/c46 — métadonnées icons + cache-bust query param.
   // Chrome cache aggressivement les favicons : versionner les URLs force re-fetch.
-  // Bump v22 = version logo c22 (cercle Afroboost Bassi). À incrémenter à chaque
-  // regénération d'asset pour éviter d'avoir à demander Cmd+Shift+Delete au user.
+  // Bump v27 = c46 : nouveau logo neon Spordateur (généré depuis logo-source.png
+  // via src/scripts/generate-pwa-assets.ts → public/icons/). À incrémenter à
+  // chaque regénération d'asset pour éviter d'avoir à demander Cmd+Shift+Delete.
   icons: {
     icon: [
-      { url: "/favicon.ico?v=24", sizes: "any" },
-      { url: "/icon-192.png?v=24", type: "image/png", sizes: "192x192" },
-      { url: "/icon-512.png?v=24", type: "image/png", sizes: "512x512" },
+      { url: "/favicon.ico?v=27", sizes: "any" },
+      { url: "/icons/favicon-16.png?v=27", type: "image/png", sizes: "16x16" },
+      { url: "/icons/favicon-32.png?v=27", type: "image/png", sizes: "32x32" },
+      { url: "/icons/icon-192.png?v=27", type: "image/png", sizes: "192x192" },
+      { url: "/icons/icon-512.png?v=27", type: "image/png", sizes: "512x512" },
     ],
-    apple: [{ url: "/apple-touch-icon.png?v=24", sizes: "180x180" }],
-    shortcut: ["/favicon.ico?v=24"],
+    apple: [{ url: "/icons/apple-touch-icon.png?v=27", sizes: "180x180" }],
+    shortcut: ["/favicon.ico?v=27"],
   },
   openGraph: {
     title: "Spordateur",
@@ -79,9 +82,21 @@ export default function RootLayout({
   return (
     <html lang="fr" className={`dark ${jakarta.variable}`}>
       <head>
-        <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png?v=24" />
+        <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=27" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+        {/* Phase 9.5 c46 — iOS PWA splash screens (9 tailles standard).
+            Media queries match device-width × device-height × pixel-ratio.
+            Cache-bust v27 = c46 nouveau logo neon depuis logo-source.png. */}
+        <link rel="apple-touch-startup-image" href="/splash/apple-splash-1125-2436.png?v=27" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image" href="/splash/apple-splash-750-1334.png?v=27" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
+        <link rel="apple-touch-startup-image" href="/splash/apple-splash-828-1792.png?v=27" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" />
+        <link rel="apple-touch-startup-image" href="/splash/apple-splash-1170-2532.png?v=27" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image" href="/splash/apple-splash-1242-2208.png?v=27" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image" href="/splash/apple-splash-1242-2688.png?v=27" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image" href="/splash/apple-splash-1284-2778.png?v=27" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" />
+        <link rel="apple-touch-startup-image" href="/splash/apple-splash-1536-2048.png?v=27" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" />
+        <link rel="apple-touch-startup-image" href="/splash/apple-splash-2048-2732.png?v=27" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" />
       </head>
       <body className="font-body">
         <AuthProvider>

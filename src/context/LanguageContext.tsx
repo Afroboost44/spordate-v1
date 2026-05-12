@@ -64,6 +64,10 @@ const defaultTranslations: any = {
     pwa_install_title: "Installer Spordateur",
     pwa_install_subtitle: "Accès rapide depuis ton écran d'accueil",
     pwa_install_button: "Installer",
+    // Phase 9.5 c46 BUG 4 — iOS Safari install banner (pas de beforeinstallprompt natif)
+    pwa_ios_install_title: "Installer Spordateur",
+    pwa_ios_install_step1: "Tap",
+    pwa_ios_install_step2: "puis « Ajouter à l'écran d'accueil »",
     // Discovery (c25 NEW)
     discovery_where_to_practice: "Où pratiquer ?",
     discovery_location_selected: "Sélectionné",
@@ -221,6 +225,10 @@ const defaultTranslations: any = {
     pwa_install_title: "Install Spordateur",
     pwa_install_subtitle: "Quick access from your home screen",
     pwa_install_button: "Install",
+    // Phase 9.5 c46 BUG 4 — iOS Safari install banner
+    pwa_ios_install_title: "Install Spordateur",
+    pwa_ios_install_step1: "Tap",
+    pwa_ios_install_step2: "then \"Add to Home Screen\"",
     // Discovery
     discovery_where_to_practice: "Where to practice?",
     discovery_location_selected: "Selected",

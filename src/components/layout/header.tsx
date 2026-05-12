@@ -26,7 +26,7 @@ function SLogo({ className = "h-7 w-7" }: { className?: string }) {
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src="/icon-192.png"
+      src="/icons/icon-192.png?v=27"
       alt="Spordateur"
       className={className}
       width={32}

@@ -115,7 +115,7 @@ export default function PartnerRegisterPage() {
           <Link href="/" className="flex items-center gap-2">
             {/* Phase 9.5 c19 — vrai logo Afroboost cercle */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon-192.png" alt="Spordateur" width={32} height={32} />
+            <img src="/icons/icon-192.png?v=27" alt="Spordateur" width={32} height={32} />
             <span className="text-lg font-light tracking-widest uppercase">Spordateur</span>
           </Link>
         </div>

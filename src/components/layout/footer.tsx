@@ -15,7 +15,7 @@ export default function Footer() {
           <div className="flex items-center space-x-2">
             {/* Phase 9.5 c17 — vrai logo Afroboost SVG (icon-192.png généré depuis SVG master) */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icon-192.png" alt="Spordateur" width={28} height={28} />
+            <img src="/icons/icon-192.png?v=27" alt="Spordateur" width={28} height={28} />
             <span className="font-light text-lg text-white">Spordateur</span>
           </div>
 
