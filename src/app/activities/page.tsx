@@ -331,6 +331,10 @@ function ActivityCardComponent({
                   activityId: activity.activityId,
                   title: activity.title,
                   price: activity.price,
+                  // Phase 9.5 c42 — passe scheduledAt pour aligner le gate du
+                  // bouton avec le texte "Prochaine séance" affiché. Si défini
+                  // et futur, le bouton est activé même sans nextSessionId.
+                  scheduledAt: activity.scheduledAt,
                 }}
                 nextSessionId={nextSessionId}
               />

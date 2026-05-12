@@ -24,6 +24,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/LanguageContext';
 import { isFreeBooking } from '@/lib/billing/creditRules';
+import { hasUpcomingSchedule } from '@/lib/activities/scheduled';
 
 export interface ReserveButtonListingProps {
   /** Activity card (subset suffisant pour décider free vs paid). */
@@ -31,10 +32,16 @@ export interface ReserveButtonListingProps {
     activityId: string;
     title: string;
     price: number;
+    /** Phase 9.5 c42 — scheduledAt sur Activity = source UX du texte
+     *  "Prochaine séance". Si défini et futur, le bouton est activé même
+     *  sans nextSessionId : le clic appellera /api/sessions/ensure-from-activity
+     *  pour créer (idempotent) la Session manquante puis router vers elle. */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    scheduledAt?: any;
   };
   /** Phase 9.5 c30 BUG GG — sessionId de la prochaine séance future pour cette
    *  activity (résolu par /activities/page.tsx via batch query sessions). Si
-   *  undefined → activity sans session planifiée, bouton désactivé. */
+   *  undefined ET activity.scheduledAt absent/passé → bouton désactivé. */
   nextSessionId?: string;
   className?: string;
 }
@@ -47,10 +54,12 @@ export function ReserveButtonListing({ activity, nextSessionId, className }: Res
   const [loading, setLoading] = useState(false);
 
   const free = isFreeBooking(activity);
-  // Phase 9.5 c30 — pour activité payante, le bouton n'est utilisable que si une
-  // session future est disponible. Free flow inchangé (createSession server-side
-  // via mode 'session-free' qui utilise activity.scheduledAt).
-  const paidButNoSession = !free && !nextSessionId;
+  // Phase 9.5 c42 — bouton activé si soit une Session future existe (nextSessionId),
+  // soit l'Activity a un scheduledAt futur (même source que le texte affiché). Le
+  // 2e cas déclenchera la création on-demand de la Session via ensure-from-activity.
+  const hasFutureSchedule = hasUpcomingSchedule({ scheduledAt: activity.scheduledAt });
+  const canReserve = free || !!nextSessionId || hasFutureSchedule;
+  const paidButNoSession = !canReserve;
 
   const handleClick = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -141,6 +150,31 @@ export function ReserveButtonListing({ activity, nextSessionId, className }: Res
         // Avant c30 ça redirigeait vers /activities/{activityId} (page statique
         // sans countdown ni tabs prix → impossible de finaliser le checkout).
         router.push(`/sessions/${nextSessionId}`);
+      } else if (hasFutureSchedule) {
+        // Phase 9.5 c42 — Activity a scheduledAt futur mais aucune Session ne
+        // l'a encore matérialisé dans sessions/. Appel server-side idempotent
+        // pour créer la Session (ou récupérer l'id si race-condition créé
+        // entre temps), puis route classique /sessions/{id}.
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/sessions/ensure-from-activity', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({ activityId: activity.activityId }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok && data?.sessionId) {
+          router.push(`/sessions/${data.sessionId}`);
+        } else {
+          console.warn('[ReserveButtonListing] ensure-from-activity failed', { status: res.status, data });
+          toast({
+            title: t('reserve_no_upcoming_session'),
+            description: data?.detail || data?.error || undefined,
+            variant: 'destructive',
+          });
+        }
       } else {
         // Aucune session future → état impossible (le bouton aurait dû être
         // désactivé). Filet : afficher un toast informatif et rester sur page.
