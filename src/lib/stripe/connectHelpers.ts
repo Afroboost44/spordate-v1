@@ -76,9 +76,49 @@ export class ConnectError extends Error {
 }
 
 /**
+ * Phase 9.5 c43 — résolution Partner doc via 3 fallback paths.
+ *
+ * Activity.partnerId == user.uid depuis c33 (cf. migrate-activity-partner-id.ts),
+ * mais Partner.docId == `partner-${user.uid}` (cf. /partner/login auto-create).
+ * Avant c43 cette fonction faisait `partners/{partnerId}.get()` direct → 404
+ * pour toute Activity post-c33 → toast "partner-not-found" au checkout.
+ *
+ * Pattern aligné sur /api/partner/discovery-opt-in et webhook stripe handler.
+ *
+ * @internal exporté pour réutilisation potentielle, non destiné à l'usage public.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function findPartnerDoc(partnerId: string, db: any): Promise<any | null> {
+  // 1. Direct lookup (legacy data ou Activity.partnerId déjà = Partner.docId)
+  const directSnap = await db.collection('partners').doc(partnerId).get();
+  if (directSnap.exists) return directSnap;
+
+  // 2. Prefix `partner-` (Activity.partnerId == user.uid post-c33)
+  const prefixedSnap = await db.collection('partners').doc(`partner-${partnerId}`).get();
+  if (prefixedSnap.exists) return prefixedSnap;
+
+  // 3. Email fallback : users/{partnerId}.email → partners where email == X
+  // Couvre les cas edge où le Partner doc id ne suit aucune des 2 conventions.
+  const userSnap = await db.collection('users').doc(partnerId).get();
+  const userEmail = userSnap.exists ? (userSnap.data()?.email as string | undefined) : undefined;
+  if (userEmail) {
+    const q = await db
+      .collection('partners')
+      .where('email', '==', userEmail)
+      .limit(1)
+      .get();
+    if (!q.empty) return q.docs[0];
+  }
+
+  return null;
+}
+
+/**
  * Récupère le `stripeAccountId` d'un partner via Admin SDK.
  *
- * @throws ConnectError 'partner-not-found' si partner doc absent
+ * Résolution Phase 9.5 c43 — voir findPartnerDoc() ci-dessus.
+ *
+ * @throws ConnectError 'partner-not-found' si aucun des 3 paths ne trouve le partner
  * @throws ConnectError 'partner-not-onboarded' si stripeAccountId absent
  */
 export async function getPartnerStripeAccount(partnerId: string): Promise<string> {
@@ -86,9 +126,12 @@ export async function getPartnerStripeAccount(partnerId: string): Promise<string
     throw new ConnectError('partner-not-found', 'partnerId required');
   }
   const db = await getDb();
-  const snap = await db.collection('partners').doc(partnerId).get();
-  if (!snap.exists) {
-    throw new ConnectError('partner-not-found', `Partner ${partnerId} introuvable`);
+  const snap = await findPartnerDoc(partnerId, db);
+  if (!snap) {
+    throw new ConnectError(
+      'partner-not-found',
+      `Partner ${partnerId} introuvable (essayé partners/{id}, partners/partner-{id}, email fallback)`,
+    );
   }
   const data = snap.data();
   const accountId = data?.stripeAccountId as string | undefined;
