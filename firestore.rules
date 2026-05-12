@@ -260,15 +260,26 @@ service cloud.firestore {
     }
 
     // === CHATS ===
+    // Phase 9.5 c41 — Single source of truth = matches/{chatId}.userIds.
+    // Avant : read/create rules checkaient chats.participants, qui pouvait
+    // driver (dedupe-matches.ts c39 ne migre pas chats/, unlockChat + stripe
+    // webhook créent messages sans créer le parent chats/{matchId}). Si
+    // chats.participants était stale ou incomplet → permission-denied silencieux
+    // côté listener → "AUCUN message visible" pour l'autre participant.
+    // Après : rules check matches.userIds (toujours bon, écrit atomiquement à
+    // la création du match). chats.participants reste pour usage server-side
+    // (suggest-activities API) mais n'est plus gate d'accès.
     match /chats/{chatId} {
-      allow read: if isAuth() && request.auth.uid in resource.data.participants;
-      allow create: if isAuth() && request.auth.uid in request.resource.data.participants;
+      allow read: if isAuth()
+        && request.auth.uid in get(/databases/$(database)/documents/matches/$(chatId)).data.userIds;
+      allow create: if isAuth()
+        && request.auth.uid in get(/databases/$(database)/documents/matches/$(chatId)).data.userIds;
       // Phase 8 SC2 commit 1/6 — anti-leak self-only update sur leakBySender :
       // si leakBySender est touché, la diff ne peut contenir QUE auth.uid.
       // Empêche un participant d'incrémenter le compteur de l'autre (anti-spoof).
       // Si leakBySender pas dans diff → comportement Phase 1 inchangé (lastMessage etc.).
       allow update: if isAuth()
-        && request.auth.uid in resource.data.participants
+        && request.auth.uid in get(/databases/$(database)/documents/matches/$(chatId)).data.userIds
         && (
           !('leakBySender' in request.resource.data.diff(resource.data).affectedKeys())
           || request.resource.data.leakBySender.diff(resource.data.get('leakBySender', {})).affectedKeys().hasOnly([request.auth.uid])
@@ -277,9 +288,9 @@ service cloud.firestore {
 
       match /messages/{messageId} {
         allow read: if isAuth()
-          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+          && request.auth.uid in get(/databases/$(database)/documents/matches/$(chatId)).data.userIds;
         allow create: if isAuth()
-          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+          && request.auth.uid in get(/databases/$(database)/documents/matches/$(chatId)).data.userIds
           // Phase 8 SC3 commit 1/6 (anti-spoof) : senderId doit être l'auteur authentifié.
           // Empêche un client de créer un faux bot message senderId='system' (Q9=A — seul Admin SDK
           // serveur peut écrire senderId='system' via /api/suggest-activities, bypass des rules).

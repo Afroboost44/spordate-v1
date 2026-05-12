@@ -931,9 +931,20 @@ export async function sendMessage(
 export function subscribeToMessages(chatId: string, callback: (messages: ChatMessage[]) => void): Unsubscribe {
   if (!db) throw new Error('Firestore non initialisé');
   const q = query(collection(db, 'chats', chatId, 'messages'), orderBy('createdAt', 'asc'));
-  return onSnapshot(q, (snap) => {
-    callback(snap.docs.map(d => d.data() as ChatMessage));
-  });
+  // Phase 9.5 c41 — error callback explicite pour surfacer les permission-denied
+  // au lieu de laisser le listener s'arrêter silencieusement (cause du "AUCUN
+  // message visible" côté participant B). Toujours appeler callback([]) pour
+  // permettre au UI de sortir de l'état loading.
+  return onSnapshot(
+    q,
+    (snap) => {
+      callback(snap.docs.map(d => d.data() as ChatMessage));
+    },
+    (err) => {
+      console.error('[subscribeToMessages] listener error', { chatId, code: err.code, message: err.message });
+      callback([]);
+    },
+  );
 }
 
 export async function markMessagesRead(chatId: string, userId: string): Promise<void> {
