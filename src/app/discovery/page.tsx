@@ -32,6 +32,7 @@ import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Coins } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { resolveThumbnail } from '@/lib/youtube/thumbnail';
 import { registerBooking, getConfirmedTickets, getPartners, type Partner } from "@/lib/db";
 
 import { sendPartnerNotification } from "@/lib/notifications";
@@ -819,6 +820,9 @@ export default function DiscoveryPage() {
     }
   }, [searchParams]);
 
+  // Phase 9.5 c48 — Wizard 3 étapes : Activité → Invité → Paiement.
+  // Reset à 1 quand la modal s'ouvre/ferme (via useEffect plus bas).
+  const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   // Phase 9.5 c45 — Méthode de paiement sélectionnée dans la modal (Stripe vs Crédits).
   const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'credits'>('stripe');
   // Phase 9.5 c47 BUG B — Sélection invitee Duo via match Tinder (méthode "link"
@@ -879,6 +883,25 @@ export default function DiscoveryPage() {
   useEffect(() => {
     if (!isDuoTicket) setSelectedInviteeUid(null);
   }, [isDuoTicket]);
+
+  // Phase 9.5 c48 — Reset wizard à l'étape 1 + paymentMethod default quand
+  // la modal s'ouvre (fresh state) ou se ferme (anti-stale au prochain open).
+  useEffect(() => {
+    if (showPaymentModal) {
+      setCurrentStep(1);
+      setPaymentMethod('stripe');
+    }
+  }, [showPaymentModal]);
+
+  // Phase 9.5 c48 — Calcule si on peut avancer à l'étape suivante.
+  const canAdvanceStep = (): boolean => {
+    if (currentStep === 1) return !!selectedActivity;
+    if (currentStep === 2) {
+      if (!isDuoTicket) return true;
+      return invitationMethod === 'match' ? !!selectedInviteeUid : false;
+    }
+    return false; // step 3 = pay button, pas de "next"
+  };
 
   // Phase 9.5 c45 BUG 1 — helper ensure Session pour l'Activity sélectionnée
   // (réutilise /api/sessions/ensure-from-activity créé en c42). Sans Session
@@ -1464,333 +1487,400 @@ END:VCALENDAR`;
 
       {/* Payment Modal */}
       <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
-        <DialogContent className="max-w-md w-full bg-zinc-900 border-white/10 text-white p-0 overflow-hidden max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="p-6 pb-0 bg-gradient-to-b from-[#D91CD2]/20 to-transparent">
-            <DialogTitle className="text-2xl font-bold flex items-center gap-2">
-              <Zap className="h-6 w-6 text-yellow-400" />
+        <DialogContent className="max-w-md w-full bg-zinc-900 border-white/10 text-white p-0 overflow-hidden max-h-[90vh] flex flex-col">
+          <DialogHeader className="p-6 pb-3 bg-gradient-to-b from-[#D91CD2]/20 to-transparent flex-shrink-0">
+            <DialogTitle className="text-xl font-bold flex items-center gap-2">
+              <Zap className="h-5 w-5 text-yellow-400" />
               {t('payment_modal_title', { title: 'Afroboost' })}
             </DialogTitle>
-            <DialogDescription className="text-gray-400">
-              Séance avec {currentProfile?.name.split(',')[0]} à {currentProfile?.location}
+            <DialogDescription className="text-gray-400 text-sm">
+              {currentProfile && (
+                <>Séance avec {currentProfile.name.split(',')[0]} à {currentProfile.location}</>
+              )}
             </DialogDescription>
+            {/* Phase 9.5 c48 — Steps indicator wizard 3 étapes */}
+            <div data-testid="wizard-steps" className="flex items-center justify-between pt-3 px-2">
+              {[
+                { n: 1, label: t('wizard_step_activity') || 'Activité' },
+                { n: 2, label: t('wizard_step_invitee') || 'Invité' },
+                { n: 3, label: t('wizard_step_payment') || 'Paiement' },
+              ].map((s, i) => {
+                const isActive = currentStep === s.n;
+                const isDone = currentStep > s.n;
+                return (
+                  <React.Fragment key={s.n}>
+                    <div className="flex flex-col items-center flex-shrink-0">
+                      <div
+                        className={cn(
+                          'w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-all',
+                          isActive && 'bg-[#D91CD2] text-white shadow-[0_0_15px_rgba(217,28,210,0.5)]',
+                          isDone && 'bg-white/60 text-black',
+                          !isActive && !isDone && 'bg-white/10 text-white/40 border border-white/20',
+                        )}
+                      >
+                        {isDone ? <Check className="h-3.5 w-3.5" /> : s.n}
+                      </div>
+                      <span className={cn(
+                        'text-[10px] mt-1 transition-colors',
+                        isActive ? 'text-[#D91CD2] font-semibold' : 'text-white/40',
+                      )}>
+                        {s.label}
+                      </span>
+                    </div>
+                    {i < 2 && (
+                      <div className={cn(
+                        'h-px flex-1 mx-1 transition-colors -mt-4',
+                        currentStep > s.n ? 'bg-white/40' : 'bg-white/10',
+                      )} />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
           </DialogHeader>
-          
-          <div className="p-6 space-y-6">
-            {/* Phase 9.5 c47 BUG A — Cards visuelles activités (replace dropdown).
-                Liste verticale scrollable max-h 300px : miniature 60×60 + nom + prix
-                + ville + description tronquée. Card sélectionnée mise en évidence
-                border magenta + bg highlight. Avant c47 : <Select> texte brut. */}
-            {partnerActivities.length > 1 && (
-              <div className="space-y-2">
+
+          {/* Phase 9.5 c48 — Wizard step content (scrollable middle) */}
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-4 min-h-[280px]">
+            {/* ─── ÉTAPE 1 : Choisis ton activité ───────────────────── */}
+            {currentStep === 1 && (
+              <div data-testid="wizard-step-1" className="space-y-2 animate-in fade-in duration-200">
                 <Label className="text-sm text-gray-400 flex items-center gap-2">
                   <Zap className="h-4 w-4 text-[#D91CD2]" />
                   {t('discovery_choose_activity')}
                 </Label>
-                <div className="space-y-2 max-h-[300px] overflow-y-auto pr-1">
-                  {partnerActivities.map((act) => {
-                    const isSelected = selectedActivity?.activityId === act.activityId;
-                    const thumbnail = act.imageUrl || act.mediaUrls?.[0]?.url || act.mediaUrls?.[0] || '';
-                    return (
-                      <button
-                        key={act.activityId || act.id}
-                        type="button"
-                        data-testid="activity-card"
-                        onClick={() => setSelectedActivity(act)}
-                        className={cn(
-                          'w-full flex gap-3 p-3 rounded-xl border transition-all text-left',
-                          isSelected
-                            ? 'border-[#D91CD2] bg-[#D91CD2]/10'
-                            : 'border-white/10 hover:border-white/30 bg-zinc-900/30'
-                        )}
-                      >
-                        {thumbnail ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
-                            src={thumbnail}
-                            alt={act.name || act.title}
-                            className="w-14 h-14 rounded-lg object-cover flex-shrink-0 bg-zinc-800"
-                          />
-                        ) : (
-                          <div className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center flex-shrink-0">
-                            <Zap className="h-5 w-5 text-white/30" />
-                          </div>
-                        )}
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start gap-2">
-                            <h4 className="text-white text-sm font-medium truncate">
-                              {act.name || act.title}
-                            </h4>
-                            <span className="text-[#D91CD2] text-sm font-semibold whitespace-nowrap">
-                              {act.price === 0 ? t('payment_free_label') : `${act.price} CHF`}
-                            </span>
-                          </div>
-                          {(act.description || act.sport) && (
-                            <p className="text-white/60 text-xs line-clamp-1 mt-0.5">
-                              {act.description || act.sport}
-                            </p>
+                {partnerActivities.length === 0 ? (
+                  <div className="text-center py-6 text-white/50 text-sm">
+                    {t('discovery_no_boosted_activity_partner')}
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {partnerActivities.map((act) => {
+                      const isSelected = selectedActivity?.activityId === act.activityId;
+                      // Phase 9.5 c48 BUG A — resolveThumbnail convertit URL YouTube
+                      // en miniature img.youtube.com/vi/{id}/hqdefault.jpg, sinon
+                      // passe l'URL CDN telle quelle.
+                      const rawSrc = act.imageUrl || act.mediaUrls?.[0]?.url || act.mediaUrls?.[0] || '';
+                      const thumbnail = resolveThumbnail(rawSrc);
+                      return (
+                        <button
+                          key={act.activityId || act.id}
+                          type="button"
+                          data-testid="activity-card"
+                          onClick={() => setSelectedActivity(act)}
+                          className={cn(
+                            'w-full flex gap-3 p-3 rounded-xl border transition-all text-left',
+                            isSelected
+                              ? 'border-[#D91CD2] bg-[#D91CD2]/10'
+                              : 'border-white/10 hover:border-white/30 bg-zinc-900/30'
                           )}
-                          {act.city && (
-                            <div className="flex items-center gap-1 mt-1 text-white/40 text-xs">
-                              <MapPin className="h-3 w-3" />
-                              <span className="truncate">{act.city}</span>
+                        >
+                          {thumbnail ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={thumbnail}
+                              alt={act.name || act.title}
+                              className="w-14 h-14 rounded-lg object-cover flex-shrink-0 bg-zinc-800"
+                            />
+                          ) : (
+                            <div className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                              <Zap className="h-5 w-5 text-white/30" />
                             </div>
                           )}
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-start gap-2">
+                              <h4 className="text-white text-sm font-medium truncate">
+                                {act.name || act.title}
+                              </h4>
+                              <span className="text-[#D91CD2] text-sm font-semibold whitespace-nowrap">
+                                {act.price === 0 ? t('payment_free_label') : `${act.price} CHF`}
+                              </span>
+                            </div>
+                            {(act.description || act.sport) && (
+                              <p className="text-white/60 text-xs line-clamp-1 mt-0.5">
+                                {act.description || act.sport}
+                              </p>
+                            )}
+                            {act.city && (
+                              <div className="flex items-center gap-1 mt-1 text-white/40 text-xs">
+                                <MapPin className="h-3 w-3" />
+                                <span className="truncate">{act.city}</span>
+                              </div>
+                            )}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Duo Option Toggle */}
-            <div data-testid="duo-option-toggle" className="bg-gradient-to-r from-[#D91CD2]/30 to-[#E91E63]/30 rounded-xl p-4 border border-[#D91CD2]/30">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
-                    <Gift className="h-5 w-5 text-white" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-white">{t('payment_duo_option_title')}</p>
-                    <p className="text-xs text-gray-400">{t('payment_duo_option_subtitle')}</p>
-                  </div>
-                </div>
-                <Switch
-                  checked={isDuoTicket}
-                  onCheckedChange={setIsDuoTicket}
-                  className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#D91CD2] data-[state=checked]:to-[#E91E63]"
-                />
-              </div>
-              {isDuoTicket && (
-                <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
-                  {/* Phase 9.5 c47 BUG B — Tabs méthode d'invitation. Pour l'instant
-                      seul 'match' fonctionnel (Tinder match-list) ; 'link' WhatsApp
-                      reporté à c48 (endpoint /api/invites/create-duo + page accept). */}
-                  <Tabs value={invitationMethod} onValueChange={(v) => setInvitationMethod(v as 'match' | 'link')}>
-                    <TabsList className="grid grid-cols-2 w-full bg-zinc-900 border border-white/10 rounded-lg p-1 h-auto">
-                      <TabsTrigger
-                        value="match"
-                        className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-md text-xs py-2"
-                      >
-                        {t('invitation_method_match') || 'Inviter un match'}
-                      </TabsTrigger>
-                      <TabsTrigger
-                        value="link"
-                        disabled
-                        title={t('invitation_method_link_soon') || 'Bientôt disponible'}
-                        className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/40 rounded-md text-xs py-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                      >
-                        {t('invitation_method_link') || 'Lien WhatsApp'}
-                        <span className="ml-1 text-[10px] opacity-60">({t('common_soon') || 'bientôt'})</span>
-                      </TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="match" className="mt-2">
-                      {loadingMatches ? (
-                        <div className="flex items-center justify-center py-6 text-white/40 text-xs gap-2">
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          {t('invitation_loading_matches') || 'Chargement des matches…'}
-                        </div>
-                      ) : userMatches.length === 0 ? (
-                        <div className="text-center py-4 text-white/50 text-xs">
-                          {t('invitation_no_matches') || 'Aucun match actif pour inviter — fais un match d\'abord !'}
-                        </div>
-                      ) : (
-                        <div className="space-y-1.5 max-h-[200px] overflow-y-auto pr-1">
-                          {userMatches.map((m) => {
-                            const otherUid = m.userIds.find((uid) => uid !== user?.uid) || '';
-                            const profile = matchProfiles[otherUid] || { displayName: 'Utilisateur', photoURL: '' };
-                            const isSelectedInvitee = selectedInviteeUid === otherUid;
-                            // Match age en jours
-                            const createdMs = m.createdAt?.toMillis?.() ?? 0;
-                            const ageDays = createdMs ? Math.max(0, Math.floor((Date.now() - createdMs) / 86_400_000)) : 0;
-                            return (
-                              <button
-                                key={m.matchId}
-                                type="button"
-                                data-testid="invitee-match-card"
-                                onClick={() => setSelectedInviteeUid(otherUid)}
-                                className={cn(
-                                  'w-full flex items-center gap-2.5 p-2 rounded-lg border transition-all text-left',
-                                  isSelectedInvitee
-                                    ? 'border-[#D91CD2] bg-[#D91CD2]/15'
-                                    : 'border-white/10 hover:border-white/30 bg-zinc-900/40'
-                                )}
-                              >
-                                <Avatar className="h-8 w-8">
-                                  <AvatarImage src={profile.photoURL} />
-                                  <AvatarFallback className="bg-zinc-800 text-white/60 text-xs">
-                                    {profile.displayName.charAt(0).toUpperCase()}
-                                  </AvatarFallback>
-                                </Avatar>
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-white text-sm font-medium truncate">{profile.displayName}</p>
-                                  <p className="text-white/40 text-[11px]">
-                                    {ageDays === 0
-                                      ? (t('invitation_match_today') || 'Match aujourd\'hui')
-                                      : ageDays === 1
-                                      ? (t('invitation_match_yesterday') || 'Match hier')
-                                      : (t('invitation_match_days_ago', { days: ageDays }) || `Match depuis ${ageDays}j`)}
-                                  </p>
-                                </div>
-                                {isSelectedInvitee && <Check className="h-4 w-4 text-[#D91CD2] flex-shrink-0" />}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      )}
-                    </TabsContent>
-                  </Tabs>
-                </div>
-              )}
-            </div>
-
-            {/* Price Summary */}
-            <div data-testid="price-summary" className="bg-zinc-900/50 rounded-xl p-4 border border-white/10">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-gray-400">
-                  {isDuoTicket ? 'Séance Duo Afroboost (2x 1h)' : 'Séance Afroboost (1h)'}
-                </span>
-                <span className="font-semibold">{getCurrentPrice() === 0 ? t('payment_free_session_label') : `${getCurrentPrice()} CHF`}</span>
-              </div>
-              {isDuoTicket && (
-                <div className="flex justify-between items-center text-sm text-violet-300 mb-2">
-                  <span className="flex items-center gap-1">
-                    <Gift className="h-3 w-3" /> Place offerte incluse
-                  </span>
-                  <span className="line-through text-gray-500">{(Number(selectedActivity?.price ?? 0)) * 2} CHF</span>
-                </div>
-              )}
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-500">{t('payment_service_fee')}</span>
-                <span className="text-gray-500">0 CHF</span>
-              </div>
-              <Separator className="my-3 bg-white/10" />
-              <div className="flex justify-between items-center text-lg font-bold">
-                <span>{t('payment_total_label')}</span>
-                <span className="text-green-400">{getCurrentPrice() === 0 ? t('payment_free_label') : `${getCurrentPrice()} CHF`}</span>
-              </div>
-            </div>
-
-            {/* Meeting Place Selection */}
-            <div className="space-y-3">
-              <Label className="text-sm text-gray-400 flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                {t('payment_meeting_place_label')}
-              </Label>
-              <Select value={selectedMeetingPlace} onValueChange={setSelectedMeetingPlace}>
-                <SelectTrigger className="bg-black border-gray-700">
-                  <SelectValue placeholder={t('payment_location_placeholder')} />
-                </SelectTrigger>
-                <SelectContent>
-                  {partners.map((partner) => (
-                    <SelectItem key={partner.id} value={partner.id!}>
-                      <div className="flex items-center gap-2">
-                        <span>{partner.name}</span>
-                        <span className="text-xs text-muted-foreground">• {partner.city}</span>
+            {/* ─── ÉTAPE 2 : Solo ou Duo + invitee ──────────────────── */}
+            {currentStep === 2 && (
+              <div data-testid="wizard-step-2" className="space-y-4 animate-in fade-in duration-200">
+                <div data-testid="duo-option-toggle" className="bg-gradient-to-r from-[#D91CD2]/30 to-[#E91E63]/30 rounded-xl p-4 border border-[#D91CD2]/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
+                        <Gift className="h-5 w-5 text-white" />
                       </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Phase 9.5 c45 BUG 5 — Tabs méthode de paiement (Carte/TWINT vs Crédits).
-                Cohérent avec /partner/boost (c29b) : 0.50 CHF/crédit, 2 crédits/CHF. */}
-            {getCurrentPrice() > 0 && (
-              <div data-testid="payment-method-tabs">
-                <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'stripe' | 'credits')}>
-                  <TabsList className="grid grid-cols-2 w-full bg-zinc-900 border border-white/10 rounded-xl p-1 h-auto">
-                    <TabsTrigger
-                      value="stripe"
-                      className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-2 py-2.5"
-                    >
-                      <CreditCard className="h-4 w-4" />
-                      <span className="text-sm">{t('payment_method_stripe') || 'Carte / TWINT'}</span>
-                    </TabsTrigger>
-                    <TabsTrigger
-                      value="credits"
-                      className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-2 py-2.5"
-                    >
-                      <Coins className="h-4 w-4" />
-                      <span className="text-sm">{t('payment_method_credits') || 'Crédits'}</span>
-                    </TabsTrigger>
-                  </TabsList>
-                  <TabsContent value="credits" className="mt-3">
-                    <div className="bg-zinc-900/50 rounded-xl p-4 border border-white/10 space-y-2">
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-400">{t('payment_credits_balance') || 'Solde'}</span>
-                        <span className="font-semibold text-white">{creditCount} {t('payment_credits_unit') || 'crédits'}</span>
+                      <div>
+                        <p className="font-semibold text-white">{t('payment_duo_option_title')}</p>
+                        <p className="text-xs text-gray-400">{t('payment_duo_option_subtitle')}</p>
                       </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-400">{t('payment_credits_cost') || 'Coût'}</span>
-                        <span className="font-semibold text-[#D91CD2]">
-                          {computeCreditsCost(getCurrentPrice())} {t('payment_credits_unit') || 'crédits'}
-                          <span className="text-xs text-white/40 font-normal ml-1">
-                            ≈ {getCurrentPrice()} CHF
-                          </span>
-                        </span>
-                      </div>
-                      {creditCount < computeCreditsCost(getCurrentPrice()) && (
-                        <p className="text-xs text-red-400 pt-1">
-                          {t('payment_credits_insufficient_hint') || 'Solde insuffisant — recharge requise'}
-                        </p>
-                      )}
                     </div>
-                  </TabsContent>
-                </Tabs>
+                    <Switch
+                      checked={isDuoTicket}
+                      onCheckedChange={setIsDuoTicket}
+                      className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#D91CD2] data-[state=checked]:to-[#E91E63]"
+                    />
+                  </div>
+                  {isDuoTicket && (
+                    <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
+                      <Tabs value={invitationMethod} onValueChange={(v) => setInvitationMethod(v as 'match' | 'link')}>
+                        <TabsList className="grid grid-cols-2 w-full bg-zinc-900 border border-white/10 rounded-lg p-1 h-auto">
+                          <TabsTrigger value="match" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-md text-xs py-2">
+                            {t('invitation_method_match') || 'Inviter un match'}
+                          </TabsTrigger>
+                          <TabsTrigger value="link" disabled title={t('invitation_method_link_soon') || 'Bientôt disponible'} className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/40 rounded-md text-xs py-2 disabled:opacity-40 disabled:cursor-not-allowed">
+                            {t('invitation_method_link') || 'Lien WhatsApp'}
+                            <span className="ml-1 text-[10px] opacity-60">({t('common_soon') || 'bientôt'})</span>
+                          </TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="match" className="mt-2">
+                          {loadingMatches ? (
+                            <div className="flex items-center justify-center py-6 text-white/40 text-xs gap-2">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              {t('invitation_loading_matches')}
+                            </div>
+                          ) : userMatches.length === 0 ? (
+                            <div className="text-center py-4 text-white/50 text-xs">
+                              {t('invitation_no_matches')}
+                            </div>
+                          ) : (
+                            <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
+                              {userMatches.map((m) => {
+                                const otherUid = m.userIds.find((uid) => uid !== user?.uid) || '';
+                                const profile = matchProfiles[otherUid] || { displayName: 'Utilisateur', photoURL: '' };
+                                const isSelectedInvitee = selectedInviteeUid === otherUid;
+                                const createdMs = m.createdAt?.toMillis?.() ?? 0;
+                                const ageDays = createdMs ? Math.max(0, Math.floor((Date.now() - createdMs) / 86_400_000)) : 0;
+                                return (
+                                  <button
+                                    key={m.matchId}
+                                    type="button"
+                                    data-testid="invitee-match-card"
+                                    onClick={() => setSelectedInviteeUid(otherUid)}
+                                    className={cn(
+                                      'w-full flex items-center gap-2.5 p-2 rounded-lg border transition-all text-left',
+                                      isSelectedInvitee
+                                        ? 'border-[#D91CD2] bg-[#D91CD2]/15'
+                                        : 'border-white/10 hover:border-white/30 bg-zinc-900/40'
+                                    )}
+                                  >
+                                    <Avatar className="h-8 w-8">
+                                      <AvatarImage src={profile.photoURL} />
+                                      <AvatarFallback className="bg-zinc-800 text-white/60 text-xs">
+                                        {profile.displayName.charAt(0).toUpperCase()}
+                                      </AvatarFallback>
+                                    </Avatar>
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-white text-sm font-medium truncate">{profile.displayName}</p>
+                                      <p className="text-white/40 text-[11px]">
+                                        {ageDays === 0
+                                          ? t('invitation_match_today')
+                                          : ageDays === 1
+                                          ? t('invitation_match_yesterday')
+                                          : t('invitation_match_days_ago', { days: ageDays })}
+                                      </p>
+                                    </div>
+                                    {isSelectedInvitee && <Check className="h-4 w-4 text-[#D91CD2] flex-shrink-0" />}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </TabsContent>
+                      </Tabs>
+                    </div>
+                  )}
+                </div>
+                {/* Mini-récap prix à l'étape 2 (déjà visible) */}
+                <div className="bg-zinc-900/50 rounded-xl p-3 border border-white/10 flex justify-between items-center">
+                  <span className="text-sm text-gray-400">
+                    {isDuoTicket
+                      ? (t('wizard_total_duo') || 'Total (Duo, 2 places)')
+                      : (t('wizard_total_solo') || 'Total (Solo)')}
+                  </span>
+                  <span className="text-lg font-bold text-green-400">
+                    {getCurrentPrice() === 0 ? t('payment_free_label') : `${getCurrentPrice()} CHF`}
+                  </span>
+                </div>
               </div>
             )}
 
-            {/* Pay Button - FIRST */}
-            <Button
-              data-testid="pay-button"
-              onClick={paymentMethod === 'credits' ? handlePaymentCredits : handlePayment}
-              disabled={
-                isProcessing ||
-                (paymentMethod === 'credits' &&
-                  getCurrentPrice() > 0 &&
-                  creditCount < computeCreditsCost(getCurrentPrice())) ||
-                // Phase 9.5 c47 BUG B — Duo + tab match → invitee uid requis avant paiement
-                (isDuoTicket && invitationMethod === 'match' && !selectedInviteeUid)
-              }
-              className="w-full h-14 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white font-semibold text-lg disabled:opacity-70 disabled:cursor-not-allowed transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
-            >
-              {isProcessing ? (
-                <div className="flex items-center gap-3">
-                  <Loader2 className="h-5 w-5 animate-spin" />
-                  <span>{getCurrentPrice() === 0 ? t('payment_button_loading_free') : t('payment_button_loading_paid')}</span>
+            {/* ─── ÉTAPE 3 : Paiement ──────────────────────────────── */}
+            {currentStep === 3 && (
+              <div data-testid="wizard-step-3" className="space-y-4 animate-in fade-in duration-200">
+                {/* Récap complet read-only */}
+                <div className="bg-zinc-900/50 rounded-xl p-4 border border-white/10 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-white/50">{t('wizard_recap_activity') || 'Activité'}</span>
+                    <span className="text-white font-medium truncate ml-2">{selectedActivity?.name || selectedActivity?.title || '—'}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white/50">{t('wizard_recap_type') || 'Type'}</span>
+                    <span className="text-white">
+                      {isDuoTicket ? (
+                        <>
+                          Duo
+                          {selectedInviteeUid && (
+                            <span className="text-[#D91CD2] ml-1">
+                              · {matchProfiles[selectedInviteeUid]?.displayName || ''}
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        'Solo'
+                      )}
+                    </span>
+                  </div>
+                  {(selectedActivity?.address || selectedActivity?.city) && (
+                    <div className="flex justify-between">
+                      <span className="text-white/50 flex items-center gap-1">
+                        <MapPin className="h-3 w-3" />
+                        {t('wizard_recap_location') || 'Lieu'}
+                      </span>
+                      <span className="text-white truncate ml-2">
+                        {selectedActivity?.address ? `${selectedActivity.address}, ` : ''}{selectedActivity?.city || ''}
+                      </span>
+                    </div>
+                  )}
+                  <Separator className="my-2 bg-white/10" />
+                  <div className="flex justify-between items-center">
+                    <span className="text-white/50">{t('payment_total_label')}</span>
+                    <span className="text-green-400 text-lg font-bold">
+                      {getCurrentPrice() === 0 ? t('payment_free_label') : `${getCurrentPrice()} CHF`}
+                    </span>
+                  </div>
                 </div>
-              ) : paymentMethod === 'credits' && getCurrentPrice() > 0 ? (
-                <div className="flex items-center gap-2">
-                  <Coins className="h-5 w-5" />
-                  <span>
-                    {creditCount < computeCreditsCost(getCurrentPrice())
-                      ? (t('payment_credits_topup_button') || 'Recharger mes crédits')
-                      : (t('payment_credits_pay_button', { cost: computeCreditsCost(getCurrentPrice()) })
-                          || `Réserver avec ${computeCreditsCost(getCurrentPrice())} crédits`)}
-                  </span>
-                  {isDuoTicket && <Badge className="bg-white/20 text-white text-xs ml-1">Duo</Badge>}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5" />
-                  <span>{getCurrentPrice() === 0 ? t('payment_confirm_free_button') : t('payment_pay_button', { price: getCurrentPrice() })}</span>
-                  {isDuoTicket && <Badge className="bg-white/20 text-white text-xs ml-1">Duo</Badge>}
-                </div>
-              )}
-            </Button>
 
-            {/* Stripe Checkout Notice - after pay button */}
-            <div className="bg-gradient-to-r from-[#D91CD2]/10 to-[#E91E63]/10 rounded-xl p-3 border border-white/5">
-              <div className="flex items-center gap-3">
-                <CreditCard className="h-5 w-5 text-[#D91CD2]" />
-                <div>
-                  <p className="text-xs font-medium text-white/60">{t('payment_stripe_notice')}</p>
-                  <p className="text-[11px] text-white/30">{t('payment_methods_accepted')}</p>
+                {/* Tabs méthode de paiement (Stripe vs Crédits) */}
+                {getCurrentPrice() > 0 && (
+                  <div data-testid="payment-method-tabs">
+                    <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'stripe' | 'credits')}>
+                      <TabsList className="grid grid-cols-2 w-full bg-zinc-900 border border-white/10 rounded-xl p-1 h-auto">
+                        <TabsTrigger value="stripe" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-2 py-2.5">
+                          <CreditCard className="h-4 w-4" />
+                          <span className="text-sm">{t('payment_method_stripe') || 'Carte / TWINT'}</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="credits" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-2 py-2.5">
+                          <Coins className="h-4 w-4" />
+                          <span className="text-sm">{t('payment_method_credits') || 'Crédits'}</span>
+                        </TabsTrigger>
+                      </TabsList>
+                      <TabsContent value="credits" className="mt-3">
+                        <div className="bg-zinc-900/50 rounded-xl p-4 border border-white/10 space-y-2">
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-400">{t('payment_credits_balance')}</span>
+                            <span className="font-semibold text-white">{creditCount} {t('payment_credits_unit')}</span>
+                          </div>
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-400">{t('payment_credits_cost')}</span>
+                            <span className="font-semibold text-[#D91CD2]">
+                              {computeCreditsCost(getCurrentPrice())} {t('payment_credits_unit')}
+                              <span className="text-xs text-white/40 font-normal ml-1">
+                                ≈ {getCurrentPrice()} CHF
+                              </span>
+                            </span>
+                          </div>
+                          {creditCount < computeCreditsCost(getCurrentPrice()) && (
+                            <p className="text-xs text-red-400 pt-1">
+                              {t('payment_credits_insufficient_hint')}
+                            </p>
+                          )}
+                        </div>
+                      </TabsContent>
+                    </Tabs>
+                  </div>
+                )}
+
+                <div className="bg-gradient-to-r from-[#D91CD2]/10 to-[#E91E63]/10 rounded-xl p-3 border border-white/5">
+                  <div className="flex items-center gap-3">
+                    <CreditCard className="h-4 w-4 text-[#D91CD2]" />
+                    <div>
+                      <p className="text-[11px] font-medium text-white/60">{t('payment_stripe_notice')}</p>
+                      <p className="text-[10px] text-white/30">{t('payment_methods_accepted')}</p>
+                    </div>
+                    <Lock className="h-3 w-3 text-white/20 ml-auto" />
+                  </div>
                 </div>
-                <Lock className="h-3.5 w-3.5 text-white/20 ml-auto" />
               </div>
-            </div>
+            )}
+          </div>
+
+          {/* Phase 9.5 c48 — Navigation footer (sticky bottom) */}
+          <div className="flex-shrink-0 p-4 border-t border-white/10 bg-zinc-900 flex items-center gap-2">
+            {currentStep > 1 && (
+              <Button
+                type="button"
+                variant="ghost"
+                data-testid="wizard-back"
+                onClick={() => setCurrentStep((prev) => (prev > 1 ? ((prev - 1) as 1 | 2 | 3) : prev))}
+                disabled={isProcessing}
+                className="text-white/70 hover:text-white hover:bg-white/5"
+              >
+                {t('common_back') || 'Retour'}
+              </Button>
+            )}
+            <div className="flex-1" />
+            {currentStep < 3 ? (
+              <Button
+                type="button"
+                data-testid="wizard-next"
+                onClick={() => setCurrentStep((prev) => (prev < 3 ? ((prev + 1) as 1 | 2 | 3) : prev))}
+                disabled={!canAdvanceStep()}
+                className="bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white font-semibold px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {t('common_next') || 'Suivant'} →
+              </Button>
+            ) : (
+              <Button
+                data-testid="pay-button"
+                onClick={paymentMethod === 'credits' ? handlePaymentCredits : handlePayment}
+                disabled={
+                  isProcessing ||
+                  (paymentMethod === 'credits' &&
+                    getCurrentPrice() > 0 &&
+                    creditCount < computeCreditsCost(getCurrentPrice())) ||
+                  (isDuoTicket && invitationMethod === 'match' && !selectedInviteeUid)
+                }
+                className="bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white font-semibold px-5 h-11 disabled:opacity-70 disabled:cursor-not-allowed"
+              >
+                {isProcessing ? (
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    <span className="text-sm">{getCurrentPrice() === 0 ? t('payment_button_loading_free') : t('payment_button_loading_paid')}</span>
+                  </div>
+                ) : paymentMethod === 'credits' && getCurrentPrice() > 0 ? (
+                  <div className="flex items-center gap-2">
+                    <Coins className="h-4 w-4" />
+                    <span className="text-sm">
+                      {creditCount < computeCreditsCost(getCurrentPrice())
+                        ? t('payment_credits_topup_button')
+                        : t('payment_credits_pay_button', { cost: computeCreditsCost(getCurrentPrice()) })}
+                    </span>
+                    {isDuoTicket && <Badge className="bg-white/20 text-white text-[10px]">Duo</Badge>}
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm">{getCurrentPrice() === 0 ? t('payment_confirm_free_button') : t('payment_pay_button', { price: getCurrentPrice() })}</span>
+                    {isDuoTicket && <Badge className="bg-white/20 text-white text-[10px]">Duo</Badge>}
+                  </div>
+                )}
+              </Button>
+            )}
           </div>
         </DialogContent>
       </Dialog>

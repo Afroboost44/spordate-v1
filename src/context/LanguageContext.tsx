@@ -98,6 +98,15 @@ const defaultTranslations: any = {
     payment_stripe_notice: "Paiement sécurisé Stripe",
     // Phase 9.5 c28 — Badge moyens de paiement acceptés (TWINT natif Stripe CH)
     payment_methods_accepted: "Visa · Mastercard · TWINT",
+    // Phase 9.5 c48 — Wizard 3 étapes Réserver (Activité / Invité / Paiement)
+    wizard_step_activity: "Activité",
+    wizard_step_invitee: "Invité",
+    wizard_step_payment: "Paiement",
+    wizard_total_solo: "Total (Solo)",
+    wizard_total_duo: "Total (Duo, 2 places)",
+    wizard_recap_activity: "Activité",
+    wizard_recap_type: "Type",
+    wizard_recap_location: "Lieu",
     // Phase 9.5 c47 BUG B — Sélecteur invitation Duo (match Tinder, link reporté c48)
     invitation_method_match: "Inviter un match",
     invitation_method_link: "Lien WhatsApp",
@@ -267,6 +276,15 @@ const defaultTranslations: any = {
     payment_button_loading_paid: "Redirecting to Stripe...",
     payment_stripe_notice: "Secure payment by Stripe",
     payment_methods_accepted: "Visa · Mastercard · TWINT",
+    // Phase 9.5 c48 — Reservation wizard 3 steps (Activity / Invitee / Payment)
+    wizard_step_activity: "Activity",
+    wizard_step_invitee: "Invitee",
+    wizard_step_payment: "Payment",
+    wizard_total_solo: "Total (Solo)",
+    wizard_total_duo: "Total (Duo, 2 spots)",
+    wizard_recap_activity: "Activity",
+    wizard_recap_type: "Type",
+    wizard_recap_location: "Location",
     // Phase 9.5 c47 BUG B — Duo invitation selector (match-only, link deferred c48)
     invitation_method_match: "Invite a match",
     invitation_method_link: "WhatsApp link",
