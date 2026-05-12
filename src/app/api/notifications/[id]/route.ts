@@ -4,7 +4,14 @@
  * Body: { action: 'mark-read' | 'dismiss' }
  *
  * Auth : Bearer ID token via verifyAuth (cohérent /api/invites).
- * Ownership : helper markRead.ts vérifie notification.userId === auth.uid → throw 'forbidden'.
+ *
+ * Phase 9.5 c44 — refactor server-side direct via Admin SDK. Avant c44 ce
+ * handler appelait les helpers `markRead.ts` qui utilisent le SDK Firebase
+ * Web (client-side) — incompatible avec une exécution server-side car les
+ * Firestore rules s'évaluent sans auth context côté serveur (request.auth
+ * null → permission-denied → toast "Impossible de masquer"). Maintenant on
+ * lit/écrit directement avec Admin SDK et on vérifie l'ownership inline
+ * (notification.userId === uid).
  *
  * Returns :
  *   200 { ok: true }
@@ -16,14 +23,32 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
-import {
-  markNotificationRead,
-  dismissNotification,
-  NotificationError,
-} from '@/lib/notifications/markRead';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _adminDb: any = null;
+
+async function getAdminDb() {
+  if (_adminDb) return _adminDb;
+  const { initializeApp, getApps, cert } = await import('firebase-admin/app');
+  const { getFirestore } = await import('firebase-admin/firestore');
+  if (!getApps().length) {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+    } else {
+      initializeApp({
+        projectId:
+          process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+          process.env.GCLOUD_PROJECT ||
+          'spordateur-claude',
+      });
+    }
+  }
+  _adminDb = getFirestore();
+  return _adminDb;
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -38,7 +63,7 @@ export async function PATCH(
     if (!id) {
       return NextResponse.json({ error: 'invalid-input', detail: 'id required' }, { status: 400 });
     }
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     const action = body?.action;
     if (action !== 'mark-read' && action !== 'dismiss') {
       return NextResponse.json(
@@ -47,22 +72,37 @@ export async function PATCH(
       );
     }
 
+    const db = await getAdminDb();
+    const { FieldValue } = await import('firebase-admin/firestore');
+    const ref = db.collection('notifications').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      return NextResponse.json({ error: 'not-found' }, { status: 404 });
+    }
+    const data = snap.data() ?? {};
+    if (data.userId !== uid) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+
     if (action === 'mark-read') {
-      await markNotificationRead(id, uid);
+      // Idempotent : skip si déjà lu (readAt OU isRead).
+      if (!data.readAt && !data.isRead) {
+        await ref.update({
+          readAt: FieldValue.serverTimestamp(),
+          isRead: true,
+        });
+      }
     } else {
-      await dismissNotification(id, uid);
+      // dismiss : soft-delete via dismissedAt timestamp (UI filtre côté client).
+      if (!data.dismissedAt) {
+        await ref.update({
+          dismissedAt: FieldValue.serverTimestamp(),
+        });
+      }
     }
 
     return NextResponse.json({ ok: true }, { status: 200 });
   } catch (err) {
-    if (err instanceof NotificationError) {
-      const status =
-        err.code === 'forbidden' ? 403 : err.code === 'not-found' ? 404 : 400;
-      return NextResponse.json(
-        { error: err.code, detail: err.message },
-        { status },
-      );
-    }
     console.error('[/api/notifications/[id]] fatal', err);
     return NextResponse.json(
       { error: 'internal', detail: err instanceof Error ? err.message : String(err) },

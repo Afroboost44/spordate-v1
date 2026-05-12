@@ -853,17 +853,26 @@ export async function sendMessage(
   }
 
   // Notification inline (utilise fbDb pour respecter le DI seam test)
+  // Phase 9.5 c44 — fix field name `read` → `isRead` (canonical, cohérent
+  // avec types/firestore.ts Notification.isRead et tous les autres
+  // call-sites webhooks/stripe + invites + partner-request). Avant c44 le
+  // NotificationBadge query `where isRead == false` excluait silencieusement
+  // ces docs (champ absent) → badge cloche restait vide post-nouveau message.
+  // Body enrichi avec senderName pour UX cohérent push notif (ex. "Bassi t'a
+  // écrit : ...").
   if (otherUser) {
     try {
+      const senderName = (senderData.displayName as string | undefined) || 'Quelqu’un';
+      const preview = text.length > 60 ? `${text.substring(0, 60)}…` : text;
       const notifRef = doc(collection(fbDb, 'notifications'));
       await setDoc(notifRef, {
         notificationId: notifRef.id,
         userId: otherUser,
         type: 'message',
         title: 'Nouveau message',
-        body: text.substring(0, 50),
-        data: { chatId },
-        read: false,
+        body: `${senderName} t’a écrit : ${preview}`,
+        data: { chatId, matchId: chatId, senderId },
+        isRead: false,
         createdAt: serverTimestamp(),
       });
     } catch (err) {
