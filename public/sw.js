@@ -1,32 +1,50 @@
-// Spordateur Service Worker v24 (Phase 9.5 c24 — bump CACHE_NAME force invalidate
-// tous les caches précédents au prochain activate event → re-fetch les NEW icons
-// Bassi (cercle Afroboost) et purge l'ancien logo placeholder caché par iOS PWA).
-const CACHE_NAME = 'spordate-v24';
+// Spordateur Service Worker v28 (Phase 9.5 c49 — bump CACHE_NAME pour purger
+// l'ancien cache v24 qui contenait l'ancien logo "S" cached sur les PWA
+// installées pre-c46. skipWaiting + clients.claim force activation immédiate
+// sans attendre la fermeture des tabs.
+const CACHE_NAME = 'spordate-v28';
 const OFFLINE_URL = '/offline.html';
 
-// Assets to pre-cache (cache-bust via ?v=24 cohérent manifest + layout.tsx)
+// Assets pre-cache (cache-bust ?v=28 cohérent manifest + layout.tsx).
+// Phase 9.5 c49 : paths /icons/* (nouveau logo neon) + root-legacy paths
+// régénérés AUSSI avec nouveau logo (PWA installées pre-c46 réfèrent ces
+// paths root via apple-touch-icon HTML link + ancien manifest cached).
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json',
-  '/icon-192.png?v=24',
-  '/icon-512.png?v=24',
-  '/icon-maskable-512.png?v=24',
-  '/apple-touch-icon.png?v=24',
-  '/favicon.ico?v=24',
+  '/icons/icon-192.png?v=28',
+  '/icons/icon-512.png?v=28',
+  '/icons/apple-touch-icon.png?v=28',
+  '/icons/favicon-32.png?v=28',
+  '/icons/favicon-16.png?v=28',
+  // Root legacy (PWA installées pre-c46 qui requestent ces paths)
+  '/icon-192.png?v=28',
+  '/icon-512.png?v=28',
+  '/icon-maskable-512.png?v=28',
+  '/apple-touch-icon.png?v=28',
+  '/favicon.ico?v=28',
   '/offline.html',
 ];
 
-// Install: pre-cache critical assets
+// Install: pre-cache critical assets + skip waiting (active SW v28 immediately)
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(PRECACHE_ASSETS);
+      // Phase 9.5 c49 — addAll fails atomically si UN seul asset rejette.
+      // Use Promise.allSettled pour log warn + continue (offline.html peut
+      // ne pas exister dans dev par ex.).
+      return Promise.allSettled(
+        PRECACHE_ASSETS.map((url) =>
+          fetch(url).then((res) => (res.ok ? cache.put(url, res) : null))
+        )
+      );
     })
   );
   self.skipWaiting();
 });
 
-// Activate: clean up old caches
+// Activate: clean up ALL old caches + claim clients (force fetch handler take
+// over without page reload).
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {

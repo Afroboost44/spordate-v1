@@ -10,7 +10,7 @@ import { ArrowRight, ChevronRight } from 'lucide-react';
 function SLogo({ className = "h-8 w-8" }: { className?: string }) {
   return (
     <img
-      src="/icons/icon-192.png?v=27"
+      src="/icons/icon-192.png?v=28"
       alt="Spordateur"
       className={`${className} rounded-xl`}
     />

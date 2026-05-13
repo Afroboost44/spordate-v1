@@ -10,6 +10,23 @@ let deferredPrompt: any = null;
 const IOS_BANNER_DISMISS_KEY = 'pwa-banner-dismissed-at';
 const IOS_BANNER_DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 
+/** Phase 9.5 c49 — iOS detection robuste. iPadOS 13+ retourne "MacIntel" dans
+ *  userAgent → fallback sur ontouchend + Mac platform check. Sans ça, les iPads
+ *  modernes ne déclenchaient PAS le banner banner (cause #1 BUG 2 mobile). */
+function detectIOS(): boolean {
+  if (typeof window === 'undefined') return false;
+  const ua = navigator.userAgent || '';
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  // iPadOS 13+ : "Macintosh" dans UA mais touch dispo
+  const isTouch = 'ontouchend' in document;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const platform = (navigator as any).platform || '';
+  const isMacUA = /Mac/.test(ua) || /Mac/.test(platform);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const noMsStream = !(window as any).MSStream;
+  return isTouch && isMacUA && noMsStream;
+}
+
 export default function PWARegister() {
   const { t } = useLanguage();
   const [showInstall, setShowInstall] = useState(false);
@@ -33,29 +50,48 @@ export default function PWARegister() {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (window.navigator as any).standalone === true;
 
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent);
+    const isIOS = detectIOS();
+    const isAndroid = /Android/.test(navigator.userAgent);
 
-    // Phase 9.5 c46 — splash custom React arrondi pour tous les non-iOS en
-    // mode standalone. iOS a son propre splash natif via apple-touch-startup-image
-    // (cf. layout.tsx) → skip pour éviter doublon.
+    // Phase 9.5 c49 — Force-show banner via query ?pwa-debug=1 (bypass cooldown
+    // + standalone check) pour diagnostic mobile chez Bassi. Visible aussi
+    // dans la console pour confirmer la branche prise.
+    const url = new URL(window.location.href);
+    const forceDebug = url.searchParams.get('pwa-debug') === '1';
+
+    console.log('[PWARegister c49]', {
+      ua: navigator.userAgent.substring(0, 80),
+      isIOS,
+      isAndroid,
+      isStandalone,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      legacyStandalone: (window.navigator as any).standalone,
+      displayMode: window.matchMedia('(display-mode: standalone)').matches,
+      forceDebug,
+    });
+
+    // Phase 9.5 c46 — splash custom React arrondi pour non-iOS standalone.
+    // iOS a son propre splash via apple-touch-startup-image (layout.tsx).
     if (isStandalone && !isIOS) {
       setShowSplash(true);
       setTimeout(() => setShowSplash(false), 800);
     }
 
-    // Phase 9.5 c46 BUG 4 — iOS install banner (Android utilise beforeinstallprompt).
-    // Affiché si : iOS Safari + pas standalone + pas dismissed dans les 7 derniers j.
-    if (isIOS && !isStandalone) {
+    // Phase 9.5 c49 — iOS install banner. Conditions :
+    //   - iOS Safari (detectIOS) + pas standalone + cooldown expiré (7j)
+    //   - OU ?pwa-debug=1 (force, bypass tous les checks)
+    if (forceDebug || (isIOS && !isStandalone)) {
       try {
         const dismissedAt = window.localStorage.getItem(IOS_BANNER_DISMISS_KEY);
         const dismissedMs = dismissedAt ? parseInt(dismissedAt, 10) : 0;
-        if (!dismissedMs || Date.now() - dismissedMs > IOS_BANNER_DISMISS_COOLDOWN_MS) {
-          // Afficher après 3s pour laisser la page se charger (non-intrusif first impression)
-          setTimeout(() => setShowIosBanner(true), 3000);
+        const cooldownExpired = !dismissedMs || Date.now() - dismissedMs > IOS_BANNER_DISMISS_COOLDOWN_MS;
+        console.log('[PWARegister c49] iOS banner check', { dismissedMs, cooldownExpired });
+        if (forceDebug || cooldownExpired) {
+          // Phase 9.5 c49 — timeout réduit 3s → 1.2s pour visibilité rapide mobile
+          setTimeout(() => setShowIosBanner(true), 1200);
         }
       } catch {
-        // localStorage indisponible (private browsing) → afficher banner anyway
-        setTimeout(() => setShowIosBanner(true), 3000);
+        setTimeout(() => setShowIosBanner(true), 1200);
       }
     }
 
@@ -112,7 +148,7 @@ export default function PWARegister() {
         }}
       >
         <img
-          src="/icons/icon-192.png?v=27"
+          src="/icons/icon-192.png?v=28"
           alt="Spordateur"
           width={160}
           height={160}
@@ -154,7 +190,7 @@ export default function PWARegister() {
         }}
       >
         <img
-          src="/icons/icon-192.png?v=27"
+          src="/icons/icon-192.png?v=28"
           alt=""
           width={48}
           height={48}
@@ -224,7 +260,7 @@ export default function PWARegister() {
         }}
       >
         <img
-          src="/icons/icon-192.png?v=27"
+          src="/icons/icon-192.png?v=28"
           alt=""
           width={48}
           height={48}

@@ -28,6 +28,7 @@ const REPO_ROOT = resolve(__dirname, '..', '..');
 const SOURCE = resolve(REPO_ROOT, 'public', 'logo-source.png');
 const ICONS_DIR = resolve(REPO_ROOT, 'public', 'icons');
 const SPLASH_DIR = resolve(REPO_ROOT, 'public', 'splash');
+const PUBLIC_DIR = resolve(REPO_ROOT, 'public');
 
 // Tailles d'icônes PWA (manifest + iOS home + favicons)
 const ICON_SIZES: Array<{ name: string; size: number }> = [
@@ -36,6 +37,17 @@ const ICON_SIZES: Array<{ name: string; size: number }> = [
   { name: 'apple-touch-icon.png', size: 180 },
   { name: 'favicon-32.png', size: 32 },
   { name: 'favicon-16.png', size: 16 },
+];
+
+// Phase 9.5 c49 — Root-level legacy paths que SW (v24) + PWA installées avant
+// c46 référencent encore. DOIVENT être régénérées avec le NEW logo neon pour
+// que les PWA already-installed récupèrent le bon icône au prochain SW activate
+// + cache miss. Sans ce passage : iOS PWA pre-c46 reste bloquée sur ancien "S".
+const ROOT_LEGACY: Array<{ name: string; size: number; maskable?: boolean }> = [
+  { name: 'icon-192.png', size: 192 },
+  { name: 'icon-512.png', size: 512 },
+  { name: 'apple-touch-icon.png', size: 180 },
+  { name: 'icon-maskable-512.png', size: 512, maskable: true },
 ];
 
 // iOS PWA splash screens (9 tailles standard, cohérent device-pixel-ratio)
@@ -64,6 +76,36 @@ async function generateIcon(targetSize: number, outputName: string): Promise<voi
     .png({ compressionLevel: 9 })
     .toFile(outputPath);
   console.log(`  ✓ icons/${outputName} (${targetSize}×${targetSize})`);
+}
+
+async function generateRootLegacy(targetSize: number, outputName: string, maskable = false): Promise<void> {
+  const outputPath = resolve(PUBLIC_DIR, outputName);
+  if (maskable) {
+    // Maskable spec : 80% safe zone — render logo à 80% sur background opaque
+    // (Android round/squircle masking peut couper 10-20% sur les bords).
+    const innerSize = Math.round(targetSize * 0.8);
+    const logoBuffer = await sharp(SOURCE)
+      .resize(innerSize, innerSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png()
+      .toBuffer();
+    await sharp({
+      create: {
+        width: targetSize,
+        height: targetSize,
+        channels: 4,
+        background: { r: 0, g: 0, b: 0, alpha: 1 },
+      },
+    })
+      .composite([{ input: logoBuffer, gravity: 'center' }])
+      .png({ compressionLevel: 9 })
+      .toFile(outputPath);
+  } else {
+    await sharp(SOURCE)
+      .resize(targetSize, targetSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+      .png({ compressionLevel: 9 })
+      .toFile(outputPath);
+  }
+  console.log(`  ✓ ${outputName} (${targetSize}×${targetSize}${maskable ? ' maskable' : ''}) — root legacy`);
 }
 
 async function generateSplash(w: number, h: number, label: string): Promise<void> {
@@ -106,12 +148,17 @@ async function main(): Promise<void> {
     await generateIcon(size, name);
   }
 
+  console.log('\nRoot legacy (Phase 9.5 c49 — PWA installées pre-c46) :');
+  for (const { size, name, maskable } of ROOT_LEGACY) {
+    await generateRootLegacy(size, name, maskable);
+  }
+
   console.log('\nSplash screens:');
   for (const { w, h, label } of SPLASH_SIZES) {
     await generateSplash(w, h, label);
   }
 
-  console.log(`\n✓ Done — ${ICON_SIZES.length} icons + ${SPLASH_SIZES.length} splash PNGs generated.`);
+  console.log(`\n✓ Done — ${ICON_SIZES.length} icons + ${ROOT_LEGACY.length} root-legacy + ${SPLASH_SIZES.length} splash PNGs generated.`);
 }
 
 main().catch((err) => {
