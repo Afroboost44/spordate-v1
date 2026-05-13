@@ -90,6 +90,15 @@ async function callPatch(notificationId: string, action: 'mark-read' | 'dismiss'
   return res;
 }
 
+/** Phase 9.5 c53 — hard-delete notification (remplace dismiss soft-delete). */
+async function callDelete(notificationId: string, token: string) {
+  const res = await fetch(`/api/notifications/${notificationId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return res;
+}
+
 async function callMarkAllRead(token: string) {
   const res = await fetch('/api/notifications', {
     method: 'POST',
@@ -184,21 +193,29 @@ export function NotificationsList() {
   const handleDismiss = async (notif: Notification, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) return;
-    // Phase 9.5 c52 — optimistic UI : retire la notif de la liste locale
-    // immédiatement. Le listener Firestore confirmera dans le snapshot suivant
-    // (dismissedAt set → filtré côté client). Si API fail, revert + toast.
+    console.log('[Dismiss c53] click', notif.notificationId);
+    // Phase 9.5 c53 — HARD DELETE (vs soft-delete dismissedAt c44/c52).
+    // Optimistic UI : retire la notif du state local + suppression
+    // définitive du doc Firestore via DELETE endpoint. Plus de fragilité
+    // soft-delete (snapshot listener pouvait revert l'optimistic update
+    // avant que dismissedAt soit persisté).
     const snapshotBefore = notifications;
     setNotifications((prev) => prev.filter((n) => n.notificationId !== notif.notificationId));
     try {
       const token = await user.getIdToken();
-      const res = await callPatch(notif.notificationId, 'dismiss', token);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const res = await callDelete(notif.notificationId, token);
+      console.log('[Dismiss c53] response', res.status);
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '');
+        console.warn('[Dismiss c53] non-OK', res.status, txt);
+        throw new Error(`HTTP ${res.status}`);
+      }
     } catch (err) {
-      console.warn('[NotificationsList] dismiss failed:', err);
+      console.warn('[NotificationsList c53] delete failed:', err);
       setNotifications(snapshotBefore); // revert
       toast({
         title: 'Erreur',
-        description: 'Impossible de masquer la notification.',
+        description: 'Impossible de supprimer la notification.',
         variant: 'destructive',
       });
     }

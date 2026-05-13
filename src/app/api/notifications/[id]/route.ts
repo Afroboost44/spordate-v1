@@ -50,6 +50,54 @@ async function getAdminDb() {
   return _adminDb;
 }
 
+/**
+ * Phase 9.5 c53 — DELETE /api/notifications/[id].
+ *
+ * Hard-delete : supprime définitivement le doc Firestore (vs soft-delete via
+ * dismissedAt c44+c52 jugé fragile par UX — l'optimistic update pouvait se
+ * faire revert par re-fire du snapshot listener avant que dismissedAt soit
+ * persisté). Hard-delete élimine la classe entière de race condition.
+ *
+ * Auth : Bearer ID token via verifyAuth.
+ * Ownership : data.userId === uid sinon 403.
+ *
+ * Returns : 200 { ok } / 401 / 403 / 404 / 500
+ */
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const uid = await verifyAuth(request);
+    if (!uid) {
+      return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
+    }
+    const { id } = await context.params;
+    if (!id) {
+      return NextResponse.json({ error: 'invalid-input', detail: 'id required' }, { status: 400 });
+    }
+    const db = await getAdminDb();
+    const ref = db.collection('notifications').doc(id);
+    const snap = await ref.get();
+    if (!snap.exists) {
+      // Idempotent : suppression d'un doc déjà absent → 200 ok
+      return NextResponse.json({ ok: true, alreadyAbsent: true }, { status: 200 });
+    }
+    const data = snap.data() ?? {};
+    if (data.userId !== uid) {
+      return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+    }
+    await ref.delete();
+    return NextResponse.json({ ok: true }, { status: 200 });
+  } catch (err) {
+    console.error('[/api/notifications/[id] DELETE] fatal', err);
+    return NextResponse.json(
+      { error: 'internal', detail: err instanceof Error ? err.message : String(err) },
+      { status: 500 },
+    );
+  }
+}
+
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> },
