@@ -1,26 +1,53 @@
 /**
- * Phase 9 sub-chantier 3 commit 4/5 — POST /api/notifications (mark-all-read).
+ * Phase 9 sub-chantier 3 commit 4/5 + Phase 9.5 c52 — POST /api/notifications.
  *
  * Body: { action: 'mark-all-read' }
  *
  * Auth : Bearer ID token via verifyAuth.
- * Scope : tous les docs userId=auth.uid + readAt==null/isRead==false.
+ * Scope : tous les docs userId=auth.uid + isRead==false.
+ *
+ * Phase 9.5 c52 — refactor server-side direct via Admin SDK. Avant c52 ce
+ * handler appelait markAllNotificationsRead() qui utilise le SDK Firebase
+ * Web (client-side) — incompatible avec une exécution server-side car les
+ * Firestore rules s'évaluent sans auth context (request.auth null →
+ * permission-denied → 400 silencieux). Bug identique à BUG 1 c44 mais sur
+ * POST au lieu de PATCH /api/notifications/[id].
  *
  * Returns :
  *   200 { ok: true, processed: number }
  *   400 { error: 'invalid-input' }
  *   401 { error: 'unauthenticated' }
+ *   500 { error: 'internal' }
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
-import {
-  markAllNotificationsRead,
-  NotificationError,
-} from '@/lib/notifications/markRead';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _adminDb: any = null;
+
+async function getAdminDb() {
+  if (_adminDb) return _adminDb;
+  const { initializeApp, getApps, cert } = await import('firebase-admin/app');
+  const { getFirestore } = await import('firebase-admin/firestore');
+  if (!getApps().length) {
+    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
+      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+    } else {
+      initializeApp({
+        projectId:
+          process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
+          process.env.GCLOUD_PROJECT ||
+          'spordateur-claude',
+      });
+    }
+  }
+  _adminDb = getFirestore();
+  return _adminDb;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -28,23 +55,50 @@ export async function POST(request: NextRequest) {
     if (!uid) {
       return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
     }
-    const body = await request.json();
+    const body = await request.json().catch(() => ({}));
     if (body?.action !== 'mark-all-read') {
       return NextResponse.json(
         { error: 'invalid-input', detail: "action must be 'mark-all-read'" },
         { status: 400 },
       );
     }
-    const result = await markAllNotificationsRead(uid);
-    return NextResponse.json({ ok: true, processed: result.processed }, { status: 200 });
-  } catch (err) {
-    if (err instanceof NotificationError) {
-      return NextResponse.json(
-        { error: err.code, detail: err.message },
-        { status: 400 },
-      );
+
+    const db = await getAdminDb();
+    const { FieldValue } = await import('firebase-admin/firestore');
+
+    // Query toutes les notifs userId=uid + isRead=false (cohérent legacy index)
+    const snap = await db
+      .collection('notifications')
+      .where('userId', '==', uid)
+      .where('isRead', '==', false)
+      .get();
+
+    if (snap.empty) {
+      return NextResponse.json({ ok: true, processed: 0 }, { status: 200 });
     }
-    console.error('[/api/notifications] fatal', err);
+
+    // Batch update — max 500 ops par batch Firestore. Chunk si besoin.
+    const docs = snap.docs;
+    let processed = 0;
+    const CHUNK = 450;
+    for (let i = 0; i < docs.length; i += CHUNK) {
+      const batch = db.batch();
+      const slice = docs.slice(i, i + CHUNK);
+      for (const docSnap of slice) {
+        const data = docSnap.data() ?? {};
+        if (data.readAt) continue; // déjà readAt set (race), skip
+        batch.update(docSnap.ref, {
+          readAt: FieldValue.serverTimestamp(),
+          isRead: true,
+        });
+        processed++;
+      }
+      if (processed > 0) await batch.commit();
+    }
+
+    return NextResponse.json({ ok: true, processed }, { status: 200 });
+  } catch (err) {
+    console.error('[/api/notifications POST mark-all] fatal', err);
     return NextResponse.json(
       { error: 'internal', detail: err instanceof Error ? err.message : String(err) },
       { status: 500 },

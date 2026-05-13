@@ -143,6 +143,11 @@ export function NotificationsList() {
 
   const handleMarkAllAsRead = async () => {
     if (!user) return;
+    // Phase 9.5 c52 — optimistic UI : flag local notifs comme lues
+    // immédiatement, puis fire API. Listener Firestore confirme dans le snapshot
+    // suivant. Si API fail, revert + toast (rare car endpoint c52 = Admin SDK).
+    const snapshotBefore = notifications;
+    setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
     try {
       const token = await user.getIdToken();
       const res = await callMarkAllRead(token);
@@ -154,6 +159,7 @@ export function NotificationsList() {
       });
     } catch (err) {
       console.warn('[NotificationsList] markAllRead failed:', err);
+      setNotifications(snapshotBefore); // revert
       toast({
         title: 'Erreur',
         description: 'Impossible de marquer comme lues. Réessaie.',
@@ -178,12 +184,18 @@ export function NotificationsList() {
   const handleDismiss = async (notif: Notification, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) return;
+    // Phase 9.5 c52 — optimistic UI : retire la notif de la liste locale
+    // immédiatement. Le listener Firestore confirmera dans le snapshot suivant
+    // (dismissedAt set → filtré côté client). Si API fail, revert + toast.
+    const snapshotBefore = notifications;
+    setNotifications((prev) => prev.filter((n) => n.notificationId !== notif.notificationId));
     try {
       const token = await user.getIdToken();
       const res = await callPatch(notif.notificationId, 'dismiss', token);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     } catch (err) {
       console.warn('[NotificationsList] dismiss failed:', err);
+      setNotifications(snapshotBefore); // revert
       toast({
         title: 'Erreur',
         description: 'Impossible de masquer la notification.',

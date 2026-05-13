@@ -267,17 +267,22 @@ export default function AdminManagePage() {
   };
   const sendNotification = async () => {
     if (!db || !notifTitle) return;
+    // Phase 9.5 c52 BUG 3 — type='admin-broadcast' + priority='high' fait
+    // déclencher le composant <AdminBroadcastModal> (modal fullscreen
+    // obligatoire) côté users. Picked up via realtime listener Firestore
+    // sur layout root → impossible à manquer.
     const batch: Promise<void>[] = [];
     for (const u of users.slice(0, 500)) {
       const ref = doc(collection(db, 'notifications'));
       batch.push(setDoc(ref, {
-        notificationId: ref.id, userId: u.uid, type: 'system',
-        title: notifTitle, body: notifBody, data: {}, isRead: false,
+        notificationId: ref.id, userId: u.uid, type: 'admin-broadcast',
+        title: notifTitle, body: notifBody, data: {},
+        isRead: false, priority: 'high',
         createdAt: serverTimestamp(),
       }));
     }
     await Promise.all(batch);
-    toast({ title: `Notification envoyée à ${Math.min(users.length, 500)} utilisateurs` });
+    toast({ title: `Notification envoyée à ${Math.min(users.length, 500)} utilisateurs (modal popup)` });
     setNotifTitle(''); setNotifBody('');
   };
   const updatePricing = async (id: string, field: string, value: number | boolean) => {

@@ -6,6 +6,7 @@ import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
 import PWARegister from "@/components/PWARegister";
 import { SanctionBanner } from "@/components/SanctionBanner";
+import AdminBroadcastModal from "@/components/AdminBroadcastModal";
 
 // Phase 9.5 c18 BUG K — police globale Plus Jakarta Sans (alternative libre proche
 // de Canva Sans, souhait Bassi). Chargée via next/font/google : self-hosted, pas de
@@ -105,6 +106,7 @@ export default function RootLayout({
             {children}
             <Toaster />
             <PWARegister />
+            <AdminBroadcastModal />
           </LanguageProvider>
         </AuthProvider>
       </body>
