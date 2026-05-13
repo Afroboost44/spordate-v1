@@ -137,7 +137,7 @@ export default function LoginPage() {
               <Link href="/" className="flex items-center justify-center space-x-2 mb-4">
                 {/* Phase 9.5 c19 — vrai logo Afroboost cercle (était Dumbbell placeholder) */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/icons/icon-192.png?v=28" alt="Spordateur" width={40} height={40} />
+                <img src="/icons/icon-192.png?v=29" alt="Spordateur" width={40} height={40} />
                 <span className="font-bold text-2xl">Spordateur</span>
               </Link>
               <CardTitle className="text-2xl font-bold">Mot de passe oublié</CardTitle>
@@ -190,7 +190,7 @@ export default function LoginPage() {
               <Link href="/" className="flex items-center justify-center space-x-2 mb-4">
                 {/* Phase 9.5 c19 — vrai logo Afroboost cercle (était Dumbbell placeholder) */}
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/icons/icon-192.png?v=28" alt="Spordateur" width={40} height={40} />
+                <img src="/icons/icon-192.png?v=29" alt="Spordateur" width={40} height={40} />
                 <span className="font-bold text-2xl">Spordateur</span>
               </Link>
               <CardTitle className="text-2xl font-bold">Connexion</CardTitle>

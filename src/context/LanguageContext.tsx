@@ -68,6 +68,9 @@ const defaultTranslations: any = {
     pwa_ios_install_title: "Installer Spordateur",
     pwa_ios_install_step1: "Tap",
     pwa_ios_install_step2: "puis « Ajouter à l'écran d'accueil »",
+    // Phase 9.5 c51 BUG B — Android Chrome banner (sans beforeinstallprompt fired)
+    pwa_android_install_step1: "Tap",
+    pwa_android_install_step2: "puis « Ajouter à l'écran d'accueil »",
     // Discovery (c25 NEW)
     discovery_where_to_practice: "Où pratiquer ?",
     discovery_location_selected: "Sélectionné",
@@ -248,6 +251,9 @@ const defaultTranslations: any = {
     pwa_ios_install_title: "Install Spordateur",
     pwa_ios_install_step1: "Tap",
     pwa_ios_install_step2: "then \"Add to Home Screen\"",
+    // Phase 9.5 c51 BUG B — Android Chrome banner
+    pwa_android_install_step1: "Tap",
+    pwa_android_install_step2: "then \"Add to Home Screen\"",
     // Discovery
     discovery_where_to_practice: "Where to practice?",
     discovery_location_selected: "Selected",

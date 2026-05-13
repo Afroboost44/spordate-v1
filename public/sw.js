@@ -1,28 +1,28 @@
-// Spordateur Service Worker v28 (Phase 9.5 c49 — bump CACHE_NAME pour purger
+// Spordateur Service Worker v29 (Phase 9.5 c49 — bump CACHE_NAME pour purger
 // l'ancien cache v24 qui contenait l'ancien logo "S" cached sur les PWA
 // installées pre-c46. skipWaiting + clients.claim force activation immédiate
 // sans attendre la fermeture des tabs.
-const CACHE_NAME = 'spordate-v28';
+const CACHE_NAME = 'spordate-v29';
 const OFFLINE_URL = '/offline.html';
 
-// Assets pre-cache (cache-bust ?v=28 cohérent manifest + layout.tsx).
+// Assets pre-cache (cache-bust ?v=29 cohérent manifest + layout.tsx).
 // Phase 9.5 c49 : paths /icons/* (nouveau logo neon) + root-legacy paths
 // régénérés AUSSI avec nouveau logo (PWA installées pre-c46 réfèrent ces
 // paths root via apple-touch-icon HTML link + ancien manifest cached).
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.json',
-  '/icons/icon-192.png?v=28',
-  '/icons/icon-512.png?v=28',
-  '/icons/apple-touch-icon.png?v=28',
-  '/icons/favicon-32.png?v=28',
-  '/icons/favicon-16.png?v=28',
+  '/icons/icon-192.png?v=29',
+  '/icons/icon-512.png?v=29',
+  '/icons/apple-touch-icon.png?v=29',
+  '/icons/favicon-32.png?v=29',
+  '/icons/favicon-16.png?v=29',
   // Root legacy (PWA installées pre-c46 qui requestent ces paths)
-  '/icon-192.png?v=28',
-  '/icon-512.png?v=28',
-  '/icon-maskable-512.png?v=28',
-  '/apple-touch-icon.png?v=28',
-  '/favicon.ico?v=28',
+  '/icon-192.png?v=29',
+  '/icon-512.png?v=29',
+  '/icon-maskable-512.png?v=29',
+  '/apple-touch-icon.png?v=29',
+  '/favicon.ico?v=29',
   '/offline.html',
 ];
 
