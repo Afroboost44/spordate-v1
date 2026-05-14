@@ -563,8 +563,13 @@ export default function PartnerOffersPage() {
             {/* Phase 9.5 c34 BUG#6 — Retrait pr-2 (gutter scrollbar) qui laissait
                 une zone vide ~8px à droite après que c25 ait rendu la scrollbar
                 globale 6px auto-hide transparente. La scrollbar se superpose
-                légèrement (6px) au contenu au hover, acceptable car auto-hide. */}
-            <div className="grid gap-4 py-6 max-h-[60vh] overflow-y-auto">
+                légèrement (6px) au contenu au hover, acceptable car auto-hide.
+                BUG #7 — grid-cols-1 (= minmax(0,1fr)) + min-w-0 : sans colonnes
+                explicites, la grille `auto` laissait un enfant (MediaManager) au
+                min-content blow-out → débordait à droite par rapport au header /
+                aux inputs. Avec minmax(0,1fr) toutes les sections partagent la
+                même largeur exacte (bord droit Description = bord droit cards). */}
+            <div className="grid grid-cols-1 min-w-0 gap-4 py-6 max-h-[60vh] overflow-y-auto">
               <div className="grid gap-2">
                 <Label className="text-white/50">Nom de l&apos;activité *</Label>
                 <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Cours de Zumba" className="bg-[#1A1A1A] border-white/10 h-12" required />

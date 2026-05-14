@@ -355,11 +355,15 @@ export function MediaManager({
   };
 
   return (
-    <div className="flex flex-col gap-3">
-      <Label className="text-xs uppercase tracking-wider text-white/60 flex items-center justify-between">
-        <span>Photos &amp; vidéos ({value.length}/{maxItems})</span>
+    // BUG #7 — min-w-0 : sans ça, le contenu de MediaManager (cards médias) peut
+    // imposer un min-content > largeur de cellule → débordement à droite par
+    // rapport aux inputs du modal /partner/offers. min-w-0 laisse le bloc se
+    // contracter à la largeur de sa cellule grille (truncate/wrap interne prend le relais).
+    <div className="flex flex-col gap-3 min-w-0">
+      <Label className="text-xs uppercase tracking-wider text-white/60 flex items-center justify-between gap-2">
+        <span className="min-w-0">Photos &amp; vidéos ({value.length}/{maxItems})</span>
         {value.length > 0 && (
-          <span className="text-[10px] text-white/40 normal-case tracking-normal">
+          <span className="text-[10px] text-white/40 normal-case tracking-normal text-right min-w-0">
             Glisse pour réorganiser — la première est l&apos;image principale
           </span>
         )}
