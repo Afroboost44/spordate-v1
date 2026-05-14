@@ -39,6 +39,38 @@ export function resolveMediaImageSrc(url: string | null | undefined): string {
   return resolveThumbnail(trimmed) || SPORDATEUR_LOGO_FALLBACK;
 }
 
+/**
+ * Construit la chaîne d'URLs `<Image src>` essayées par <SessionMediaPlayer>
+ * (walk via `onError`). Terminée **toujours** par le logo Spordateur — jamais
+ * par une photo random Picsum.
+ *
+ *   resolveSessionImageChain(null)                    → ['/brand/icon-512.png']
+ *   resolveSessionImageChain('https://cdn/x.jpg')     → ['https://cdn/x.jpg', '/brand/icon-512.png']
+ *   resolveSessionImageChain('https://youtu.be/ID')   → ['https://img.youtube.com/vi/ID/hqdefault.jpg', '/brand/icon-512.png']
+ *   resolveSessionImageChain('https://a.jpg', ['b'])  → ['https://a.jpg', 'b', '/brand/icon-512.png']
+ *
+ * @param primaryUrl URL primaire (media.url ou media.posterUrl). Résolue via
+ *   resolveMediaImageSrc (lien YouTube → miniature, vide → ignoré).
+ * @param fallbacks  URLs de repli déjà résolues (ex: chaîne miniature YouTube hq→mq→default).
+ *
+ * Pure (no DOM, no network) → testable unit.
+ */
+export function resolveSessionImageChain(
+  primaryUrl: string | null | undefined,
+  fallbacks?: string[],
+): string[] {
+  const hasPrimary =
+    typeof primaryUrl === 'string' && primaryUrl.trim().length > 0;
+  const tail = (fallbacks ?? []).filter(
+    (u): u is string => typeof u === 'string' && u.trim().length > 0,
+  );
+  return [
+    ...(hasPrimary ? [resolveMediaImageSrc(primaryUrl)] : []),
+    ...tail,
+    SPORDATEUR_LOGO_FALLBACK,
+  ];
+}
+
 export function getMediaItems(
   activity: { mediaUrls?: MediaItem[]; images?: string[] } | null | undefined,
 ): MediaItem[] {

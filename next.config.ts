@@ -51,6 +51,14 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       {
+        // BUG #2 — miniatures YouTube (resolveMediaImageSrc + imageUrlFallbacks
+        // hq→mq→default) servies via next/image dans <SessionMediaPlayer>.
+        protocol: 'https',
+        hostname: 'img.youtube.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
         protocol: 'https',
         hostname: 'firebasestorage.googleapis.com',
         port: '',

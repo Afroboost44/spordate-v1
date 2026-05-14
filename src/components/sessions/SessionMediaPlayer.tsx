@@ -31,6 +31,11 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import {
+  SPORDATEUR_LOGO_FALLBACK,
+  resolveMediaImageSrc,
+  resolveSessionImageChain,
+} from '@/lib/activities/media';
 
 export interface SessionMediaPlayerProps {
   /**
@@ -68,12 +73,6 @@ const ASPECT_CLASS: Record<NonNullable<SessionMediaPlayerProps['aspectRatio']>, 
   '16/9': 'aspect-video',
   '1/1': 'aspect-square',
 };
-
-/** Placeholder Picsum déterministe basé sur l'alt text. */
-function picsumPlaceholder(alt: string): string {
-  const seed = alt.toLowerCase().replace(/\s+/g, '-').slice(0, 30) || 'session';
-  return `https://picsum.photos/seed/${encodeURIComponent(seed)}/800/600`;
-}
 
 export function SessionMediaPlayer({
   media,
@@ -131,20 +130,25 @@ export function SessionMediaPlayer({
   // Phase 9.5 c18 BUG J — si media.embedUrl présent (YouTube/Vimeo/Drive), rendu iframe
   const isIframeEmbed = media?.type === 'video' && !!media.embedUrl;
   const isVideo = media?.type === 'video' && !videoFailed && !isIframeEmbed;
-  const fallbackUrl = picsumPlaceholder(alt);
 
-  // Phase 9.5 c16 BUG G — chaîne d'URLs à essayer pour l'image (primary + fallbacks).
-  // Walk via state imgFallbackIdx ; quand toutes échouent → placeholder picsum.
+  // Phase 9.5 c16 BUG G + BUG #2 — chaîne d'URLs image (primary → fallbacks → logo
+  // Spordateur). Walk via state imgFallbackIdx ; le DERNIER élément est toujours le
+  // logo Spordateur — fini la photo random Picsum ("tasse de café").
   const primaryImg = media?.type === 'image' ? media.url : (media?.posterUrl ?? null);
-  const imgChain: string[] = [
-    ...(primaryImg ? [primaryImg] : []),
-    ...(imageUrlFallbacks ?? []),
-  ];
-  const imageUrl = imgChain[imgFallbackIdx] ?? fallbackUrl;
-  const exhaustedChain = imgFallbackIdx >= imgChain.length;
+  const imgChain = resolveSessionImageChain(primaryImg, imageUrlFallbacks);
+  const lastIdx = imgChain.length - 1;
+  const imageUrl = imgChain[Math.min(imgFallbackIdx, lastIdx)];
+  // "Exhausted" = on a atteint le logo Spordateur en bout de chaîne → stop walk.
+  const exhaustedChain = imgFallbackIdx >= lastIdx;
 
   // Si vidéo demandée mais reduced-motion → on affiche juste le poster (image)
   const showImageInsteadOfVideo = isVideo && reducedMotion;
+  // src final de la branche <Image> + détection du fallback logo (→ object-contain
+  // pour afficher le logo entier centré sur fond noir, pas un crop object-cover).
+  const imageSrc = showImageInsteadOfVideo
+    ? resolveMediaImageSrc(media?.posterUrl)
+    : imageUrl;
+  const isLogoFallback = imageSrc === SPORDATEUR_LOGO_FALLBACK;
 
   return (
     <div
@@ -177,20 +181,15 @@ export function SessionMediaPlayer({
         />
       ) : (
         <Image
-          src={
-            showImageInsteadOfVideo
-              ? (media?.posterUrl ?? fallbackUrl)
-              : exhaustedChain
-                ? fallbackUrl
-                : imageUrl
-          }
+          src={imageSrc}
           alt={alt}
           fill
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 33vw"
           priority={priority}
           loading={priority ? undefined : 'lazy'}
-          className="object-cover"
-          // Phase 9.5 c16 BUG G — walker la chaîne fallback si l'image courante 404
+          className={isLogoFallback ? 'object-contain p-8' : 'object-cover'}
+          // Phase 9.5 c16 BUG G + BUG #2 — walker la chaîne fallback si l'image
+          // courante 404 ; s'arrête sur le logo Spordateur (dernier élément).
           onError={() => {
             if (!exhaustedChain) {
               setImgFallbackIdx((i) => i + 1);
