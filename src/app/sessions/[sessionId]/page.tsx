@@ -284,6 +284,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
           <PricingTimeline
             activeTier={session.currentTier}
             tiers={session.pricingTiers}
+            sessionUnavailable={sessionUnavailable}
           />
         </div>
 

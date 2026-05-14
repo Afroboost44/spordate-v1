@@ -65,6 +65,9 @@ export interface SessionMediaPlayerProps {
   aspectRatio?: '4/5' | '16/9' | '1/1';
   /** Si true, charge en priorité (utile pour LCP du hero). Défaut false. */
   priority?: boolean;
+  /** BUG #4 — si true (activity supprimée/désactivée OU session annulée), grise le
+   *  média (opacity + grayscale) pour renforcer le signal "ce n'est plus actif". */
+  unavailable?: boolean;
   className?: string;
 }
 
@@ -80,6 +83,7 @@ export function SessionMediaPlayer({
   alt,
   aspectRatio = '16/9',
   priority = false,
+  unavailable = false,
   className = '',
 }: SessionMediaPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -153,7 +157,9 @@ export function SessionMediaPlayer({
   return (
     <div
       ref={containerRef}
-      className={`relative w-full ${aspectClass} bg-black overflow-hidden ${className}`}
+      className={`relative w-full ${aspectClass} bg-black overflow-hidden ${
+        unavailable ? 'opacity-50 grayscale' : ''
+      } ${className}`}
     >
       {isIframeEmbed ? (
         /* Phase 9.5 c18 BUG J — iframe embed YouTube/Vimeo/Drive (cohérent MediaCarousel c4) */

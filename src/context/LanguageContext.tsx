@@ -500,7 +500,10 @@ const defaultTranslations: any = {
   }
 };
 
-const LanguageContext = createContext<any>(null);
+// Exporté pour permettre l'injection directe d'un contexte mocké dans les
+// render-tests (LanguageProvider gate son rendu derrière un effet de mount).
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const LanguageContext = createContext<any>(null);
 
 export function LanguageProvider({ children }: { children: React.ReactNode }) {
   const [language, setLanguage] = useState("fr");

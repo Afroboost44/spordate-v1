@@ -24,6 +24,9 @@ export interface PricingTimelineProps {
   showHeader?: boolean;
   /** Si false, masque les prix sous chaque palier (passe au PricingTierIndicator). Défaut true. */
   showPrices?: boolean;
+  /** BUG #4 — si true (activity supprimée/désactivée OU session annulée), ne rend rien :
+   *  un prix progressif n'a aucun sens sur une session qui n'aura pas lieu. */
+  sessionUnavailable?: boolean;
   className?: string;
 }
 
@@ -32,8 +35,13 @@ export function PricingTimeline({
   tiers,
   showHeader = true,
   showPrices = true,
+  sessionUnavailable = false,
   className = '',
 }: PricingTimelineProps) {
+  // BUG #4 — session annulée : pas de section "Prix progressif" (UX cohérente
+  // avec le banner "activité annulée"). Pas de hooks ici → return direct OK.
+  if (sessionUnavailable) return null;
+
   return (
     <section className={`flex flex-col gap-3 ${className}`} aria-labelledby="pricing-timeline-heading">
       {showHeader && (

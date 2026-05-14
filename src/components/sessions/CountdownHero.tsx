@@ -40,6 +40,9 @@ export interface CountdownHeroProps {
   phase?: SessionPhase;
   /** Texte affiché quand la cible est dépassée. Défaut dépend du contexte. */
   expiredTitle?: string;
+  /** BUG #4 — si true (activity supprimée/désactivée OU session annulée), ne rend rien :
+   *  un countdown "actif/futur" contredit le banner "activité annulée". */
+  sessionUnavailable?: boolean;
   className?: string;
 }
 
@@ -60,10 +63,15 @@ export function CountdownHero({
   target,
   phase,
   expiredTitle,
+  sessionUnavailable = false,
   className = '',
 }: CountdownHeroProps) {
   const { days, hours, minutes, seconds, totalMs, isExpired } = useCountdown(target);
   const { t } = useLanguage();
+
+  // BUG #4 — session annulée : pas de countdown. Guard placé APRÈS les hooks
+  // (rules-of-hooks : useCountdown/useLanguage sont toujours appelés).
+  if (sessionUnavailable) return null;
 
   const isCritical = !isExpired && totalMs < 60_000;
   const ariaLive: 'polite' | 'off' = isCritical ? 'polite' : 'off';

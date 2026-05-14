@@ -94,6 +94,7 @@ export function SessionHero({
           aspectRatio="16/9"
           priority
           className="rounded-xl"
+          unavailable={sessionUnavailable}
         />
       </div>
 
@@ -127,9 +128,9 @@ export function SessionHero({
           )}
         </div>
 
-        {/* Countdown grand format (Phase 4) */}
+        {/* Countdown grand format (Phase 4) — masqué si session annulée (BUG #4) */}
         <div className="mt-2">
-          <CountdownHero target={target} phase={phase} />
+          <CountdownHero target={target} phase={phase} sessionUnavailable={sessionUnavailable} />
         </div>
 
         {/* Bouton Réserver (Client Component) — phase-aware copy + état */}
