@@ -24,18 +24,42 @@ import { resolveThumbnail } from '@/lib/youtube/thumbnail';
 export const SPORDATEUR_LOGO_FALLBACK = '/brand/icon-512.png';
 
 /**
+ * BUG #6 — Extrait l'ID d'une URL Google Drive `/file/d/{id}/...` (formats share
+ * `/view?usp=sharing`, `/edit`, `/preview`). Retourne `null` si l'URL n'est pas
+ * une URL Drive `/file/d/`.
+ *
+ * Une share URL Drive ne charge PAS dans une balise `<img>` (Drive renvoie une
+ * page HTML, pas l'image) — il faut la convertir en `drive.google.com/thumbnail`.
+ *
+ * Pure (no DOM, no network) → testable unit.
+ */
+export function parseDriveImageUrl(
+  url: string | null | undefined,
+): { id: string } | null {
+  if (!url || typeof url !== 'string') return null;
+  const m = url.match(/drive\.google\.com\/file\/d\/([^/?#]+)/);
+  return m && m[1] ? { id: m[1] } : null;
+}
+
+/**
  * Résout l'URL `<img src>` d'un MediaItem `type='image'` rendu par <MediaCarousel>.
  *
  * Chaîne de fallback :
  *   1. URL custom uploadée / CDN classique → telle quelle
- *   2. Lien YouTube (collé comme image, ou hérité de `images: string[]` legacy)
+ *   2. Image hébergée sur Google Drive (share URL `/file/d/{id}/view`) →
+ *      `drive.google.com/thumbnail?id={id}&sz=w800` (BUG #6 — la share URL ne
+ *      charge pas dans un `<img>`)
+ *   3. Lien YouTube (collé comme image, ou hérité de `images: string[]` legacy)
  *      → miniature `hqdefault.jpg` extraite automatiquement
- *   3. URL vide / whitespace / null / undefined → logo Spordateur
+ *   4. URL vide / whitespace / null / undefined → logo Spordateur
  *
  * Pure (no DOM, no network) → testable unit.
  */
 export function resolveMediaImageSrc(url: string | null | undefined): string {
   const trimmed = typeof url === 'string' ? url.trim() : '';
+  if (!trimmed) return SPORDATEUR_LOGO_FALLBACK;
+  const drive = parseDriveImageUrl(trimmed);
+  if (drive) return `https://drive.google.com/thumbnail?id=${drive.id}&sz=w800`;
   return resolveThumbnail(trimmed) || SPORDATEUR_LOGO_FALLBACK;
 }
 
@@ -50,8 +74,10 @@ export function resolveMediaImageSrc(url: string | null | undefined): string {
  *   resolveSessionImageChain('https://a.jpg', ['b'])  → ['https://a.jpg', 'b', '/brand/icon-512.png']
  *
  * @param primaryUrl URL primaire (media.url ou media.posterUrl). Résolue via
- *   resolveMediaImageSrc (lien YouTube → miniature, vide → ignoré).
- * @param fallbacks  URLs de repli déjà résolues (ex: chaîne miniature YouTube hq→mq→default).
+ *   resolveMediaImageSrc (Drive → thumbnail, lien YouTube → miniature, vide → ignoré).
+ * @param fallbacks  URLs de repli. Résolues elles aussi via resolveMediaImageSrc
+ *   (BUG #6 — une URL Drive en fallback doit aussi être transformée). Idempotent
+ *   pour les URLs déjà résolues (thumbnails YouTube/Drive → passthrough).
  *
  * Pure (no DOM, no network) → testable unit.
  */
@@ -61,9 +87,9 @@ export function resolveSessionImageChain(
 ): string[] {
   const hasPrimary =
     typeof primaryUrl === 'string' && primaryUrl.trim().length > 0;
-  const tail = (fallbacks ?? []).filter(
-    (u): u is string => typeof u === 'string' && u.trim().length > 0,
-  );
+  const tail = (fallbacks ?? [])
+    .filter((u): u is string => typeof u === 'string' && u.trim().length > 0)
+    .map((u) => resolveMediaImageSrc(u));
   return [
     ...(hasPrimary ? [resolveMediaImageSrc(primaryUrl)] : []),
     ...tail,

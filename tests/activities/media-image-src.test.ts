@@ -15,6 +15,7 @@
 
 import {
   resolveMediaImageSrc,
+  parseDriveImageUrl,
   SPORDATEUR_LOGO_FALLBACK,
 } from '../../src/lib/activities/media';
 
@@ -76,6 +77,48 @@ assertEq(resolveMediaImageSrc(''), SPORDATEUR_LOGO_FALLBACK, 'string vide → lo
 assertEq(resolveMediaImageSrc('   '), SPORDATEUR_LOGO_FALLBACK, 'whitespace-only → logo');
 assertEq(resolveMediaImageSrc(null), SPORDATEUR_LOGO_FALLBACK, 'null → logo');
 assertEq(resolveMediaImageSrc(undefined), SPORDATEUR_LOGO_FALLBACK, 'undefined → logo');
+
+section('MIS4 BUG #6 — parseDriveImageUrl extrait l\'ID Drive');
+assertEq(
+  parseDriveImageUrl('https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/view?usp=sharing')?.id ?? null,
+  '1aBc2DeF3GhI4JkL5MnO',
+  '/view?usp=sharing → id extrait',
+);
+assertEq(
+  parseDriveImageUrl('https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/edit')?.id ?? null,
+  '1aBc2DeF3GhI4JkL5MnO',
+  '/edit → id extrait',
+);
+assertEq(
+  parseDriveImageUrl('https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/preview')?.id ?? null,
+  '1aBc2DeF3GhI4JkL5MnO',
+  '/preview → id extrait',
+);
+assertEq(parseDriveImageUrl('https://cdn.example.com/photo.jpg'), null, 'URL non-Drive → null');
+assertEq(parseDriveImageUrl(''), null, 'string vide → null');
+assertEq(parseDriveImageUrl(null), null, 'null → null');
+
+section('MIS5 BUG #6 — resolveMediaImageSrc : image Drive → URL thumbnail');
+assertEq(
+  resolveMediaImageSrc('https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/view?usp=sharing'),
+  'https://drive.google.com/thumbnail?id=1aBc2DeF3GhI4JkL5MnO&sz=w800',
+  'Drive /view?usp=sharing → thumbnail?id=...&sz=w800',
+);
+assertEq(
+  resolveMediaImageSrc('https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/edit'),
+  'https://drive.google.com/thumbnail?id=1aBc2DeF3GhI4JkL5MnO&sz=w800',
+  'Drive /edit → thumbnail?id=...&sz=w800',
+);
+assertEq(
+  resolveMediaImageSrc('https://cdn.example.com/img/zumba.png'),
+  'https://cdn.example.com/img/zumba.png',
+  'URL non-Drive non-YouTube → passthrough inchangé',
+);
+assertEq(
+  resolveMediaImageSrc('https://youtu.be/dQw4w9WgXcQ'),
+  'https://img.youtube.com/vi/dQw4w9WgXcQ/hqdefault.jpg',
+  'YouTube → miniature (inchangé, pas cassé par le fix Drive)',
+);
 
 console.log(`\n====== Résumé MediaCarousel image src fallback ======`);
 console.log(`PASS : ${passes}`);

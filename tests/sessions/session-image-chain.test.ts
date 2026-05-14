@@ -99,6 +99,23 @@ section('SIC6 — RÉGRESSION : jamais de placeholder Picsum random');
   assertEq(hasPicsum, false, 'aucune chaîne ne contient picsum.photos');
 }
 
+section('SIC7 BUG #6 — URL Drive transformée en thumbnail (primary ET fallbacks)');
+{
+  const driveShare = 'https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/view?usp=sharing';
+  const driveThumb = 'https://drive.google.com/thumbnail?id=1aBc2DeF3GhI4JkL5MnO&sz=w800';
+
+  assertArrEq(
+    resolveSessionImageChain(driveShare),
+    [driveThumb, SPORDATEUR_LOGO_FALLBACK],
+    'Drive en primary → [thumbnail, logo]',
+  );
+  assertArrEq(
+    resolveSessionImageChain('https://cdn.example.com/a.jpg', [driveShare]),
+    ['https://cdn.example.com/a.jpg', driveThumb, SPORDATEUR_LOGO_FALLBACK],
+    'Drive dans les fallbacks → fallback transformé en thumbnail',
+  );
+}
+
 console.log(`\n====== Résumé SessionMediaPlayer image chain ======`);
 console.log(`PASS : ${passes}`);
 console.log(`FAIL : ${failures}`);
