@@ -16,6 +16,7 @@
  */
 
 import type { MediaItem } from '@/types/firestore';
+import { resolveMediaImageSrc } from '@/lib/activities/media';
 
 export interface MediaCarouselProps {
   items: MediaItem[];
@@ -62,11 +63,13 @@ function MediaItemRender({
   }
 
   // type === 'image'
+  // Fallback chain : image custom/CDN → miniature YouTube extraite → logo Spordateur.
+  // (avant : <img src={item.url}> brut → lien YouTube = image cassée / placeholder random)
   return (
     <div className="relative aspect-video rounded-lg overflow-hidden border border-white/10 bg-zinc-950">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={item.url}
+        src={resolveMediaImageSrc(item.url)}
         alt=""
         className="w-full h-full object-cover"
         loading={priority ? 'eager' : 'lazy'}

@@ -15,6 +15,29 @@
  */
 
 import type { MediaItem } from '@/types/firestore';
+import { resolveThumbnail } from '@/lib/youtube/thumbnail';
+
+/**
+ * Logo neon Spordateur — fallback final quand un MediaItem image n'a aucune
+ * URL exploitable (jamais de placeholder "tasse de café" / image random).
+ */
+export const SPORDATEUR_LOGO_FALLBACK = '/brand/icon-512.png';
+
+/**
+ * Résout l'URL `<img src>` d'un MediaItem `type='image'` rendu par <MediaCarousel>.
+ *
+ * Chaîne de fallback :
+ *   1. URL custom uploadée / CDN classique → telle quelle
+ *   2. Lien YouTube (collé comme image, ou hérité de `images: string[]` legacy)
+ *      → miniature `hqdefault.jpg` extraite automatiquement
+ *   3. URL vide / whitespace / null / undefined → logo Spordateur
+ *
+ * Pure (no DOM, no network) → testable unit.
+ */
+export function resolveMediaImageSrc(url: string | null | undefined): string {
+  const trimmed = typeof url === 'string' ? url.trim() : '';
+  return resolveThumbnail(trimmed) || SPORDATEUR_LOGO_FALLBACK;
+}
 
 export function getMediaItems(
   activity: { mediaUrls?: MediaItem[]; images?: string[] } | null | undefined,

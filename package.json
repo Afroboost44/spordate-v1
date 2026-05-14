@@ -80,6 +80,7 @@
     "test:users:soft-delete": "firebase emulators:exec --only firestore 'npx tsx tests/users/soft-delete.test.ts'",
     "test:auth:reset-password-custom": "npx tsx tests/auth/reset-password-custom.test.ts",
     "test:activities:media-parser": "npx tsx tests/activities/media-parser.test.ts",
+    "test:activities:media-image-src": "npx tsx tests/activities/media-image-src.test.ts",
     "test:storage:upload-activity-media": "npx tsx tests/storage/upload-activity-media.test.ts"
   },
   "dependencies": {
