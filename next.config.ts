@@ -59,6 +59,14 @@ const nextConfig: NextConfig = {
         pathname: '/**',
       },
       {
+        // BUG #5 — miniatures Google Drive (getVideoThumbnailChain provider=drive
+        // → drive.google.com/thumbnail?id=...) servies via next/image.
+        protocol: 'https',
+        hostname: 'drive.google.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
         protocol: 'https',
         hostname: 'firebasestorage.googleapis.com',
         port: '',

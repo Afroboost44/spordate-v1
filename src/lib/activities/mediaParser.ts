@@ -106,7 +106,8 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoUrl | 
  *    playsinline=1 → iOS Safari respecte autoplay sur mobile.
  *  - Vimeo : autoplay=1 nécessite muted=1. background=1 → pas de controls, autoplay+loop+muted activés
  *    par défaut (idéal preview hero card). dnt=1 → no tracking.
- *  - Drive : pas d'autoplay fiable côté Google Drive embed → return null (caller fallback thumbnail c5).
+ *  - Drive : embed via /preview (la share URL /view?usp=sharing n'est PAS embeddable).
+ *    Drive ne supporte que le param autoplay (BUG #5).
  *
  * Charte UX : opts.autoplay=true par défaut listing card, false sur detail page (MediaCarousel
  * où user voit player full controls).
@@ -115,7 +116,7 @@ export function parseVideoUrl(url: string | null | undefined): ParsedVideoUrl | 
  * @param opts.autoplay default true
  * @param opts.muted default true (browser policy autoplay requires muted)
  * @param opts.loop default true (replay automatique listing card)
- * @returns iframe src URL ou null si non embeddable autoplay (Drive)
+ * @returns iframe src URL, ou null si type!=='video' / provider inconnu
  */
 export function getVideoEmbedUrl(
   item: { type: string; url?: string; provider?: string; videoId?: string; embedUrl?: string },
@@ -165,7 +166,14 @@ export function getVideoEmbedUrl(
     params.set('playsinline', '1');
     return `https://player.vimeo.com/video/${videoId}?${params.toString()}`;
   }
-  // Drive : pas d'autoplay fiable → null (caller fallback thumbnail static c5)
+  if (provider === 'drive') {
+    // BUG #5 — embed Drive via /preview (la share URL /view?usp=sharing n'est
+    // PAS embeddable : Drive refuse l'iframe sans /preview). Drive ne supporte
+    // que le param autoplay (pas muted/loop).
+    const qs = autoplay ? '?autoplay=1' : '';
+    return `https://drive.google.com/file/d/${videoId}/preview${qs}`;
+  }
+  // Provider inconnu → pas d'embed
   return null;
 }
 
@@ -175,7 +183,7 @@ export function getVideoEmbedUrl(
  * Behaviors :
  *  - YouTube : retourne `hqdefault.jpg` (toujours dispo même vidéos privées/non-listées)
  *  - Vimeo : retourne null (oEmbed API requise → defer)
- *  - Drive : retourne null (pas de thumb stable Google)
+ *  - Drive : retourne le thumbnail non-officiel `drive.google.com/thumbnail?id=` (BUG #5)
  *
  * Pour gérer les vidéos rares où hqdefault retourne le 120x90 grey placeholder
  * de YouTube (vidéos supprimées/privées), utiliser `getVideoThumbnailChain()`
@@ -201,7 +209,8 @@ export function getVideoThumbnail(item: { type: string; url?: string; provider?:
  * Si la chaine est épuisée → null caller doit fallback placeholder Video icon.
  *
  * @param item MediaItem
- * @returns Array of URLs in order of quality (hq → mq → default), empty si non-YouTube
+ * @returns Array of URLs en ordre de qualité (YouTube hq→mq→default ; Drive w800→w400),
+ *          empty si Vimeo / provider inconnu
  */
 export function getVideoThumbnailChain(
   item: { type: string; url?: string; provider?: string; videoId?: string },
@@ -218,12 +227,24 @@ export function getVideoThumbnailChain(
       videoId = parsed.videoId;
     }
   }
-  if (!videoId || provider !== 'youtube') return [];
-  return [
-    `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
-    `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
-    `https://img.youtube.com/vi/${videoId}/default.jpg`,
-  ];
+  if (!videoId) return [];
+  if (provider === 'youtube') {
+    return [
+      `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`,
+      `https://img.youtube.com/vi/${videoId}/mqdefault.jpg`,
+      `https://img.youtube.com/vi/${videoId}/default.jpg`,
+    ];
+  }
+  if (provider === 'drive') {
+    // BUG #5 — thumbnail Drive non-officiel : fonctionne pour les fichiers
+    // partagés "anyone with link". Le caller walk w800 → w400 via onError,
+    // puis fallback logo Spordateur si tout échoue.
+    return [
+      `https://drive.google.com/thumbnail?id=${videoId}&sz=w800`,
+      `https://drive.google.com/thumbnail?id=${videoId}&sz=w400`,
+    ];
+  }
+  return [];
 }
 
 const IMAGE_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.svg', '.bmp', '.avif'];

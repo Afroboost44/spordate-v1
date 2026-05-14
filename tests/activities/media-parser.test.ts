@@ -302,7 +302,7 @@ async function main(): Promise<void> {
     }
   }
 
-  section('MP9 getVideoThumbnail Drive → null (no stable thumb)');
+  section('MP9 BUG #5 — getVideoThumbnail Drive → thumbnail drive.google.com/thumbnail');
   {
     const item = {
       type: 'video' as const,
@@ -310,10 +310,10 @@ async function main(): Promise<void> {
       provider: 'drive' as const,
     };
     const thumb = getVideoThumbnail(item);
-    if (thumb === null) {
-      pass('MP9 Drive thumb=null (caller fallback placeholder)');
+    if (thumb === 'https://drive.google.com/thumbnail?id=1aBc2DeF3GhI4JkL5MnO&sz=w800') {
+      pass('MP9 Drive thumb = drive.google.com/thumbnail?id=...&sz=w800');
     } else {
-      fail('MP9 Drive should be null', { thumb });
+      fail('MP9 Drive thumb mismatch', { thumb });
     }
   }
 
@@ -423,7 +423,7 @@ async function main(): Promise<void> {
     }
   }
 
-  section('MP14 getVideoEmbedUrl Drive → null (no reliable autoplay)');
+  section('MP14 BUG #5 — getVideoEmbedUrl Drive → /preview (+ ?autoplay=1 si autoplay)');
   {
     const item = {
       type: 'video' as const,
@@ -432,10 +432,16 @@ async function main(): Promise<void> {
       videoId: '1aBc2DeF3GhI4JkL5MnO',
     };
     const url = getVideoEmbedUrl(item, { autoplay: true, muted: true, loop: true });
-    if (url === null) {
-      pass('MP14 Drive → null (caller fallback c5 thumbnail Lucide Play overlay)');
+    if (url === 'https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/preview?autoplay=1') {
+      pass('MP14 Drive autoplay → /preview?autoplay=1');
     } else {
-      fail('MP14 Drive should be null', { url });
+      fail('MP14 Drive autoplay mismatch', { url });
+    }
+    const urlNoAuto = getVideoEmbedUrl(item, { autoplay: false });
+    if (urlNoAuto === 'https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/preview') {
+      pass('MP14 Drive autoplay=false → /preview (sans param)');
+    } else {
+      fail('MP14 Drive no-autoplay mismatch', { urlNoAuto });
     }
   }
 
@@ -517,22 +523,80 @@ async function main(): Promise<void> {
       fail('MP18', { chain, expected });
     }
 
-    // Non-YouTube → empty chain
+    // BUG #5 — Drive → chain thumbnail w800 → w400
     const driveItem = {
       type: 'video' as const,
       url: 'https://drive.google.com/file/d/abc123/view',
       provider: 'drive' as const,
     };
     const driveChain = getVideoThumbnailChain(driveItem);
-    if (driveChain.length === 0) {
-      pass('MP18.b non-YouTube (drive) → empty chain (caller fallback placeholder)');
+    if (
+      driveChain.length === 2 &&
+      driveChain[0] === 'https://drive.google.com/thumbnail?id=abc123&sz=w800' &&
+      driveChain[1] === 'https://drive.google.com/thumbnail?id=abc123&sz=w400'
+    ) {
+      pass('MP18.b Drive → chain [thumbnail w800, thumbnail w400]');
     } else {
       fail('MP18.b', driveChain);
+    }
+
+    // Vimeo → toujours empty chain (oEmbed defer)
+    const vimeoChain = getVideoThumbnailChain({
+      type: 'video' as const,
+      url: 'https://vimeo.com/123456789',
+      provider: 'vimeo' as const,
+    });
+    if (vimeoChain.length === 0) {
+      pass('MP18.c Vimeo → empty chain (inchangé, oEmbed defer)');
+    } else {
+      fail('MP18.c Vimeo should be empty', vimeoChain);
+    }
+  }
+
+  // ===================================================================
+  // MP19 BUG #5 — Drive share URL /view?usp=sharing → chaîne complète embed + thumb
+  // ===================================================================
+  section('MP19 BUG #5 — Drive /view?usp=sharing → ID extrait + embed /preview + thumbnail');
+  {
+    const { getVideoThumbnailChain } = await import('../../src/lib/activities/mediaParser');
+    const shareUrl = 'https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/view?usp=sharing';
+
+    // parseVideoUrl extrait l'ID malgré le suffixe /view?usp=sharing
+    const parsed = parseVideoUrl(shareUrl);
+    if (
+      parsed &&
+      parsed.provider === 'drive' &&
+      parsed.videoId === '1aBc2DeF3GhI4JkL5MnO' &&
+      parsed.embedUrl === 'https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/preview'
+    ) {
+      pass('MP19.a parseVideoUrl(/view?usp=sharing) → drive + ID + embedUrl /preview');
+    } else {
+      fail('MP19.a parse mismatch', parsed);
+    }
+
+    // getVideoEmbedUrl re-parse depuis la share URL (videoId non stocké)
+    const item = { type: 'video' as const, url: shareUrl };
+    const embed = getVideoEmbedUrl(item, { autoplay: true });
+    if (embed === 'https://drive.google.com/file/d/1aBc2DeF3GhI4JkL5MnO/preview?autoplay=1') {
+      pass('MP19.b getVideoEmbedUrl(share URL) → /preview?autoplay=1 (re-parse OK)');
+    } else {
+      fail('MP19.b embed mismatch', { embed });
+    }
+
+    // getVideoThumbnailChain re-parse depuis la share URL
+    const chain = getVideoThumbnailChain(item);
+    if (
+      chain.length === 2 &&
+      chain[0] === 'https://drive.google.com/thumbnail?id=1aBc2DeF3GhI4JkL5MnO&sz=w800'
+    ) {
+      pass('MP19.c getVideoThumbnailChain(share URL) → [w800, w400] (re-parse OK)');
+    } else {
+      fail('MP19.c chain mismatch', { chain });
     }
   }
 
   console.log('');
-  console.log('====== Résumé Media Parser (MP1-MP6 + bonus + MP7-MP10 c5 + MP11-MP14 c6 + MP15-MP18 c10.A) ======');
+  console.log('====== Résumé Media Parser (MP1-MP19 — incl. BUG #5 Drive embed + thumbnail) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);
