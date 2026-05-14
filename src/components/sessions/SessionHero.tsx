@@ -53,6 +53,9 @@ export interface SessionHeroProps {
   /** Phase 9.5 c29a CH4 — Activity.price (CHF vitrine). Passé à ReserveButton pour
    *  détecter le mismatch "currentPrice=0 mais activité payante". */
   activityPrice?: number;
+  /** BUG #3 — true si l'activity a été supprimée/désactivée OU la session annulée.
+   *  Désactive le bouton Réserver ("Activité annulée"). */
+  sessionUnavailable?: boolean;
   className?: string;
 }
 
@@ -74,6 +77,7 @@ export function SessionHero({
   imageUrlFallbacks,
   partnerName,
   activityPrice,
+  sessionUnavailable = false,
   className = '',
 }: SessionHeroProps) {
   const target = getCountdownTarget(session, phase);
@@ -129,7 +133,13 @@ export function SessionHero({
         </div>
 
         {/* Bouton Réserver (Client Component) — phase-aware copy + état */}
-        <ReserveButton session={session} phase={phase} isFull={isFull} activityPrice={activityPrice} />
+        <ReserveButton
+          session={session}
+          phase={phase}
+          isFull={isFull}
+          activityPrice={activityPrice}
+          sessionUnavailable={sessionUnavailable}
+        />
       </div>
     </header>
   );

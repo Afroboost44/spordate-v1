@@ -26,14 +26,47 @@ import {
 } from "@/lib/billing/pricingTiersBuilder";
 import { useLanguage } from "@/context/LanguageContext";
 import { getVideoThumbnailChain } from "@/lib/activities/mediaParser";
+import { shouldCancelSessionOnActivityRemoval } from "@/lib/activities/lifecycle";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import {
   collection, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc,
-  serverTimestamp, orderBy, Timestamp
+  serverTimestamp, orderBy, Timestamp, writeBatch
 } from 'firebase/firestore';
 import { computeFallbackTiers } from '@/services/firestore';
+
+/**
+ * BUG #3 — Cascade suppression/désactivation activity → sessions futures.
+ * Marque les sessions futures non-annulées (status → 'cancelled') via WriteBatch
+ * atomique. Réutilise le pattern Phase 9.5 c33 (propagation aux sessions futures).
+ * Retourne le nombre de sessions annulées.
+ */
+async function cascadeCancelFutureSessions(activityId: string): Promise<number> {
+  if (!db) return 0;
+  const now = Timestamp.now();
+  const sessionsSnap = await getDocs(
+    query(
+      collection(db, 'sessions'),
+      where('activityId', '==', activityId),
+      where('startAt', '>', now),
+    ),
+  );
+  const nowMs = now.toMillis();
+  const toCancel = sessionsSnap.docs.filter((sdoc) =>
+    shouldCancelSessionOnActivityRemoval(
+      sdoc.data() as { status?: string; startAt?: { toMillis?: () => number } },
+      nowMs,
+    ),
+  );
+  if (toCancel.length === 0) return 0;
+  const batch = writeBatch(db);
+  for (const sdoc of toCancel) {
+    batch.update(sdoc.ref, { status: 'cancelled', updatedAt: serverTimestamp() });
+  }
+  await batch.commit();
+  return toCancel.length;
+}
 
 interface Activity {
   activityId: string;
@@ -415,13 +448,42 @@ export default function PartnerOffersPage() {
 
   const handleDelete = async (act: Activity) => {
     if (!db || !confirm(`Supprimer "${act.name}" ?`)) return;
-    try { await deleteDoc(doc(db, 'activities', act.activityId)); toast({ title: 'Activité supprimée' }); await loadActivities(); }
+    try {
+      // BUG #3 — cascade AVANT le hard-delete : sinon les sessions futures
+      // deviennent orphelines (activity introuvable, mais session "Réserver" active).
+      const cancelled = await cascadeCancelFutureSessions(act.activityId);
+      await deleteDoc(doc(db, 'activities', act.activityId));
+      toast({
+        title: 'Activité supprimée',
+        description: cancelled > 0 ? `${cancelled} session(s) future(s) annulée(s).` : undefined,
+      });
+      await loadActivities();
+    }
     catch (err) { toast({ variant: 'destructive', title: 'Erreur', description: String(err) }); }
   };
 
   const handleToggleActive = async (act: Activity) => {
     if (!db) return;
+    // Toggle active → inactive = soft-delete : il faut cascader sur les sessions.
+    // Inactive → active = réactivation : on NE ressuscite PAS les sessions annulées
+    // (le partenaire republie manuellement).
+    const isDeactivating = act.isActive;
     await updateDoc(doc(db, 'activities', act.activityId), { isActive: !act.isActive, updatedAt: serverTimestamp() });
+    if (isDeactivating) {
+      try {
+        const cancelled = await cascadeCancelFutureSessions(act.activityId);
+        if (cancelled > 0) {
+          toast({ title: 'Activité désactivée', description: `${cancelled} session(s) future(s) annulée(s).` });
+        }
+      } catch (err) {
+        console.warn('[Offers] cascade cancel sessions failed:', err);
+        toast({
+          variant: 'destructive',
+          title: 'Sessions non synchronisées',
+          description: "Les sessions futures n'ont pas pu être annulées — réessaie de désactiver l'activité.",
+        });
+      }
+    }
     await loadActivities();
   };
 

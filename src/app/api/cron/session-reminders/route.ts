@@ -29,6 +29,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail } from '@/lib/email/sendEmail';
 import { sendPushNotification } from '@/lib/notifications/sendPushNotification';
+import { isActivityUnavailable } from '@/lib/activities/lifecycle';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -140,6 +141,25 @@ async function processBatch(opts: ProcessBatchOptions): Promise<BatchResult> {
             ? opts.db.collection('users').doc(booking.partnerId).get()
             : Promise.resolve(null),
         ]);
+        // BUG #3 — skip si l'activity parente a été supprimée (snapshot absent)
+        // ou désactivée (isActive=false). Évite d'envoyer "C'est demain !" pour
+        // une activité qui n'existe plus. Flag idempotency posé pour ne pas
+        // re-scanner ce booking orphelin à chaque run horaire.
+        if (booking.activityId) {
+          const activityData = activitySnap?.exists ? activitySnap.data() : null;
+          if (isActivityUnavailable(activityData)) {
+            console.warn(
+              `[/api/cron/session-reminders ${opts.flagField}] skip — activity indisponible (supprimée/désactivée)`,
+              { bookingId: bdoc.id, activityId: booking.activityId },
+            );
+            if (!opts.dryRun) {
+              await bdoc.ref.update({ [opts.flagField]: true });
+            }
+            skipped++;
+            continue;
+          }
+        }
+
         const userEmail = userSnap.data()?.email as string | undefined;
         if (!userEmail) {
           if (!opts.dryRun) {

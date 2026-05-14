@@ -56,6 +56,9 @@ export interface ReserveButtonProps {
   /** Phase 9.5 c29a CH4 — prix de référence côté Activity (vitrine). Sert à détecter
    *  l'edge case currentPrice=0 alors que activity.price>0 (pricingTiers mal seed). */
   activityPrice?: number;
+  /** BUG #3 — true si l'activity parente a été supprimée/désactivée OU la session
+   *  annulée. Désactive le bouton avec le label "Activité annulée" (priorité max). */
+  sessionUnavailable?: boolean;
   className?: string;
 }
 
@@ -94,10 +97,15 @@ function computeButtonState(
   allowLateJoin: boolean,
   pricingPendingLabel: string,
   activityPrice?: number,
+  sessionUnavailable?: boolean,
 ): ButtonState {
   const priceText = formatPrice(session.currentPrice);
   const tierText = TIER_LABEL[session.currentTier];
 
+  // BUG #3 — priorité max : activity supprimée/désactivée OU session annulée.
+  if (sessionUnavailable) {
+    return { label: 'Activité annulée', enabled: false };
+  }
   if (phase === 'ended') {
     return { label: 'Session terminée', enabled: false };
   }
@@ -130,6 +138,7 @@ export function ReserveButton({
   isFull,
   allowLateJoin = false,
   activityPrice,
+  sessionUnavailable = false,
   className = '',
 }: ReserveButtonProps) {
   const router = useRouter();
@@ -145,6 +154,7 @@ export function ReserveButton({
     allowLateJoin,
     t('reserve_button_pricing_pending'),
     activityPrice,
+    sessionUnavailable,
   );
 
   const handleClick = async () => {

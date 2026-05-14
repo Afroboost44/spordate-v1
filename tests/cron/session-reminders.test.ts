@@ -124,18 +124,23 @@ async function main(): Promise<void> {
         role: 'user',
       });
   }
-  async function seedActivity(activityId: string, partnerId: string, title?: string): Promise<void> {
-    await db
-      .collection('activities')
-      .doc(activityId)
-      .set({
-        activityId,
-        partnerId,
-        title: title ?? `Activity ${activityId}`,
-        sport: 'tennis',
-        city: 'Geneva',
-        address: '12 rue du Sport, Geneva',
-      });
+  async function seedActivity(
+    activityId: string,
+    partnerId: string,
+    title?: string,
+    isActive?: boolean,
+  ): Promise<void> {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const payload: any = {
+      activityId,
+      partnerId,
+      title: title ?? `Activity ${activityId}`,
+      sport: 'tennis',
+      city: 'Geneva',
+      address: '12 rue du Sport, Geneva',
+    };
+    if (isActive !== undefined) payload.isActive = isActive;
+    await db.collection('activities').doc(activityId).set(payload);
   }
   async function seedBooking(opts: {
     bookingId: string;
@@ -386,6 +391,75 @@ async function main(): Promise<void> {
   }
 
   // ===================================================================
+  // SR6 BUG #3 — activity soft-deleted (isActive=false) → skip, 0 email, flag set
+  // ===================================================================
+  section('SR6 BUG #3 — activity isActive=false → booking skip, 0 email, flag idempotency set');
+  {
+    await clearAll();
+    await seedUser('user_sr6', 'sr6@test.local');
+    await seedUser(PARTNER_UID, 'partner@test.local');
+    await seedActivity(ACTIVITY_ID, PARTNER_UID, 'Zumba annulée', false); // soft-deleted
+    const bookingId = 'booking_sr6';
+    await seedBooking({
+      bookingId,
+      userId: 'user_sr6',
+      activityId: ACTIVITY_ID,
+      partnerId: PARTNER_UID,
+      sessionDateMs: NOW + 25 * 60 * 60 * 1000, // J-1 window
+    });
+
+    const res = await callCron();
+    const j = res.body.jMinus1 as { sent: number; skipped: number; processed: number };
+    if (j?.sent === 0 && j?.skipped === 1 && j?.processed === 1) {
+      pass('SR6 jMinus1 sent=0 skipped=1 (activity isActive=false)');
+    } else {
+      fail('SR6 jMinus1', j);
+    }
+    if (sentMock.length === 0) {
+      pass('SR6 zéro email envoyé (activity supprimée)');
+    } else {
+      fail('SR6 unexpected emails', sentMock);
+    }
+    const snap = await db.collection('bookings').doc(bookingId).get();
+    if (snap.data()?.reminderJMinus1Sent === true) {
+      pass('SR6 booking.reminderJMinus1Sent=true (skip idempotent, pas de re-scan)');
+    } else {
+      fail('SR6 flag not set', snap.data());
+    }
+  }
+
+  // ===================================================================
+  // SR7 BUG #3 — activity doc absent (hard-deleted) → skip, 0 email
+  // ===================================================================
+  section('SR7 BUG #3 — activity doc inexistant (hard-delete) → booking skip, 0 email');
+  {
+    await clearAll();
+    await seedUser('user_sr7', 'sr7@test.local');
+    await seedUser(PARTNER_UID, 'partner@test.local');
+    // PAS de seedActivity → activityId pointe vers un doc inexistant
+    await seedBooking({
+      bookingId: 'booking_sr7',
+      userId: 'user_sr7',
+      activityId: 'act_deleted_hard',
+      partnerId: PARTNER_UID,
+      sessionDateMs: NOW + 25 * 60 * 60 * 1000, // J-1 window
+    });
+
+    const res = await callCron();
+    const j = res.body.jMinus1 as { sent: number; skipped: number; processed: number };
+    if (j?.sent === 0 && j?.skipped === 1 && j?.processed === 1) {
+      pass('SR7 jMinus1 sent=0 skipped=1 (activity doc inexistant)');
+    } else {
+      fail('SR7 jMinus1', j);
+    }
+    if (sentMock.length === 0) {
+      pass('SR7 zéro email envoyé (activity hard-deleted)');
+    } else {
+      fail('SR7 unexpected emails', sentMock);
+    }
+  }
+
+  // ===================================================================
   // Auth check
   // ===================================================================
   section('Auth — Bearer manquant/mauvais → 401');
@@ -447,7 +521,7 @@ async function main(): Promise<void> {
   await clearAll();
 
   console.log('');
-  console.log('====== Résumé Cron session-reminders (SR1-SR5 + auth + bonus) ======');
+  console.log('====== Résumé Cron session-reminders (SR1-SR7 + auth + bonus) ======');
   console.log(`PASS : ${_passes}`);
   console.log(`FAIL : ${_failures}`);
   console.log(`Total: ${_passes + _failures}`);

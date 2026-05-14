@@ -45,6 +45,8 @@ import { BookingPendingHero } from '@/components/sessions/BookingPendingHero';
 import { SessionSuccessToast } from '@/components/sessions/SessionSuccessToast';
 import { computeBundledCredits } from '@/lib/billing/creditRules';
 import { getMediaItems } from '@/lib/activities/media';
+import { isActivityUnavailable, isSessionUnavailable } from '@/lib/activities/lifecycle';
+import { ActivityCancelledBanner } from '@/components/sessions/ActivityCancelledBanner';
 import { getVideoThumbnailChain, getVideoEmbedUrl } from '@/lib/activities/mediaParser';
 import type { MediaItem } from '@/types/firestore';
 
@@ -162,6 +164,9 @@ export async function generateMetadata({
   return {
     title: `${session.title} — Spordateur`,
     description,
+    // BUG #3 — activity supprimée/désactivée → session orpheline non réservable :
+    // on la dé-indexe (pas de SEO sur une session annulée).
+    robots: isActivityUnavailable(activity) ? { index: false } : undefined,
     openGraph: {
       title: session.title,
       description,
@@ -227,6 +232,10 @@ export default async function SessionDetailPage({ params }: PageProps) {
   // Phase initiale au SSR (countdown re-tick côté client via CountdownHero)
   const phase = getChatPhase(session, new Date());
 
+  // BUG #3 — activity supprimée/désactivée OU session annulée → session orpheline.
+  // Banner d'avertissement + bouton Réserver désactivé.
+  const sessionUnavailable = isSessionUnavailable(activity, session);
+
   return (
     <div className="bg-black text-white">
       <SessionSuccessToast
@@ -245,6 +254,9 @@ export default async function SessionDetailPage({ params }: PageProps) {
           <span>Voir toutes les activités</span>
         </Link>
 
+        {/* ============= BUG #3 — BANNER ACTIVITÉ ANNULÉE ============= */}
+        {sessionUnavailable && <ActivityCancelledBanner />}
+
         {/* ============= HERO ============= */}
         {/* Phase 9.5 c14 BUG2 + c16 BUG G : derive media + fallback chain
             (sessions auto-créées Phase 9.5 c11 n'ont pas thumbnailMedia → fallback mediaUrls → YouTube chain) */}
@@ -258,6 +270,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
               imageUrlFallbacks={imageUrlFallbacks}
               partnerName={activity?.partnerName}
               activityPrice={activity?.price}
+              sessionUnavailable={sessionUnavailable}
             />
           );
         })()}
