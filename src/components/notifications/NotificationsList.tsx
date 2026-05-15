@@ -35,6 +35,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import type { Notification, NotificationType } from '@/types/firestore';
+import { hardDeleteNotification, NotificationError } from '@/lib/notifications/hardDelete';
 
 function iconForType(type: NotificationType) {
   switch (type) {
@@ -86,15 +87,6 @@ async function callPatch(notificationId: string, action: 'mark-read' | 'dismiss'
       Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify({ action }),
-  });
-  return res;
-}
-
-/** Phase 9.5 c53 — hard-delete notification (remplace dismiss soft-delete). */
-async function callDelete(notificationId: string, token: string) {
-  const res = await fetch(`/api/notifications/${notificationId}`, {
-    method: 'DELETE',
-    headers: { Authorization: `Bearer ${token}` },
   });
   return res;
 }
@@ -193,29 +185,27 @@ export function NotificationsList() {
   const handleDismiss = async (notif: Notification, e: React.MouseEvent) => {
     e.stopPropagation();
     if (!user) return;
-    console.log('[Dismiss c53] click', notif.notificationId);
-    // Phase 9.5 c53 — HARD DELETE (vs soft-delete dismissedAt c44/c52).
-    // Optimistic UI : retire la notif du state local + suppression
-    // définitive du doc Firestore via DELETE endpoint. Plus de fragilité
-    // soft-delete (snapshot listener pouvait revert l'optimistic update
-    // avant que dismissedAt soit persisté).
+    // BUG #9 — hard-delete direct via Firebase Web SDK (rules autorisent l'owner).
+    // Remplace l'ancien call à /api/notifications/[id] DELETE qui dépendait de
+    // FIREBASE_SERVICE_ACCOUNT_KEY + verifyIdToken Admin SDK — fragiles en prod.
+    // Optimistic UI immédiat ; revert si Firestore refuse.
+    if (!notif.notificationId) {
+      console.warn('[NotificationsList] notif sans notificationId, skip', notif);
+      return;
+    }
     const snapshotBefore = notifications;
     setNotifications((prev) => prev.filter((n) => n.notificationId !== notif.notificationId));
     try {
-      const token = await user.getIdToken();
-      const res = await callDelete(notif.notificationId, token);
-      console.log('[Dismiss c53] response', res.status);
-      if (!res.ok) {
-        const txt = await res.text().catch(() => '');
-        console.warn('[Dismiss c53] non-OK', res.status, txt);
-        throw new Error(`HTTP ${res.status}`);
-      }
+      await hardDeleteNotification(notif.notificationId);
     } catch (err) {
-      console.warn('[NotificationsList c53] delete failed:', err);
+      console.warn('[NotificationsList] hardDelete failed:', err);
       setNotifications(snapshotBefore); // revert
+      const isPermDenied = err instanceof NotificationError && err.code === 'forbidden';
       toast({
         title: 'Erreur',
-        description: 'Impossible de supprimer la notification.',
+        description: isPermDenied
+          ? 'Permission refusée — vérifie que tu es bien connecté.'
+          : 'Impossible de supprimer la notification.',
         variant: 'destructive',
       });
     }
