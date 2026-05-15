@@ -20,6 +20,18 @@ export interface UserProfile {
   credits: number;
   referralCode: string;
   referredBy: string;
+  /**
+   * Phase B — commission paramétrable par admin pour les deux slots :
+   *  - creator : commission reçue quand quelqu'un achète via le lien créateur
+   *  - invite  : commission reçue quand quelqu'un achète via le lien d'invitation
+   * Defaults appliqués par resolveUserCommission() si absent :
+   *  - creator: { mode: 'percent', value: 10 }
+   *  - invite:  { mode: 'free-class', value: 1 }
+   */
+  commission?: {
+    creator: { mode: 'percent' | 'free-class'; value: number };
+    invite:  { mode: 'percent' | 'free-class'; value: number };
+  };
   isCreator: boolean;
   role: 'user' | 'creator' | 'admin';
   isPremium: boolean;
@@ -419,7 +431,15 @@ export interface Excuse {
 }
 
 // ===================== CREDITS =====================
-export type CreditType = 'purchase' | 'referral_bonus' | 'share_bonus' | 'review_bonus' | 'refund' | 'usage';
+export type CreditType =
+  | 'purchase'
+  | 'referral_bonus'
+  | 'share_bonus'
+  | 'review_bonus'
+  | 'refund'
+  | 'usage'
+  /** Phase B — voucher "cours offert" issu d'une commission (creator ou invite slot, mode 'free-class'). */
+  | 'creator_voucher_class';
 
 export interface CreditEntry {
   creditId: string;

@@ -10,6 +10,9 @@
 
 import { computePricingTier, isSessionBookable } from '@/services/firestore';
 import type { Session, PricingTierKind, SessionStatus } from '@/types/firestore';
+// Phase B — processCommission extracté pour testabilité (commission paramétrable
+// par user.commission.{creator|invite}.{mode,value}). Voir src/lib/referral/.
+import { processCommission } from '@/lib/referral/processCommission';
 
 // Lazy init — partagé entre tous les handlers
 let _db: FirebaseFirestore.Firestore | null = null;
@@ -206,10 +209,13 @@ export async function handlePaymentSuccess(session: Record<string, unknown>, str
 
   await batch.commit();
 
-  // 7. Affiliation
+  // 7. Affiliation (Phase B — params commission via user.commission)
   if (referralCode) {
-    try { await processCommission(db, FV, userId, amountTotal, referralCode); }
-    catch (e) { await logErr(db, FV, `Erreur affiliation: ${e}`, sessionId); }
+    try {
+      await processCommission({ db, FV, payerUserId: userId, amount: amountTotal, code: referralCode });
+    } catch (e) {
+      await logErr(db, FV, `Erreur affiliation: ${e}`, sessionId);
+    }
   }
 }
 
@@ -468,8 +474,11 @@ async function handleSessionPayment(
   } catch { /* silent */ }
 
   if (referralCode) {
-    try { await processCommission(db, FV, userId, amountTotal, referralCode); }
-    catch (e) { await logErr(db, FV, `Erreur affiliation session: ${e}`, stripeSessionId); }
+    try {
+      await processCommission({ db, FV, payerUserId: userId, amount: amountTotal, code: referralCode });
+    } catch (e) {
+      await logErr(db, FV, `Erreur affiliation session: ${e}`, stripeSessionId);
+    }
   }
 }
 
@@ -837,69 +846,11 @@ async function handleInvitePrepayPayment(
 }
 
 // =============================================================
-async function processCommission(
-  db: FirebaseFirestore.Firestore, FV: typeof import('firebase-admin/firestore').FieldValue,
-  userId: string, amount: number, code: string,
-) {
-  const creatorSnap = await db.collection('creators').where('referralCode', '==', code).where('isActive', '==', true).limit(1).get();
-  if (!creatorSnap.empty) {
-    const creator = creatorSnap.docs[0];
-    const rate = creator.data().commissionRate || 0.10;
-    const commission = Math.round(amount * rate);
-    const batch = db.batch();
-    batch.update(creator.ref, {
-      totalEarnings: FV.increment(commission / 100),
-      pendingPayout: FV.increment(commission / 100),
-      totalPurchases: FV.increment(1),
-    });
-    const rSnap = await db.collection('referrals').where('referredUserId', '==', userId).where('referrerId', '==', creator.id).limit(1).get();
-    if (!rSnap.empty) {
-      batch.update(rSnap.docs[0].ref, {
-        totalPurchases: FV.increment(1),
-        totalCommission: FV.increment(commission / 100),
-        status: 'active',
-      });
-    }
-    const nRef = db.collection('notifications').doc();
-    batch.set(nRef, {
-      notificationId: nRef.id, userId: creator.id, type: 'affiliation',
-      title: 'Commission reçue !',
-      body: `+${(commission / 100).toFixed(2)} CHF de commission sur un achat de ton filleul`,
-      data: { referredUserId: userId }, isRead: false, createdAt: FV.serverTimestamp(),
-    });
-    await batch.commit();
-  }
-
-  const referrerSnap = await db.collection('users').where('referralCode', '==', code).limit(1).get();
-  if (!referrerSnap.empty) {
-    const referrer = referrerSnap.docs[0];
-    const referrerId = referrer.id;
-    if (referrerId === userId) return;
-    const REFERRAL_BONUS_CREDITS = 1;
-    const batch = db.batch();
-    batch.update(referrer.ref, {
-      credits: FV.increment(REFERRAL_BONUS_CREDITS),
-      updatedAt: FV.serverTimestamp(),
-    });
-    const creditRef = db.collection('credits').doc();
-    batch.set(creditRef, {
-      creditId: creditRef.id, userId: referrerId, type: 'referral_bonus',
-      amount: REFERRAL_BONUS_CREDITS,
-      balance: 0,
-      description: 'Bonus parrainage — ton filleul a acheté des crédits',
-      relatedId: userId, createdAt: FV.serverTimestamp(),
-    });
-    const nRef = db.collection('notifications').doc();
-    batch.set(nRef, {
-      notificationId: nRef.id, userId: referrerId, type: 'referral',
-      title: 'Crédit bonus reçu !',
-      body: `+${REFERRAL_BONUS_CREDITS} crédit gratuit — ton ami a fait un achat`,
-      data: { referredUserId: userId }, isRead: false, createdAt: FV.serverTimestamp(),
-    });
-    await batch.commit();
-  }
-}
-
+// Phase B — processCommission est extracté dans src/lib/referral/processCommission.ts
+// (importé en tête de fichier). La logique est désormais paramétrable via
+// user.commission.{creator|invite}.{mode,value} avec defaults rétro-compat
+// (creator percent 10%, invite free-class 1).
+//
 // =============================================================
 export async function handleExpired(session: Record<string, unknown>) {
   const { db, FV } = await initAdmin();

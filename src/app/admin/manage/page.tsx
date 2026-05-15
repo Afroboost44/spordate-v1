@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import {
   Users, Building2, MapPin, Loader2, Search, Eye, EyeOff, Trash2, Shield,
   Wallet, TrendingUp, CalendarDays, CreditCard, Gift, Bell, Settings, Bug,
-  Plus, Minus, Send, BarChart3, Zap, Crown
+  Plus, Minus, Send, BarChart3, Zap, Crown, Percent
 } from 'lucide-react';
 import { useAuth } from "@/context/AuthContext";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
@@ -20,6 +20,15 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import Link from 'next/link';
 import { useFeatureFlags } from '@/lib/site/useFeatureFlags';
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
+} from "@/components/ui/dialog";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
+import {
+  DEFAULT_CREATOR_COMMISSION, DEFAULT_INVITE_COMMISSION,
+  type UserCommission, type CommissionMode,
+} from "@/lib/referral/commission";
 
 type Tab = 'cockpit' | 'users' | 'partners' | 'credits' | 'promos' | 'tarifs' | 'site' | 'settings' | 'errors';
 
@@ -62,7 +71,7 @@ const DEFAULT_SITE: SiteConfig = {
   partnerTitle: "Studio de danse ou salle de sport ?", partnerSubtitle: "Rejoins le reseau Spordateur. Remplis tes cours, gagne en visibilite.", partnerCta1: "Devenir partenaire", partnerCta2: "Nous contacter",
 };
 
-interface UserItem { uid: string; displayName: string; email: string; role: string; city: string; isPremium: boolean; credits: number; isVisible?: boolean; createdAt: any; }
+interface UserItem { uid: string; displayName: string; email: string; role: string; city: string; isPremium: boolean; credits: number; isVisible?: boolean; createdAt: any; commission?: UserCommission; }
 interface PartnerItem { partnerId: string; name: string; email: string; city: string; phone: string; type: string; isActive: boolean; isApproved: boolean; subscriptionStatus: string; totalBookings: number; totalRevenue: number; createdAt: any; }
 interface TxItem { transactionId: string; userId: string; amount: number; status: string; package: string; paymentMethod: string; createdAt: any; }
 interface ErrorItem { logId: string; message: string; source: string; level: string; resolved: boolean; createdAt: any; }
@@ -100,6 +109,13 @@ export default function AdminManagePage() {
   const [commissionEnabled, setCommissionEnabled] = useState(false);
   const [commissionRate, setCommissionRate] = useState('20');
   const [commissionSaving, setCommissionSaving] = useState(false);
+  // Phase B — édition commission paramétrable par user (creator | invite slot)
+  const [commissionEditUid, setCommissionEditUid] = useState<string | null>(null);
+  const [commissionDraft, setCommissionDraft] = useState<UserCommission>({
+    creator: { ...DEFAULT_CREATOR_COMMISSION },
+    invite: { ...DEFAULT_INVITE_COMMISSION },
+  });
+  const [commissionUserSaving, setCommissionUserSaving] = useState(false);
 
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
@@ -236,6 +252,49 @@ export default function AdminManagePage() {
     await deleteDoc(doc(db, 'users', uid));
     setUsers(users.filter(u => u.uid !== uid));
     toast({ title: 'Supprimé' });
+  };
+  const openCommissionModal = (u: UserItem) => {
+    setCommissionDraft({
+      creator: u.commission?.creator
+        ? { mode: u.commission.creator.mode, value: u.commission.creator.value }
+        : { ...DEFAULT_CREATOR_COMMISSION },
+      invite: u.commission?.invite
+        ? { mode: u.commission.invite.mode, value: u.commission.invite.value }
+        : { ...DEFAULT_INVITE_COMMISSION },
+    });
+    setCommissionEditUid(u.uid);
+  };
+  const saveUserCommission = async () => {
+    if (!db || !commissionEditUid) return;
+    setCommissionUserSaving(true);
+    try {
+      const sanitize = (mode: CommissionMode, raw: number): number => {
+        if (!Number.isFinite(raw) || raw < 0) return mode === 'percent' ? 10 : 1;
+        return mode === 'free-class' ? Math.floor(raw) : raw;
+      };
+      const payload: UserCommission = {
+        creator: {
+          mode: commissionDraft.creator.mode,
+          value: sanitize(commissionDraft.creator.mode, commissionDraft.creator.value),
+        },
+        invite: {
+          mode: commissionDraft.invite.mode,
+          value: sanitize(commissionDraft.invite.mode, commissionDraft.invite.value),
+        },
+      };
+      await updateDoc(doc(db, 'users', commissionEditUid), {
+        commission: payload,
+        updatedAt: serverTimestamp(),
+      });
+      setUsers(users.map(u => u.uid === commissionEditUid ? { ...u, commission: payload } : u));
+      toast({ title: 'Commission mise à jour' });
+      setCommissionEditUid(null);
+    } catch (err) {
+      console.error('[Admin] saveUserCommission failed', err);
+      toast({ variant: 'destructive', title: 'Erreur', description: 'Impossible de sauvegarder' });
+    } finally {
+      setCommissionUserSaving(false);
+    }
   };
   const togglePartner = async (pid: string, field: 'isActive' | 'isApproved', cur: boolean) => {
     if (!db) return;
@@ -497,11 +556,100 @@ export default function AdminManagePage() {
                     <select value={u.role || 'user'} onChange={e => changeUserRole(u.uid, e.target.value)} className="bg-black border border-white/10 rounded text-[10px] text-white/50 px-1.5 h-7">
                       <option value="user">User</option><option value="creator">Creator</option><option value="admin">Admin</option>
                     </select>
+                    <button
+                      onClick={() => openCommissionModal(u)}
+                      title="Configurer la commission (créateur + invitation)"
+                      className={`h-7 px-2 rounded text-[10px] flex items-center gap-1 border ${u.commission ? 'border-amber-400/30 text-amber-400 bg-amber-400/5' : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'}`}
+                    >
+                      <Percent className="h-3 w-3" /> Commission
+                    </button>
                     {u.role !== 'admin' && <button onClick={() => deleteUser(u.uid, u.displayName)} className="w-7 h-7 rounded text-red-400/30 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>}
                   </div>
                 </CardContent>
               </Card>
             ))}
+
+            {/* Phase B — Modal commission paramétrable par user */}
+            <Dialog open={!!commissionEditUid} onOpenChange={(o) => { if (!o) setCommissionEditUid(null); }}>
+              <DialogContent className="bg-[#0F0F0F] border-white/10 text-white max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="text-white">Commission utilisateur</DialogTitle>
+                  <DialogDescription className="text-white/40 text-xs">
+                    Configure ce que reçoit ce user quand quelqu&apos;un achète via son lien créateur ou son lien d&apos;invitation. Defaults : créateur 10% · invitation 1 cours.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 mt-2">
+                  {(['creator', 'invite'] as const).map(slot => {
+                    const cfg = commissionDraft[slot];
+                    const titleLabel = slot === 'creator' ? 'Lien créateur' : 'Lien invitation';
+                    const subLabel =
+                      slot === 'creator'
+                        ? 'Quelqu’un achète via le lien créateur de ce user.'
+                        : 'Quelqu’un s’inscrit + achète via son lien d’invitation.';
+                    return (
+                      <div key={slot} className="border border-white/10 rounded-md p-3 space-y-3">
+                        <div>
+                          <p className="text-sm text-white">{titleLabel}</p>
+                          <p className="text-[10px] text-white/30">{subLabel}</p>
+                        </div>
+                        <RadioGroup
+                          value={cfg.mode}
+                          onValueChange={(v: string) =>
+                            setCommissionDraft(d => ({ ...d, [slot]: { ...d[slot], mode: v as CommissionMode } }))
+                          }
+                          className="flex gap-4"
+                        >
+                          <div className="flex items-center gap-2">
+                            <RadioGroupItem value="percent" id={`${slot}-percent`} />
+                            <Label htmlFor={`${slot}-percent`} className="text-xs text-white/70 cursor-pointer">Pourcentage</Label>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <RadioGroupItem value="free-class" id={`${slot}-free`} />
+                            <Label htmlFor={`${slot}-free`} className="text-xs text-white/70 cursor-pointer">Cours gratuit</Label>
+                          </div>
+                        </RadioGroup>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min="0"
+                            max={cfg.mode === 'percent' ? 100 : undefined}
+                            step={cfg.mode === 'percent' ? 1 : 1}
+                            value={String(cfg.value)}
+                            onChange={e =>
+                              setCommissionDraft(d => ({
+                                ...d,
+                                [slot]: { ...d[slot], value: Number(e.target.value) || 0 },
+                              }))
+                            }
+                            className="bg-black border-white/10 h-9 w-24"
+                          />
+                          <span className="text-[11px] text-white/40">
+                            {cfg.mode === 'percent' ? '% du montant' : `cours offert${cfg.value > 1 ? 's' : ''} par achat`}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <DialogFooter className="mt-4 gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => setCommissionEditUid(null)}
+                    className="border-white/10 text-white/60 hover:bg-white/5 h-9"
+                    disabled={commissionUserSaving}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    onClick={saveUserCommission}
+                    disabled={commissionUserSaving}
+                    className="bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white h-9"
+                  >
+                    {commissionUserSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Sauvegarder'}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
 
