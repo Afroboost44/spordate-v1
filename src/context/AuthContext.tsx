@@ -15,6 +15,7 @@ import {
 } from 'firebase/auth';
 import { auth, isFirebaseConfigured } from '@/lib/firebase';
 import { createUser, getUser } from '@/services/firestore';
+import { readReferralCode, clearReferralCode } from '@/lib/referral/refStorage';
 import { isAdminEmail } from '@/lib/sports';
 import type { UserProfile } from '@/types/firestore';
 
@@ -47,14 +48,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       let profile = await getUser(firebaseUser.uid);
       if (!profile) {
-        // First time user → create Firestore profile
+        // Phase A — consomme le code de parrainage capturé en localStorage par
+        // /?ref=CODE ou /signup?ref=CODE et le passe à createUser. createUser
+        // côté serveur lance processReferralSignup() qui crée le doc referrals
+        // + incrémente creator.totalReferrals. Clear après pour éviter une
+        // re-attribution si le user se déconnecte/reconnecte plus tard.
+        const referredBy = readReferralCode();
         profile = await createUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
           displayName: firebaseUser.displayName || '',
           photoURL: firebaseUser.photoURL || '',
+          referredBy: referredBy ?? '',
         });
-        console.log('[Auth] Profil Firestore créé pour', firebaseUser.email);
+        if (referredBy) clearReferralCode();
+        console.log(
+          '[Auth] Profil Firestore créé pour',
+          firebaseUser.email,
+          referredBy ? `(ref=${referredBy})` : '',
+        );
       }
 
       // Phase 9.5 c9 — auto-promote admin si email matche allowlist + role !== admin.

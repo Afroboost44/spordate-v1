@@ -84,6 +84,7 @@
     "test:activities:lifecycle": "npx tsx tests/activities/activity-lifecycle.test.ts",
     "test:sessions:image-chain": "npx tsx tests/sessions/session-image-chain.test.ts",
     "test:components:session-unavailable-ui": "npx tsx --tsconfig tsconfig.test.json tests/components/session-unavailable-ui.test.tsx",
+    "test:referral:storage": "npx tsx tests/referral/ref-storage.test.ts",
     "test:storage:upload-activity-media": "npx tsx tests/storage/upload-activity-media.test.ts"
   },
   "dependencies": {

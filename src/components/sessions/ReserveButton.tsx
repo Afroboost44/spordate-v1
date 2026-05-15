@@ -44,6 +44,7 @@ import { ArrowRight, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useLanguage } from '@/context/LanguageContext';
+import { resolveActiveReferralCode } from '@/lib/referral/refStorage';
 import type { Session, PricingTierKind } from '@/types/firestore';
 import type { SessionPhase } from '@/hooks/useSessionWindow';
 
@@ -142,7 +143,7 @@ export function ReserveButton({
   className = '',
 }: ReserveButtonProps) {
   const router = useRouter();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { toast } = useToast();
   const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
@@ -168,6 +169,9 @@ export function ReserveButton({
 
     setLoading(true);
     try {
+      // Phase A — propage le code de parrainage (priorité user.referredBy >
+      // localStorage capture pré-signup) → Stripe metadata → webhook processCommission.
+      const referralCode = resolveActiveReferralCode(userProfile?.referredBy);
       const res = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -175,6 +179,7 @@ export function ReserveButton({
           mode: 'session',
           sessionId: session.sessionId,
           userId: user.uid,
+          referralCode,
         }),
       });
 

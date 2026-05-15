@@ -8,6 +8,7 @@ import { CheckCircle, Zap, Crown, Rocket, Lock, CreditCard, Smartphone, Apple, L
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import { useAuth } from '@/context/AuthContext';
+import { resolveActiveReferralCode } from '@/lib/referral/refStorage';
 import Link from 'next/link';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
@@ -61,7 +62,7 @@ export default function PaymentPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { width, height } = useWindowSize();
-  const { user, isLoggedIn } = useAuth();
+  const { user, userProfile, isLoggedIn } = useAuth();
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
@@ -173,10 +174,13 @@ export default function PaymentPage() {
     setLoading(true);
 
     try {
+      // Phase A — propage le code de parrainage (priorité user.referredBy >
+      // localStorage capture pré-signup) → Stripe metadata → webhook processCommission.
+      const referralCode = resolveActiveReferralCode(userProfile?.referredBy);
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ packageId: pkg.id, userId: user.uid }),
+        body: JSON.stringify({ packageId: pkg.id, userId: user.uid, referralCode }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || 'Erreur');

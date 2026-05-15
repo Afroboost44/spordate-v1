@@ -12,6 +12,7 @@ import {
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import { useAuth } from '@/context/AuthContext';
+import { resolveActiveReferralCode } from '@/lib/referral/refStorage';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 
@@ -102,12 +103,16 @@ export default function PremiumPage() {
     setError(null);
 
     try {
+      // Phase A — propage le code de parrainage (priorité user.referredBy >
+      // localStorage capture pré-signup) → Stripe metadata → webhook processCommission.
+      const referralCode = resolveActiveReferralCode(userProfile?.referredBy);
       const response = await fetch('/api/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           packageId: planId,
           userId: user.uid,
+          referralCode,
         }),
       });
 

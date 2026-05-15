@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowRight, ChevronRight } from 'lucide-react';
+import { saveReferralCode } from '@/lib/referral/refStorage';
 
 // ─── S LOGO COMPONENT ────────────────────────────────────
 function SLogo({ className = "h-8 w-8" }: { className?: string }) {
@@ -64,6 +65,15 @@ export default function LandingPage() {
     swissTitle: "Actif dans toute la Suisse.", swissSubtitle: "Studios partenaires, salles de danse et espaces fitness.", swissImage: "https://images.unsplash.com/photo-1530122037265-a5f1f91d3b99?w=800&h=1000&fit=crop",
     partnerTitle: "Studio de danse ou salle de sport ?", partnerSubtitle: "Rejoins le réseau Spordateur. Remplis tes cours, gagne en visibilité.", partnerCta1: "Devenir partenaire", partnerCta2: "Nous contacter",
   } as Record<string, string>);
+
+  // Phase A — Capture `?ref=CODE` au landing : persist en localStorage (TTL 30j),
+  // consommé au signup pour user.referredBy + à chaque /api/checkout via
+  // resolveActiveReferralCode().
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) saveReferralCode(ref);
+  }, []);
 
   useEffect(() => {
     const load = async () => {

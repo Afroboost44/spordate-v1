@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@/context/AuthContext";
+import { saveReferralCode } from "@/lib/referral/refStorage";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -26,6 +27,15 @@ export default function SignupPage() {
     password: '',
     confirmPassword: '',
   });
+
+  // Phase A — Capture `?ref=CODE` directement sur /signup (cas où le user arrive
+  // sans passer par le landing). Idempotent : saveReferralCode no-op si vide,
+  // overwrite avec fresh TTL si présent.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const ref = new URLSearchParams(window.location.search).get('ref');
+    if (ref) saveReferralCode(ref);
+  }, []);
 
   // Redirect if already logged in
   useEffect(() => {

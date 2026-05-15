@@ -39,6 +39,7 @@ import { sendPartnerNotification } from "@/lib/notifications";
 import { isFirebaseConfigured, getMissingConfig, db } from "@/lib/firebase";
 import { ConfigErrorScreen } from "@/components/ConfigErrorScreen";
 import { useAuth } from "@/context/AuthContext";
+import { resolveActiveReferralCode } from "@/lib/referral/refStorage";
 import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp, limit as firestoreLimit, orderBy, Timestamp } from 'firebase/firestore';
 import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
@@ -1080,7 +1081,9 @@ export default function DiscoveryPage() {
           sessionId,
           userId: user.uid,
           matchId: currentMatchId || '',
-          referralCode: '',
+          // Phase A — était hardcodé '' ; propage maintenant user.referredBy (ou
+          // localStorage capture pré-signup) → Stripe metadata → processCommission.
+          referralCode: resolveActiveReferralCode(userProfile?.referredBy),
           isDuoTicket,
           // Phase 9.5 c47 BUG B — invitee Duo (match Tinder). Passé en metadata
           // Stripe → webhook handleSessionPayment crée le 2e booking + notif.
