@@ -14,6 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import { Sheet, SheetContent } from "@/components/ui/sheet"
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
    Carousel, 
@@ -2117,103 +2118,103 @@ END:VCALENDAR`;
           </div>
         </DialogContent>
       </Dialog>
-      {/* ===== BOTTOM SHEET — Lieux / Partenaires (mobile only) ===== */}
-      {showLocationsSheet && (
-        <>
-          {/* Backdrop */}
-          <div
-            className="md:hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
-            onClick={() => setShowLocationsSheet(false)}
-          />
-          {/* Sheet */}
-          <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0A0A0A] border-t border-white/10 rounded-t-3xl max-h-[70vh] overflow-y-auto animate-in slide-in-from-bottom duration-300 pb-24">
-            {/* Handle */}
-            <div className="flex justify-center pt-3 pb-1">
-              <div className="w-10 h-1 rounded-full bg-white/20" />
-            </div>
-
-            <div className="px-5 pb-6 pt-2">
-              <div className="flex items-center justify-between mb-5">
-                <div className="flex items-center gap-2">
-                  <MapPin className="h-5 w-5 text-[#D91CD2]" />
-                  <h3 className="text-lg font-semibold text-white">{t('discovery_where_to_practice')}</h3>
-                </div>
-                <button
-                  onClick={() => setShowLocationsSheet(false)}
-                  className="text-xs text-white/30 hover:text-white/60 transition"
-                >
-                  {t('common_close')}
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                {[...partners]
-                  .sort((a, b) => {
-                    const aBoost = a.id ? boostedPartnerIds.has(a.id) : false;
-                    const bBoost = b.id ? boostedPartnerIds.has(b.id) : false;
-                    if (aBoost && !bBoost) return -1;
-                    if (!aBoost && bBoost) return 1;
-                    return 0;
-                  })
-                  .map((partner) => {
-                  const isBoosted = partner.id ? boostedPartnerIds.has(partner.id) : false;
-                  return (
-                  <div
-                    key={partner.id}
-                    onClick={() => {
-                      handlePartnerSelect(partner);
-                      setShowLocationsSheet(false);
-                    }}
-                    className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all duration-200 min-h-[56px]
-                      ${selectedMeetingPlace === partner.id
-                        ? 'bg-[#D91CD2]/15 border border-[#D91CD2]/40'
-                        : isBoosted
-                          ? 'bg-[#D91CD2]/5 border border-[#D91CD2]/20 active:bg-[#D91CD2]/10'
-                          : 'bg-white/5 border border-transparent active:bg-white/10'}
-                    `}
-                  >
-                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
-                      isBoosted
-                        ? 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63] ring-2 ring-[#D91CD2]/40'
-                        : 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63]'
-                    }`}>
-                      {partner.name.charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
-                        {isBoosted && (
-                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] whitespace-nowrap flex items-center gap-0.5">
-                            <Zap className="h-2.5 w-2.5" />{t('discovery_location_recommended')}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-white/40 flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />{partner.city}
-                        {partner.address && <span className="ml-1 text-white/20">— {partner.address}</span>}
-                      </p>
-                    </div>
-                    {selectedMeetingPlace === partner.id ? (
-                      <CheckCircle className="h-5 w-5 text-[#D91CD2] flex-shrink-0" />
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-white/20 flex-shrink-0" />
-                    )}
-                  </div>
-                  );
-                })}
-              </div>
-
-              {selectedMeetingPlace && (
-                <div className="mt-4 p-3 bg-[#D91CD2]/5 border border-[#D91CD2]/15 rounded-xl">
-                  <p className="text-xs text-[#D91CD2]">
-                    Lieu sélectionné pour votre prochaine réservation
-                  </p>
-                </div>
-              )}
-            </div>
+      {/* ===== BOTTOM SHEET — Lieux / Partenaires (mobile only)
+           BUG #11 — Refacto custom backdrop+fixed div → shadcn Sheet (Radix Portal).
+           Le custom sheet (z-50) entrait en conflit avec BottomNav (z-50 rendu
+           après dans le DOM) → couvert/inaccessible sur mobile. Sheet de
+           shadcn portale dans document.body → échappe la hiérarchie DOM,
+           plus de conflit possible. ===== */}
+      <Sheet open={showLocationsSheet} onOpenChange={setShowLocationsSheet}>
+        <SheetContent
+          side="bottom"
+          className="md:hidden bg-[#0A0A0A] border-t border-white/10 rounded-t-3xl max-h-[80vh] overflow-y-auto p-0 z-[60]"
+        >
+          {/* Handle */}
+          <div className="flex justify-center pt-3 pb-1">
+            <div className="w-10 h-1 rounded-full bg-white/20" />
           </div>
-        </>
-      )}
+
+          <div className="px-5 pb-24 pt-2">
+            <div className="flex items-center justify-between mb-5">
+              <div className="flex items-center gap-2">
+                <MapPin className="h-5 w-5 text-[#D91CD2]" />
+                <h3 className="text-lg font-semibold text-white">{t('discovery_where_to_practice')}</h3>
+              </div>
+              <button
+                onClick={() => setShowLocationsSheet(false)}
+                className="text-xs text-white/30 hover:text-white/60 transition"
+              >
+                {t('common_close')}
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {[...partners]
+                .sort((a, b) => {
+                  const aBoost = a.id ? boostedPartnerIds.has(a.id) : false;
+                  const bBoost = b.id ? boostedPartnerIds.has(b.id) : false;
+                  if (aBoost && !bBoost) return -1;
+                  if (!aBoost && bBoost) return 1;
+                  return 0;
+                })
+                .map((partner) => {
+                const isBoosted = partner.id ? boostedPartnerIds.has(partner.id) : false;
+                return (
+                <div
+                  key={partner.id}
+                  onClick={() => {
+                    handlePartnerSelect(partner);
+                    setShowLocationsSheet(false);
+                  }}
+                  className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all duration-200 min-h-[56px]
+                    ${selectedMeetingPlace === partner.id
+                      ? 'bg-[#D91CD2]/15 border border-[#D91CD2]/40'
+                      : isBoosted
+                        ? 'bg-[#D91CD2]/5 border border-[#D91CD2]/20 active:bg-[#D91CD2]/10'
+                        : 'bg-white/5 border border-transparent active:bg-white/10'}
+                  `}
+                >
+                  <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
+                    isBoosted
+                      ? 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63] ring-2 ring-[#D91CD2]/40'
+                      : 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63]'
+                  }`}>
+                    {partner.name.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
+                      {isBoosted && (
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] whitespace-nowrap flex items-center gap-0.5">
+                          <Zap className="h-2.5 w-2.5" />{t('discovery_location_recommended')}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-white/40 flex items-center gap-1">
+                      <MapPin className="h-3 w-3" />{partner.city}
+                      {partner.address && <span className="ml-1 text-white/20">— {partner.address}</span>}
+                    </p>
+                  </div>
+                  {selectedMeetingPlace === partner.id ? (
+                    <CheckCircle className="h-5 w-5 text-[#D91CD2] flex-shrink-0" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-white/20 flex-shrink-0" />
+                  )}
+                </div>
+                );
+              })}
+            </div>
+
+            {selectedMeetingPlace && (
+              <div className="mt-4 p-3 bg-[#D91CD2]/5 border border-[#D91CD2]/15 rounded-xl">
+                <p className="text-xs text-[#D91CD2]">
+                  Lieu sélectionné pour votre prochaine réservation
+                </p>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* ===== BUG #10 — Modal "Où pratiquer ?" : activités boostées par ville ===== */}
       <Dialog
