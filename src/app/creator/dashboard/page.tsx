@@ -15,6 +15,7 @@ import {
 } from "@/services/firestore";
 import type { Creator, Referral } from "@/types/firestore";
 import { Timestamp } from 'firebase/firestore';
+import { QRCodeButton } from "@/components/share/QRCodeButton";
 
 function formatCHF(amount: number): string {
   return amount.toFixed(2) + ' CHF';
@@ -186,6 +187,14 @@ export default function CreatorDashboardPage() {
               >
                 <Copy className="h-4 w-4" />
               </Button>
+              {creator.referralLink && (
+                <QRCodeButton
+                  url={creator.referralLink}
+                  label="Lien créateur"
+                  code={creator.referralCode}
+                  className="h-12 w-12 inline-flex items-center justify-center rounded-md border border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10 transition active:scale-95"
+                />
+              )}
             </div>
             <p className="text-xs text-white/30">
               Commission : <span className="text-[#D91CD2]">{(creator.commissionRate * 100).toFixed(0)}%</span> sur chaque achat via ton lien

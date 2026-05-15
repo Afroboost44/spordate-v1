@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { updateUser, updateUserAiOptIn, getUser } from "@/services/firestore";
 import { PushOptInSwitch } from "@/components/profile/PushOptInSwitch";
+import { QRCodeButton } from "@/components/share/QRCodeButton";
 import type { UserProfile, SportEntry } from "@/types/firestore";
 import { Switch } from "@/components/ui/switch";
 import { DANCE_ACTIVITIES, DANCE_LEVELS } from "@/types/firestore";
@@ -593,6 +594,14 @@ export default function ProfilePage() {
                 >
                   <Copy className="h-4 w-4" />
                 </Button>
+                {userProfile?.referralCode && (
+                  <QRCodeButton
+                    url={`https://spordateur.com/signup?ref=${userProfile.referralCode}`}
+                    label="Lien d'invitation"
+                    code={userProfile.referralCode}
+                    className="h-12 w-12 inline-flex items-center justify-center rounded-md border border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10 transition active:scale-95"
+                  />
+                )}
               </div>
             </div>
 
