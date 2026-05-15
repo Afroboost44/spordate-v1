@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, Heart, MapPin, Undo2, Zap, Lock, CheckCircle, RefreshCcw, Handshake, Share2, CreditCard, Check, Ticket, Loader2, Building2, Navigation, Clock, Users, Calendar, MessageCircle, Send, ChevronRight, Download, Gift } from 'lucide-react';
@@ -43,6 +43,7 @@ import { resolveActiveReferralCode } from "@/lib/referral/refStorage";
 import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp, limit as firestoreLimit, orderBy, Timestamp } from 'firebase/firestore';
 import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
+import { groupBoostedActivitiesByCity } from '@/lib/discovery/whereToPractice';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
 import { createMatch, getUserMatches } from '@/services/firestore';
 import type { Match } from '@/types/firestore';
@@ -130,6 +131,8 @@ export default function DiscoveryPage() {
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
   const [showPartnerModal, setShowPartnerModal] = useState(false);
   const [showLocationsSheet, setShowLocationsSheet] = useState(false);
+  // BUG #10 — modal "Où pratiquer ?" : activités boostées groupées par ville
+  const [showWherePracticeModal, setShowWherePracticeModal] = useState(false);
   const [selectedMeetingPlace, setSelectedMeetingPlace] = useState<string>('');
   const [showTicketSuccess, setShowTicketSuccess] = useState(false);
   const [lastBooking, setLastBooking] = useState<{profile: string, partner: string, partnerAddress?: string, isDuo: boolean, amount: number} | null>(null);
@@ -1273,8 +1276,31 @@ END:VCALENDAR`;
       )
     : [];
 
+  // BUG #10 — Groupes "activités boostées par ville" pour le modal Où pratiquer.
+  // Dérivé de realActivities + boostedPartnerIds déjà chargés par useEffect.
+  const wherePracticeGroups = useMemo(
+    () => groupBoostedActivitiesByCity(realActivities, boostedPartnerIds, { max: 50 }),
+    [realActivities, boostedPartnerIds],
+  );
+
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-black">
+      {/* BUG #10 — Bouton "Où pratiquer ?" top-left, ouvre modal activités boostées par ville */}
+      <div className="px-4 md:px-6 pt-3 pb-1 flex justify-start">
+        <button
+          onClick={() => setShowWherePracticeModal(true)}
+          aria-label={t('discovery_where_to_practice')}
+          className="inline-flex items-center gap-2 px-4 h-10 rounded-full bg-white/5 border border-white/10 text-white/80 hover:text-white hover:border-[#D91CD2]/40 hover:bg-[#D91CD2]/10 transition text-sm font-light tracking-wide active:scale-[0.98]"
+        >
+          <Building2 className="h-4 w-4 text-[#D91CD2]" />
+          <span>{t('discovery_where_to_practice')}</span>
+          {wherePracticeGroups.length > 0 && (
+            <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2]">
+              {wherePracticeGroups.reduce((s, g) => s + g.activities.length, 0)}
+            </span>
+          )}
+        </button>
+      </div>
       {currentProfile ? (
         <div className="relative w-full max-w-6xl mx-auto md:flex md:flex-row-reverse md:gap-6 md:px-6 md:py-6">
           {/* Profile Card — clean photo + info below */}
@@ -2188,6 +2214,77 @@ END:VCALENDAR`;
           </div>
         </>
       )}
+
+      {/* ===== BUG #10 — Modal "Où pratiquer ?" : activités boostées par ville ===== */}
+      <Dialog
+        open={showWherePracticeModal}
+        onOpenChange={(o) => { if (!o) setShowWherePracticeModal(false); }}
+      >
+        <DialogContent className="bg-[#0A0A0A] border-white/10 text-white max-w-2xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-white text-2xl font-light tracking-tight flex items-center gap-2">
+              <Building2 className="h-6 w-6 text-[#D91CD2]" />
+              {t('discovery_where_to_practice')}
+            </DialogTitle>
+            <DialogDescription className="text-white/40 text-xs">
+              Activités boostées en ce moment, groupées par ville. Clique pour voir les détails.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="mt-4 space-y-6">
+            {wherePracticeGroups.length === 0 ? (
+              <div className="text-center py-12 text-white/30">
+                <Building2 className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                <p className="text-sm">Aucune activité boostée pour le moment.</p>
+                <p className="text-xs mt-1 text-white/20">Reviens plus tard ou explore le swipe.</p>
+              </div>
+            ) : (
+              wherePracticeGroups.map((group) => (
+                <div key={group.city}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <MapPin className="h-4 w-4 text-[#D91CD2]" />
+                    <h3 className="text-base font-medium text-white tracking-wide">{group.city}</h3>
+                    <span className="text-[10px] text-white/30">({group.activities.length})</span>
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {group.activities.map((act) => {
+                      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                      const a = act as any;
+                      const navId = a.id || a.activityId;
+                      return (
+                        <button
+                          key={navId}
+                          type="button"
+                          onClick={() => {
+                            setShowWherePracticeModal(false);
+                            router.push(`/activities/${navId}`);
+                          }}
+                          className="text-left p-3 rounded-xl bg-white/5 border border-white/10 hover:border-[#D91CD2]/40 hover:bg-[#D91CD2]/5 transition active:scale-[0.98]"
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold">
+                              <Zap className="h-4 w-4" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-white font-medium truncate">{a.title || 'Activité'}</p>
+                              <p className="text-[11px] text-white/40 truncate">
+                                {a.sport ? `${a.sport} · ` : ''}{a.partnerName || ''}
+                              </p>
+                              {typeof a.price === 'number' && a.price > 0 && (
+                                <p className="text-[11px] text-[#D91CD2] mt-0.5">{a.price} CHF</p>
+                              )}
+                            </div>
+                            <ChevronRight className="h-4 w-4 text-white/20 flex-shrink-0 mt-1" />
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
