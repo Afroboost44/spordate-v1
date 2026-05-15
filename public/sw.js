@@ -1,12 +1,12 @@
-// Spordateur Service Worker v29 (Phase 9.5 c49 — bump CACHE_NAME pour purger
-// l'ancien cache v24 qui contenait l'ancien logo "S" cached sur les PWA
+// Spordateur Service Worker v30 (Phase 9.5 c50 — bump CACHE_NAME pour purger
+// l'ancien cache v24 qui contenait l'ancien logo "S" cached sur les PWA + relance new logo design
 // installées pre-c46. skipWaiting + clients.claim force activation immédiate
 // sans attendre la fermeture des tabs.
-const CACHE_NAME = 'spordate-v29';
+const CACHE_NAME = 'spordate-v30';
 const OFFLINE_URL = '/offline.html';
 
 // Assets pre-cache (cache-bust ?v=29 cohérent manifest + layout.tsx).
-// Phase 9.5 c49 : paths /icons/* (nouveau logo neon) + root-legacy paths
+// Phase 9.5 c50 : paths /icons/* (nouveau logo neon) + root-legacy paths
 // régénérés AUSSI avec nouveau logo (PWA installées pre-c46 réfèrent ces
 // paths root via apple-touch-icon HTML link + ancien manifest cached).
 const PRECACHE_ASSETS = [
@@ -30,7 +30,7 @@ const PRECACHE_ASSETS = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      // Phase 9.5 c49 — addAll fails atomically si UN seul asset rejette.
+      // Phase 9.5 c50 — addAll fails atomically si UN seul asset rejette.
       // Use Promise.allSettled pour log warn + continue (offline.html peut
       // ne pas exister dans dev par ex.).
       return Promise.allSettled(
