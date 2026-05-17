@@ -11,6 +11,7 @@ import { computePricingTier, isSessionBookable } from '@/services/firestore';
 import type { Session, Activity, PricingTierKind, Invite } from '@/types/firestore';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
 import { getSharedStripe } from '@/lib/stripe/sharedStripe';
+import { resolvePaymentMethodTypes } from '@/lib/payment/methodResolver';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
@@ -227,6 +228,9 @@ interface SessionCheckoutBody {
   /** Phase 9.5 c47 BUG B — uid invité Duo (match Tinder). Passé en metadata
    *  Stripe → webhook handleSessionPayment crée 2e booking + notification. */
   inviteeUid?: string;
+  /** BUG #15 — préférence UI : 'card' force Stripe à n'afficher que Carte,
+   *  'twint' force TWINT only, absent/'all' = legacy ['card','twint']. */
+  paymentMethodPreference?: 'card' | 'twint' | 'all';
 }
 
 /**
@@ -366,9 +370,15 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
       application_fee_amount: applicationFeeAmount,
     };
 
+    // BUG #15 — la préférence UI (onglet Carte vs TWINT) détermine quel
+    // paymentMethod Stripe Checkout affiche à l'utilisateur. Absent/'all'
+    // → legacy ['card','twint'] (rétrocompat avec call sites qui n'envoient
+    // pas encore de préférence).
+    const paymentMethodTypes = resolvePaymentMethodTypes(body.paymentMethodPreference);
+
     const stripeSession = await (await getStripe()).checkout.sessions.create({
       mode: 'payment',
-      payment_method_types: ['card', 'twint'],
+      payment_method_types: paymentMethodTypes,
       success_url: successUrl,
       cancel_url: cancelUrl,
       line_items: [
@@ -403,6 +413,7 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
         bundleCredits: String(grantedCredits),
         applicationFeeAmount: String(applicationFeeAmount),
         partnerStripeAccount,
+        paymentMethodPreference: body.paymentMethodPreference || 'all',
       },
     });
 

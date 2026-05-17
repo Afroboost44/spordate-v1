@@ -828,8 +828,11 @@ export default function DiscoveryPage() {
   // Phase 9.5 c48 — Wizard 3 étapes : Activité → Invité → Paiement.
   // Reset à 1 quand la modal s'ouvre/ferme (via useEffect plus bas).
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
-  // Phase 9.5 c45 — Méthode de paiement sélectionnée dans la modal (Stripe vs Crédits).
-  const [paymentMethod, setPaymentMethod] = useState<'stripe' | 'credits'>('stripe');
+  // BUG #15 — Méthode de paiement sélectionnée dans la modal. Bassi veut 3
+  // onglets explicites (Crédits / Carte / TWINT) au lieu des 2 tabs précédents
+  // (Crédits / Stripe-qui-choisit). 'card' et 'twint' déterminent
+  // payment_method_types côté Stripe Checkout via paymentMethodPreference.
+  const [paymentMethod, setPaymentMethod] = useState<'credits' | 'card' | 'twint'>('card');
   // Phase 9.5 c47 BUG B — Sélection invitee Duo via match Tinder (méthode "link"
   // WhatsApp reportée c48). Quand toggle Duo ON, on charge les matches actifs du
   // user et il sélectionne qui inviter ; inviteeUid passé au checkout → webhook
@@ -894,7 +897,7 @@ export default function DiscoveryPage() {
   useEffect(() => {
     if (showPaymentModal) {
       setCurrentStep(1);
-      setPaymentMethod('stripe');
+      setPaymentMethod('card');
     }
   }, [showPaymentModal]);
 
@@ -1092,6 +1095,11 @@ export default function DiscoveryPage() {
           // Phase 9.5 c47 BUG B — invitee Duo (match Tinder). Passé en metadata
           // Stripe → webhook handleSessionPayment crée le 2e booking + notif.
           inviteeUid: isDuoTicket && invitationMethod === 'match' ? selectedInviteeUid : undefined,
+          // BUG #15 — préférence UI : Stripe Checkout n'affichera que cette
+          // méthode (Carte OU TWINT) au lieu de proposer les 2 sur sa page.
+          // Si l'utilisateur a sélectionné 'credits', handlePayment n'est pas
+          // appelé (handlePaymentCredits prend le relais).
+          paymentMethodPreference: paymentMethod === 'twint' ? 'twint' : 'card',
         }),
       });
 
@@ -1802,15 +1810,21 @@ END:VCALENDAR`;
                 {/* Tabs méthode de paiement (Stripe vs Crédits) */}
                 {getCurrentPrice() > 0 && (
                   <div data-testid="payment-method-tabs">
-                    <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'stripe' | 'credits')}>
-                      <TabsList className="grid grid-cols-2 w-full bg-zinc-900 border border-white/10 rounded-xl p-1 h-auto">
-                        <TabsTrigger value="stripe" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-2 py-2.5">
-                          <CreditCard className="h-4 w-4" />
-                          <span className="text-sm">{t('payment_method_stripe') || 'Carte / TWINT'}</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="credits" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-2 py-2.5">
+                    <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'credits' | 'card' | 'twint')}>
+                      {/* BUG #15 — 3 onglets explicites (avant : 2 onglets dont
+                          "Carte/TWINT" qui déléguait le choix à Stripe Checkout) */}
+                      <TabsList className="grid grid-cols-3 w-full bg-zinc-900 border border-white/10 rounded-xl p-1 h-auto">
+                        <TabsTrigger value="credits" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-1.5 py-2.5">
                           <Coins className="h-4 w-4" />
-                          <span className="text-sm">{t('payment_method_credits') || 'Crédits'}</span>
+                          <span className="text-xs sm:text-sm">{t('payment_method_credits') || 'Crédits'}</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="card" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-1.5 py-2.5">
+                          <CreditCard className="h-4 w-4" />
+                          <span className="text-xs sm:text-sm">Carte</span>
+                        </TabsTrigger>
+                        <TabsTrigger value="twint" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-1.5 py-2.5">
+                          {/* TWINT logo via emoji/text — pas de lucide icon dédiée */}
+                          <span className="text-[10px] font-bold tracking-wider">TWINT</span>
                         </TabsTrigger>
                       </TabsList>
                       <TabsContent value="credits" className="mt-3">
