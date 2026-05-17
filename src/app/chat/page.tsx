@@ -47,6 +47,7 @@ import {
 } from '@/services/firestore';
 import { getMutualBlockSet } from '@/lib/blocks';
 import { resolveChatUrlAction } from '@/lib/chat/urlParams';
+import { buildOtherUser } from '@/lib/chat/buildOtherUser';
 import { ReportButton } from '@/components/reports/ReportButton';
 import type { Match, ChatMessage, UserProfile } from '@/types/firestore';
 import { Timestamp } from 'firebase/firestore';
@@ -843,15 +844,12 @@ function ChatPageContent() {
           setProfileCache((prev) => ({ ...prev, [otherUid]: profile }));
         }
 
-        const otherUser = {
-          uid: otherUid,
-          displayName: profile?.displayName
-            || (match.user1.uid === otherUid ? match.user1.displayName : match.user2.displayName)
-            || 'Utilisateur',
-          photoURL: profile?.photoURL
-            || (match.user1.uid === otherUid ? match.user1.photoURL : match.user2.photoURL)
-            || '',
-        };
+        // BUG #24 — defensive via buildOtherUser helper. Avant : accès direct
+        // `match.user1.uid` throw si user1 absent (cas direct-paid match créé par
+        // /api/chat/unlock-direct fix #14). Le throw était swallowé par outer
+        // catch → conversations=[] → "0 conversations actives" alors que 5
+        // crédits débités. Le helper utilise ?. partout pour ne plus throw.
+        const otherUser = buildOtherUser(profile, match, otherUid);
 
         convos.push({
           match,

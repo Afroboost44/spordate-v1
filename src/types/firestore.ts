@@ -167,8 +167,14 @@ export interface UserPreferences {
 export interface Match {
   matchId: string;
   userIds: [string, string]; // Toujours trié alphabétiquement
-  user1: MatchUser;
-  user2: MatchUser;
+  /**
+   * BUG #24 — user1/user2 désormais optionnels. Les matches direct-paid
+   * (créés par /api/chat/unlock-direct, fix #14) n'écrivent QUE userIds[]
+   * pour minimiser les writes dans la TX. Le frontend résout les infos
+   * other-user via getUser(otherUid) → buildOtherUser() (lib/chat).
+   */
+  user1?: MatchUser;
+  user2?: MatchUser;
   status: 'pending' | 'accepted' | 'declined' | 'expired';
   activityId: string;
   sport: string;
