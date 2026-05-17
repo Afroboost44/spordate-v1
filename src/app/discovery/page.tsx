@@ -1489,67 +1489,10 @@ END:VCALENDAR`;
             </div>
           </div>
 
-          {/* Desktop sidebar — Où pratiquer (hidden on mobile, visible on desktop) */}
-          <div className="hidden md:block md:w-80 md:flex-shrink-0 order-1 md:order-2">
-            <div className="md:sticky md:top-20">
-              <div className="flex items-center gap-2 mb-4">
-                <Building2 className="h-5 w-5 text-[#D91CD2]" />
-                <h3 className="text-lg font-semibold text-white">{t('discovery_where_to_practice')}</h3>
-              </div>
-              <div className="space-y-2">
-                {[...partners]
-                  .sort((a, b) => {
-                    const aBoost = a.id ? boostedPartnerIds.has(a.id) : false;
-                    const bBoost = b.id ? boostedPartnerIds.has(b.id) : false;
-                    if (aBoost && !bBoost) return -1;
-                    if (!aBoost && bBoost) return 1;
-                    return 0;
-                  })
-                  .slice(0, 5).map((partner) => {
-                  const isBoosted = partner.id ? boostedPartnerIds.has(partner.id) : false;
-                  return (
-                  <div
-                    key={partner.id}
-                    onClick={() => handlePartnerSelect(partner)}
-                    className={`flex items-center gap-3 p-3 rounded-xl cursor-pointer transition-all duration-200 relative
-                      ${selectedMeetingPlace === partner.id
-                        ? 'bg-[#D91CD2]/15 border border-[#D91CD2]/40'
-                        : isBoosted
-                          ? 'bg-[#D91CD2]/5 border border-[#D91CD2]/20 hover:bg-[#D91CD2]/10'
-                          : 'bg-white/5 border border-transparent hover:bg-white/8 hover:border-white/10'}
-                    `}
-                  >
-                    <div className={`w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
-                      isBoosted
-                        ? 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63] ring-2 ring-[#D91CD2]/40'
-                        : 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63]'
-                    }`}>
-                      {partner.name.charAt(0)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
-                        {isBoosted && (
-                          <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] whitespace-nowrap flex items-center gap-0.5">
-                            <Zap className="h-2.5 w-2.5" />{t('discovery_location_recommended')}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs text-white/40 flex items-center gap-1">
-                        <MapPin className="h-3 w-3" />{partner.city}
-                      </p>
-                    </div>
-                    {selectedMeetingPlace === partner.id ? (
-                      <span className="text-xs text-[#D91CD2] font-medium">{t('discovery_location_selected')}</span>
-                    ) : (
-                      <ChevronRight className="h-4 w-4 text-white/20" />
-                    )}
-                  </div>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+          {/* BUG #19 — Sidebar desktop "Où pratiquer ?" supprimée (doublon visible
+              avec le bouton top-left déjà câblé fix #10 + #16). handlePartnerSelect
+              + selectedMeetingPlace + bottom-sheet mobile (Sheet shadcn fix #11)
+              restent en place pour le flow booking (pre-select meeting place). */}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
