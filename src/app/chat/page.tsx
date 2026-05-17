@@ -46,6 +46,7 @@ import {
   triggerSuggestionsIfEligible,
 } from '@/services/firestore';
 import { getMutualBlockSet } from '@/lib/blocks';
+import { resolveChatUrlAction } from '@/lib/chat/urlParams';
 import { ReportButton } from '@/components/reports/ReportButton';
 import type { Match, ChatMessage, UserProfile } from '@/types/firestore';
 import { Timestamp } from 'firebase/firestore';
@@ -773,27 +774,41 @@ function ChatPageContent() {
 
   useEffect(() => {
     if (paymentHandled) return;
-    const paymentStatus = searchParams.get('payment');
-    const matchIdParam = searchParams.get('match');
+    // BUG #14 — Avant ce fix la condition était hardcoded
+    // `paymentStatus === 'success' && matchIdParam` → le flow direct-paid
+    // (discovery → /api/chat/unlock-direct → redirect `/chat?match=ID` sans
+    // payment param) ne sélectionnait jamais la conv → user voyait le
+    // placeholder vide après avoir débité 5 crédits. Désormais centralisé
+    // dans resolveChatUrlAction qui select dès qu'un match param est présent,
+    // et n'ajoute unlock+toast que pour le legacy payment=success.
+    const action = resolveChatUrlAction(
+      searchParams.get('match'),
+      searchParams.get('payment'),
+    );
 
-    if (paymentStatus === 'success' && matchIdParam) {
-      setPaymentHandled(true);
-      setSelectedMatchId(matchIdParam);
-      setShowMobileChat(true);
+    if (!action.shouldSelect || !action.matchId) return;
 
-      // Unlock chat from client side as a safety measure (webhook also does this)
-      unlockChat(matchIdParam).catch((err) => {
+    setPaymentHandled(true);
+    setSelectedMatchId(action.matchId);
+    setShowMobileChat(true);
+
+    if (action.shouldUnlock) {
+      // Legacy post-payment Stripe : webhook devrait avoir set chatUnlocked,
+      // mais on garantit côté client en defense-in-depth.
+      unlockChat(action.matchId).catch((err) => {
         console.warn('[Chat] unlockChat client-side error (webhook may handle it):', err);
       });
+    }
 
+    if (action.shouldShowPaymentToast) {
       toast({
         title: "Paiement confirmé ! 🎉",
         description: "Le chat est débloqué, commencez à discuter !",
       });
-
-      // Clean the URL
-      router.replace('/chat');
     }
+
+    // Clean the URL
+    router.replace('/chat');
   }, [searchParams, paymentHandled]);
 
   // Load matches and build conversation list
