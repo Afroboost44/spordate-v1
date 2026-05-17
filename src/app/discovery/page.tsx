@@ -45,6 +45,8 @@ import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp
 import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { groupBoostedActivitiesByCity } from '@/lib/discovery/whereToPractice';
+import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/cardImage';
+import Link from 'next/link';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
 import { createMatch, getUserMatches } from '@/services/firestore';
 import type { Match } from '@/types/firestore';
@@ -1274,6 +1276,18 @@ END:VCALENDAR`;
   const profileImage = discoveryImages.find(img => img.id === currentProfile?.imageId);
   const hasTicket = currentProfile && confirmedTickets.includes(currentProfile.id);
 
+  // BUG #18 — Image resolver + lien profil (skip placeholder pour real users).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const cp = currentProfile as any;
+  const cardImage = currentProfile
+    ? resolveDiscoveryCardImage({
+        photoURL: cp?.photoURL,
+        firestoreUid: cp?.firestoreUid,
+        placeholderUrl: profileImage?.imageUrl,
+      })
+    : null;
+  const profileHref = currentProfile ? buildProfileHref(cp?.firestoreUid) : null;
+
   // Phase 9.5 c38b CH3 — Activités boostées DU PARTNER ACTUELLEMENT REGARDÉ.
   // Sous-ensemble de visibleActivities, filtré sur Activity.partnerId ==
   // currentProfile.firestoreUid (= le user/partner dont la card est affichée).
@@ -1315,19 +1329,37 @@ END:VCALENDAR`;
           {/* Profile Card — clean photo + info below */}
           <div className="md:flex-1 order-2 md:order-1 flex flex-col">
 
-            {/* === PHOTO ZONE === Only name + location on image */}
+            {/* === PHOTO ZONE === Only name + location on image
+                 BUG #18 — real user avec photoURL='' → initial avatar (jamais le
+                 placeholder moon, géré par resolveDiscoveryCardImage). Image +
+                 nom wrappés dans Link → /profile/[uid] si firestoreUid présent.
+                 Les boutons absolute z-20 capturent leur propre clic (au-dessus
+                 du Link absolute inset-0 du fond). */}
             <div className="relative aspect-[3/4] md:aspect-[4/5] w-full max-h-[60vh] md:max-h-[70vh] overflow-hidden md:rounded-3xl">
-              {(currentProfile as any).photoURL ? (
+              {/* Image / placeholder / initial — wrapped in Link if profileHref */}
+              {profileHref ? (
+                <Link
+                  href={profileHref}
+                  aria-label={`Voir le profil de ${currentProfile.name}`}
+                  className="absolute inset-0 block"
+                >
+                  {cardImage && (cardImage.kind === 'photo' || cardImage.kind === 'placeholder') ? (
+                    <img
+                      src={cardImage.src}
+                      alt={currentProfile.name}
+                      loading="lazy"
+                      decoding="async"
+                      className="absolute inset-0 w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="absolute inset-0 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
+                      <span className="text-8xl font-light text-white/20">{currentProfile.name.charAt(0)}</span>
+                    </div>
+                  )}
+                </Link>
+              ) : cardImage && (cardImage.kind === 'photo' || cardImage.kind === 'placeholder') ? (
                 <img
-                  src={(currentProfile as any).photoURL}
-                  alt={currentProfile.name}
-                  loading="lazy"
-                  decoding="async"
-                  className="absolute inset-0 w-full h-full object-cover"
-                />
-              ) : profileImage ? (
-                <img
-                  src={profileImage.imageUrl}
+                  src={cardImage.src}
                   alt={currentProfile.name}
                   loading="lazy"
                   decoding="async"
@@ -1340,10 +1372,10 @@ END:VCALENDAR`;
               )}
 
               {/* Subtle gradient — just enough for name readability */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent pointer-events-none" />
 
               {/* Top badges */}
-              <div className="absolute top-5 left-5 right-5 z-20 flex justify-between items-start">
+              <div className="absolute top-5 left-5 right-5 z-20 flex justify-between items-start pointer-events-none">
                 {(currentProfile as any).matchScore > 0 && (
                   <Badge className={`px-3 py-1.5 flex items-center gap-1.5 backdrop-blur-md text-sm ${
                     (currentProfile as any).matchScore >= 70 ? 'bg-green-500/80 text-white' :
@@ -1362,9 +1394,15 @@ END:VCALENDAR`;
                 )}
               </div>
 
-              {/* Name + Location — only these on the photo */}
+              {/* Name + Location — name cliquable vers /profile/[uid] (BUG #18) */}
               <div className="absolute bottom-0 left-0 right-0 p-6 pb-7 z-10">
-                <h2 className="text-4xl font-light tracking-tight text-white drop-shadow-2xl">{currentProfile.name}</h2>
+                {profileHref ? (
+                  <Link href={profileHref} className="inline-block hover:opacity-90 transition">
+                    <h2 className="text-4xl font-light tracking-tight text-white drop-shadow-2xl">{currentProfile.name}</h2>
+                  </Link>
+                ) : (
+                  <h2 className="text-4xl font-light tracking-tight text-white drop-shadow-2xl">{currentProfile.name}</h2>
+                )}
                 <p className="flex items-center gap-1.5 text-white/60 text-sm mt-1 tracking-wide">
                   <MapPin size={14} className="text-[#D91CD2]" />
                   {currentProfile.location}
