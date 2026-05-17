@@ -29,6 +29,7 @@ import {
   DEFAULT_CREATOR_COMMISSION, DEFAULT_INVITE_COMMISSION,
   type UserCommission, type CommissionMode,
 } from "@/lib/referral/commission";
+import { validateCreditAdjustment } from "@/lib/admin/creditAdjustment";
 
 type Tab = 'cockpit' | 'users' | 'partners' | 'credits' | 'promos' | 'tarifs' | 'site' | 'settings' | 'errors';
 
@@ -303,13 +304,46 @@ export default function AdminManagePage() {
     toast({ title: 'Mis à jour' });
   };
   const adjustCredits = async (add: boolean) => {
-    if (!db || !creditUserId) return;
-    const amt = parseInt(creditAmount) || 1;
-    const val = add ? amt : -amt;
-    await updateDoc(doc(db, 'users', creditUserId), { credits: increment(val), updatedAt: serverTimestamp() });
-    toast({ title: `${add ? '+' : '-'}${amt} crédits → ${creditUserId.substring(0, 8)}...` });
-    setCreditUserId(''); setCreditAmount('1');
-    await loadAll();
+    if (!db) return;
+    // BUG #12 — validation explicite + try/catch (avant : silent fail sur
+    // uid vide / amount invalide / permission denied / network error → "ne
+    // marche plus" pour Bassi). Optimistic local update remplace l'expensive
+    // loadAll() qui rechargeait tous les onglets.
+    const result = validateCreditAdjustment({ userId: creditUserId, amountStr: creditAmount, add });
+    if (!result.ok) {
+      toast({
+        variant: 'destructive',
+        title: 'Action impossible',
+        description: result.error === 'missing-user'
+          ? 'Sélectionne un utilisateur.'
+          : 'Quantité invalide (entier > 0).',
+      });
+      return;
+    }
+    try {
+      await updateDoc(doc(db, 'users', result.uid), {
+        credits: increment(result.delta),
+        updatedAt: serverTimestamp(),
+      });
+      // Optimistic local update — évite loadAll() coûteux qui recharge
+      // users/partners/transactions/errors.
+      setUsers(prev => prev.map(u =>
+        u.uid === result.uid ? { ...u, credits: (u.credits || 0) + result.delta } : u,
+      ));
+      const absDelta = Math.abs(result.delta);
+      toast({
+        title: `${add ? '+' : '-'}${absDelta} crédits → ${result.uid.substring(0, 8)}...`,
+      });
+      setCreditUserId('');
+      setCreditAmount('1');
+    } catch (err) {
+      console.error('[Admin] adjustCredits failed', err);
+      toast({
+        variant: 'destructive',
+        title: 'Erreur Firestore',
+        description: err instanceof Error ? err.message : 'Mise à jour refusée — vérifie ton rôle admin.',
+      });
+    }
   };
   const createPromo = async () => {
     if (!db || !promoCode) return;
