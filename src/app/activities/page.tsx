@@ -15,6 +15,12 @@ import { getMediaItems } from '@/lib/activities/media';
 import { getVideoThumbnailChain, getVideoEmbedUrl } from '@/lib/activities/mediaParser';
 import type { MediaItem } from '@/types/firestore';
 import { ReserveButtonListing } from '@/components/activities/ReserveButtonListing';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from '@/components/ui/carousel';
 import { ShareButton } from '@/components/activities/ShareButton';
 import { formatScheduledLabel } from '@/lib/activities/scheduled';
 
@@ -226,7 +232,11 @@ function ActivityCardComponent({
    *  ReserveButtonListing pour route vers /sessions/{id} au lieu de /activities/{id}. */
   nextSessionId?: string;
 }) {
-  const [imgIndex, setImgIndex] = useState(0);
+  // BUG #23 — mini-carousel via shadcn Carousel (embla). setApi pour sync dots +
+  // arrows custom. Embla gère le swipe touch natif sans handler manuel + il
+  // distingue tap (=click bubble → Link nav) vs drag (=scroll, pas de click).
+  const [api, setApi] = useState<CarouselApi>();
+  const [currentSlide, setCurrentSlide] = useState(0);
   // Phase 9.5 c5 — unified media items via getMediaItems (rich type — image+video).
   // Fallback : seed picsum si zéro media.
   const mediaItems = getMediaItems({
@@ -241,6 +251,17 @@ function ActivityCardComponent({
         source: 'url',
       }];
   const hasMultiple = items.length > 1;
+
+  // Sync currentSlide with embla API (pour highlight le dot actif).
+  useEffect(() => {
+    if (!api) return;
+    setCurrentSlide(api.selectedScrollSnap());
+    const onSelect = () => setCurrentSlide(api.selectedScrollSnap());
+    api.on('select', onSelect);
+    return () => {
+      api.off('select', onSelect);
+    };
+  }, [api]);
 
   return (
     <Card
@@ -265,43 +286,68 @@ function ActivityCardComponent({
       >
         <div className="relative h-56 w-full group">
           <BackButton fallbackUrl="/" />
-          <CardMediaSlide item={items[imgIndex]} fallbackSeed={activity.sport} />
-        <div className="absolute inset-0 bg-black/40 pointer-events-none" />
-        <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
-          {activity.duration || 60} min
-        </div>
-        {/* Phase 9.5 c16 BUG F — badge "Déjà réservée" si user a un booking actif */}
-        {existingBookingId && (
-          <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 bg-[#D91CD2] text-white text-xs px-3 py-1 rounded-full font-medium shadow-lg">
-            <CheckCircle className="h-3.5 w-3.5" />
-            Déjà réservée
-          </div>
-        )}
-        {hasMultiple && (
-          <>
-            <button
-              onClick={(e) => { e.stopPropagation(); setImgIndex(i => i === 0 ? items.length - 1 : i - 1); }}
-              className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
-            <button
-              onClick={(e) => { e.stopPropagation(); setImgIndex(i => i === items.length - 1 ? 0 : i + 1); }}
-              className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-            <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
-              {items.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={(e) => { e.stopPropagation(); setImgIndex(i); }}
-                  className={`w-1.5 h-1.5 rounded-full transition-all ${i === imgIndex ? 'bg-white w-3' : 'bg-white/50'}`}
-                />
+          {/* BUG #23 — shadcn Carousel (embla) : swipe touch natif mobile + drag
+              desktop. Embla distingue tap (click bubble vers Link parent → nav
+              vers /activities/[id], fix #21) vs drag (scroll horizontal, no
+              click) → préserve les deux comportements naturellement. */}
+          <Carousel
+            setApi={setApi}
+            opts={{ align: 'start', loop: false, watchDrag: hasMultiple }}
+            className="absolute inset-0"
+          >
+            <CarouselContent className="ml-0 h-full">
+              {items.map((item, i) => (
+                <CarouselItem key={i} className="pl-0 basis-full h-56">
+                  <CardMediaSlide item={item} fallbackSeed={activity.sport} />
+                </CarouselItem>
               ))}
+            </CarouselContent>
+          </Carousel>
+          <div className="absolute inset-0 bg-black/40 pointer-events-none" />
+          <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
+            {activity.duration || 60} min
+          </div>
+          {/* Phase 9.5 c16 BUG F — badge "Déjà réservée" si user a un booking actif */}
+          {existingBookingId && (
+            <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 bg-[#D91CD2] text-white text-xs px-3 py-1 rounded-full font-medium shadow-lg">
+              <CheckCircle className="h-3.5 w-3.5" />
+              Déjà réservée
             </div>
-          </>
-        )}
+          )}
+          {hasMultiple && (
+            <>
+              {/* Arrows custom (vs CarouselPrevious/Next) pour préserver style
+                  opacity-0 group-hover existant + position. stopPropagation
+                  empêche le click du Link parent (fix #21). */}
+              <button
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); api?.scrollPrev(); }}
+                className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                aria-label="Image précédente"
+                type="button"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); api?.scrollNext(); }}
+                className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
+                aria-label="Image suivante"
+                type="button"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+              <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
+                {items.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); api?.scrollTo(i); }}
+                    aria-label={`Aller à l'image ${i + 1}`}
+                    type="button"
+                    className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentSlide ? 'bg-white w-3' : 'bg-white/50'}`}
+                  />
+                ))}
+              </div>
+            </>
+          )}
         </div>
       </Link>
       <CardContent className="p-5">
