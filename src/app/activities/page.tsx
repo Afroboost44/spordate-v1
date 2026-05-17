@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, MapPin, ChevronLeft, ChevronRight, Play, Video, Volume2, VolumeX } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, query, where, getDocs, orderBy, limit, Timestamp } from "firebase/firestore";
 import { useAuth } from '@/context/AuthContext';
@@ -232,11 +233,14 @@ function ActivityCardComponent({
    *  ReserveButtonListing pour route vers /sessions/{id} au lieu de /activities/{id}. */
   nextSessionId?: string;
 }) {
+  const router = useRouter();
   // BUG #23 — mini-carousel via shadcn Carousel (embla). setApi pour sync dots +
   // arrows custom. Embla gère le swipe touch natif sans handler manuel + il
   // distingue tap (=click bubble → Link nav) vs drag (=scroll, pas de click).
   const [api, setApi] = useState<CarouselApi>();
   const [currentSlide, setCurrentSlide] = useState(0);
+  const detailHref = `/activities/${activity.activityId}`;
+  const goToDetail = () => router.push(detailHref);
   // Phase 9.5 c5 — unified media items via getMediaItems (rich type — image+video).
   // Fallback : seed picsum si zéro media.
   const mediaItems = getMediaItems({
@@ -274,17 +278,28 @@ function ActivityCardComponent({
           : 'border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20'
       }`}
     >
-      {/* BUG #21 — image + titre wrappés dans Link → /activities/[id]
-          Avant : aucune nav vers detail depuis cette card (commentaire ligne 66
-          "Card click → /activities/[id] reste functional" était périmé — ne s'est
-          jamais matérialisé). Les flèches/dots du carousel interne gardent leur
-          stopPropagation et restent fonctionnels (lines 268, 274, 283). */}
-      <Link
-        href={`/activities/${activity.activityId}`}
+      {/* BUG #21 — image cliquable vers /activities/[id]
+          BUG #26 — onClick div role=link au lieu de <Link> (<a> tag) :
+          le tag <a> a un comportement natif touch sur mobile (iOS long-press
+          preview, Chrome link drag) qui interfère avec embla swipe. Un div
+          n'a aucun comportement natif sur touch → embla peut capturer
+          librement les pointer events. Tap court (sans drag) → onClick →
+          router.push. Drag (embla intercepte) → no click → swipe slide.
+          Accessibilité : role=link + tabIndex=0 + onKeyDown Enter/Space. */}
+      <div
+        role="link"
+        tabIndex={0}
         aria-label={`Voir le détail de ${activity.title}`}
-        className="block hover:opacity-95 transition"
+        onClick={goToDetail}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            goToDetail();
+          }
+        }}
+        className="block hover:opacity-95 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2]/40"
       >
-        <div className="relative h-56 w-full group">
+        <div className="relative h-56 w-full group" style={{ touchAction: 'pan-y' }}>
           <BackButton fallbackUrl="/" />
           {/* BUG #23 — shadcn Carousel (embla) : swipe touch natif mobile + drag
               desktop. Embla distingue tap (click bubble vers Link parent → nav
@@ -349,7 +364,7 @@ function ActivityCardComponent({
             </>
           )}
         </div>
-      </Link>
+      </div>
       <CardContent className="p-5">
         {/* Titre cliquable aussi vers /activities/[id] (BUG #21, séparé du Link
             wrapping media pour éviter nested-link avec Reserve bouton ci-dessous). */}
