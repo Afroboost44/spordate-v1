@@ -46,6 +46,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { groupBoostedActivitiesByCity } from '@/lib/discovery/whereToPractice';
 import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/cardImage';
+import { extractSwipedUids } from '@/lib/discovery/swipedUids';
 import { buildActivityListUrl } from '@/lib/activities/listUrl';
 import Link from 'next/link';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
@@ -201,6 +202,27 @@ export default function DiscoveryPage() {
           return new Set<string>();
         });
         let visibleUsers = firestoreUsers.filter((u) => !blockSet.has(u.uid));
+
+        // BUG #25 — Exclure les profils déjà likés OU passés (Tinder-like
+        // dismiss permanent). Avant : les profils ré-apparaissaient en boucle
+        // car aucune persistance des passes (handleNextProfile = state local
+        // pur) ni filter sur les likes existants.
+        try {
+          const [likesSnap, passesSnap] = await Promise.all([
+            getDocs(query(collection(db, 'likes'), where('fromUid', '==', user.uid))),
+            getDocs(query(collection(db, 'passes'), where('fromUid', '==', user.uid))),
+          ]);
+          const swipedUids = extractSwipedUids(
+            likesSnap.docs.map((d) => d.data() as { toUid?: string }),
+            passesSnap.docs.map((d) => d.data() as { toUid?: string }),
+          );
+          if (swipedUids.size > 0) {
+            visibleUsers = visibleUsers.filter((u) => !swipedUids.has(u.uid));
+            console.log(`[Discovery] Excluded ${swipedUids.size} already-swiped profiles`);
+          }
+        } catch (err) {
+          console.warn('[Discovery] swiped filter failed (non-blocking, all profiles shown):', err);
+        }
 
         // Phase 9.5 c21 — filter par opt-in partners si discoveryMode='participants-only'.
         // Query batch bookings confirmés → activities → partners.includeInDiscovery → set userIds
@@ -433,6 +455,36 @@ export default function DiscoveryPage() {
 
   const handleNextProfile = () => {
     setCurrentIndex(prev => prev + 1);
+  };
+
+  // BUG #25 — Pass (X click) : persist + advance. Avant : seulement
+  // setCurrentIndex local → le profil ré-apparaissait au reload car aucun
+  // doc Firestore ne marquait le pass. Création de passes/{fromUid_toUid}
+  // (skip-if-exists, défensif). Le filter loadFirestoreProfiles exclut
+  // ces toUid au prochain mount.
+  const handlePass = async () => {
+    if (user && db && currentProfile) {
+      const targetUid = (currentProfile as any).firestoreUid as string | undefined;
+      if (targetUid && typeof targetUid === 'string' && targetUid.length >= 5 && targetUid !== user.uid) {
+        try {
+          const passId = `${user.uid}_${targetUid}`;
+          const passRef = doc(db, 'passes', passId);
+          const snap = await getDoc(passRef);
+          if (!snap.exists()) {
+            await setDoc(passRef, {
+              fromUid: user.uid,
+              toUid: targetUid,
+              createdAt: serverTimestamp(),
+            });
+          }
+        } catch (err) {
+          // Best-effort : si la persistance échoue, le user voit quand même
+          // le profil suivant. Sera ré-persisté au prochain swipe sur ce profil.
+          console.warn('[handlePass] persist failed (non-blocking):', err);
+        }
+      }
+    }
+    handleNextProfile();
   };
 
   // Phase 9.5 c38a CH2 — Refactor flow Tinder-like.
@@ -1412,8 +1464,10 @@ END:VCALENDAR`;
 
               {/* Like / Dislike / Chat Direct floating on photo */}
               <div className="absolute bottom-6 right-6 z-20 flex items-center gap-3">
+                {/* BUG #25 — bouton X = handlePass (persist + advance) au lieu
+                    de handleNextProfile (advance local seul, le profil revenait). */}
                 <button
-                  onClick={handleNextProfile}
+                  onClick={handlePass}
                   aria-label="Passer"
                   className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/60 hover:text-red-400 hover:border-red-400/40 transition-all active:scale-90"
                 >
