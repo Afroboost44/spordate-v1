@@ -79,8 +79,16 @@ service cloud.firestore {
       // sont uniquement CREATE — pas d'UPDATE. Likes immutables côté user :
       // pas de retrait Tinder-style, pas de toggle seen via client. Future
       // Premium feature (mark as seen) passera par /api/admin si besoin.
+      // BUG #27 — `resource == null` allow check d'existence sur doc non-existant
+      // (snap.exists()=false sans throw permission-denied). handleLike fait
+      // getDoc(likes/{user.uid}_{targetUid}) avant setDoc pour skip-if-exists
+      // (Phase 9.5 c38a-fix3) → si le doc n'existe pas, l'évaluation
+      // `auth.uid == resource.data.fromUid` avec resource=null → tous les OR
+      // branches false → permission-denied THROW. Sans cette branche, le flow
+      // handleLike casse au premier like sur un nouveau profil.
       allow read: if request.auth != null && (
-        request.auth.uid == resource.data.fromUid
+        resource == null
+        || request.auth.uid == resource.data.fromUid
         || request.auth.uid == resource.data.toUid
         || isAdmin()
       );
@@ -99,8 +107,13 @@ service cloud.firestore {
         && request.resource.data.fromUid != request.resource.data.toUid;
       // Read réservé au fromUid (privé) + admin. Pas de visibilité bilatérale
       // comme likes (pour préserver la confidentialité du "pass").
+      // BUG #27 — `resource == null` allow check d'existence sur doc non-existant
+      // (cohérent likes/ — handlePass utilise même pattern getDoc + setDoc
+      // skip-if-exists). Sans cette branche, handlePass throw silencieux dans
+      // le catch warn → passes pas persistés → profils ré-apparaissent.
       allow read: if request.auth != null && (
-        request.auth.uid == resource.data.fromUid
+        resource == null
+        || request.auth.uid == resource.data.fromUid
         || isAdmin()
       );
       allow update, delete: if isAdmin();
