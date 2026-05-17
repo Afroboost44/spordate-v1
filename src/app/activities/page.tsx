@@ -243,14 +243,29 @@ function ActivityCardComponent({
   const hasMultiple = items.length > 1;
 
   return (
-    <Card className={`overflow-hidden bg-card transition-all duration-300 transform hover:-translate-y-2 ${
-      existingBookingId
-        ? 'border-[#D91CD2]/60 shadow-lg shadow-[#D91CD2]/20'
-        : 'border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20'
-    }`}>
-      <div className="relative h-56 w-full group">
-        <BackButton fallbackUrl="/" />
-        <CardMediaSlide item={items[imgIndex]} fallbackSeed={activity.sport} />
+    <Card
+      // BUG #20 — id pour hash scroll auto depuis /activities#activity-{id}
+      // (modal "Où pratiquer ?" redirige ici, browser scroll-into-view natif).
+      id={`activity-${activity.activityId}`}
+      className={`overflow-hidden bg-card transition-all duration-300 transform hover:-translate-y-2 scroll-mt-24 ${
+        existingBookingId
+          ? 'border-[#D91CD2]/60 shadow-lg shadow-[#D91CD2]/20'
+          : 'border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20'
+      }`}
+    >
+      {/* BUG #21 — image + titre wrappés dans Link → /activities/[id]
+          Avant : aucune nav vers detail depuis cette card (commentaire ligne 66
+          "Card click → /activities/[id] reste functional" était périmé — ne s'est
+          jamais matérialisé). Les flèches/dots du carousel interne gardent leur
+          stopPropagation et restent fonctionnels (lines 268, 274, 283). */}
+      <Link
+        href={`/activities/${activity.activityId}`}
+        aria-label={`Voir le détail de ${activity.title}`}
+        className="block hover:opacity-95 transition"
+      >
+        <div className="relative h-56 w-full group">
+          <BackButton fallbackUrl="/" />
+          <CardMediaSlide item={items[imgIndex]} fallbackSeed={activity.sport} />
         <div className="absolute inset-0 bg-black/40 pointer-events-none" />
         <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
           {activity.duration || 60} min
@@ -287,9 +302,17 @@ function ActivityCardComponent({
             </div>
           </>
         )}
-      </div>
+        </div>
+      </Link>
       <CardContent className="p-5">
-        <h3 className="text-lg font-bold mb-1">{activity.title}</h3>
+        {/* Titre cliquable aussi vers /activities/[id] (BUG #21, séparé du Link
+            wrapping media pour éviter nested-link avec Reserve bouton ci-dessous). */}
+        <Link
+          href={`/activities/${activity.activityId}`}
+          className="inline-block hover:opacity-90 transition"
+        >
+          <h3 className="text-lg font-bold mb-1">{activity.title}</h3>
+        </Link>
         {activity.description && (
           <p className="text-foreground/50 text-sm mb-2 line-clamp-2">{activity.description}</p>
         )}

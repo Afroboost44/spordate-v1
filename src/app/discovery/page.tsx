@@ -46,6 +46,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { groupBoostedActivitiesByCity } from '@/lib/discovery/whereToPractice';
 import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/cardImage';
+import { buildActivityListUrl } from '@/lib/activities/listUrl';
 import Link from 'next/link';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
 import { createMatch, getUserMatches } from '@/services/firestore';
@@ -2255,8 +2256,14 @@ END:VCALENDAR`;
                           key={navId}
                           type="button"
                           onClick={() => {
+                            // BUG #20 — direction modifiée : la modal renvoie vers la
+                            // page liste activités (avec hash scroll vers la card
+                            // choisie), au lieu de bypass direct vers /activities/[id].
+                            // L'utilisateur découvre l'activité en contexte (sœurs,
+                            // partenaire, miniature) puis clique la miniature pour le
+                            // détail (BUG #21).
                             setShowWherePracticeModal(false);
-                            router.push(`/activities/${navId}`);
+                            router.push(buildActivityListUrl(navId));
                           }}
                           className="text-left p-3 rounded-xl bg-white/5 border border-white/10 hover:border-[#D91CD2]/40 hover:bg-[#D91CD2]/5 transition active:scale-[0.98]"
                         >
