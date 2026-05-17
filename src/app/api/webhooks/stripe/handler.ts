@@ -480,6 +480,93 @@ async function handleSessionPayment(
       await logErr(db, FV, `Erreur affiliation session: ${e}`, stripeSessionId);
     }
   }
+
+  // BUG #36 C4 — Mode Duo activity_invite : créer le message chat post-bookings.
+  // Marker activityInviteMatchId présent → sender a payé pour 2 places via le
+  // flow /api/chat/send-duo-invite. On crée le message activity_invite avec
+  // inviteMode='duo' + sponsorPaidAt=now + inviteStatus='pending'. Le receiver
+  // verra la carte dans le chat avec badge "Ton ami a payé pour toi 💝".
+  const activityInviteMatchId = meta.activityInviteMatchId || '';
+  if (activityInviteMatchId && isDuoTicket && inviteeUid) {
+    try {
+      const activityIdFromMeta = meta.activityId || '';
+      const invite: Record<string, unknown> = {
+        activityId: activityIdFromMeta,
+        inviteMode: 'duo',
+        activityTitle: meta.activityInviteActivityTitle || '',
+      };
+      if (meta.activityInviteActivityCity) invite.activityCity = meta.activityInviteActivityCity;
+      if (meta.activityInviteActivitySport) invite.activitySport = meta.activityInviteActivitySport;
+      if (meta.activityInviteActivityImageUrl) invite.activityImageUrl = meta.activityInviteActivityImageUrl;
+      invite.nextSessionId = sessionId;
+      if (sessionStartAtForNotif) invite.nextSessionAt = sessionStartAtForNotif;
+
+      // Anti-doublon : check existing pending invite sender+activityId
+      const existingSnap = await db
+        .collection('chats').doc(activityInviteMatchId)
+        .collection('messages')
+        .where('type', '==', 'activity_invite')
+        .where('senderId', '==', userId)
+        .where('invite.activityId', '==', activityIdFromMeta)
+        .where('inviteStatus', '==', 'pending')
+        .limit(1)
+        .get();
+
+      const messagesRef = db.collection('chats').doc(activityInviteMatchId).collection('messages');
+      let inviteMessageId: string;
+      if (!existingSnap.empty) {
+        // Update existant
+        const existing = existingSnap.docs[0];
+        await existing.ref.set({
+          messageId: existing.id,
+          senderId: userId,
+          text: '',
+          type: 'activity_invite',
+          readBy: [userId],
+          invite,
+          inviteStatus: 'pending',
+          sponsorPaidAt: FV.serverTimestamp(),
+          createdAt: existing.data().createdAt ?? FV.serverTimestamp(),
+        });
+        inviteMessageId = existing.id;
+      } else {
+        const docRef = await messagesRef.add({
+          senderId: userId,
+          text: '',
+          type: 'activity_invite',
+          readBy: [userId],
+          invite,
+          inviteStatus: 'pending',
+          sponsorPaidAt: FV.serverTimestamp(),
+          createdAt: FV.serverTimestamp(),
+        });
+        await docRef.update({ messageId: docRef.id });
+        inviteMessageId = docRef.id;
+      }
+
+      // Notification receiver : "Quelqu'un a payé pour toi"
+      try {
+        const inviteNotifRef = db.collection('notifications').doc();
+        await inviteNotifRef.set({
+          notificationId: inviteNotifRef.id,
+          userId: inviteeUid,
+          type: 'activity_invite',
+          title: 'Nouvelle invitation (Duo) 💝',
+          body: `Quelqu'un a payé pour t'inviter à ${meta.activityInviteActivityTitle || 'une activité'}`,
+          data: {
+            matchId: activityInviteMatchId,
+            messageId: inviteMessageId,
+            activityId: activityIdFromMeta,
+            clickUrl: `/chat?match=${activityInviteMatchId}`,
+          },
+          isRead: false,
+          createdAt: FV.serverTimestamp(),
+        });
+      } catch { /* best-effort */ }
+    } catch (e) {
+      await logErr(db, FV, `Erreur create activity_invite message duo: ${e}`, stripeSessionId);
+    }
+  }
 }
 
 // =============================================================

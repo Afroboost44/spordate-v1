@@ -16,8 +16,18 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Calendar, Check, X, Loader2, MapPin } from 'lucide-react';
+import { Calendar, Check, X, Loader2, MapPin, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
 import { formatNextSessionLabel, resolveInviteCardView } from '@/lib/chat/inviteView';
 import { acceptActivityInvite, declineActivityInvite } from '@/services/activityInvite';
@@ -33,25 +43,39 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
   const router = useRouter();
   const { toast } = useToast();
   const [busy, setBusy] = useState<'accept' | 'decline' | null>(null);
+  // BUG #36 C4 — Mode Duo : confirm modal avant accept (le sponsor a payé,
+  // l'user doit confirmer qu'il vient bien à la séance).
+  const [duoAcceptConfirmOpen, setDuoAcceptConfirmOpen] = useState(false);
 
   const view = resolveInviteCardView(msg, currentUserId);
   const invite = msg.invite;
   if (!invite) return null;
 
   const sessionLabel = formatNextSessionLabel(invite.nextSessionAt ?? null);
+  const isDuoSponsored = invite.inviteMode === 'duo' && !!msg.sponsorPaidAt;
 
-  const handleAccept = async () => {
+  const doAccept = async () => {
     if (busy) return;
     setBusy('accept');
     try {
       await acceptActivityInvite({ matchId, messageId: msg.messageId });
+      // Mode Duo : 2e booking déjà créé par webhook (réuse fix #c47).
+      // Pas de redirect vers /activities/[id] — la place est déjà confirmée,
+      // on reste dans le chat avec la carte qui affiche "Acceptée ✓".
+      if (isDuoSponsored) {
+        toast({
+          title: 'Invitation acceptée ✓',
+          description: `Ta place pour ${invite.activityTitle} est confirmée.`,
+          className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        });
+        return;
+      }
+      // Mode individual : redirect vers la page activité pour paiement
       toast({
         title: 'Invitation acceptée 🎉',
         description: 'Redirection vers la page de réservation...',
         className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
       });
-      // Redirect vers la page activité avec un flag inviteId (les helpers de page
-      // détail peuvent réagir à ce param pour ouvrir auto le modal de réservation).
       const params = new URLSearchParams();
       params.set('inviteId', msg.messageId);
       router.push(`/activities/${invite.activityId}?${params.toString()}`);
@@ -64,6 +88,16 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
       });
       setBusy(null);
     }
+  };
+
+  const handleAccept = () => {
+    if (busy) return;
+    // Mode Duo : confirmation modale obligatoire (engagement à venir)
+    if (isDuoSponsored) {
+      setDuoAcceptConfirmOpen(true);
+      return;
+    }
+    doAccept();
   };
 
   const handleDecline = async () => {
@@ -112,6 +146,13 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
             {view.statusLabel}
           </span>
         </div>
+        {/* BUG #36 C4 — Badge spécial Duo (sponsor a payé) */}
+        {isDuoSponsored && (
+          <div className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-gradient-to-r from-[#D91CD2]/15 to-[#E91E63]/15 border border-[#D91CD2]/40 text-[#D91CD2]">
+            <Sparkles className="h-2.5 w-2.5" />
+            {view.isReceiver ? 'Ton ami a payé pour toi 💝' : 'Tu paies pour les 2 ✓'}
+          </div>
+        )}
         <div className="flex items-center gap-2 text-[11px] text-white/40 flex-wrap">
           {invite.activitySport && <span className="capitalize">{invite.activitySport}</span>}
           {invite.activityCity && (
@@ -154,6 +195,37 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
           </div>
         )}
       </div>
+
+      {/* BUG #36 C4 — Confirm modal mode Duo : engagement à la séance */}
+      <AlertDialog open={duoAcceptConfirmOpen} onOpenChange={setDuoAcceptConfirmOpen}>
+        <AlertDialogContent className="bg-[#0A0A0A] border-white/10 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-[#D91CD2]" />
+              Accepter l&apos;invitation Duo ?
+            </AlertDialogTitle>
+            <AlertDialogDescription className="text-white/60">
+              Ton sponsor a déjà payé ta place pour <span className="text-[#D91CD2] font-medium">{invite.activityTitle}</span>.
+              En acceptant, tu confirmes ta participation à la séance{' '}
+              {sessionLabel !== 'Date à venir' && <span className="text-white">{sessionLabel}</span>}.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-white/15 text-white/70 hover:bg-white/5">
+              Annuler
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setDuoAcceptConfirmOpen(false);
+                doAccept();
+              }}
+              className="bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white"
+            >
+              Confirmer ma place ✓
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

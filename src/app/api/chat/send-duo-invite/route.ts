@@ -1,40 +1,32 @@
 /**
- * BUG #36 COMMIT 3 — POST /api/chat/send-duo-invite
+ * BUG #36 COMMIT 4 — POST /api/chat/send-duo-invite
  *
- * Mode Duo : sender paie 2 places via Stripe, après confirmation paiement
- * le message activity_invite (mode=duo, sponsorPaidAt) est créé dans le chat.
+ * Mode Duo : sender paie 2 places via Stripe Checkout. Après confirmation
+ * paiement, le webhook handleSessionPayment :
+ *  - Crée 2 bookings (sender + invitee via metadata.inviteeUid, réuse fix
+ *    Phase 9.5 c47 BUG B)
+ *  - Crée le message activity_invite via Admin SDK (mode='duo' +
+ *    sponsorPaidAt=now + inviteStatus='pending')
  *
- * ⚠️ STUB COMMIT 3 — Pour livrer le flow UI complet sans bloquer sur
- * l'intégration Stripe Checkout (qui demande refactor /api/checkout pour
- * accepter activityInviteMatchId metadata + webhook handleSessionPayment
- * hook pour créer le message après paiement). Cette version :
- *  - Verify auth + body
- *  - Crée DIRECTEMENT le message activity_invite via Admin SDK (skip paiement)
- *  - sponsorPaidAt = now (FAUX paiement pour démo end-to-end)
- *  - Return successUrl=/chat?match=X (redirect imitation)
+ * Si paiement cancel/fail → no webhook fire → no message + no booking
+ * (décision Q-D : abort total).
  *
- * TODO COMMIT 4 (vrai paiement) :
- *  - Charger session prochaine de l'activity (getNextFutureSessionForActivity)
- *  - Calculer prix server-side (computePricingTier)
- *  - Créer stripe.checkout.sessions.create avec :
- *    * mode='payment', payment_method_types=['card','twint']
- *    * line_items: 2× price (sender + invitee)
- *    * metadata: { activityInviteMode='duo', activityInviteMatchId,
- *                  activityInviteReceiverUid, activityInviteSenderUid,
- *                  activityTitle, activityCity, activitySport, inviteeUid,
- *                  isDuoTicket='true' } — réutilise patterns existants fix #c45/c47
- *    * success_url=`/chat?match={matchId}&duoInvite=success`
- *    * cancel_url=`/chat?match={matchId}&duoInvite=cancel`
- *  - Webhook handleSessionPayment hook : si metadata.activityInviteMatchId
- *    présent, après création bookings, créer message activity_invite via
- *    Admin SDK avec mode=duo + sponsorPaidAt=FieldValue.serverTimestamp()
- *  - Si paiement annulé → no webhook fire → no message créé (décision Q-D OK)
+ * Stripe Checkout pattern aligné `/api/checkout` mode='session' :
+ *  - Stripe Connect destination charge (transfer_data + application_fee)
+ *  - payment_method_types: ['card', 'twint']
+ *  - line_items: 1× (price × 2 seats)
+ *  - metadata: complete pour webhook (mode='duo_invite' + activityInvite*
+ *    fields pour création du message dénormalisé)
  *
  * @module
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
+import { getSharedStripe } from '@/lib/stripe/sharedStripe';
+import { computePricingTier, isSessionBookable } from '@/services/firestore';
+import { resolvePaymentMethodTypes } from '@/lib/payment/methodResolver';
+import type { Session, Activity, PricingTierKind } from '@/types/firestore';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -69,6 +61,39 @@ interface BodyShape {
   activityImageUrl?: string;
 }
 
+/** Query Admin SDK : next future session pour activity (réuse logique
+ *  getNextFutureSessionForActivity côté Web SDK). */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function getNextFutureSessionAdmin(db: any, activityId: string): Promise<{ sessionId: string; session: Session } | null> {
+  const { Timestamp } = await import('firebase-admin/firestore');
+  const nowTs = Timestamp.fromMillis(Date.now());
+  try {
+    const snap = await db
+      .collection('sessions')
+      .where('activityId', '==', activityId)
+      .where('startAt', '>', nowTs)
+      .orderBy('startAt', 'asc')
+      .limit(1)
+      .get();
+    if (snap.empty) return null;
+    return { sessionId: snap.docs[0].id, session: snap.docs[0].data() as Session };
+  } catch (err) {
+    console.warn('[send-duo-invite] index pas prêt, fallback', err);
+    const snap = await db.collection('sessions').where('activityId', '==', activityId).limit(20).get();
+    const nowMs = Date.now();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const futures = snap.docs
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .map((d: any) => ({ id: d.id, data: d.data() as Session }))
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((s: any) => s.data.startAt && s.data.startAt.toMillis() > nowMs);
+    if (futures.length === 0) return null;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    futures.sort((a: any, b: any) => a.data.startAt.toMillis() - b.data.startAt.toMillis());
+    return { sessionId: futures[0].id, session: futures[0].data };
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const uid = await verifyAuth(request);
@@ -88,103 +113,137 @@ export async function POST(request: NextRequest) {
     if (body.senderUid === body.receiverUid) {
       return NextResponse.json({ error: 'invalid-input', detail: 'self-invite' }, { status: 400 });
     }
+    if (!process.env.STRIPE_SECRET_KEY) {
+      return NextResponse.json({ error: 'Stripe non configuré' }, { status: 503 });
+    }
 
     const db = await getAdminDb();
-    const { FieldValue } = await import('firebase-admin/firestore');
 
-    // Anti-doublon : check existing pending invite sender+activityId
-    const existingSnap = await db
-      .collection('chats').doc(body.matchId)
-      .collection('messages')
-      .where('type', '==', 'activity_invite')
-      .where('senderId', '==', body.senderUid)
-      .where('invite.activityId', '==', body.activityId)
-      .where('inviteStatus', '==', 'pending')
-      .limit(1)
-      .get();
-
-    const messagesRef = db.collection('chats').doc(body.matchId).collection('messages');
-    let messageId: string;
-    let replaced = false;
-
-    const inviteData: Record<string, unknown> = {
-      activityId: body.activityId,
-      activityTitle: body.activityTitle,
-      inviteMode: 'duo',
-    };
-    if (body.activityCity) inviteData.activityCity = body.activityCity;
-    if (body.activitySport) inviteData.activitySport = body.activitySport;
-    if (body.activityImageUrl) inviteData.activityImageUrl = body.activityImageUrl;
-
-    if (!existingSnap.empty) {
-      const existingDoc = existingSnap.docs[0];
-      await existingDoc.ref.set(
-        {
-          messageId: existingDoc.id,
-          senderId: body.senderUid,
-          text: '',
-          type: 'activity_invite',
-          readBy: [body.senderUid],
-          invite: inviteData,
-          inviteStatus: 'pending',
-          sponsorPaidAt: FieldValue.serverTimestamp(),
-          createdAt: existingDoc.data().createdAt ?? FieldValue.serverTimestamp(),
-        },
-        { merge: false },
+    // 1. Resolve next future session for activity
+    const next = await getNextFutureSessionAdmin(db, body.activityId);
+    if (!next) {
+      return NextResponse.json(
+        { error: 'no-future-session', detail: 'Aucune session future pour cette activité' },
+        { status: 409 },
       );
-      messageId = existingDoc.id;
-      replaced = true;
-    } else {
-      const docRef = await messagesRef.add({
-        senderId: body.senderUid,
-        text: '',
-        type: 'activity_invite',
-        readBy: [body.senderUid],
-        invite: inviteData,
-        inviteStatus: 'pending',
-        sponsorPaidAt: FieldValue.serverTimestamp(),
-        createdAt: FieldValue.serverTimestamp(),
-      });
-      await docRef.update({ messageId: docRef.id });
-      messageId = docRef.id;
+    }
+    const { sessionId, session } = next;
+
+    if (!session.pricingTiers || session.pricingTiers.length === 0) {
+      return NextResponse.json(
+        { error: 'session-no-pricing', detail: 'Pas de tarification configurée' },
+        { status: 400 },
+      );
+    }
+    const now = new Date();
+    if (!isSessionBookable(session, now)) {
+      return NextResponse.json(
+        { error: 'session-not-bookable', detail: `status=${session.status}, ${session.currentParticipants}/${session.maxParticipants}` },
+        { status: 409 },
+      );
     }
 
-    // Notification receiver best-effort
-    try {
-      const notifRef = db.collection('notifications').doc();
-      await notifRef.set({
-        notificationId: notifRef.id,
-        userId: body.receiverUid,
-        type: 'activity_invite',
-        title: 'Nouvelle invitation (Duo) 💝',
-        body: `Quelqu'un a payé pour t'inviter à ${body.activityTitle}`,
-        data: {
-          matchId: body.matchId,
-          messageId,
-          activityId: body.activityId,
-          clickUrl: `/chat?match=${body.matchId}`,
-        },
-        isRead: false,
-        createdAt: FieldValue.serverTimestamp(),
-      });
-    } catch (err) {
-      console.warn('[/api/chat/send-duo-invite] notification create failed (non-bloquant)', err);
-    }
+    // 2. Compute tier + price server-side (anti-cheat)
+    const { tier, price } = computePricingTier(session, now);
 
-    // STUB COMMIT 3 : pas de Stripe Checkout réel. Return success direct.
-    // COMMIT 4 : retourner Stripe Checkout URL → client redirect window.location.href
-    return NextResponse.json(
-      {
-        ok: true,
-        messageId,
-        replaced,
-        // URL de redirection : retour au chat avec confirmation
-        url: `/chat?match=${body.matchId}&duoInvite=success`,
-        stub: true,
-        note: 'COMMIT 3 STUB — Stripe Checkout will be integrated in COMMIT 4',
-      },
-      { status: 200 },
+    // 3. Read activity for chatCreditsBundle
+    const activitySnap = await db.collection('activities').doc(body.activityId).get();
+    if (!activitySnap.exists) {
+      return NextResponse.json({ error: 'activity-not-found' }, { status: 404 });
+    }
+    const activity = activitySnap.data() as Activity;
+    const bundleCredits = activity.chatCreditsBundle ?? 50;
+
+    // 4. Stripe Connect setup (réutilise pattern /api/checkout)
+    const { getPartnerStripeAccount, ConnectError, assertConnectChargesEnabled } = await import(
+      '@/lib/stripe/connectHelpers'
     );
+    let partnerStripeAccount: string;
+    try {
+      partnerStripeAccount = await getPartnerStripeAccount(session.partnerId);
+      await assertConnectChargesEnabled(partnerStripeAccount);
+    } catch (err) {
+      if (err instanceof ConnectError) {
+        return NextResponse.json(
+          { error: err.code, partnerId: session.partnerId },
+          { status: 412 },
+        );
+      }
+      throw err;
+    }
+
+    const seats = 2; // Duo = sender + invitee
+    const unitAmount = price * seats;
+    const grantedCredits = bundleCredits * seats;
+
+    const { getApplicationFeePct } = await import('@/lib/invites/splitMath');
+    const feePct = getApplicationFeePct();
+    const applicationFeeAmount = Math.round((unitAmount * feePct) / 100);
+
+    // 5. Build Stripe Checkout session
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
+    const successUrl = `${baseUrl}/chat?match=${encodeURIComponent(body.matchId)}&duoInviteSuccess=true`;
+    const cancelUrl = `${baseUrl}/chat?match=${encodeURIComponent(body.matchId)}&duoInviteCancelled=true`;
+
+    const tierLabel: Record<PricingTierKind, string> = {
+      early: 'Early Bird', standard: 'Standard', last_minute: 'Last Minute',
+    };
+
+    const paymentMethodTypes = resolvePaymentMethodTypes('all'); // ['card', 'twint']
+
+    const stripe = await getSharedStripe();
+    const stripeSession = await stripe.checkout.sessions.create({
+      mode: 'payment',
+      payment_method_types: paymentMethodTypes,
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      line_items: [
+        {
+          price_data: {
+            currency: 'chf',
+            product_data: {
+              name: `${session.title} (Duo — 2 places)`,
+              description: `${tierLabel[tier]} • 2 places • ${grantedCredits} crédits chat inclus • Invitation à ${body.activityTitle}`,
+              images: ['https://spordateur.com/logo.png'],
+            },
+            unit_amount: unitAmount,
+          },
+          quantity: 1,
+        },
+      ],
+      payment_intent_data: {
+        transfer_data: { destination: partnerStripeAccount },
+        application_fee_amount: applicationFeeAmount,
+      },
+      metadata: {
+        // Champs mode='session' classiques (réuse webhook handleSessionPayment)
+        mode: 'session',
+        sessionId,
+        userId: body.senderUid,
+        matchId: body.matchId,
+        tier,
+        amount: String(unitAmount),
+        seats: String(seats),
+        isDuoTicket: 'true',
+        inviteeUid: body.receiverUid, // Bookings 2e place auto via fix #c47
+        activityId: session.activityId,
+        partnerId: session.partnerId,
+        bundleCredits: String(grantedCredits),
+        applicationFeeAmount: String(applicationFeeAmount),
+        partnerStripeAccount,
+        paymentMethodPreference: 'all',
+        // BUG #36 C4 — Marker pour webhook : create message activity_invite post-bookings
+        activityInviteMatchId: body.matchId,
+        activityInviteSenderUid: body.senderUid,
+        activityInviteReceiverUid: body.receiverUid,
+        activityInviteActivityTitle: body.activityTitle.slice(0, 200), // Stripe metadata 500 chars max
+        activityInviteActivityCity: (body.activityCity || '').slice(0, 100),
+        activityInviteActivitySport: (body.activitySport || '').slice(0, 100),
+        activityInviteActivityImageUrl: (body.activityImageUrl || '').slice(0, 400),
+      },
+    });
+
+    return NextResponse.json({ url: stripeSession.url, sessionId: stripeSession.id }, { status: 200 });
   } catch (err) {
     console.error('[/api/chat/send-duo-invite] fatal', err);
     return NextResponse.json(

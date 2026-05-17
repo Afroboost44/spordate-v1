@@ -342,22 +342,15 @@ function ChatWindow({
           throw new Error(data.error || `HTTP ${res.status}`);
         }
         const data = await res.json();
-        if (data.stub) {
-          // BUG #36 C3 STUB : pas de redirect Stripe (sera C4). Toast + ferme modal.
-          toast({
-            title: 'Invitation Duo envoyée 💝',
-            description: 'Mode démo — Stripe Checkout sera intégré en COMMIT 4.',
-            className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
-          });
-          setInviteModeOpen(false);
-          setPendingInviteActivity(null);
-          return;
-        }
+        // BUG #36 C4 — vrai Stripe Checkout : redirect immédiat vers
+        // session.url. Le webhook handleSessionPayment crée le message
+        // activity_invite + bookings après confirmation paiement. Si annulé
+        // → cancel_url callback → toast "Paiement annulé" (gestion ci-dessous).
         if (data.url) {
           window.location.href = data.url;
           return;
         }
-        throw new Error('Pas de URL retournée');
+        throw new Error('Pas de URL Stripe retournée');
       }
 
       // Mode individual : flow direct (gratuit, pas de paiement)
@@ -953,8 +946,25 @@ function ChatPageContent() {
       });
     }
 
-    // Clean the URL
-    router.replace('/chat');
+    // BUG #36 C4 — Mode Duo callbacks Stripe Checkout success/cancel
+    const duoSuccess = searchParams.get('duoInviteSuccess');
+    const duoCancelled = searchParams.get('duoInviteCancelled');
+    if (duoSuccess === 'true') {
+      toast({
+        title: 'Invitation Duo envoyée 💝',
+        description: '2 places réservées. Ton ami n\'a plus qu\'à accepter.',
+        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+      });
+    } else if (duoCancelled === 'true') {
+      toast({
+        title: 'Paiement annulé',
+        description: "Aucune invitation envoyée. Tu peux réessayer.",
+        variant: 'destructive',
+      });
+    }
+
+    // Clean the URL (préserve ?match=X pour que conv reste sélectionnée)
+    router.replace(`/chat${action.matchId ? `?match=${action.matchId}` : ''}`);
   }, [searchParams, paymentHandled]);
 
   // Load matches and build conversation list
