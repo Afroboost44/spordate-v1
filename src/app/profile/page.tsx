@@ -537,23 +537,25 @@ export default function ProfilePage() {
               ))}
             </div>
 
-            {/* Niveau de danse (visible si au moins une danse sélectionnée) */}
+            {/* Niveau de danse (visible si au moins une danse sélectionnée)
+                BUG #22 — flex gap-2 → grid grid-cols-3 pour distribution équitable
+                sur mobile (chips text-sm + emoji débordaient 375px viewport). */}
             {selectedDances.length > 0 && (
               <div className="space-y-2 pt-2">
                 <p className="text-sm text-gray-400">Niveau de danse</p>
-                <div className="flex gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   {DANCE_LEVEL_OPTIONS.map(lvl => (
                     <Badge
                       key={lvl.id}
                       onClick={() => setDanceLevel(danceLevel === lvl.id ? '' : lvl.id)}
-                      className={`cursor-pointer px-4 py-2 text-sm border transition-all ${
+                      className={`cursor-pointer px-2 py-2 text-xs border transition-all flex items-center justify-center gap-1 min-w-0 ${
                         danceLevel === lvl.id
                           ? 'bg-[#D91CD2]/10 border-[#D91CD2] text-[#D91CD2]'
                           : 'bg-black/40 border-white/10 text-white/40 hover:border-white/20'
                       }`}
                     >
-                      <span className="mr-1">{lvl.emoji}</span>
-                      {lvl.label}
+                      <span className="flex-shrink-0">{lvl.emoji}</span>
+                      <span className="truncate">{lvl.label}</span>
                     </Badge>
                   ))}
                 </div>
