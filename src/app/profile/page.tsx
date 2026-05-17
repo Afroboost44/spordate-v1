@@ -16,6 +16,7 @@ import { useAuth } from "@/context/AuthContext";
 import { updateUser, updateUserAiOptIn, getUser } from "@/services/firestore";
 import { PushOptInSwitch } from "@/components/profile/PushOptInSwitch";
 import { QRCodeButton } from "@/components/share/QRCodeButton";
+import { uploadProfilePhoto, StorageUploadError, PROFILE_PHOTO_MAX_BYTES } from "@/lib/storage/uploadProfilePhoto";
 import type { UserProfile, SportEntry } from "@/types/firestore";
 import { Switch } from "@/components/ui/switch";
 import { DANCE_ACTIVITIES, DANCE_LEVELS } from "@/types/firestore";
@@ -67,6 +68,7 @@ export default function ProfilePage() {
   const [selectedDances, setSelectedDances] = useState<DanceCategory[]>([]);
   const [danceLevel, setDanceLevel] = useState<DanceLevel | ''>('');
   const [photos, setPhotos] = useState<string[]>([]);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('other');
 
   // Phase 8 sub-chantier 0 — toggle suggestions IA chat (default-on doctrine §D.Q1).
@@ -171,25 +173,42 @@ export default function ProfilePage() {
     );
   };
 
-  // Image upload
-  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  // BUG #13 — Image upload via Firebase Storage (avant : base64 inline dans Firestore
+  // dépassait la limite 1MB/doc → updateDoc silent fail → photo perdue + discovery
+  // affichait l'image par défaut). On upload vers users/{uid}/profile/* puis on
+  // stocke la download URL HTTPS courte dans photos[] (qui devient photoURL au save).
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
+    // Reset input pour permettre de re-uploader le même file après remove
+    if (event.target) event.target.value = '';
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      toast({ title: "Fichier trop lourd", description: "Max 2MB par image.", variant: "destructive" });
+    if (!user) {
+      toast({ title: "Non connecté", description: "Connecte-toi pour uploader une photo.", variant: "destructive" });
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      const base64 = reader.result as string;
-      if (photos.length >= 5) {
-        toast({ title: "Limite atteinte", description: "Max 5 photos.", variant: "destructive" });
-        return;
-      }
-      setPhotos(prev => [...prev, base64]);
+    if (photos.length >= 5) {
+      toast({ title: "Limite atteinte", description: "Max 5 photos.", variant: "destructive" });
+      return;
+    }
+    setUploadingPhoto(true);
+    try {
+      const { url } = await uploadProfilePhoto(file, user.uid);
+      setPhotos(prev => [...prev, url]);
       toast({ title: "Photo ajoutée", className: "bg-green-600 text-white" });
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.warn('[Profile] uploadProfilePhoto failed', err);
+      let description = "Upload impossible. Réessaie.";
+      if (err instanceof StorageUploadError) {
+        if (err.code === 'file-too-large') {
+          description = `Fichier trop lourd. Max ${PROFILE_PHOTO_MAX_BYTES / 1024 / 1024}MB par image.`;
+        } else if (err.code === 'invalid-content-type') {
+          description = "Format non supporté. Utilise une image (JPG, PNG, WEBP).";
+        }
+      }
+      toast({ title: "Erreur", description, variant: "destructive" });
+    } finally {
+      setUploadingPhoto(false);
+    }
   };
 
   const removePhoto = (index: number) => {
@@ -371,10 +390,20 @@ export default function ProfilePage() {
               {photos.length < 5 && (
                 <button
                   onClick={() => fileInputRef.current?.click()}
-                  className="aspect-square rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center text-gray-500 hover:border-[#D91CD2] hover:text-[#D91CD2] transition-colors bg-black/20"
+                  disabled={uploadingPhoto}
+                  className="aspect-square rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center text-gray-500 hover:border-[#D91CD2] hover:text-[#D91CD2] transition-colors bg-black/20 disabled:opacity-50 disabled:cursor-wait"
                 >
-                  <Plus className="h-6 w-6 mb-2" />
-                  <span className="text-xs font-bold">{t('profile_add_photo_button')}</span>
+                  {uploadingPhoto ? (
+                    <>
+                      <Loader2 className="h-6 w-6 mb-2 animate-spin text-[#D91CD2]" />
+                      <span className="text-xs font-bold">Upload…</span>
+                    </>
+                  ) : (
+                    <>
+                      <Plus className="h-6 w-6 mb-2" />
+                      <span className="text-xs font-bold">{t('profile_add_photo_button')}</span>
+                    </>
+                  )}
                 </button>
               )}
               {Array.from({ length: Math.max(0, 5 - (photos.length + 1)) }).map((_, i) => (
