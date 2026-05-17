@@ -29,3 +29,4 @@ export { purgeOldDataCron } from './scheduler/purge-old-data';
 export { expireInvitesCron } from './scheduler/expire-invites';
 export { sessionRemindersCron } from './scheduler/session-reminders';
 export { denormActiveSanctionTrigger } from './triggers/denorm-active-sanction';
+export { migrateDriveVideosTrigger } from './triggers/migrate-drive-videos';

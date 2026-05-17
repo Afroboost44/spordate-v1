@@ -25,6 +25,7 @@ import {
 import { ShareButton } from '@/components/activities/ShareButton';
 import { formatScheduledLabel } from '@/lib/activities/scheduled';
 import { formatImageCounter } from '@/lib/activities/imageCounter';
+import { isStorageVideoUrl } from '@/lib/media/driveMigration';
 
 interface ActivityCard {
   activityId: string;
@@ -214,6 +215,22 @@ function CardVideoEmbed({ item }: { item: MediaItem }) {
 /** Phase 9.5 c5 + c6 — render media item card preview (image OR video autoplay loop muted toggle) */
 function CardMediaSlide({ item, fallbackSeed }: { item: MediaItem; fallbackSeed: string }) {
   if (item.type === 'video') {
+    // BUG #30 étape 3 — Vidéo migrée Drive→Storage : HTML5 <video> natif sans
+    // controls (preview muted loop comme YouTube/Vimeo CardVideoEmbed) pour
+    // garder le pattern "hover preview" sur les cards LISTE.
+    if (isStorageVideoUrl(item.url)) {
+      return (
+        <video
+          src={item.url}
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="metadata"
+          className="absolute inset-0 w-full h-full object-cover bg-zinc-950 pointer-events-none"
+        />
+      );
+    }
     return <CardVideoEmbed item={item} />;
   }
   // type='image' OR fallback

@@ -39,6 +39,7 @@ import {
   buildDriveThumbnailUrl,
   buildDriveViewerUrl,
 } from '@/lib/media/driveThumbnail';
+import { isStorageVideoUrl } from '@/lib/media/driveMigration';
 import { buildYoutubeDetailEmbedUrl } from '@/lib/media/youtubeEmbed';
 import {
   Carousel,
@@ -141,12 +142,33 @@ function MediaItemRender({
   priority?: boolean;
 }) {
   if (item.type === 'video') {
+    // BUG #30 étape 3 — Vidéo migrée Drive→Storage par Cloud Function : render
+    // HTML5 <video> natif (zéro redirection externe, contrôles browser standard,
+    // playsinline iOS). Détecté par URL firebasestorage.googleapis.com +
+    // extension video (.mp4 .webm .mov…).
+    if (isStorageVideoUrl(item.url)) {
+      return (
+        <div className="relative aspect-video rounded-lg overflow-hidden border border-white/10 bg-zinc-950">
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video
+            src={item.url}
+            controls
+            preload="metadata"
+            playsInline
+            className="absolute inset-0 w-full h-full object-contain bg-black"
+          />
+        </div>
+      );
+    }
     // BUG #26 bis + #28 — Drive refuse le framing (CSP frame-ancestors).
     // L'iframe résultant tombe en chrome-error://chromewebdata/ qui intercepte
     // les touch events → swipe embla bloqué + vidéo non lisible. Fix : rendre
     // une thumbnail + Play overlay + onClick window.open(viewer URL) en
     // nouvelle tab. Drive viewer natif gère mieux la lecture mobile que
     // n'importe quel embed iframe custom.
+    // NB : ce fallback ne se déclenche que pendant la fenêtre Cloud Function
+    // migrateDriveVideosTrigger en cours (cold start 5-10s post-save). Une fois
+    // migré, l'item devient provider='direct' + url=Storage → branche au-dessus.
     if (item.provider === 'drive') {
       // MediaItem n'a pas de champ videoId persisté — extraire depuis url ou embedUrl.
       const fileId = extractDriveFileId(item.url) || extractDriveFileId(item.embedUrl);
