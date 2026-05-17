@@ -341,8 +341,25 @@ service cloud.firestore {
           // - check credits sender ≥ 1 (defense-in-depth ; consume effectif côté service).
           //   Texte=1 crédit (doctrine §A). Photo/vidéo defer Phase 9.
           //   Q7=A reco : cross-doc get accepté pour defense-in-depth, +1 read/message.
-          && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.credits >= 1;
-        allow update, delete: if false;
+          // BUG #36 — activity_invite gratuit (pas de check credits). Le payload
+          // include obligatoirement invite.activityId + inviteMode + inviteStatus.
+          && (
+            request.resource.data.type == 'activity_invite'
+            || get(/databases/$(database)/documents/users/$(request.auth.uid)).data.credits >= 1
+          );
+        // BUG #36 — update autorisé pour activity_invite uniquement, par receiver
+        // (auth.uid !== senderId, in userIds), seulement inviteStatus/timestamps,
+        // depuis pending uniquement (transitions finales immutables).
+        allow update: if isAuth()
+          && request.auth.uid in get(/databases/$(database)/documents/matches/$(chatId)).data.userIds
+          && resource.data.type == 'activity_invite'
+          && resource.data.senderId != request.auth.uid
+          && resource.data.inviteStatus == 'pending'
+          && request.resource.data.inviteStatus in ['accepted', 'declined']
+          // Diff : seuls inviteStatus + timestamps de finalisation peuvent muter
+          && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['inviteStatus', 'inviteAcceptedAt', 'inviteDeclinedAt']);
+        allow delete: if false;
       }
     }
 

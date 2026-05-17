@@ -654,14 +654,63 @@ export interface ChatMessage {
   senderId: string;
   text: string;
   /** Phase 8 SC3 (additif) : `'ai_suggestion'` pour bot messages avec suggestions structurées.
+   *  BUG #36 (additif) : `'activity_invite'` pour invitations dans le chat (card cliquable).
    *  `'text'`/`'image'`/`'system'` = SC1 messages users. */
-  type: 'text' | 'image' | 'system' | 'ai_suggestion';
+  type: 'text' | 'image' | 'system' | 'ai_suggestion' | 'activity_invite';
   readBy: string[];
   createdAt: Timestamp;
   /** Phase 8 SC3 (additif). Présent uniquement si type === 'ai_suggestion' — 1-3 cards
    *  avec activityId/title/sport/city/nextSessionAt/reason. Doctrine §D.Q4 inline bot card.
    *  Persisté via Admin SDK serveur (Q9=A) — client lit uniquement. */
   suggestions?: SuggestionCard[];
+
+  // ────────── BUG #36 — Activity invite (présent ssi type='activity_invite') ──────────
+  /** Données dénormalisées de l'activité invitée (snapshot pour rendu rapide card). */
+  invite?: ActivityInviteData;
+  /** Statut du lifecycle. Update autorisé par receiver via rules messages update. */
+  inviteStatus?: InviteStatus;
+  /** Timestamp acceptation (set par receiver). */
+  inviteAcceptedAt?: Timestamp;
+  /** Timestamp refus (set par receiver). */
+  inviteDeclinedAt?: Timestamp;
+  /** Mode Duo uniquement — timestamp confirmation paiement Stripe sender (set par webhook). */
+  sponsorPaidAt?: Timestamp;
+}
+
+/** BUG #36 — Mode d'invitation choisi par le sender au moment d'inviter.
+ *  Renommé `ActivityInviteMode` pour éviter conflit avec `InviteMode` existant
+ *  (collection Invite legacy 'split'/'gift', ligne ~1009).
+ *  - `individual` : Chacun paie sa part — receiver accept → page de réservation, paie sa propre place.
+ *  - `duo`        : Je paie pour 2 — sender paye 2 places via Stripe au clic Inviter
+ *                   (réutilise inviteeUid metadata fix Phase 9.5 c47 BUG B).
+ */
+export type ActivityInviteMode = 'individual' | 'duo';
+
+/** BUG #36 — Statut lifecycle invite — alias du `InviteStatus` collection Invite
+ *  legacy (mêmes valeurs : pending|accepted|declined|expired). Transitions
+ *  autorisées pour activity_invite :
+ *    pending → accepted | declined | expired (24h avant session).
+ *    Une fois finalisé, immutable.
+ *  Le type lui-même est déclaré plus bas (ligne ~1004) pour la collection
+ *  Invite — on le réutilise tel quel ici sans dupliquer la déclaration. */
+
+/** BUG #36 — Données d'invitation dénormalisées (snapshot pour rendu card sans extra fetch). */
+export interface ActivityInviteData {
+  activityId: string;
+  /** Optionnel — sessionId de la prochaine session future si résolu. */
+  nextSessionId?: string;
+  /** Optionnel — timestamp prochaine session (pour rendu card + expiration check). */
+  nextSessionAt?: Timestamp;
+  /** Mode choisi par le sender. */
+  inviteMode: ActivityInviteMode;
+  /** Titre de l'activité (dénormalisé snapshot). */
+  activityTitle: string;
+  /** Ville de l'activité (dénormalisé snapshot, optionnel). */
+  activityCity?: string;
+  /** Sport (dénormalisé snapshot, optionnel). */
+  activitySport?: string;
+  /** Image principale (dénormalisé snapshot pour preview card, optionnel). */
+  activityImageUrl?: string;
 }
 
 /** Phase 8 SC3 (additif). Card suggestion bot IA pour next-activity (1-3 par message).
