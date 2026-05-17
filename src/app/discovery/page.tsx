@@ -1428,9 +1428,13 @@ END:VCALENDAR`;
                     Réservé
                   </button>
                 )}
-                {/* Bouton Lieux — ouvre le bottom sheet */}
+                {/* Bouton MapPin — ouvre le même modal "Où pratiquer ?" que le bouton top-left
+                    (BUG #16 — décision UX : cohérence entre les 2 points d'entrée).
+                    L'ancienne sheet partenaires (setShowLocationsSheet) reste branchée
+                    sur d'autres flows (pre-select meeting place avant booking). */}
                 <button
-                  onClick={() => setShowLocationsSheet(true)}
+                  onClick={() => setShowWherePracticeModal(true)}
+                  aria-label={t('discovery_where_to_practice')}
                   className="flex-[1] h-14 rounded-full bg-white/5 backdrop-blur-xl border border-white/15 flex items-center justify-center text-white/50 hover:text-white/80 hover:border-[#D91CD2]/40 transition-all active:scale-95"
                 >
                   <MapPin className="h-5 w-5" />
