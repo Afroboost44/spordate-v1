@@ -146,8 +146,12 @@ function CardVideoEmbed({ item }: { item: MediaItem }) {
   }, [item.provider]);
 
   const embedUrl = getVideoEmbedUrl(item, { autoplay: true, muted: true, loop: true });
-  // Si Drive ou autre non-embeddable → fallback thumbnail c5 + chain hq→mq→default (c10.A)
-  if (!embedUrl) {
+  // BUG #26 bis + #28 — Drive force fallback thumbnail : l'embed iframe
+  // /preview est CSP-blocked (frame-ancestors) → iframe en chrome-error://
+  // chromewebdata/ qui intercepte touch events embla → swipe mobile bloqué.
+  // CardVideoFallbackThumb rend la thumbnail (drive.google.com/thumbnail).
+  // L'autre non-embeddable (provider unknown) garde le même fallback.
+  if (!embedUrl || item.provider === 'drive') {
     return <CardVideoFallbackThumb item={item} />;
   }
 

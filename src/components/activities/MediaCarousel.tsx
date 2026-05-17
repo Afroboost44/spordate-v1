@@ -27,9 +27,15 @@
 
 'use client';
 
+import { Play } from 'lucide-react';
 import type { MediaItem } from '@/types/firestore';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
 import { computeMediaCarouselLayout } from '@/lib/activities/mediaCarouselLayout';
+import {
+  extractDriveFileId,
+  buildDriveThumbnailUrl,
+  buildDriveViewerUrl,
+} from '@/lib/media/driveThumbnail';
 import {
   Carousel,
   CarouselContent,
@@ -89,6 +95,42 @@ function MediaItemRender({
   priority?: boolean;
 }) {
   if (item.type === 'video') {
+    // BUG #26 bis + #28 — Drive refuse le framing (CSP frame-ancestors).
+    // L'iframe résultant tombe en chrome-error://chromewebdata/ qui intercepte
+    // les touch events → swipe embla bloqué + vidéo non lisible. Fix : rendre
+    // une thumbnail + Play overlay + onClick window.open(viewer URL) en
+    // nouvelle tab. Drive viewer natif gère mieux la lecture mobile que
+    // n'importe quel embed iframe custom.
+    if (item.provider === 'drive') {
+      // MediaItem n'a pas de champ videoId persisté — extraire depuis url ou embedUrl.
+      const fileId = extractDriveFileId(item.url) || extractDriveFileId(item.embedUrl);
+      if (fileId) {
+        const thumbUrl = buildDriveThumbnailUrl(fileId);
+        const viewerUrl = buildDriveViewerUrl(fileId);
+        return (
+          <button
+            type="button"
+            onClick={() => window.open(viewerUrl, '_blank', 'noopener,noreferrer')}
+            aria-label="Ouvrir la vidéo Google Drive dans un nouvel onglet"
+            className="relative aspect-video w-full rounded-lg overflow-hidden border border-white/10 bg-zinc-950 group"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={thumbUrl}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover transition-transform group-hover:scale-105"
+              loading={priority ? 'eager' : 'lazy'}
+            />
+            <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
+              <div className="bg-black/60 rounded-full p-3 backdrop-blur-sm border border-white/20">
+                <Play className="h-7 w-7 text-[#D91CD2] fill-[#D91CD2]" aria-hidden="true" />
+              </div>
+            </div>
+          </button>
+        );
+      }
+      // fileId pas extractible → fallback iframe (cas legacy / URL malformée)
+    }
     const embedSrc = item.embedUrl || item.url;
     return (
       <div className="relative aspect-video rounded-lg overflow-hidden border border-white/10 bg-zinc-950">
