@@ -256,6 +256,7 @@ function ChatWindow({
 }) {
   const router = useRouter();
   const { toast } = useToast();
+  const { user } = useAuth(); // BUG #36 C3 — pour getIdToken Mode Duo
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
@@ -312,9 +313,59 @@ function ChatWindow({
     if (!pendingInviteActivity || !currentUserId || sendingInvite) return;
     setSendingInvite(true);
     try {
+      // BUG #36 C3 — Mode Duo : flow Stripe Checkout AVANT de créer la carte.
+      // Si paiement annulé/échoué → carte n'est PAS envoyée (décision Q-D).
+      // Webhook handleSessionPayment crée le message activity_invite avec
+      // sponsorPaidAt+mode=duo après confirmation paiement.
+      if (mode === 'duo') {
+        if (!user) throw new Error('Non authentifié');
+        const idToken = await user.getIdToken();
+        const res = await fetch('/api/chat/send-duo-invite', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            matchId: match.matchId,
+            senderUid: currentUserId,
+            receiverUid: otherUser.uid,
+            activityId: pendingInviteActivity.activityId,
+            activityTitle: pendingInviteActivity.activityTitle,
+            activityCity: pendingInviteActivity.activityCity,
+            activitySport: pendingInviteActivity.activitySport,
+            activityImageUrl: pendingInviteActivity.activityImageUrl,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        if (data.stub) {
+          // BUG #36 C3 STUB : pas de redirect Stripe (sera C4). Toast + ferme modal.
+          toast({
+            title: 'Invitation Duo envoyée 💝',
+            description: 'Mode démo — Stripe Checkout sera intégré en COMMIT 4.',
+            className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+          });
+          setInviteModeOpen(false);
+          setPendingInviteActivity(null);
+          return;
+        }
+        if (data.url) {
+          window.location.href = data.url;
+          return;
+        }
+        throw new Error('Pas de URL retournée');
+      }
+
+      // Mode individual : flow direct (gratuit, pas de paiement)
       const result = await sendActivityInvite({
         matchId: match.matchId,
         senderId: currentUserId,
+        receiverUid: otherUser.uid,
+        senderName: undefined, // displayName du sender — caller (chat page) n'a pas userProfile direct
         activityId: pendingInviteActivity.activityId,
         activityTitle: pendingInviteActivity.activityTitle,
         activityCity: pendingInviteActivity.activityCity,
@@ -327,6 +378,13 @@ function ChatWindow({
         description: `${otherUser.displayName} la verra dans le chat.`,
         className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
       });
+      if (result.rateLimitMessage) {
+        // Soft warning : 2e toast info au-dessus du success
+        toast({
+          title: 'Limite quotidienne dépassée',
+          description: result.rateLimitMessage,
+        });
+      }
       setInviteModeOpen(false);
       setPendingInviteActivity(null);
     } catch (err) {

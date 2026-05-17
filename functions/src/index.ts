@@ -30,3 +30,4 @@ export { expireInvitesCron } from './scheduler/expire-invites';
 export { sessionRemindersCron } from './scheduler/session-reminders';
 export { denormActiveSanctionTrigger } from './triggers/denorm-active-sanction';
 export { migrateDriveVideosTrigger } from './triggers/migrate-drive-videos';
+export { expireActivityInvitesCron } from './scheduler/expire-activity-invites';

@@ -20,11 +20,13 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   getDocs,
   limit as firestoreLimit,
   query,
   serverTimestamp,
   setDoc,
+  Timestamp,
   updateDoc,
   where,
   type Firestore,
@@ -34,6 +36,8 @@ import {
   buildActivityInvitePayload,
   type BuildInviteInput,
 } from '@/lib/chat/activityInvite';
+import { checkInviteRateLimit } from '@/lib/chat/inviteExtras';
+import { createNotification } from '@/services/firestore';
 
 // =====================================================================
 // DI seam pour tests
@@ -59,12 +63,18 @@ function getDb(): Firestore {
 export interface SendActivityInviteInput extends BuildInviteInput {
   /** matchId = deterministic id `${sortedUids[0]}_${sortedUids[1]}` (cohérent fix #14). */
   matchId: string;
+  /** UID du receiver (autre user dans le chat) — pour notif push. */
+  receiverUid?: string;
+  /** displayName sender pour body notification (fallback "Quelqu'un"). */
+  senderName?: string;
 }
 
 export interface SendActivityInviteResult {
   messageId: string;
   /** True si on a update un invite existant pending (anti-doublon Q-F). */
   replaced: boolean;
+  /** Soft warning si rate limit dépassé (caller toast). */
+  rateLimitMessage?: string;
 }
 
 /**
@@ -83,6 +93,31 @@ export async function sendActivityInvite(
   const fsdb = getDb();
   const messagesRef = collection(fsdb, 'chats', input.matchId, 'messages');
 
+  // BUG #36 C3 — Soft limit invites/jour (toast warning, pas hard block).
+  // Compte les invites du sender aujourd'hui (cross-chats via collectionGroup
+  // sur 'messages' serait idéal mais demande un index. MVP : on compte
+  // uniquement dans le chat courant — simpler + rapide.)
+  let rateLimitMessage: string | undefined;
+  try {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+    const todayQuery = query(
+      messagesRef,
+      where('type', '==', 'activity_invite'),
+      where('senderId', '==', input.senderId),
+      where('createdAt', '>=', Timestamp.fromDate(startOfDay)),
+    );
+    const todaySnap = await getDocs(todayQuery);
+    const limit = checkInviteRateLimit(todaySnap.size);
+    if (!limit.allowed) {
+      throw new Error(limit.message ?? 'Rate limit exceeded');
+    }
+    rateLimitMessage = limit.message;
+  } catch (err) {
+    // Best-effort : si la query échoue (index manquant), on laisse passer.
+    console.warn('[sendActivityInvite] rate limit check failed (non-bloquant)', err);
+  }
+
   // Check anti-doublon : invite pending même paire + même activityId
   const existingQuery = query(
     messagesRef,
@@ -93,6 +128,9 @@ export async function sendActivityInvite(
     firestoreLimit(1),
   );
   const existingSnap = await getDocs(existingQuery);
+
+  let messageId: string;
+  let replaced = false;
   if (!existingSnap.empty) {
     // Update au lieu de create
     const existingDoc = existingSnap.docs[0];
@@ -102,18 +140,37 @@ export async function sendActivityInvite(
       messageId: existingDoc.id,
       createdAt: existingDoc.data().createdAt ?? serverTimestamp(),
     });
-    return { messageId: existingDoc.id, replaced: true };
+    messageId = existingDoc.id;
+    replaced = true;
+  } else {
+    // Sinon create nouveau
+    const payload = buildActivityInvitePayload(input);
+    const docRef = await addDoc(messagesRef, {
+      ...payload,
+      createdAt: serverTimestamp(),
+    });
+    await updateDoc(docRef, { messageId: docRef.id });
+    messageId = docRef.id;
   }
 
-  // Sinon create nouveau
-  const payload = buildActivityInvitePayload(input);
-  const docRef = await addDoc(messagesRef, {
-    ...payload,
-    createdAt: serverTimestamp(),
-  });
-  // Update le messageId avec l'id auto-généré (cohérent SugCard.SC4 pattern)
-  await updateDoc(docRef, { messageId: docRef.id });
-  return { messageId: docRef.id, replaced: false };
+  // BUG #36 C3 — Notification push receiver (best-effort, non-bloquant)
+  if (input.receiverUid) {
+    try {
+      const senderName = input.senderName || 'Un utilisateur';
+      const title = replaced ? 'Invitation mise à jour' : 'Nouvelle invitation';
+      const body = `${senderName} t'invite à ${input.activityTitle}`;
+      await createNotification(input.receiverUid, 'activity_invite', title, body, {
+        matchId: input.matchId,
+        messageId,
+        activityId: input.activityId,
+        clickUrl: `/chat?match=${input.matchId}`,
+      });
+    } catch (err) {
+      console.warn('[sendActivityInvite] notification create failed (non-bloquant)', err);
+    }
+  }
+
+  return { messageId, replaced, rateLimitMessage };
 }
 
 // =====================================================================
@@ -123,28 +180,69 @@ export async function sendActivityInvite(
 export interface FinalizeInviteInput {
   matchId: string;
   messageId: string;
+  /** displayName du user qui finalise (pour notif body). Fallback "Ton ami". */
+  finalizerName?: string;
+}
+
+/**
+ * Update inviteStatus + notif sender best-effort.
+ * Fetch le message AVANT update pour récupérer senderId/activityTitle (utile notif),
+ * puis update, puis notif.
+ */
+async function finalizeInvite(
+  input: FinalizeInviteInput,
+  finalStatus: 'accepted' | 'declined',
+): Promise<void> {
+  if (!input.matchId || !input.messageId) {
+    throw new Error(`${finalStatus === 'accepted' ? 'acceptActivityInvite' : 'declineActivityInvite'}: matchId + messageId requis`);
+  }
+  const fsdb = getDb();
+  const msgRef = doc(fsdb, 'chats', input.matchId, 'messages', input.messageId);
+
+  // Lecture pré-update pour récup senderId + activityTitle (notif)
+  let senderId: string | undefined;
+  let activityTitle: string | undefined;
+  try {
+    const snap = await getDoc(msgRef);
+    if (snap.exists()) {
+      const data = snap.data();
+      senderId = data?.senderId as string | undefined;
+      activityTitle = data?.invite?.activityTitle as string | undefined;
+    }
+  } catch (err) {
+    console.warn(`[${finalStatus === 'accepted' ? 'accept' : 'decline'}ActivityInvite] pre-read failed (notif skip)`, err);
+  }
+
+  // Update
+  await updateDoc(msgRef, {
+    inviteStatus: finalStatus,
+    [finalStatus === 'accepted' ? 'inviteAcceptedAt' : 'inviteDeclinedAt']: serverTimestamp(),
+  });
+
+  // BUG #36 C3 — Notif sender (best-effort, non-bloquant)
+  if (senderId) {
+    try {
+      const finalizerName = input.finalizerName || 'Ton ami';
+      const isAccepted = finalStatus === 'accepted';
+      const title = isAccepted ? 'Invitation acceptée 🎉' : 'Invitation refusée';
+      const body = isAccepted
+        ? `${finalizerName} a accepté ton invitation${activityTitle ? ' à ' + activityTitle : ''}.`
+        : `${finalizerName} a refusé ton invitation${activityTitle ? ' à ' + activityTitle : ''}.`;
+      await createNotification(senderId, 'activity_invite_reply', title, body, {
+        matchId: input.matchId,
+        messageId: input.messageId,
+        clickUrl: `/chat?match=${input.matchId}`,
+      });
+    } catch (err) {
+      console.warn('[finalizeInvite] notif sender failed (non-bloquant)', err);
+    }
+  }
 }
 
 export async function acceptActivityInvite(input: FinalizeInviteInput): Promise<void> {
-  if (!input.matchId || !input.messageId) {
-    throw new Error('acceptActivityInvite: matchId + messageId requis');
-  }
-  const fsdb = getDb();
-  const msgRef = doc(fsdb, 'chats', input.matchId, 'messages', input.messageId);
-  await updateDoc(msgRef, {
-    inviteStatus: 'accepted',
-    inviteAcceptedAt: serverTimestamp(),
-  });
+  return finalizeInvite(input, 'accepted');
 }
 
 export async function declineActivityInvite(input: FinalizeInviteInput): Promise<void> {
-  if (!input.matchId || !input.messageId) {
-    throw new Error('declineActivityInvite: matchId + messageId requis');
-  }
-  const fsdb = getDb();
-  const msgRef = doc(fsdb, 'chats', input.matchId, 'messages', input.messageId);
-  await updateDoc(msgRef, {
-    inviteStatus: 'declined',
-    inviteDeclinedAt: serverTimestamp(),
-  });
+  return finalizeInvite(input, 'declined');
 }

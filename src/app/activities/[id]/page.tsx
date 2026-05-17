@@ -37,6 +37,7 @@ import { ShareButton } from '@/components/activities/ShareButton';
 import { ReviewsList } from '@/components/reviews/ReviewsList';
 import { ReviewTrigger } from '@/components/reviews/ReviewTrigger';
 import { ActivityInviteSection } from '@/components/activities/ActivityInviteSection';
+import { InvitedActivityBanner } from '@/components/activities/InvitedActivityBanner';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -112,6 +113,9 @@ export default async function ActivityDetailPage({ params }: PageProps) {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           <span>Toutes les activités</span>
         </Link>
+
+        {/* BUG #36 C3 — Banner visible si user arrive depuis invite acceptée (?inviteId=X) */}
+        <InvitedActivityBanner />
 
         {/* Header */}
         <header className="flex flex-col gap-3">

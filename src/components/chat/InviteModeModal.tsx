@@ -61,27 +61,23 @@ export function InviteModeModal({ open, onOpenChange, activityTitle, onSelectMod
             </div>
           </button>
 
-          {/* Mode duo : disabled COMMIT 2, sera actif COMMIT 3 */}
+          {/* BUG #36 C3 — Mode duo activé (Stripe Checkout 2 places) */}
           <button
             type="button"
-            disabled
-            className="w-full text-left p-4 rounded-xl bg-white/5 border border-white/10 opacity-60 cursor-not-allowed"
-            aria-label="Je paie pour les 2 — Bientôt disponible"
+            onClick={() => onSelectMode('duo')}
+            className="w-full text-left p-4 rounded-xl bg-[#D91CD2]/5 border border-[#D91CD2]/30 hover:bg-[#D91CD2]/10 hover:border-[#D91CD2]/50 transition active:scale-[0.98]"
           >
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0">
-                <Users className="h-5 w-5 text-white/40" />
+              <div className="w-10 h-10 rounded-lg bg-[#D91CD2]/15 flex items-center justify-center flex-shrink-0">
+                <Users className="h-5 w-5 text-[#D91CD2]" />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <p className="text-white/70 font-medium text-sm">Je paie pour les 2</p>
-                  <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-white/10 text-white/50">
-                    <Sparkles className="h-2.5 w-2.5" />
-                    Bientôt
-                  </span>
+                  <p className="text-white font-medium text-sm">Je paie pour les 2</p>
+                  <Sparkles className="h-3 w-3 text-[#D91CD2]" />
                 </div>
-                <p className="text-[11px] text-white/30 mt-0.5">
-                  Tu paies maintenant pour 2 places. Ton ami n&apos;aura plus qu&apos;à accepter.
+                <p className="text-[11px] text-white/50 mt-0.5">
+                  Tu paies maintenant 2 places via Stripe. Ton ami n&apos;a plus qu&apos;à accepter.
                 </p>
               </div>
             </div>
