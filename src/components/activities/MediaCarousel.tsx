@@ -27,11 +27,13 @@
 
 'use client';
 
-import { Play } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { ChevronLeft, ChevronRight, Play } from 'lucide-react';
 import type { MediaItem } from '@/types/firestore';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
 import { computeMediaCarouselLayout } from '@/lib/activities/mediaCarouselLayout';
 import { parseVideoUrl } from '@/lib/activities/mediaParser';
+import { formatImageCounter } from '@/lib/activities/imageCounter';
 import {
   extractDriveFileId,
   buildDriveThumbnailUrl,
@@ -44,6 +46,7 @@ import {
   CarouselItem,
   CarouselPrevious,
   CarouselNext,
+  type CarouselApi,
 } from '@/components/ui/carousel';
 
 export interface MediaCarouselProps {
@@ -53,6 +56,22 @@ export interface MediaCarouselProps {
 }
 
 export function MediaCarousel({ items, className = '' }: MediaCarouselProps) {
+  // BUG #33 — setApi + currentSlide pour piloter counter + dots (pattern aligné
+  // fix #29 LISTE). Embla expose selectedScrollSnap() qui retourne l'index du
+  // slide leftmost visible. useEffect attach un listener sur 'select'.
+  const [api, setApi] = useState<CarouselApi>();
+  const [currentSlide, setCurrentSlide] = useState(0);
+
+  useEffect(() => {
+    if (!api) return;
+    setCurrentSlide(api.selectedScrollSnap());
+    const onSelect = () => setCurrentSlide(api.selectedScrollSnap());
+    api.on('select', onSelect);
+    return () => {
+      api.off('select', onSelect);
+    };
+  }, [api]);
+
   if (items.length === 0) return null;
 
   const layout = computeMediaCarouselLayout(items.length);
@@ -60,12 +79,13 @@ export function MediaCarousel({ items, className = '' }: MediaCarouselProps) {
   return (
     <section className={`flex flex-col gap-4 ${className}`}>
       <Carousel
+        setApi={setApi}
         opts={{
           align: 'start',
           loop: false,
           // Embla : drag/swipe activé par défaut, watchDrag=true (no override).
         }}
-        className="w-full"
+        className="w-full relative"
       >
         <CarouselContent className="-ml-3">
           {items.map((item, i) => (
@@ -82,9 +102,33 @@ export function MediaCarousel({ items, className = '' }: MediaCarouselProps) {
           <>
             <CarouselPrevious className="hidden md:inline-flex -left-4 bg-black/60 border-white/15 text-white hover:bg-[#D91CD2]/20 hover:border-[#D91CD2]/40" />
             <CarouselNext className="hidden md:inline-flex -right-4 bg-black/60 border-white/15 text-white hover:bg-[#D91CD2]/20 hover:border-[#D91CD2]/40" />
+            {/* BUG #33 — Counter badge "‹ X/Y ›" bottom-right pour rendre
+                explicite qu'il y a plusieurs medias à swiper (Bassi : "l'user
+                peut oublier qu'il existe d'autres image et vidéo"). Pattern
+                identique fix #29 LISTE. Pointer-events-none + select-none. */}
+            <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-white text-[11px] font-medium px-2 py-0.5 rounded-full z-10 pointer-events-none select-none flex items-center gap-1">
+              <ChevronLeft className="h-3 w-3 opacity-60" />
+              <span>{formatImageCounter(currentSlide, items.length)}</span>
+              <ChevronRight className="h-3 w-3 opacity-60" />
+            </div>
           </>
         )}
       </Carousel>
+      {/* BUG #33 — Dots cliquables sous le carousel pour navigation explicite
+          + indication visuelle de position. Pattern identique fix #29. */}
+      {layout.showArrows && (
+        <div className="flex justify-center gap-1.5">
+          {items.map((_, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => api?.scrollTo(i)}
+              aria-label={`Aller au média ${i + 1}`}
+              className={`w-2 h-2 rounded-full transition-all shadow-sm ${i === currentSlide ? 'bg-[#D91CD2] w-5' : 'bg-white/40 hover:bg-white/70'}`}
+            />
+          ))}
+        </div>
+      )}
     </section>
   );
 }
