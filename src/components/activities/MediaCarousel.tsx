@@ -1,7 +1,20 @@
 /**
  * Phase 9.5 c4 — <MediaCarousel> rendering pour /activities/[id].
  *
- * Render :
+ * BUG #17 — refacto grille statique → shadcn Carousel (embla-carousel-react)
+ * pour avoir le swipe touch natif sur mobile (UX standard). L'ancienne version
+ * était une simple grid (1col mobile, 2col tablet, 3col desktop) sans
+ * navigation possible — l'utilisateur voyait juste tous les medias empilés
+ * verticalement sur mobile.
+ *
+ * Désormais :
+ *  - Mobile (< sm)  : 1 item par viewport, swipe horizontal natif (embla)
+ *  - Tablet (sm-lg) : 2 items par viewport, swipe + flèches
+ *  - Desktop (lg+)  : 3 items par viewport, swipe + flèches
+ *  - Si 1 seul item : pas de swipe ni flèches (layout pleine largeur via
+ *    computeMediaCarouselLayout)
+ *
+ * Render media (inchangé Phase 9.5 c4) :
  *  - type='image' → <img> regular
  *  - type='video' provider='youtube' → <iframe> youtube embed
  *  - provider='vimeo' → <iframe> vimeo player
@@ -9,14 +22,21 @@
  *
  * Q3=A no autoplay (iframe src sans `&autoplay=1`).
  *
- * Backward compat : caller passe MediaItem[] obtenu via getMediaItems(activity).
- *
- * Layout : grid responsive (mobile 1col, tablet 2col, desktop 3col cap).
  * Charte stricte black/#D91CD2/white.
  */
 
+'use client';
+
 import type { MediaItem } from '@/types/firestore';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
+import { computeMediaCarouselLayout } from '@/lib/activities/mediaCarouselLayout';
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselPrevious,
+  CarouselNext,
+} from '@/components/ui/carousel';
 
 export interface MediaCarouselProps {
   items: MediaItem[];
@@ -27,13 +47,36 @@ export interface MediaCarouselProps {
 export function MediaCarousel({ items, className = '' }: MediaCarouselProps) {
   if (items.length === 0) return null;
 
+  const layout = computeMediaCarouselLayout(items.length);
+
   return (
     <section className={`flex flex-col gap-4 ${className}`}>
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-        {items.map((item, i) => (
-          <MediaItemRender key={`${item.url}-${i}`} item={item} priority={i === 0} />
-        ))}
-      </div>
+      <Carousel
+        opts={{
+          align: 'start',
+          loop: false,
+          // Embla : drag/swipe activé par défaut, watchDrag=true (no override).
+        }}
+        className="w-full"
+      >
+        <CarouselContent className="-ml-3">
+          {items.map((item, i) => (
+            <CarouselItem
+              key={`${item.url}-${i}`}
+              className={`pl-3 ${layout.itemBasis}`}
+            >
+              <MediaItemRender item={item} priority={i === 0} />
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+        {/* BUG #17 — flèches : visibles md+ uniquement (mobile = swipe seul) */}
+        {layout.showArrows && (
+          <>
+            <CarouselPrevious className="hidden md:inline-flex -left-4 bg-black/60 border-white/15 text-white hover:bg-[#D91CD2]/20 hover:border-[#D91CD2]/40" />
+            <CarouselNext className="hidden md:inline-flex -right-4 bg-black/60 border-white/15 text-white hover:bg-[#D91CD2]/20 hover:border-[#D91CD2]/40" />
+          </>
+        )}
+      </Carousel>
     </section>
   );
 }
