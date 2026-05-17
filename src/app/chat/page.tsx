@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Send, ArrowLeft, Lock, MessageCircle,
   Loader2, CreditCard, CheckCheck, Check, PartyPopper, User, ChevronRight,
-  Coins, ShieldCheck
+  Coins, ShieldCheck, Calendar
 } from "lucide-react";
 import Link from 'next/link';
 import { useRouter, useSearchParams } from "next/navigation";
@@ -48,6 +48,11 @@ import {
 import { getMutualBlockSet } from '@/lib/blocks';
 import { resolveChatUrlAction } from '@/lib/chat/urlParams';
 import { buildOtherUser } from '@/lib/chat/buildOtherUser';
+import { ActivitySelectorModal, type ActivitySelectorPick } from '@/components/chat/ActivitySelectorModal';
+import { InviteModeModal } from '@/components/chat/InviteModeModal';
+import { ActivityInviteMessage } from '@/components/chat/ActivityInviteMessage';
+import { sendActivityInvite } from '@/services/activityInvite';
+import type { ActivityInviteMode } from '@/types/firestore';
 import { ReportButton } from '@/components/reports/ReportButton';
 import type { Match, ChatMessage, UserProfile } from '@/types/firestore';
 import { Timestamp } from 'firebase/firestore';
@@ -260,6 +265,11 @@ function ChatWindow({
   // Phase 8 SC2 commit 4/6 — L3 modal rétroactif (Q2=B post-send, doctrine §B.Q2 laisse-faire)
   const [showL3Dialog, setShowL3Dialog] = useState(false);
   const [l3Context, setL3Context] = useState<{ messageId: string } | null>(null);
+  // BUG #36 COMMIT 2 — modals activity_invite (sélection activité + mode)
+  const [activitySelectorOpen, setActivitySelectorOpen] = useState(false);
+  const [inviteModeOpen, setInviteModeOpen] = useState(false);
+  const [pendingInviteActivity, setPendingInviteActivity] = useState<{ activityId: string; activityTitle: string; activityCity?: string; activitySport?: string; activityImageUrl?: string } | null>(null);
+  const [sendingInvite, setSendingInvite] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -286,6 +296,48 @@ function ChatWindow({
       window.localStorage.setItem(ONBOARDING_FLAG_KEY, '1');
     } catch {
       /* ignore */
+    }
+  };
+
+  // BUG #36 COMMIT 2 — Handlers activity_invite (chain modals + send service)
+  const handleOpenActivitySelector = () => {
+    setActivitySelectorOpen(true);
+  };
+  const handleActivityPicked = (pick: ActivitySelectorPick) => {
+    setPendingInviteActivity(pick);
+    setActivitySelectorOpen(false);
+    setInviteModeOpen(true);
+  };
+  const handleInviteModePicked = async (mode: ActivityInviteMode) => {
+    if (!pendingInviteActivity || !currentUserId || sendingInvite) return;
+    setSendingInvite(true);
+    try {
+      const result = await sendActivityInvite({
+        matchId: match.matchId,
+        senderId: currentUserId,
+        activityId: pendingInviteActivity.activityId,
+        activityTitle: pendingInviteActivity.activityTitle,
+        activityCity: pendingInviteActivity.activityCity,
+        activitySport: pendingInviteActivity.activitySport,
+        activityImageUrl: pendingInviteActivity.activityImageUrl,
+        inviteMode: mode,
+      });
+      toast({
+        title: result.replaced ? 'Invitation mise à jour' : 'Invitation envoyée 🎉',
+        description: `${otherUser.displayName} la verra dans le chat.`,
+        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+      });
+      setInviteModeOpen(false);
+      setPendingInviteActivity(null);
+    } catch (err) {
+      console.warn('[ChatWindow] sendActivityInvite failed', err);
+      toast({
+        title: 'Erreur',
+        description: "Impossible d'envoyer l'invitation. Réessaie.",
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingInvite(false);
     }
   };
 
@@ -636,6 +688,13 @@ function ChatWindow({
                         otherUserId={otherUser.uid}
                         otherUserName={otherUser.displayName}
                       />
+                    ) : msg.type === 'activity_invite' ? (
+                      // BUG #36 COMMIT 2 — Card invite activité (Accepter/Refuser)
+                      <ActivityInviteMessage
+                        msg={msg}
+                        matchId={match.matchId}
+                        currentUserId={currentUserId}
+                      />
                     ) : (
                       <div
                         className={cn(
@@ -694,6 +753,18 @@ function ChatWindow({
             className="px-4 py-3 border-t border-zinc-800 bg-black/90 backdrop-blur-sm"
           >
             <div className="flex items-center gap-2">
+              {/* BUG #36 COMMIT 2 — Bouton "Inviter à une activité" */}
+              <Button
+                type="button"
+                size="icon"
+                variant="outline"
+                onClick={handleOpenActivitySelector}
+                disabled={sending || sendingInvite}
+                aria-label="Inviter à une activité"
+                className="h-10 w-10 rounded-xl bg-zinc-900 border-zinc-800 text-[#D91CD2] hover:bg-[#D91CD2]/10 hover:border-[#D91CD2]/40 disabled:opacity-50 flex-shrink-0"
+              >
+                <Calendar className="h-4 w-4" />
+              </Button>
               <Input
                 ref={inputRef}
                 placeholder={insufficientCredits ? 'Crédits épuisés — top-up requis' : 'Votre message...'}
@@ -732,6 +803,22 @@ function ChatWindow({
           </form>
         </>
       )}
+
+      {/* BUG #36 COMMIT 2 — Modals activity_invite */}
+      <ActivitySelectorModal
+        open={activitySelectorOpen}
+        onOpenChange={setActivitySelectorOpen}
+        onSelect={handleActivityPicked}
+      />
+      <InviteModeModal
+        open={inviteModeOpen}
+        onOpenChange={(o) => {
+          if (!o) setPendingInviteActivity(null);
+          setInviteModeOpen(o);
+        }}
+        activityTitle={pendingInviteActivity?.activityTitle ?? ''}
+        onSelectMode={handleInviteModePicked}
+      />
     </div>
   );
 }
