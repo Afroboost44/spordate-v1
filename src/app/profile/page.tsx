@@ -17,6 +17,7 @@ import { updateUser, updateUserAiOptIn, getUser } from "@/services/firestore";
 import { PushOptInSwitch } from "@/components/profile/PushOptInSwitch";
 import { QRCodeButton } from "@/components/share/QRCodeButton";
 import { uploadProfilePhoto, StorageUploadError, PROFILE_PHOTO_MAX_BYTES } from "@/lib/storage/uploadProfilePhoto";
+import { readProfilePhotos, normalizePhotosForSave } from "@/lib/profile/photos";
 import type { UserProfile, SportEntry } from "@/types/firestore";
 import { Switch } from "@/components/ui/switch";
 import { DANCE_ACTIVITIES, DANCE_LEVELS } from "@/types/firestore";
@@ -121,7 +122,8 @@ export default function ProfilePage() {
             setDanceLevel(levelMap[firstDance.level] || '');
           }
 
-          setPhotos(userProfile.photoURL ? [userProfile.photoURL] : []);
+          // BUG #35 — read priorité photos[] > photoURL legacy
+          setPhotos(readProfilePhotos(userProfile));
           setProfileComplete(userProfile.onboardingComplete || false);
 
           // Phase 8 — undefined === true (opt-in implicite doctrine §D.Q1).
@@ -281,13 +283,18 @@ export default function ProfilePage() {
     ];
 
     try {
+      // BUG #35 — sauve l'array photos[] complet (dedup + truncate via helper)
+      // + sync photoURL legacy pour consumers (discovery firestoreProfileToCard
+      // line 101 utilise toujours user.photoURL singulier).
+      const normalized = normalizePhotosForSave(photos);
       await updateUser(user.uid, {
         displayName: displayName.trim(),
         bio: bio.trim(),
         city,
         gender,
         sports: sportsEntries,
-        photoURL: photos[0] || '',
+        photoURL: normalized.photoURL,
+        photos: normalized.photos,
         onboardingComplete: true,
       });
 

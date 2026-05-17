@@ -10,7 +10,18 @@ export interface UserProfile {
   uid: string;
   email: string;
   displayName: string;
+  /**
+   * Legacy singular field (Phase 1) — set par profile save AVANT BUG #35 et
+   * toujours rempli au save pour compat consumers comme discovery
+   * firestoreProfileToCard. Conserve la première photo de `photos[]`.
+   */
   photoURL: string;
+  /**
+   * BUG #35 — Photos additionnelles (slots 2-5 UI profile). Optionnel pour
+   * backward compat avec docs pré-#35 (qui n'ont que photoURL singulier).
+   * Helper readProfilePhotos() centralise la résolution.
+   */
+  photos?: string[];
   bio: string;
   gender: 'male' | 'female' | 'other';
   birthDate: Timestamp;
