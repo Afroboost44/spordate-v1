@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/carousel';
 import { ShareButton } from '@/components/activities/ShareButton';
 import { formatScheduledLabel } from '@/lib/activities/scheduled';
+import { formatImageCounter } from '@/lib/activities/imageCounter';
 
 interface ActivityCard {
   activityId: string;
@@ -335,6 +336,17 @@ function ActivityCardComponent({
           )}
           {hasMultiple && (
             <>
+              {/* BUG #29 — Counter "X/Y" bottom-right pour rendre explicite
+                  qu'il y a plusieurs images à swiper (avant : seul indice =
+                  petits dots discrets, l'user pensait devoir double-cliquer).
+                  Position bottom-right pour éviter conflit avec badge
+                  "Déjà réservée" (top-right) + dots (bottom-center).
+                  Pointer-events-none (info pure, pas clickable). */}
+              <div className="absolute bottom-2 right-2 bg-black/60 backdrop-blur-sm text-white text-[11px] font-medium px-2 py-0.5 rounded-full z-10 pointer-events-none select-none flex items-center gap-1">
+                <ChevronLeft className="h-3 w-3 opacity-60" />
+                <span>{formatImageCounter(currentSlide, items.length)}</span>
+                <ChevronRight className="h-3 w-3 opacity-60" />
+              </div>
               {/* Arrows custom (vs CarouselPrevious/Next) pour préserver style
                   opacity-0 group-hover existant + position. stopPropagation
                   empêche le click du Link parent (fix #21). */}
@@ -354,6 +366,8 @@ function ActivityCardComponent({
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
+              {/* BUG #29 — dots un peu plus visibles : w-2 (était w-1.5),
+                  inactif opacity 70 (était 50). Touch target restant fin. */}
               <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1.5 z-10">
                 {items.map((_, i) => (
                   <button
@@ -361,7 +375,7 @@ function ActivityCardComponent({
                     onClick={(e) => { e.stopPropagation(); e.preventDefault(); api?.scrollTo(i); }}
                     aria-label={`Aller à l'image ${i + 1}`}
                     type="button"
-                    className={`w-1.5 h-1.5 rounded-full transition-all ${i === currentSlide ? 'bg-white w-3' : 'bg-white/50'}`}
+                    className={`w-2 h-2 rounded-full transition-all shadow-sm ${i === currentSlide ? 'bg-white w-5' : 'bg-white/70 hover:bg-white/90'}`}
                   />
                 ))}
               </div>
