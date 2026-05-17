@@ -31,11 +31,13 @@ import { Play } from 'lucide-react';
 import type { MediaItem } from '@/types/firestore';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
 import { computeMediaCarouselLayout } from '@/lib/activities/mediaCarouselLayout';
+import { parseVideoUrl } from '@/lib/activities/mediaParser';
 import {
   extractDriveFileId,
   buildDriveThumbnailUrl,
   buildDriveViewerUrl,
 } from '@/lib/media/driveThumbnail';
+import { buildYoutubeDetailEmbedUrl } from '@/lib/media/youtubeEmbed';
 import {
   Carousel,
   CarouselContent,
@@ -131,7 +133,20 @@ function MediaItemRender({
       }
       // fileId pas extractible → fallback iframe (cas legacy / URL malformée)
     }
-    const embedSrc = item.embedUrl || item.url;
+    // BUG #30 Étape 1 — YouTube DÉTAIL : params minimal-branding (modestbranding,
+    // rel=0, iv_load_policy=3, disablekb, fs, playsinline) pour réduire les
+    // redirections externes et garder l'utilisateur dans Spordateur. Le bare
+    // embedUrl (sans params) montrait suggestions + annotations + raccourcis YT.
+    // Vimeo : bare embedUrl déjà minimal côté player. Drive : géré branche above.
+    let embedSrc: string | null = null;
+    if (item.provider === 'youtube') {
+      const parsed = parseVideoUrl(item.url);
+      const videoId = parsed?.videoId;
+      embedSrc = buildYoutubeDetailEmbedUrl(videoId) || item.embedUrl || item.url || null;
+    } else {
+      embedSrc = item.embedUrl || item.url || null;
+    }
+    if (!embedSrc) return null;
     return (
       <div className="relative aspect-video rounded-lg overflow-hidden border border-white/10 bg-zinc-950">
         <iframe
