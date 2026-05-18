@@ -1442,6 +1442,22 @@ END:VCALENDAR`;
       })()
     : [];
 
+  // Fix 1bis — prefetch sessions futures pour toutes les activités du modal
+  // "Où pratiquer" dès qu'il s'ouvre, afin d'afficher le prix effectif via
+  // getBookingPriceCHF (réuse cache sessionsByActivityId, partage avec le
+  // booking modal). Sans ce hook, le modal afficherait Activity.price brut
+  // tant que le user n'a pas ouvert le booking modal au préalable.
+  useEffect(() => {
+    if (!showWherePracticeModal) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const acts: any[] = [];
+    wherePracticeGroups.forEach((g) => g.activities.forEach((a) => acts.push(a)));
+    if (acts.length > 0) {
+      void prefetchSessionsForActivities(acts);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showWherePracticeModal]);
+
   // BUG #10 — Groupes "activités boostées par ville" pour le modal Où pratiquer.
   // Dérivé de realActivities + boostedPartnerIds déjà chargés par useEffect.
   //
@@ -2408,13 +2424,26 @@ END:VCALENDAR`;
                               <Zap className="h-4 w-4" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm text-white font-medium truncate">{a.title || 'Activité'}</p>
+                              <p className="text-sm text-white font-medium truncate">{a.title || a.name || 'Activité'}</p>
                               <p className="text-[11px] text-white/40 truncate">
                                 {a.sport ? `${a.sport} · ` : ''}{a.partnerName || ''}
                               </p>
-                              {typeof a.price === 'number' && a.price > 0 && (
-                                <p className="text-[11px] text-accent mt-0.5">{a.price} CHF</p>
-                              )}
+                              {/* Fix 1bis — prix effectif via getBookingPriceCHF
+                                  (réuse sessionsByActivityId déjà prefetched).
+                                  Reflète les overrides per-session du partner (B2)
+                                  + Activity.price en fallback si pas de session. */}
+                              {(() => {
+                                const effective = getBookingPriceCHF({
+                                  session: sessionsByActivityId[navId] ?? null,
+                                  activity: { price: a.price },
+                                  now: new Date(),
+                                  isDuo: false,
+                                });
+                                if (effective === 0) {
+                                  return <p className="text-[11px] text-emerald-300 mt-0.5">Gratuit</p>;
+                                }
+                                return <p className="text-[11px] text-accent mt-0.5">{effective} CHF</p>;
+                              })()}
                             </div>
                             <ChevronRight className="h-4 w-4 text-white/20 flex-shrink-0 mt-1" />
                           </div>
