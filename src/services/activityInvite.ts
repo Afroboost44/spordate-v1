@@ -17,7 +17,6 @@
  */
 
 import {
-  addDoc,
   collection,
   doc,
   getDoc,
@@ -137,25 +136,26 @@ export async function sendActivityInvite(
   let messageId: string;
   let replaced = false;
   if (!existingSnap.empty) {
-    // Update au lieu de create
+    // Anti-doublon : invite pending existante détectée → on NE re-écrit PAS
+    // (les rules Firestore bloquent l'update sender-side : seul le receiver
+    // peut update inviteStatus pending → accepted/declined).
+    // On retourne replaced=true + l'ID existant. L'invitation originale
+    // reste visible dans le chat ; caller toast "déjà envoyée" (Bug B).
     const existingDoc = existingSnap.docs[0];
-    const payload = buildActivityInvitePayload(input);
-    await setDoc(existingDoc.ref, {
-      ...payload,
-      messageId: existingDoc.id,
-      createdAt: existingDoc.data().createdAt ?? serverTimestamp(),
-    });
     messageId = existingDoc.id;
     replaced = true;
   } else {
-    // Sinon create nouveau
+    // Create avec ID pré-généré, messageId inclus dans payload → 1 seul write.
+    // Avant : addDoc + updateDoc(messageId) qui échouait sur les rules
+    // (update sender-side restreint aux transitions pending→accepted/declined).
+    const newRef = doc(messagesRef);
     const payload = buildActivityInvitePayload(input);
-    const docRef = await addDoc(messagesRef, {
+    await setDoc(newRef, {
       ...payload,
+      messageId: newRef.id,
       createdAt: serverTimestamp(),
     });
-    await updateDoc(docRef, { messageId: docRef.id });
-    messageId = docRef.id;
+    messageId = newRef.id;
   }
 
   // BUG #36 C3 — Notification push receiver (best-effort, non-bloquant)

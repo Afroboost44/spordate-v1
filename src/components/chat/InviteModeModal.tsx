@@ -110,7 +110,7 @@ export function InviteModeModal({
                 </div>
                 <p className="text-[11px] text-white/50 mt-0.5">
                   {hasFutureSession
-                    ? "Tu paies maintenant 2 places via Stripe. Ton ami n'a plus qu'à accepter."
+                    ? "Tu paies maintenant pour 2 places. Ton ami n'a plus qu'à accepter."
                     : "Cette activité n'a plus de session prévue. Utilise « Chacun paie sa part » — votre ami réservera quand une nouvelle session sera disponible."}
                 </p>
               </div>

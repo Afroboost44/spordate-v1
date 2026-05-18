@@ -1369,12 +1369,23 @@ END:VCALENDAR`;
   // Phase 9.5 c38b CH3 — Activités boostées DU PARTNER ACTUELLEMENT REGARDÉ.
   // Sous-ensemble de visibleActivities, filtré sur Activity.partnerId ==
   // currentProfile.firestoreUid (= le user/partner dont la card est affichée).
-  // Utilisé par la modal "Réserver" dropdown pour proposer uniquement ses
-  // activités à lui (pas celles d'autres partners boostés).
+  // Bug A (post Fix A) — Si le profil visualisé n'est pas partenaire d'une
+  // activité boostée (cas user normal qu'on swipe), fallback intelligent :
+  // proposer toutes les activités actives du système. Permet à l'utilisateur
+  // de réserver une activité Spordateur même si le profil swipé n'est pas
+  // partenaire — le profil sert alors juste à matcher l'invitee Duo / partage.
   const partnerActivities = currentProfile
-    ? visibleActivities.filter(
-        (act) => act.partnerId === (currentProfile as any).firestoreUid,
-      )
+    ? (() => {
+        const owned = visibleActivities.filter(
+          (act) => act.partnerId === (currentProfile as any).firestoreUid,
+        );
+        if (owned.length > 0) return owned;
+        // Fallback : toutes les activités actives (isActive !== false).
+        return realActivities.filter(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (act: any) => act.isActive !== false,
+        );
+      })()
     : [];
 
   // BUG #10 — Groupes "activités boostées par ville" pour le modal Où pratiquer.

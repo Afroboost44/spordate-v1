@@ -380,8 +380,10 @@ function ChatWindow({
         inviteMode: mode,
       });
       toast({
-        title: result.replaced ? 'Invitation mise à jour' : 'Invitation envoyée 🎉',
-        description: `${otherUser.displayName} la verra dans le chat.`,
+        title: result.replaced ? 'Invitation déjà envoyée ✓' : 'Invitation envoyée 🎉',
+        description: result.replaced
+          ? `Tu as déjà invité ${otherUser.displayName} à cette activité. L'invitation originale reste visible dans le chat.`
+          : `${otherUser.displayName} la verra dans le chat.`,
         className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
       });
       if (result.rateLimitMessage) {
