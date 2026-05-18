@@ -50,7 +50,9 @@ import { extractSwipedUids } from '@/lib/discovery/swipedUids';
 import { buildActivityListUrl } from '@/lib/activities/listUrl';
 import Link from 'next/link';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
-import { createMatch, getUserMatches } from '@/services/firestore';
+import { createMatch, getUserMatches, getNextFutureSessionForActivity } from '@/services/firestore';
+import { getBookingPriceCHF } from '@/lib/booking/price';
+import type { Session as PricingSession } from '@/types/firestore';
 import type { Match } from '@/types/firestore';
 import { getMutualBlockSet } from '@/lib/blocks';
 import { computeMatchScore } from '@/lib/matching/computeMatchScore';
@@ -131,6 +133,10 @@ export default function DiscoveryPage() {
   // currentProfile.price retiré). Pre-sélectionnée auto par handleBookSession()
   // si l'utilisateur clique le CTA principal sans en choisir une.
   const [selectedActivity, setSelectedActivity] = useState<any | null>(null);
+  // BUG pricing FIX A — preview de la session de référence (next future) pour
+  // afficher le prix EFFECTIVEMENT chargé par /api/checkout (computePricingTier
+  // sur session.pricingTiers) au lieu d'Activity.price (vitrine) qui peut diverger.
+  const [previewedSession, setPreviewedSession] = useState<PricingSession | null>(null);
 
   // New states for social features
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
@@ -695,17 +701,36 @@ export default function DiscoveryPage() {
       return;
     }
     const pick = activity ?? partnerActivities[0] ?? null;
-    setSelectedActivity(pick);
+    selectActivityWithPreview(pick);
     // Don't reset selectedMeetingPlace if already set from partner selection
     setIsDuoTicket(false);
     setShowPaymentModal(true);
   };
 
-  // Phase 9.5 c26 BUG BB — prix lu sur selectedActivity (Activity choisie),
-  // plus jamais sur la card profil (qui ne porte plus de prix). Duo = ×2.
+  // BUG pricing FIX A — Centralise la sélection d'activité + preview de la
+  // session de référence (next future). Sans preview, getBookingPriceCHF
+  // retombe sur Activity.price (vitrine) qui peut diverger du prix réellement
+  // chargé par /api/checkout (computePricingTier sur session.pricingTiers).
+  const selectActivityWithPreview = (act: any | null) => {
+    setSelectedActivity(act);
+    setPreviewedSession(null);
+    if (act?.activityId) {
+      getNextFutureSessionForActivity(act.activityId)
+        .then((s) => setPreviewedSession(s))
+        .catch(() => setPreviewedSession(null));
+    }
+  };
+
+  // BUG pricing FIX A — Prix résolu par helper pur depuis la session de
+  // référence (si chargée) sinon fallback Activity.price. Aligné avec
+  // /api/checkout server-side (computePricingTier). Duo = ×2.
   const getCurrentPrice = () => {
-    const basePrice = Number(selectedActivity?.price ?? 0);
-    return isDuoTicket ? basePrice * 2 : basePrice;
+    return getBookingPriceCHF({
+      session: previewedSession,
+      activity: selectedActivity ?? null,
+      now: new Date(),
+      isDuo: isDuoTicket,
+    });
   };
 
   // Poll payment status from Stripe
@@ -1564,7 +1589,10 @@ END:VCALENDAR`;
       )}
 
       {/* Payment Modal */}
-      <Dialog open={showPaymentModal} onOpenChange={setShowPaymentModal}>
+      <Dialog open={showPaymentModal} onOpenChange={(o) => {
+        if (!o) setPreviewedSession(null);
+        setShowPaymentModal(o);
+      }}>
         <DialogContent className="max-w-md w-full bg-zinc-900 border-white/10 text-white p-0 overflow-hidden max-h-[90vh] flex flex-col">
           <DialogHeader className="p-6 pb-3 bg-gradient-to-b from-[#D91CD2]/20 to-transparent flex-shrink-0">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
@@ -1644,7 +1672,7 @@ END:VCALENDAR`;
                           key={act.activityId || act.id}
                           type="button"
                           data-testid="activity-card"
-                          onClick={() => setSelectedActivity(act)}
+                          onClick={() => selectActivityWithPreview(act)}
                           className={cn(
                             'w-full flex gap-3 p-3 rounded-xl border transition-all text-left',
                             isSelected
