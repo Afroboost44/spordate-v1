@@ -22,6 +22,11 @@ import {
 import { Input } from '@/components/ui/input';
 import { db } from '@/lib/firebase';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
+import { getNextFutureSessionForActivity } from '@/services/firestore';
+import {
+  buildFutureSessionActivityIdSet,
+  filterActivitiesWithFutureSession,
+} from '@/lib/chat/activityInvite';
 import type { Activity } from '@/types/firestore';
 
 export interface ActivitySelectorPick {
@@ -60,7 +65,24 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
         const snap = await getDocs(q);
         if (cancelled) return;
         const items: Activity[] = snap.docs.map((d) => ({ ...(d.data() as Activity), activityId: d.id }));
-        setActivities(items);
+
+        // BUG #36 post-hotfix : pré-filtre côté client pour ne montrer QUE
+        // les activités avec session future. Évite le 409 no-future-session
+        // au moment du Stripe Checkout (mode Duo) + cohérence UX mode Individual
+        // (carte avec date réelle au lieu de "Date à venir" sans suite).
+        // Parallel fetch (1 read par activité) — bornes : 50 reads max.
+        const nextSessions = await Promise.all(
+          items.map((a) =>
+            getNextFutureSessionForActivity(a.activityId)
+              .then((s) => (s && s.startAt ? { activityId: a.activityId, startAtMs: s.startAt.toMillis() } : null))
+              .catch(() => null),
+          ),
+        );
+        if (cancelled) return;
+        const sessionsLite = nextSessions.filter((x): x is { activityId: string; startAtMs: number } => x !== null);
+        const futureSet = buildFutureSessionActivityIdSet(sessionsLite, Date.now());
+        const filteredItems = filterActivitiesWithFutureSession(items, futureSet);
+        setActivities(filteredItems);
       } catch (err) {
         console.warn('[ActivitySelectorModal] load failed', err);
       } finally {
@@ -174,7 +196,9 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
               <Loader2 className="h-6 w-6 text-[#D91CD2] animate-spin" />
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-center py-8 text-white/30 text-sm">Aucune activité trouvée.</p>
+            <p className="text-center py-8 text-white/30 text-sm">
+              Aucune activité avec session future disponible.
+            </p>
           ) : (
             filtered.map((a) => {
               const imageUrl = a.images?.[0] || (a.mediaUrls?.find((m) => m.type === 'image')?.url ?? '');

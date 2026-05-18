@@ -132,6 +132,56 @@ interface InviteExpiryInput {
   nextSessionAt?: any;
 }
 
+// =====================================================================
+// buildFutureSessionActivityIdSet + filterActivitiesWithFutureSession
+// =====================================================================
+
+/**
+ * BUG #36 post-hotfix — Pré-filtre helpers pour ActivitySelectorModal.
+ *
+ * Le picker d'activités ne doit montrer QUE les activités qui ont une
+ * session future programmée — sinon le mode Duo échoue avec 409
+ * `no-future-session` au moment du Stripe Checkout. Le mode Individual
+ * pourrait techniquement fonctionner sans, mais l'UX est meilleure en
+ * filtrant uniformément (date visible dans la carte, pas de fausse promesse).
+ */
+
+export interface FutureSessionLite {
+  activityId: string;
+  /** ms epoch — caller convertit Firestore Timestamp via toMillis() avant. */
+  startAtMs: number;
+}
+
+/**
+ * Construit un Set d'activityIds qui ont au moins une session future à
+ * partir d'un tableau plat de sessions. Tolère duplicates (same activityId
+ * plusieurs fois) — résultat dédupliqué par Set.
+ */
+export function buildFutureSessionActivityIdSet(
+  sessions: FutureSessionLite[],
+  nowMs: number,
+): Set<string> {
+  const set = new Set<string>();
+  for (const s of sessions) {
+    if (s && s.activityId && typeof s.startAtMs === 'number' && s.startAtMs > nowMs) {
+      set.add(s.activityId);
+    }
+  }
+  return set;
+}
+
+/**
+ * Filtre un tableau d'activités pour ne garder que celles présentes dans le
+ * Set d'IDs futurs. Préserve l'ordre original (important pour le UI : list
+ * souvent triée par date de création desc, on veut pas reshuffler).
+ */
+export function filterActivitiesWithFutureSession<T extends { activityId: string }>(
+  activities: T[],
+  futureSessionActivityIds: Set<string>,
+): T[] {
+  return activities.filter((a) => futureSessionActivityIds.has(a.activityId));
+}
+
 /**
  * Vrai si l'invite est considérée expirée à `nowMs` :
  *  - nextSessionAt absent → false (pas d'expiration possible)

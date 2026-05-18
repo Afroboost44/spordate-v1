@@ -29,6 +29,8 @@ import {
   buildActivityInvitePayload,
   validateInviteStatusTransition,
   isInviteExpired,
+  buildFutureSessionActivityIdSet,
+  filterActivitiesWithFutureSession,
 } from '../../src/lib/chat/activityInvite';
 
 let passes = 0;
@@ -207,6 +209,60 @@ async function run() {
       isInviteExpired(invitePast, now) === true
     ) ok('12h/past → expired');
     else fail('unexpected');
+  }
+
+  // ─── buildFutureSessionActivityIdSet + filterActivitiesWithFutureSession ─
+  // (BUG #36 post-hotfix : pré-filtrer ActivitySelectorModal pour ne montrer
+  // QUE les activités avec session future — évite le 409 no-future-session.)
+  const nowMs = Date.now();
+
+  section('AI15 — buildFutureSessionActivityIdSet empty array → empty Set');
+  {
+    const set = buildFutureSessionActivityIdSet([], nowMs);
+    if (set instanceof Set && set.size === 0) ok('empty in → empty Set');
+    else fail('unexpected', { size: set.size });
+  }
+
+  section('AI16 — buildFutureSessionActivityIdSet mix past/future → only futures');
+  {
+    const set = buildFutureSessionActivityIdSet(
+      [
+        { activityId: 'a-future', startAtMs: nowMs + 3600 * 1000 },
+        { activityId: 'a-past', startAtMs: nowMs - 3600 * 1000 },
+        { activityId: 'a-future-2', startAtMs: nowMs + 7200 * 1000 },
+        { activityId: 'a-future', startAtMs: nowMs + 5000 * 1000 }, // dup OK
+      ],
+      nowMs,
+    );
+    if (set.size === 2 && set.has('a-future') && set.has('a-future-2') && !set.has('a-past')) {
+      ok('only future activityIds, dedup OK');
+    } else {
+      fail('unexpected', { size: set.size, has: Array.from(set) });
+    }
+  }
+
+  section('AI17 — filterActivitiesWithFutureSession keeps only matching activityIds');
+  {
+    const acts = [
+      { activityId: 'a-1', title: 'A1' },
+      { activityId: 'a-2', title: 'A2' },
+      { activityId: 'a-3', title: 'A3' },
+    ];
+    const set = new Set(['a-1', 'a-3']);
+    const filtered = filterActivitiesWithFutureSession(acts, set);
+    if (
+      filtered.length === 2 &&
+      filtered[0].activityId === 'a-1' &&
+      filtered[1].activityId === 'a-3'
+    ) {
+      ok('filters correctly preserving order');
+    } else {
+      fail('unexpected', { ids: filtered.map((a) => a.activityId) });
+    }
+    // Empty set → empty result
+    const emptyFiltered = filterActivitiesWithFutureSession(acts, new Set());
+    if (emptyFiltered.length === 0) ok('empty Set → empty result');
+    else fail('expected empty');
   }
 
   console.log(`\n====== Résumé activity-invite ======`);

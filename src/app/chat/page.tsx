@@ -382,9 +382,27 @@ function ChatWindow({
       setPendingInviteActivity(null);
     } catch (err) {
       console.warn('[ChatWindow] sendActivityInvite failed', err);
+      // BUG #36 post-hotfix : toast spécifique selon code d'erreur.
+      // 'no-future-session' = activité sans session programmée (cas edge race
+      // condition après le pré-filtre du modal — défensif).
+      const msg = err instanceof Error ? err.message : String(err);
+      let title = 'Erreur';
+      let description = "Impossible d'envoyer l'invitation. Réessaie.";
+      if (msg === 'no-future-session') {
+        title = 'Pas de session future';
+        description =
+          "Cette activité n'a plus de session prévue. Demande au partenaire d'en programmer une nouvelle.";
+      } else if (msg === 'session-not-bookable') {
+        title = 'Session non réservable';
+        description =
+          "La prochaine session est complète ou annulée. Choisis une autre activité.";
+      } else if (msg === 'session-no-pricing') {
+        title = 'Tarification manquante';
+        description = "Cette activité n'a pas de tarification configurée.";
+      }
       toast({
-        title: 'Erreur',
-        description: "Impossible d'envoyer l'invitation. Réessaie.",
+        title,
+        description,
         variant: 'destructive',
       });
     } finally {
