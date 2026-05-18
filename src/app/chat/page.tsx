@@ -44,6 +44,7 @@ import {
   getUser,
   unlockChat,
   triggerSuggestionsIfEligible,
+  getNextFutureSessionForActivity,
 } from '@/services/firestore';
 import { getMutualBlockSet } from '@/lib/blocks';
 import { resolveChatUrlAction } from '@/lib/chat/urlParams';
@@ -270,6 +271,8 @@ function ChatWindow({
   const [activitySelectorOpen, setActivitySelectorOpen] = useState(false);
   const [inviteModeOpen, setInviteModeOpen] = useState(false);
   const [pendingInviteActivity, setPendingInviteActivity] = useState<{ activityId: string; activityTitle: string; activityCity?: string; activitySport?: string; activityImageUrl?: string } | null>(null);
+  // BUG #38 — résolu après pick d'une activité, gate le bouton Duo dans InviteModeModal
+  const [pendingHasFutureSession, setPendingHasFutureSession] = useState<boolean>(true);
   const [sendingInvite, setSendingInvite] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -304,9 +307,19 @@ function ChatWindow({
   const handleOpenActivitySelector = () => {
     setActivitySelectorOpen(true);
   };
-  const handleActivityPicked = (pick: ActivitySelectorPick) => {
+  const handleActivityPicked = async (pick: ActivitySelectorPick) => {
     setPendingInviteActivity(pick);
     setActivitySelectorOpen(false);
+    // BUG #38 — Détecte la disponibilité d'une session future AVANT d'ouvrir
+    // InviteModeModal. Si null → bouton Duo grisé (le Stripe Checkout est
+    // adossé à une session, impossible sans). Best-effort : si la query throw
+    // on assume false (defensive — toast 409 reste defensive après).
+    try {
+      const next = await getNextFutureSessionForActivity(pick.activityId);
+      setPendingHasFutureSession(next !== null);
+    } catch {
+      setPendingHasFutureSession(false);
+    }
     setInviteModeOpen(true);
   };
   const handleInviteModePicked = async (mode: ActivityInviteMode) => {
@@ -882,10 +895,14 @@ function ChatWindow({
       <InviteModeModal
         open={inviteModeOpen}
         onOpenChange={(o) => {
-          if (!o) setPendingInviteActivity(null);
+          if (!o) {
+            setPendingInviteActivity(null);
+            setPendingHasFutureSession(true);
+          }
           setInviteModeOpen(o);
         }}
         activityTitle={pendingInviteActivity?.activityTitle ?? ''}
+        hasFutureSession={pendingHasFutureSession}
         onSelectMode={handleInviteModePicked}
       />
     </div>

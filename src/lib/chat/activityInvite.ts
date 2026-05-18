@@ -17,6 +17,36 @@
 import type { ActivityInviteMode, InviteStatus, ActivityInviteData } from '@/types/firestore';
 
 // =====================================================================
+// displayActivityTitle
+// =====================================================================
+
+/**
+ * BUG #38 — Fallback chain user-meaningful pour afficher un titre d'activité
+ * quand le champ Firestore `title` est vide/whitespace (legacy data ou test
+ * data). Ordre :
+ *   1. title.trim() s'il est non-vide
+ *   2. "sport · city" si les deux sont fournis
+ *   3. sport seul si présent
+ *   4. "Activité" en dernier recours (jamais retourner '')
+ *
+ * Utilisé par ActivitySelectorModal (carte) + InviteModeModal (description)
+ * + buildActivityInvitePayload (snapshot dénormalisé).
+ */
+export function displayActivityTitle(input: {
+  title?: string;
+  sport?: string;
+  city?: string;
+}): string {
+  const title = (input.title ?? '').trim();
+  if (title) return title;
+  const sport = (input.sport ?? '').trim();
+  const city = (input.city ?? '').trim();
+  if (sport && city) return `${sport} · ${city}`;
+  if (sport) return sport;
+  return 'Activité';
+}
+
+// =====================================================================
 // buildActivityInvitePayload
 // =====================================================================
 
@@ -56,10 +86,16 @@ export function buildActivityInvitePayload(input: BuildInviteInput): ActivityInv
       (input.nextSessionAt as any)
     : undefined;
 
-  // BUG #36 hotfix — Firestore refuse les `undefined` dans les docs. activityTitle
-  // est dénormalisé snapshot mais peut arriver undefined/empty (legacy activities
-  // sans champ title). Fallback 'Activité' pour ne JAMAIS bloquer le send.
-  const safeTitle = (input.activityTitle ?? '').trim() || 'Activité';
+  // BUG #36 hotfix + BUG #38 — Firestore refuse les `undefined`. activityTitle
+  // peut arriver undefined/empty (legacy activities sans `title`). Fallback chain
+  // displayActivityTitle privilégie info user-meaningful (sport · city) avant
+  // de retomber sur 'Activité' générique. Le snapshot Firestore stocke la
+  // valeur résolue (cohérent avec l'affichage dans le picker + modal mode).
+  const safeTitle = displayActivityTitle({
+    title: input.activityTitle,
+    sport: input.activitySport,
+    city: input.activityCity,
+  });
 
   // Build invite avec ONLY les champs définis (skip undefined → Firestore-safe).
   const invite: ActivityInviteData = {

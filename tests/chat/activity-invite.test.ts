@@ -31,6 +31,7 @@ import {
   isInviteExpired,
   buildFutureSessionActivityIdSet,
   filterActivitiesWithFutureSession,
+  displayActivityTitle,
 } from '../../src/lib/chat/activityInvite';
 
 let passes = 0;
@@ -263,6 +264,48 @@ async function run() {
     const emptyFiltered = filterActivitiesWithFutureSession(acts, new Set());
     if (emptyFiltered.length === 0) ok('empty Set → empty result');
     else fail('expected empty');
+  }
+
+  // ─── displayActivityTitle ───────────────────────────────────────────
+  // (BUG #38 — fallback chain meilleur que "Activité" pour la modal
+  //  "Comment tu invites ?" + carte chat. Privilégie info user-meaningful
+  //  quand le champ Firestore `title` est vide.)
+  section('DT1 — title présent → retourné trimmé');
+  {
+    const t = displayActivityTitle({ title: '  Afroboost  ', sport: 'salsa', city: 'Genève' });
+    if (t === 'Afroboost') ok('title trimmed wins');
+    else fail('unexpected', t);
+  }
+
+  section('DT2 — title whitespace-only → fallback chain enclenché');
+  {
+    const t = displayActivityTitle({ title: '   ', sport: 'salsa', city: 'Genève' });
+    if (t === 'salsa · Genève') ok('whitespace ignored → sport · city');
+    else fail('unexpected', t);
+  }
+
+  section('DT3 — empty title + sport + city → "sport · city"');
+  {
+    const t = displayActivityTitle({ title: '', sport: 'Bachata', city: 'Lausanne' });
+    if (t === 'Bachata · Lausanne') ok('sport · city');
+    else fail('unexpected', t);
+  }
+
+  section('DT4 — empty title + sport only → sport');
+  {
+    const t = displayActivityTitle({ title: '', sport: 'Hip-Hop' });
+    if (t === 'Hip-Hop') ok('sport only');
+    else fail('unexpected', t);
+  }
+
+  section('DT5 — tout vide → "Activité"');
+  {
+    const t = displayActivityTitle({});
+    if (t === 'Activité') ok('final fallback "Activité"');
+    else fail('unexpected', t);
+    const t2 = displayActivityTitle({ title: '', sport: '', city: '' });
+    if (t2 === 'Activité') ok('empty strings → fallback');
+    else fail('unexpected2', t2);
   }
 
   console.log(`\n====== Résumé activity-invite ======`);

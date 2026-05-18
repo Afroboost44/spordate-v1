@@ -22,6 +22,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { db } from '@/lib/firebase';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
+import { displayActivityTitle } from '@/lib/chat/activityInvite';
 import type { Activity } from '@/types/firestore';
 
 export interface ActivitySelectorPick {
@@ -185,8 +186,8 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
                   onClick={() =>
                     onSelect({
                       activityId: a.activityId,
-                      // BUG hotfix : fallback chain (title legacy can be missing)
-                      activityTitle: (a.title || '').trim() || 'Activité',
+                      // BUG #38 : fallback chain user-meaningful via displayActivityTitle
+                      activityTitle: displayActivityTitle({ title: a.title, sport: a.sport, city: a.city }),
                       activityCity: a.city || undefined,
                       activitySport: a.sport || undefined,
                       activityImageUrl: imageUrl || undefined,
@@ -207,7 +208,9 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm text-white font-medium truncate">{a.title}</p>
+                    <p className="text-sm text-white font-medium truncate">
+                      {displayActivityTitle({ title: a.title, sport: a.sport, city: a.city })}
+                    </p>
                     <p className="text-[11px] text-white/40 truncate flex items-center gap-1">
                       {a.sport && <span>{a.sport}</span>}
                       {a.city && (
