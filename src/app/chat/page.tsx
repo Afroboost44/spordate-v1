@@ -53,6 +53,7 @@ import { ActivitySelectorModal, type ActivitySelectorPick } from '@/components/c
 import { InviteModeModal } from '@/components/chat/InviteModeModal';
 import { ActivityInviteMessage } from '@/components/chat/ActivityInviteMessage';
 import { sendActivityInvite } from '@/services/activityInvite';
+import { getBookingPriceCHF } from '@/lib/booking/price';
 import type { ActivityInviteMode } from '@/types/firestore';
 import { ReportButton } from '@/components/reports/ReportButton';
 import type { Match, ChatMessage, UserProfile } from '@/types/firestore';
@@ -161,7 +162,7 @@ function ConversationList({
             className={cn(
               "w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left",
               isSelected
-                ? "bg-zinc-800/80 border-l-2 border-[#D91CD2]"
+                ? "bg-zinc-800/80 border-l-2 border-accent"
                 : "hover:bg-zinc-900/50 border-l-2 border-transparent"
             )}
           >
@@ -197,7 +198,7 @@ function ConversationList({
                     : conv.lastMessage || `Match : ${conv.match.sport || 'Sport'}`}
                 </span>
                 {conv.unreadCount > 0 && (
-                  <span className="bg-[#D91CD2] text-white text-xs rounded-full h-5 min-w-[20px] flex items-center justify-center px-1.5 font-medium ml-2 flex-shrink-0">
+                  <span className="bg-accent text-white text-xs rounded-full h-5 min-w-[20px] flex items-center justify-center px-1.5 font-medium ml-2 flex-shrink-0">
                     {conv.unreadCount}
                   </span>
                 )}
@@ -273,6 +274,9 @@ function ChatWindow({
   const [pendingInviteActivity, setPendingInviteActivity] = useState<{ activityId: string; activityTitle: string; activityCity?: string; activitySport?: string; activityImageUrl?: string } | null>(null);
   // BUG #38 — résolu après pick d'une activité, gate le bouton Duo dans InviteModeModal
   const [pendingHasFutureSession, setPendingHasFutureSession] = useState<boolean>(true);
+  // Fix UX — prix effectif d'une place (via getBookingPriceCHF) pour affichage
+  // dans les sous-textes des boutons mode dans InviteModeModal.
+  const [pendingPricePerSeatCHF, setPendingPricePerSeatCHF] = useState<number | undefined>(undefined);
   const [sendingInvite, setSendingInvite] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -310,15 +314,26 @@ function ChatWindow({
   const handleActivityPicked = async (pick: ActivitySelectorPick) => {
     setPendingInviteActivity(pick);
     setActivitySelectorOpen(false);
+    setPendingPricePerSeatCHF(undefined);
     // BUG #38 — Détecte la disponibilité d'une session future AVANT d'ouvrir
     // InviteModeModal. Si null → bouton Duo grisé (le Stripe Checkout est
-    // adossé à une session, impossible sans). Best-effort : si la query throw
-    // on assume false (defensive — toast 409 reste defensive après).
+    // adossé à une session, impossible sans). Fix UX : capture aussi le prix
+    // effectif pour l'afficher dans les sous-textes des boutons mode.
     try {
       const next = await getNextFutureSessionForActivity(pick.activityId);
       setPendingHasFutureSession(next !== null);
+      const effective = getBookingPriceCHF({
+        session: next,
+        // pas d'Activity object ici — fallback impossible côté chat. Si pas de
+        // session, on laisse undefined (l'UI affichera le texte générique).
+        activity: null,
+        now: new Date(),
+        isDuo: false,
+      });
+      setPendingPricePerSeatCHF(next ? effective : undefined);
     } catch {
       setPendingHasFutureSession(false);
+      setPendingPricePerSeatCHF(undefined);
     }
     setInviteModeOpen(true);
   };
@@ -384,7 +399,7 @@ function ChatWindow({
         description: result.replaced
           ? `Tu as déjà invité ${otherUser.displayName} à cette activité. L'invitation originale reste visible dans le chat.`
           : `${otherUser.displayName} la verra dans le chat.`,
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
       if (result.rateLimitMessage) {
         // Soft warning : 2e toast info au-dessus du success
@@ -631,17 +646,17 @@ function ChatWindow({
         <DialogContent className="bg-black border border-zinc-800 text-white max-w-md">
           <DialogHeader>
             <DialogTitle className="text-white font-light text-lg flex items-center gap-2">
-              <MessageCircle className="h-5 w-5 text-[#D91CD2]" />
+              <MessageCircle className="h-5 w-5 text-accent" />
               Bienvenue dans le chat post-session
             </DialogTitle>
             <DialogDescription className="text-gray-400 font-light text-sm leading-relaxed pt-2 space-y-3">
               <span className="block">
                 Tu disposes de <span className="text-white font-medium">{credits} crédits</span> pour échanger
                 avec {otherUser.displayName} (1 crédit par message texte). Top-up disponible à tout moment via{' '}
-                <Link href="/payment" className="text-[#D91CD2] hover:underline">/payment</Link>.
+                <Link href="/payment" className="text-accent hover:underline">/payment</Link>.
               </span>
               <span className="block flex items-start gap-2 pt-1">
-                <ShieldCheck className="h-4 w-4 text-[#D91CD2] flex-shrink-0 mt-0.5" />
+                <ShieldCheck className="h-4 w-4 text-accent flex-shrink-0 mt-0.5" />
                 <span className="text-xs text-white/50">
                   Les messages sont scannés automatiquement (motifs anti-leak — partage de coordonnées).
                   Cette modération est obligatoire — voir{' '}
@@ -653,7 +668,7 @@ function ChatWindow({
           <DialogFooter>
             <Button
               onClick={handleOnboardingDismiss}
-              className="bg-[#D91CD2] text-white font-light hover:opacity-90 w-full"
+              className="bg-accent text-white font-light hover:opacity-90 w-full"
             >
               Compris
             </Button>
@@ -693,7 +708,7 @@ function ChatWindow({
             )}
             <AlertDialogAction
               onClick={() => setShowL3Dialog(false)}
-              className="bg-[#D91CD2] text-white font-light hover:opacity-90"
+              className="bg-accent text-white font-light hover:opacity-90"
             >
               Compris
             </AlertDialogAction>
@@ -713,7 +728,7 @@ function ChatWindow({
               Réservez une activité avec {otherUser.displayName} pour débloquer la conversation.
             </p>
             <Button
-              className="bg-[#D91CD2] text-white font-light hover:opacity-90"
+              className="bg-accent text-white font-light hover:opacity-90"
               onClick={() => router.push('/payment')}
             >
               <CreditCard className="mr-2 h-4 w-4" />
@@ -804,7 +819,7 @@ function ChatWindow({
                             className={cn(
                               "rounded-2xl px-3.5 py-2.5",
                               isMe
-                                ? "bg-[#D91CD2] text-white rounded-br-md"
+                                ? "bg-accent text-white rounded-br-md"
                                 : "bg-zinc-800 text-gray-200 rounded-bl-md"
                             )}
                           >
@@ -817,7 +832,7 @@ function ChatWindow({
                             <span className="text-[11px] text-gray-600 font-light">{time}</span>
                             {isMe && (
                               isRead
-                                ? <CheckCheck className="h-3 w-3 text-[#D91CD2]" />
+                                ? <CheckCheck className="h-3 w-3 text-accent" />
                                 : <Check className="h-3 w-3 text-gray-600" />
                             )}
                           </div>
@@ -845,14 +860,14 @@ function ChatWindow({
                 onClick={handleOpenActivitySelector}
                 disabled={sending || sendingInvite}
                 aria-label="Inviter à une activité"
-                className="h-10 w-10 rounded-xl bg-zinc-900 border-zinc-800 text-[#D91CD2] hover:bg-[#D91CD2]/10 hover:border-[#D91CD2]/40 disabled:opacity-50 flex-shrink-0"
+                className="h-10 w-10 rounded-xl bg-zinc-900 border-zinc-800 text-accent hover:bg-accent/10 hover:border-accent/40 disabled:opacity-50 flex-shrink-0"
               >
                 <Calendar className="h-4 w-4" />
               </Button>
               <Input
                 ref={inputRef}
                 placeholder={insufficientCredits ? 'Crédits épuisés — top-up requis' : 'Votre message...'}
-                className="flex-1 bg-zinc-900 border-zinc-800 text-white placeholder:text-gray-600 font-light h-10 rounded-xl focus-visible:ring-[#D91CD2]/30"
+                className="flex-1 bg-zinc-900 border-zinc-800 text-white placeholder:text-gray-600 font-light h-10 rounded-xl focus-visible:ring-accent/30"
                 value={inputValue}
                 onChange={(e) => setInputValue(e.target.value)}
                 disabled={sending || insufficientCredits}
@@ -861,7 +876,7 @@ function ChatWindow({
                 type="submit"
                 size="icon"
                 disabled={!inputValue.trim() || sending || insufficientCredits}
-                className="h-10 w-10 rounded-xl bg-[#D91CD2] text-white hover:opacity-90 disabled:opacity-30 flex-shrink-0"
+                className="h-10 w-10 rounded-xl bg-accent text-white hover:opacity-90 disabled:opacity-30 flex-shrink-0"
               >
                 {sending ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -878,7 +893,7 @@ function ChatWindow({
               {insufficientCredits && (
                 <Link
                   href="/payment"
-                  className="text-[11px] text-[#D91CD2] hover:underline font-light"
+                  className="text-[11px] text-accent hover:underline font-light"
                 >
                   Top-up →
                 </Link>
@@ -900,11 +915,13 @@ function ChatWindow({
           if (!o) {
             setPendingInviteActivity(null);
             setPendingHasFutureSession(true);
+            setPendingPricePerSeatCHF(undefined);
           }
           setInviteModeOpen(o);
         }}
         activityTitle={pendingInviteActivity?.activityTitle ?? ''}
         hasFutureSession={pendingHasFutureSession}
+        pricePerSeatCHF={pendingPricePerSeatCHF}
         onSelectMode={handleInviteModePicked}
       />
     </div>
@@ -990,7 +1007,7 @@ function ChatPageContent() {
       toast({
         title: 'Invitation Duo envoyée 💝',
         description: '2 places réservées. Ton ami n\'a plus qu\'à accepter.',
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
     } else if (duoCancelled === 'true') {
       toast({

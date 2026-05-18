@@ -139,7 +139,7 @@ export function SanctionPickerDialog({
                 htmlFor={`sanction-${opt.value}`}
                 className={`flex items-start gap-3 px-3 py-2.5 rounded border cursor-pointer transition-colors ${
                   level === opt.value
-                    ? 'border-[#D91CD2] bg-gray-800'
+                    ? 'border-accent bg-gray-800'
                     : 'border-gray-700 hover:bg-gray-800/60'
                 }`}
               >

@@ -35,7 +35,7 @@ export function AdminMenuLink({ variant = 'desktop', onClick }: AdminMenuLinkPro
       <Link
         href="/admin/manage"
         onClick={onClick}
-        className="px-4 py-2 rounded-md hover:bg-accent/10 text-[#D91CD2] flex items-center gap-2"
+        className="px-4 py-2 rounded-md hover:bg-accent/10 text-accent flex items-center gap-2"
       >
         <Shield className="h-5 w-5" />
         Console admin
@@ -47,7 +47,7 @@ export function AdminMenuLink({ variant = 'desktop', onClick }: AdminMenuLinkPro
     <Button
       variant="ghost"
       asChild
-      className="flex items-center gap-2 text-[#D91CD2] hover:text-[#D91CD2]/80"
+      className="flex items-center gap-2 text-accent hover:text-accent/80"
       onClick={onClick}
     >
       <Link href="/admin/manage">

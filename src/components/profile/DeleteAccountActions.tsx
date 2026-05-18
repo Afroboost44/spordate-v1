@@ -68,7 +68,7 @@ export function DeleteAccountActions({
           title: 'Compte en cours de suppression',
           description:
             'Tu as 30 jours pour annuler en revenant sur cette page. Au-delà, suppression définitive.',
-          className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+          className: 'bg-zinc-900 border-accent/40 text-white',
         });
         // Logout + redirect home
         try {
@@ -198,7 +198,7 @@ export function DeleteAccountActions({
               Confirmer la suppression du compte
             </AlertDialogTitle>
             <AlertDialogDescription className="text-white/60 text-sm">
-              Tu auras 30 jours pour annuler en revenant sur <code className="text-[#D91CD2]">/profile/delete</code>.
+              Tu auras 30 jours pour annuler en revenant sur <code className="text-accent">/profile/delete</code>.
               Au-delà, tes données personnelles (nom, email, photo, bio) seront anonymisées
               de façon irréversible. Les reviews et reports T&S restent (anonymes, audit
               trail).

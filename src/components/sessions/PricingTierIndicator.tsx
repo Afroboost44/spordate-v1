@@ -89,14 +89,14 @@ export function PricingTierIndicator({
         // Charte stricte — différenciation par opacité + bordure + typographie, JAMAIS par couleur sémantique.
         let containerClass = 'border-white/20 opacity-70 font-light';
         if (isActive) {
-          containerClass = 'border-[#D91CD2] opacity-100 font-semibold';
+          containerClass = 'border-accent opacity-100 font-semibold';
         } else if (isPassed) {
           containerClass = 'border-white/10 opacity-40 font-light';
         }
 
         // Icône : couleur uniquement #D91CD2 sur le tier actif. Sinon white/40 (passé) ou white/60 (futur).
         let iconClass = 'text-white/60';
-        if (isActive) iconClass = 'text-[#D91CD2]';
+        if (isActive) iconClass = 'text-accent';
         else if (isPassed) iconClass = 'text-white/40';
 
         const labelEl = isPassed ? <s>{meta.label}</s> : meta.label;

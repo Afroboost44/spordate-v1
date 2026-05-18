@@ -38,9 +38,9 @@ export function Step1({ data, onDataChange, onNext, referredBy }: Step1Props) {
     <div className="space-y-4">
       {/* Social Proof Banner - Invitation active */}
       {referredBy && (
-        <div className="p-3 bg-[#D91CD2]/10 border border-[#D91CD2]/30 rounded-lg flex items-center gap-3">
-          <div className="p-2 bg-[#D91CD2]/20 rounded-full">
-            <Sparkles className="h-4 w-4 text-[#D91CD2]" />
+        <div className="p-3 bg-accent/10 border border-accent/30 rounded-lg flex items-center gap-3">
+          <div className="p-2 bg-accent/20 rounded-full">
+            <Sparkles className="h-4 w-4 text-accent" />
           </div>
           <div className="flex-1">
             <p className="text-sm font-medium text-purple-300">
@@ -98,7 +98,7 @@ export function Step1({ data, onDataChange, onNext, referredBy }: Step1Props) {
 
         <Button
           type="submit"
-          className="w-full bg-[#D91CD2] text-white font-semibold"
+          className="w-full bg-accent text-white font-semibold"
           data-testid="step1-submit"
         >
           Continuer <ArrowRight className="ml-2 h-4 w-4" />

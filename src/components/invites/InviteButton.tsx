@@ -226,8 +226,8 @@ export function InviteButton({
         className={cn(
           'inline-flex items-center gap-1.5 text-xs font-medium rounded-lg px-3 py-1.5 transition-colors',
           variant === 'primary'
-            ? 'bg-[#D91CD2] text-black hover:opacity-90 disabled:opacity-40'
-            : 'border border-white/15 text-white/70 hover:text-white hover:border-[#D91CD2]/40 disabled:opacity-40 disabled:cursor-not-allowed',
+            ? 'bg-accent text-black hover:opacity-90 disabled:opacity-40'
+            : 'border border-white/15 text-white/70 hover:text-white hover:border-accent/40 disabled:opacity-40 disabled:cursor-not-allowed',
           className,
         )}
         title={isAuth ? `Inviter ${toUserName}` : 'Connecte-toi pour inviter'}
@@ -284,7 +284,7 @@ export function InviteButton({
             <div className="space-y-2 pt-1">
               <div className="flex justify-between items-center">
                 <Label className="text-xs text-white/50 font-light">Ta part</Label>
-                <span className="text-xs text-[#D91CD2] font-medium">
+                <span className="text-xs text-accent font-medium">
                   {(splitInviterRatio * 100).toFixed(0)}%
                 </span>
               </div>
@@ -295,7 +295,7 @@ export function InviteButton({
                 max={90}
                 step={10}
                 disabled={loading}
-                className="[&_[role=slider]]:bg-[#D91CD2] [&_[role=slider]]:border-[#D91CD2]"
+                className="[&_[role=slider]]:bg-accent [&_[role=slider]]:border-accent"
               />
             </div>
           )}
@@ -309,7 +309,7 @@ export function InviteButton({
               </p>
               <div className="flex justify-between text-sm pt-1 border-t border-white/5 mt-1.5">
                 <span className="text-white/60">Toi</span>
-                <span className="text-[#D91CD2] font-medium">{previewAmounts.youChf} CHF</span>
+                <span className="text-accent font-medium">{previewAmounts.youChf} CHF</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-white/60">{toUserName}</span>
@@ -333,7 +333,7 @@ export function InviteButton({
               onChange={(e) => setMessage(e.target.value)}
               maxLength={MAX_MESSAGE_LEN + 50}
               rows={2}
-              className="bg-zinc-900 border-zinc-800 text-white placeholder:text-gray-600 font-light resize-none focus-visible:ring-[#D91CD2]/30"
+              className="bg-zinc-900 border-zinc-800 text-white placeholder:text-gray-600 font-light resize-none focus-visible:ring-accent/30"
               disabled={loading}
             />
             <div className="flex justify-end">
@@ -360,7 +360,7 @@ export function InviteButton({
             <Button
               onClick={handleSubmit}
               disabled={loading || messageOver}
-              className="bg-[#D91CD2] text-white font-light hover:opacity-90"
+              className="bg-accent text-white font-light hover:opacity-90"
             >
               {loading ? (
                 <>
@@ -408,7 +408,7 @@ function ModeOption({
       className={cn(
         'flex items-start gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors',
         checked
-          ? 'border-[#D91CD2] bg-[#D91CD2]/5'
+          ? 'border-accent bg-accent/5'
           : 'border-zinc-800 hover:border-white/15',
       )}
     >
@@ -417,12 +417,12 @@ function ModeOption({
         id={`mode-${value}`}
         className={cn(
           'mt-1 border-white/30',
-          checked && 'border-[#D91CD2] text-[#D91CD2]',
+          checked && 'border-accent text-accent',
         )}
       />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 text-sm text-white">
-          <span className={checked ? 'text-[#D91CD2]' : 'text-white/60'}>{icon}</span>
+          <span className={checked ? 'text-accent' : 'text-white/60'}>{icon}</span>
           <span className="font-medium">{title}</span>
         </div>
         <p className="text-xs text-white/50 font-light mt-0.5">{description}</p>

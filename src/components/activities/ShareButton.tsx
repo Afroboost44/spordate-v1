@@ -66,7 +66,7 @@ export function ShareButton({ activity, className }: ShareButtonProps) {
         toast({
           title: 'Lien copié',
           description: 'Partage-le avec tes amis !',
-          className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+          className: 'bg-zinc-900 border-accent/40 text-white',
           duration: 3000,
         });
         return;
@@ -100,14 +100,14 @@ export function ShareButton({ activity, className }: ShareButtonProps) {
             onClick={handleClick}
             disabled={busy}
             aria-label={`Partager ${activity.title || activity.name || 'cette activité'}`}
-            className={`inline-flex items-center justify-center rounded-full border border-[#D91CD2]/30 bg-black/60 p-2 text-[#D91CD2] hover:border-[#D91CD2]/60 hover:bg-[#D91CD2]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 ${className ?? ''}`}
+            className={`inline-flex items-center justify-center rounded-full border border-accent/30 bg-black/60 p-2 text-accent hover:border-accent/60 hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:opacity-50 ${className ?? ''}`}
           >
             <Share2 className="h-4 w-4" aria-hidden="true" />
           </button>
         </TooltipTrigger>
         <TooltipContent
           side="bottom"
-          className="bg-zinc-900 border border-[#D91CD2]/40 text-white"
+          className="bg-zinc-900 border border-accent/40 text-white"
         >
           <p className="text-xs">Partager cette activité</p>
         </TooltipContent>

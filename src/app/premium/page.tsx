@@ -140,14 +140,14 @@ export default function PremiumPage() {
   if (success) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center p-4 overflow-hidden">
-        {showConfetti && <Confetti width={width} height={height} colors={['#D91CD2', '#7B1FA2', '#E91E63', '#FFD700']} />}
+        {showConfetti && <Confetti width={width} height={height} colors={['var(--accent-color)', '#7B1FA2', '#E91E63', '#FFD700']} />}
 
-        <Card className="w-full max-w-md bg-gradient-to-br from-zinc-900 to-black border-[#D91CD2]/30 shadow-2xl shadow-[#D91CD2]/20">
+        <Card className="w-full max-w-md bg-gradient-to-br from-zinc-900 to-black border-accent/30 shadow-2xl shadow-accent/20">
           <CardHeader className="text-center pb-2 pt-8">
             <div className="flex justify-center mb-6">
               <div className="relative">
-                <div className="absolute inset-0 bg-[#D91CD2]/20 rounded-full blur-xl animate-pulse" />
-                <Crown className="h-24 w-24 text-[#D91CD2] relative z-10" />
+                <div className="absolute inset-0 bg-accent/20 rounded-full blur-xl animate-pulse" />
+                <Crown className="h-24 w-24 text-accent relative z-10" />
               </div>
             </div>
             <CardTitle className="text-3xl font-light text-white mb-2">
@@ -158,24 +158,24 @@ export default function PremiumPage() {
             </p>
           </CardHeader>
           <CardContent className="space-y-6 pb-8">
-            <div className="bg-[#D91CD2]/5 border border-[#D91CD2]/20 rounded-xl p-5 space-y-3">
+            <div className="bg-accent/5 border border-accent/20 rounded-xl p-5 space-y-3">
               <div className="flex items-center gap-3">
-                <Zap className="h-5 w-5 text-[#D91CD2]" />
+                <Zap className="h-5 w-5 text-accent" />
                 <span className="text-gray-300 font-light">Matching illimité activé</span>
               </div>
               <div className="flex items-center gap-3">
-                <Star className="h-5 w-5 text-[#D91CD2]" />
+                <Star className="h-5 w-5 text-accent" />
                 <span className="text-gray-300 font-light">Crédits ajoutés à votre compte</span>
               </div>
               <div className="flex items-center gap-3">
-                <Eye className="h-5 w-5 text-[#D91CD2]" />
+                <Eye className="h-5 w-5 text-accent" />
                 <span className="text-gray-300 font-light">Votre profil est maintenant mis en avant</span>
               </div>
             </div>
 
             <Button
               size="lg"
-              className="w-full bg-[#D91CD2] text-white font-light text-lg py-6 hover:opacity-90 transition-all shadow-lg shadow-[#D91CD2]/30"
+              className="w-full bg-accent text-white font-light text-lg py-6 hover:opacity-90 transition-all shadow-lg shadow-accent/30"
               onClick={() => router.push('/activities')}
             >
               Découvrir les profils
@@ -198,19 +198,19 @@ export default function PremiumPage() {
 
       {/* Hero */}
       <div className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#D91CD2]/10 via-transparent to-transparent" />
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-[#D91CD2]/5 rounded-full blur-3xl" />
+        <div className="absolute inset-0 bg-gradient-to-b from-accent/10 via-transparent to-transparent" />
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] h-[600px] bg-accent/5 rounded-full blur-3xl" />
 
         <div className="relative container mx-auto max-w-5xl px-4 pt-16 pb-12">
           <div className="text-center space-y-6">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#D91CD2]/30 bg-[#D91CD2]/5">
-              <Sparkles className="h-4 w-4 text-[#D91CD2]" />
-              <span className="text-sm text-[#D91CD2] font-light">Spordateur Premium</span>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/30 bg-accent/5">
+              <Sparkles className="h-4 w-4 text-accent" />
+              <span className="text-sm text-accent font-light">Spordateur Premium</span>
             </div>
 
             <h1 className="text-4xl md:text-6xl font-light text-white tracking-tight">
               Passez au niveau
-              <span className="block text-transparent bg-clip-text bg-[#D91CD2]">
+              <span className="block text-transparent bg-clip-text bg-accent">
                 supérieur
               </span>
             </h1>
@@ -226,8 +226,8 @@ export default function PremiumPage() {
       {/* Already Premium Banner */}
       {isPremium && (
         <div className="container mx-auto max-w-5xl px-4 mb-8">
-          <div className="flex items-center gap-3 p-4 rounded-xl border border-[#D91CD2]/30 bg-[#D91CD2]/5">
-            <Crown className="h-6 w-6 text-[#D91CD2]" />
+          <div className="flex items-center gap-3 p-4 rounded-xl border border-accent/30 bg-accent/5">
+            <Crown className="h-6 w-6 text-accent" />
             <div>
               <p className="text-white font-light">Vous êtes déjà Premium !</p>
               <p className="text-sm text-gray-400 font-light">Votre abonnement est actif. Profitez de tous les avantages.</p>
@@ -262,16 +262,16 @@ export default function PremiumPage() {
 
                 <Card className={`h-full transition-all duration-300 ${
                   isYearly
-                    ? 'bg-gradient-to-br from-zinc-900 to-black border-[#D91CD2]/40 shadow-xl shadow-[#D91CD2]/10'
+                    ? 'bg-gradient-to-br from-zinc-900 to-black border-accent/40 shadow-xl shadow-accent/10'
                     : 'bg-gradient-to-br from-zinc-900/80 to-black border-zinc-800 hover:border-zinc-700'
                 }`}>
                   <CardHeader className="text-center pb-4 pt-8">
                     <div className="flex justify-center mb-4">
                       <div className={`p-3 rounded-2xl ${
-                        isYearly ? 'bg-[#D91CD2]/10' : 'bg-zinc-800'
+                        isYearly ? 'bg-accent/10' : 'bg-zinc-800'
                       }`}>
                         <Crown className={`h-8 w-8 ${
-                          isYearly ? 'text-[#D91CD2]' : 'text-gray-400'
+                          isYearly ? 'text-accent' : 'text-gray-400'
                         }`} />
                       </div>
                     </div>
@@ -285,7 +285,7 @@ export default function PremiumPage() {
                       <span className="text-gray-400 font-light ml-1">CHF / {plan.interval}</span>
                     </div>
                     {isYearly && (
-                      <p className="text-sm text-[#D91CD2] font-light mt-2">
+                      <p className="text-sm text-accent font-light mt-2">
                         soit ~{(plan.price / 12).toFixed(2)} CHF / mois
                       </p>
                     )}
@@ -296,10 +296,10 @@ export default function PremiumPage() {
                       {features.map((feature, i) => (
                         <div key={i} className="flex items-center gap-3">
                           <div className={`p-1 rounded-lg ${
-                            feature.highlight ? 'bg-[#D91CD2]/10' : 'bg-zinc-800/50'
+                            feature.highlight ? 'bg-accent/10' : 'bg-zinc-800/50'
                           }`}>
                             <feature.icon className={`h-4 w-4 ${
-                              feature.highlight ? 'text-[#D91CD2]' : 'text-gray-500'
+                              feature.highlight ? 'text-accent' : 'text-gray-500'
                             }`} />
                           </div>
                           <span className={`text-sm font-light ${
@@ -321,7 +321,7 @@ export default function PremiumPage() {
                       onClick={() => handleSubscribe(plan.id)}
                       className={`w-full text-base py-6 font-light transition-all ${
                         isYearly
-                          ? 'bg-[#D91CD2] text-white hover:opacity-90 shadow-lg shadow-[#D91CD2]/30'
+                          ? 'bg-accent text-white hover:opacity-90 shadow-lg shadow-accent/30'
                           : 'bg-zinc-800 text-white hover:bg-zinc-700 border border-zinc-700'
                       }`}
                     >
@@ -356,7 +356,7 @@ export default function PremiumPage() {
             <div className="grid grid-cols-3 bg-zinc-900/50 px-6 py-4 border-b border-zinc-800">
               <div className="text-sm text-gray-400 font-light">Fonctionnalité</div>
               <div className="text-sm text-gray-400 font-light text-center">Gratuit</div>
-              <div className="text-sm text-[#D91CD2] font-light text-center">Premium</div>
+              <div className="text-sm text-accent font-light text-center">Premium</div>
             </div>
 
             {[
@@ -385,9 +385,9 @@ export default function PremiumPage() {
                 </div>
                 <div className="text-center">
                   {row.premium === true ? (
-                    <CheckCircle className="h-5 w-5 text-[#D91CD2] mx-auto" />
+                    <CheckCircle className="h-5 w-5 text-accent mx-auto" />
                   ) : row.premium === 'yearly' ? (
-                    <span className="text-xs text-[#D91CD2] font-light">Annuel</span>
+                    <span className="text-xs text-accent font-light">Annuel</span>
                   ) : (
                     <span className="text-gray-600">—</span>
                   )}
@@ -405,7 +405,7 @@ export default function PremiumPage() {
             </p>
             <Button
               variant="outline"
-              className="border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10"
+              className="border-accent/30 text-accent hover:bg-accent/10"
               onClick={() => router.push('/signup?redirect=/premium')}
             >
               Créer un compte

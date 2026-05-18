@@ -199,12 +199,12 @@ export default async function InvitePage({
           </div>
           {data.sessionDate && (
             <div className="flex items-center gap-2 text-white/70 text-sm font-light">
-              <Calendar className="h-4 w-4 text-[#D91CD2]" />
+              <Calendar className="h-4 w-4 text-accent" />
               <span>{data.sessionDate}</span>
             </div>
           )}
           {data.message && data.status === 'pending' && (
-            <div className="border-l-2 border-[#D91CD2]/40 pl-3 py-2 mt-4">
+            <div className="border-l-2 border-accent/40 pl-3 py-2 mt-4">
               <div className="flex items-start gap-2 text-white/60 text-sm italic font-light">
                 <MessageSquare className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
                 <span>« {data.message} »</span>
@@ -231,7 +231,7 @@ export default async function InvitePage({
               </p>
               <Link
                 href={`/sessions/${data.sessionId}`}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-[#D91CD2] text-black text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-black text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
               >
                 Voir la session
               </Link>
@@ -269,7 +269,7 @@ export default async function InvitePage({
 
 function StatusBadge({ status }: { status: InvitePageData['status'] }) {
   const labels: Record<InvitePageData['status'], { text: string; cls: string }> = {
-    pending: { text: 'En attente', cls: 'bg-[#D91CD2]/10 text-[#D91CD2] border-[#D91CD2]/30' },
+    pending: { text: 'En attente', cls: 'bg-accent/10 text-accent border-accent/30' },
     accepted: { text: 'Acceptée', cls: 'bg-green-600/10 text-green-400 border-green-600/30' },
     declined: { text: 'Refusée', cls: 'bg-zinc-800 text-white/50 border-zinc-700' },
     expired: { text: 'Expirée', cls: 'bg-orange-600/10 text-orange-400 border-orange-600/30' },

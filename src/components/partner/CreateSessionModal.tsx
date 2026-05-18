@@ -116,7 +116,7 @@ export function CreateSessionModal({ open, onOpenChange, activity, onCreated }: 
         description: data?.mode === 'custom'
           ? `Prix : ${data.effectivePriceCHF} CHF — visible immédiatement aux utilisateurs.`
           : `Prix : ${activityDefaultPriceCHF} CHF (héritage activité).`,
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
       onOpenChange(false);
       if (onCreated) onCreated();
@@ -133,12 +133,12 @@ export function CreateSessionModal({ open, onOpenChange, activity, onCreated }: 
       <DialogContent className="bg-[#0A0A0A] border-white/10 text-white sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
-            <CalendarPlus className="h-5 w-5 text-[#D91CD2]" />
+            <CalendarPlus className="h-5 w-5 text-accent" />
             Nouvelle session
           </DialogTitle>
           <DialogDescription className="text-white/50 text-xs">
             {activityLabel && (
-              <span>Activité : <span className="text-[#D91CD2]">{activityLabel}</span></span>
+              <span>Activité : <span className="text-accent">{activityLabel}</span></span>
             )}
           </DialogDescription>
         </DialogHeader>
@@ -217,7 +217,7 @@ export function CreateSessionModal({ open, onOpenChange, activity, onCreated }: 
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={creating} className="border-white/10">
             Annuler
           </Button>
-          <Button type="button" onClick={handleCreate} disabled={!canCreate} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white">
+          <Button type="button" onClick={handleCreate} disabled={!canCreate} className="bg-accent hover:bg-accent/80 text-white">
             {creating && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
             Créer
           </Button>

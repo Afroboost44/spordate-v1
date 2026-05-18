@@ -137,8 +137,8 @@ export function ActivityInviteSection({ activityId, sessionId }: ActivityInviteS
             className={cn(
               'inline-flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors text-sm font-light',
               selectedMatchId === m.matchId
-                ? 'border-[#D91CD2] bg-[#D91CD2]/10 text-white'
-                : 'border-white/10 bg-white/5 text-white/70 hover:border-[#D91CD2]/40 hover:text-white',
+                ? 'border-accent bg-accent/10 text-white'
+                : 'border-white/10 bg-white/5 text-white/70 hover:border-accent/40 hover:text-white',
             )}
           >
             <Avatar className="h-5 w-5 border border-white/10">

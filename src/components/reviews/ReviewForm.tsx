@@ -195,7 +195,7 @@ export function ReviewForm({
 
           {/* Disclaimer 1-2★ */}
           {showLowRatingDisclaimer && (
-            <p className="text-xs text-white/70 font-light leading-relaxed border-l-2 border-[#D91CD2] pl-3">
+            <p className="text-xs text-white/70 font-light leading-relaxed border-l-2 border-accent pl-3">
               Les notes 1-2★ sont publiées anonymement après modération de notre équipe (sous 72h).
               Cf. CGU section 7.ter.
             </p>
@@ -217,20 +217,20 @@ export function ReviewForm({
               maxLength={COMMENT_MAX}
               disabled={submitting}
               rows={4}
-              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-[#D91CD2]"
+              className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-accent"
             />
             <div className="flex justify-between text-xs text-white/40 font-light tabular-nums">
               <span
                 className={
                   commentLength > 0 && commentLength < COMMENT_MIN
-                    ? 'text-[#D91CD2]'
+                    ? 'text-accent'
                     : ''
                 }
               >
                 Minimum {COMMENT_MIN} caractères
               </span>
               <span
-                className={commentLength > COMMENT_MAX * 0.9 ? 'text-[#D91CD2]' : ''}
+                className={commentLength > COMMENT_MAX * 0.9 ? 'text-accent' : ''}
               >
                 {commentLength} / {COMMENT_MAX}
               </span>
@@ -252,7 +252,7 @@ export function ReviewForm({
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="flex-1 bg-[#D91CD2] text-black font-medium hover:bg-[#D91CD2]/90 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 bg-accent text-black font-medium hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {submitting ? (
               <>

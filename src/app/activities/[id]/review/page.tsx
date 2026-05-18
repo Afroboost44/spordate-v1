@@ -86,7 +86,7 @@ function ReviewPageContent() {
       description: status === 'published'
         ? '+5 crédits chat ajoutés à ton solde.'
         : 'Ton avis sera publié après modération (sous 72h).',
-      className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+      className: 'bg-zinc-900 border-accent/40 text-white',
     });
     // Redirect après ~600ms pour laisser le toast s'afficher
     setTimeout(() => router.push('/sessions'), 600);
@@ -95,7 +95,7 @@ function ReviewPageContent() {
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <Loader2 className="h-6 w-6 text-[#D91CD2] animate-spin" />
+        <Loader2 className="h-6 w-6 text-accent animate-spin" />
       </div>
     );
   }
@@ -108,7 +108,7 @@ function ReviewPageContent() {
         <p className="text-sm text-white/50 mb-6">
           Cette activité n&apos;existe plus ou le lien est invalide.
         </p>
-        <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/90">
+        <Button asChild className="bg-accent hover:bg-accent/90">
           <Link href="/sessions">Retour aux sessions</Link>
         </Button>
       </div>
@@ -129,7 +129,7 @@ function ReviewPageContent() {
       </Link>
 
       <div className="text-center">
-        <MessageSquareText className="h-12 w-12 text-[#D91CD2] mx-auto mb-4" />
+        <MessageSquareText className="h-12 w-12 text-accent mx-auto mb-4" />
         <h1 className="text-2xl text-white font-light mb-2">
           Reviewer ta session
         </h1>
@@ -143,7 +143,7 @@ function ReviewPageContent() {
         {user && user.uid !== activity.partnerId ? (
           <Button
             onClick={() => setFormOpen(true)}
-            className="bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white font-semibold px-8 h-12"
+            className="bg-gradient-to-br from-accent to-[#E91E63] text-white font-semibold px-8 h-12"
           >
             Laisser un avis
           </Button>

@@ -94,7 +94,7 @@ function SortableVideoThumb({ item }: { item: MediaItem }) {
   const exhausted = idx >= chain.length;
 
   if (exhausted) {
-    return <Video className="h-5 w-5 text-[#D91CD2]" />;
+    return <Video className="h-5 w-5 text-accent" />;
   }
   return (
     <>
@@ -175,7 +175,7 @@ function SortableItem({ id, item, index, onRemove }: SortableItemProps) {
       <div className="flex flex-col min-w-0 flex-1 gap-0.5">
         <div className="flex items-center gap-2">
           {isPrimary && (
-            <Badge className="bg-[#D91CD2]/15 border-[#D91CD2]/40 text-[#D91CD2] text-[9px] uppercase tracking-wider">
+            <Badge className="bg-accent/15 border-accent/40 text-accent text-[9px] uppercase tracking-wider">
               Principale
             </Badge>
           )}
@@ -281,7 +281,7 @@ export function MediaManager({
       toast({
         title: 'Image uploadée',
         description: 'Image ajoutée à l\'activité.',
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
     } catch (err) {
       const code =
@@ -401,7 +401,7 @@ export function MediaManager({
         <label
           className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors ${
             canAddMore && !disabled && !uploading
-              ? 'border-[#D91CD2]/40 text-[#D91CD2] hover:bg-[#D91CD2]/10'
+              ? 'border-accent/40 text-accent hover:bg-accent/10'
               : 'border-white/10 text-white/30 cursor-not-allowed'
           }`}
         >
@@ -459,12 +459,12 @@ export function MediaManager({
             <DialogTitle className="flex items-center gap-2">
               {urlDialog.open && urlDialog.type === 'image' ? (
                 <>
-                  <ImagePlus className="h-5 w-5 text-[#D91CD2]" />
+                  <ImagePlus className="h-5 w-5 text-accent" />
                   Ajouter une image par URL
                 </>
               ) : (
                 <>
-                  <Video className="h-5 w-5 text-[#D91CD2]" />
+                  <Video className="h-5 w-5 text-accent" />
                   Ajouter une vidéo par URL
                 </>
               )}
@@ -509,7 +509,7 @@ export function MediaManager({
             <Button
               type="button"
               onClick={handleConfirmUrl}
-              className="bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white"
+              className="bg-accent hover:bg-accent/90 text-white"
             >
               Ajouter
             </Button>

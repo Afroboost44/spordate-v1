@@ -174,7 +174,7 @@ export default function DiscoveryPage() {
       toast({
         title: 'Bientôt disponible',
         description: 'La section Rencontres sera activée prochainement.',
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
       router.replace('/activities');
     }
@@ -566,7 +566,7 @@ export default function DiscoveryPage() {
         toast({
           title: "💖 C'est un match !",
           description: `Tu peux maintenant discuter avec ${currentProfile.name.split(',')[0]}.`,
-          className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+          className: 'bg-zinc-900 border-accent/40 text-white',
         });
       } else {
         toast({
@@ -625,7 +625,7 @@ export default function DiscoveryPage() {
         toast({
           title: t('discovery_direct_chat_success'),
           description: `Tu peux maintenant discuter avec ${currentProfile.name.split(',')[0]}.`,
-          className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+          className: 'bg-zinc-900 border-accent/40 text-white',
         });
         router.push(`/chat?match=${data.matchId}`);
       } else if (data.error === 'insufficient-credits') {
@@ -965,7 +965,8 @@ export default function DiscoveryPage() {
   // onglets explicites (Crédits / Carte / TWINT) au lieu des 2 tabs précédents
   // (Crédits / Stripe-qui-choisit). 'card' et 'twint' déterminent
   // payment_method_types côté Stripe Checkout via paymentMethodPreference.
-  const [paymentMethod, setPaymentMethod] = useState<'credits' | 'card' | 'twint'>('card');
+  // Fix UX : retiré 'credits' (Crédits Spordateur tab supprimée Step 3).
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'twint'>('card');
   // Phase 9.5 c47 BUG B — Sélection invitee Duo via match Tinder (méthode "link"
   // WhatsApp reportée c48). Quand toggle Duo ON, on charge les matches actifs du
   // user et il sélectionne qui inviter ; inviteeUid passé au checkout → webhook
@@ -1119,7 +1120,7 @@ export default function DiscoveryPage() {
           title: t('discovery_credits_success_title') || 'Réservation confirmée ! 🎉',
           description: t('discovery_credits_success_desc', { cost })
             || `${cost} crédits débités. Il te reste ${data.creditsRemaining} crédits.`,
-          className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+          className: 'bg-zinc-900 border-accent/40 text-white',
         });
         router.push(`/sessions/${sessionId}?status=success`);
       } else if (data?.error === 'insufficient-credits') {
@@ -1443,10 +1444,25 @@ END:VCALENDAR`;
 
   // BUG #10 — Groupes "activités boostées par ville" pour le modal Où pratiquer.
   // Dérivé de realActivities + boostedPartnerIds déjà chargés par useEffect.
-  const wherePracticeGroups = useMemo(
-    () => groupBoostedActivitiesByCity(realActivities, boostedPartnerIds, { max: 50 }),
-    [realActivities, boostedPartnerIds],
-  );
+  //
+  // Fix UX (régression observée) : si aucun boost actif (expiration, drift
+  // partnerId post-migration c34/c36, ou setup partner sans boost) le modal
+  // serait vide. Fallback : si zéro match boosté → grouper TOUTES les
+  // activités actives par ville. UX utile, le user voit une liste plutôt
+  // qu'un empty state inquiétant. Si boost actif → comportement standard.
+  const wherePracticeGroups = useMemo(() => {
+    const boosted = groupBoostedActivitiesByCity(realActivities, boostedPartnerIds, { max: 50 });
+    if (boosted.length > 0) return boosted;
+    // Fallback : groupe toutes les activités actives par ville (set partnerIds
+    // dérivé des activités elles-mêmes → tout pass le filtre boost dans le helper).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const allActive = realActivities.filter((a: any) => a.isActive !== false);
+    const allPartnerIds = new Set(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      allActive.map((a: any) => a.partnerId).filter((id): id is string => typeof id === 'string' && id.length > 0),
+    );
+    return groupBoostedActivitiesByCity(allActive, allPartnerIds, { max: 50 });
+  }, [realActivities, boostedPartnerIds]);
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-black">
@@ -1455,12 +1471,12 @@ END:VCALENDAR`;
         <button
           onClick={() => setShowWherePracticeModal(true)}
           aria-label={t('discovery_where_to_practice')}
-          className="inline-flex items-center gap-2 px-4 h-10 rounded-full bg-white/5 border border-white/10 text-white/80 hover:text-white hover:border-[#D91CD2]/40 hover:bg-[#D91CD2]/10 transition text-sm font-light tracking-wide active:scale-[0.98]"
+          className="inline-flex items-center gap-2 px-4 h-10 rounded-full bg-white/5 border border-white/10 text-white/80 hover:text-white hover:border-accent/40 hover:bg-accent/10 transition text-sm font-light tracking-wide active:scale-[0.98]"
         >
-          <Building2 className="h-4 w-4 text-[#D91CD2]" />
+          <Building2 className="h-4 w-4 text-accent" />
           <span>{t('discovery_where_to_practice')}</span>
           {wherePracticeGroups.length > 0 && (
-            <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2]">
+            <span className="ml-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-accent/20 text-accent">
               {wherePracticeGroups.reduce((s, g) => s + g.activities.length, 0)}
             </span>
           )}
@@ -1494,7 +1510,7 @@ END:VCALENDAR`;
                       className="absolute inset-0 w-full h-full object-cover"
                     />
                   ) : (
-                    <div className="absolute inset-0 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
+                    <div className="absolute inset-0 bg-gradient-to-br from-accent to-[#E91E63] flex items-center justify-center">
                       <span className="text-8xl font-light text-white/20">{currentProfile.name.charAt(0)}</span>
                     </div>
                   )}
@@ -1508,7 +1524,7 @@ END:VCALENDAR`;
                   className="absolute inset-0 w-full h-full object-cover"
                 />
               ) : (
-                <div className="absolute inset-0 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
+                <div className="absolute inset-0 bg-gradient-to-br from-accent to-[#E91E63] flex items-center justify-center">
                   <span className="text-8xl font-light text-white/20">{currentProfile.name.charAt(0)}</span>
                 </div>
               )}
@@ -1546,7 +1562,7 @@ END:VCALENDAR`;
                   <h2 className="text-4xl font-light tracking-tight text-white drop-shadow-2xl">{currentProfile.name}</h2>
                 )}
                 <p className="flex items-center gap-1.5 text-white/60 text-sm mt-1 tracking-wide">
-                  <MapPin size={14} className="text-[#D91CD2]" />
+                  <MapPin size={14} className="text-accent" />
                   {currentProfile.location}
                 </p>
               </div>
@@ -1565,7 +1581,7 @@ END:VCALENDAR`;
                 <button
                   onClick={handleLike}
                   aria-label="Like"
-                  className="w-12 h-12 rounded-full bg-[#D91CD2]/30 backdrop-blur-md border border-[#D91CD2]/40 flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
+                  className="w-12 h-12 rounded-full bg-accent/30 backdrop-blur-md border border-accent/40 flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
                 >
                   <Heart size={20} fill="currentColor" />
                 </button>
@@ -1574,7 +1590,7 @@ END:VCALENDAR`;
                   onClick={handleDirectChat}
                   aria-label={`${t('discovery_direct_chat_button')} — ${t('discovery_direct_chat_cost')}`}
                   title={`${t('discovery_direct_chat_button')} — ${t('discovery_direct_chat_cost')}`}
-                  className="w-12 h-12 rounded-full bg-[#D91CD2] backdrop-blur-md border border-[#D91CD2] flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
+                  className="w-12 h-12 rounded-full bg-accent backdrop-blur-md border border-accent flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
                 >
                   <MessageCircle size={20} />
                 </button>
@@ -1588,7 +1604,7 @@ END:VCALENDAR`;
               <div className="flex flex-wrap gap-2">
                 {currentProfile.sports.map((sport: string) => (
                   <span key={sport} className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-light tracking-wider uppercase text-white/80 border border-white/10">
-                    {sport === 'Afroboost' && <Zap className="h-3 w-3 text-[#D91CD2]" />}
+                    {sport === 'Afroboost' && <Zap className="h-3 w-3 text-accent" />}
                     {sport}
                   </span>
                 ))}
@@ -1604,9 +1620,9 @@ END:VCALENDAR`;
                 {!hasTicket ? (
                   <button
                     onClick={handleBookSession}
-                    className="flex-[4] h-14 rounded-full bg-white/5 backdrop-blur-xl border border-[#D91CD2] text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 hover:bg-[#D91CD2]/10 transition-all active:scale-[0.98]"
+                    className="flex-[4] h-14 rounded-full bg-white/5 backdrop-blur-xl border border-accent/30 text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 hover:bg-accent/10 hover:border-accent/50 transition-all active:scale-[0.98]"
                   >
-                    <Zap className="h-4 w-4 text-[#D91CD2]" />
+                    <Zap className="h-4 w-4 text-accent" />
                     {t('discovery_reserve_button')}
                   </button>
                 ) : (
@@ -1625,7 +1641,7 @@ END:VCALENDAR`;
                 <button
                   onClick={() => setShowWherePracticeModal(true)}
                   aria-label={t('discovery_where_to_practice')}
-                  className="flex-[1] h-14 rounded-full bg-white/5 backdrop-blur-xl border border-white/15 flex items-center justify-center text-white/50 hover:text-white/80 hover:border-[#D91CD2]/40 transition-all active:scale-95"
+                  className="flex-[1] h-14 rounded-full bg-white/5 backdrop-blur-xl flex items-center justify-center text-white/50 hover:text-white/80 hover:bg-white/10 transition-all active:scale-95"
                 >
                   <MapPin className="h-5 w-5" />
                 </button>
@@ -1658,7 +1674,7 @@ END:VCALENDAR`;
         setShowPaymentModal(o);
       }}>
         <DialogContent className="max-w-md w-full bg-zinc-900 border-white/10 text-white p-0 overflow-hidden max-h-[90vh] flex flex-col">
-          <DialogHeader className="p-6 pb-3 bg-gradient-to-b from-[#D91CD2]/20 to-transparent flex-shrink-0">
+          <DialogHeader className="p-6 pb-3 bg-gradient-to-b from-accent/20 to-transparent flex-shrink-0">
             <DialogTitle className="text-xl font-bold flex items-center gap-2">
               <Zap className="h-5 w-5 text-yellow-400" />
               {t('payment_modal_title', { title: 'Afroboost' })}
@@ -1683,7 +1699,7 @@ END:VCALENDAR`;
                       <div
                         className={cn(
                           'w-7 h-7 rounded-full flex items-center justify-center text-xs font-semibold transition-all',
-                          isActive && 'bg-[#D91CD2] text-white shadow-[0_0_15px_rgba(217,28,210,0.5)]',
+                          isActive && 'bg-accent text-white shadow-[0_0_15px_rgb(var(--accent-color-rgb) / 0.5)]',
                           isDone && 'bg-white/60 text-black',
                           !isActive && !isDone && 'bg-white/10 text-white/40 border border-white/20',
                         )}
@@ -1692,7 +1708,7 @@ END:VCALENDAR`;
                       </div>
                       <span className={cn(
                         'text-[10px] mt-1 transition-colors',
-                        isActive ? 'text-[#D91CD2] font-semibold' : 'text-white/40',
+                        isActive ? 'text-accent font-semibold' : 'text-white/40',
                       )}>
                         {s.label}
                       </span>
@@ -1715,7 +1731,7 @@ END:VCALENDAR`;
             {currentStep === 1 && (
               <div data-testid="wizard-step-1" className="space-y-2 animate-in fade-in duration-200">
                 <Label className="text-sm text-gray-400 flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-[#D91CD2]" />
+                  <Zap className="h-4 w-4 text-accent" />
                   {t('discovery_choose_activity')}
                 </Label>
                 {partnerActivities.length === 0 ? (
@@ -1740,7 +1756,7 @@ END:VCALENDAR`;
                           className={cn(
                             'w-full flex gap-3 p-3 rounded-xl border transition-all text-left',
                             isSelected
-                              ? 'border-[#D91CD2] bg-[#D91CD2]/10'
+                              ? 'border-accent bg-accent/10'
                               : 'border-white/10 hover:border-white/30 bg-zinc-900/30'
                           )}
                         >
@@ -1772,7 +1788,7 @@ END:VCALENDAR`;
                                   isDuo: false,
                                 });
                                 return (
-                                  <span className="text-[#D91CD2] text-sm font-semibold whitespace-nowrap">
+                                  <span className="text-accent text-sm font-semibold whitespace-nowrap">
                                     {cardEffectivePriceCHF === 0 ? t('payment_free_label') : `${cardEffectivePriceCHF} CHF`}
                                   </span>
                                 );
@@ -1801,10 +1817,10 @@ END:VCALENDAR`;
             {/* ─── ÉTAPE 2 : Solo ou Duo + invitee ──────────────────── */}
             {currentStep === 2 && (
               <div data-testid="wizard-step-2" className="space-y-4 animate-in fade-in duration-200">
-                <div data-testid="duo-option-toggle" className="bg-gradient-to-r from-[#D91CD2]/30 to-[#E91E63]/30 rounded-xl p-4 border border-[#D91CD2]/30">
+                <div data-testid="duo-option-toggle" className="bg-gradient-to-r from-accent/30 to-[#E91E63]/30 rounded-xl p-4 border border-accent/30">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-[#E91E63] flex items-center justify-center">
                         <Gift className="h-5 w-5 text-white" />
                       </div>
                       <div>
@@ -1815,17 +1831,17 @@ END:VCALENDAR`;
                     <Switch
                       checked={isDuoTicket}
                       onCheckedChange={setIsDuoTicket}
-                      className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-[#D91CD2] data-[state=checked]:to-[#E91E63]"
+                      className="data-[state=checked]:bg-gradient-to-r data-[state=checked]:from-accent data-[state=checked]:to-[#E91E63]"
                     />
                   </div>
                   {isDuoTicket && (
                     <div className="mt-3 pt-3 border-t border-white/10 space-y-3">
                       <Tabs value={invitationMethod} onValueChange={(v) => setInvitationMethod(v as 'match' | 'link')}>
                         <TabsList className="grid grid-cols-2 w-full bg-zinc-900 border border-white/10 rounded-lg p-1 h-auto">
-                          <TabsTrigger value="match" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-md text-xs py-2">
+                          <TabsTrigger value="match" className="data-[state=active]:bg-accent data-[state=active]:text-white text-white/60 rounded-md text-xs py-2">
                             {t('invitation_method_match') || 'Inviter un match'}
                           </TabsTrigger>
-                          <TabsTrigger value="link" disabled title={t('invitation_method_link_soon') || 'Bientôt disponible'} className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/40 rounded-md text-xs py-2 disabled:opacity-40 disabled:cursor-not-allowed">
+                          <TabsTrigger value="link" disabled title={t('invitation_method_link_soon') || 'Bientôt disponible'} className="data-[state=active]:bg-accent data-[state=active]:text-white text-white/40 rounded-md text-xs py-2 disabled:opacity-40 disabled:cursor-not-allowed">
                             {t('invitation_method_link') || 'Lien WhatsApp'}
                             <span className="ml-1 text-[10px] opacity-60">({t('common_soon') || 'bientôt'})</span>
                           </TabsTrigger>
@@ -1857,7 +1873,7 @@ END:VCALENDAR`;
                                     className={cn(
                                       'w-full flex items-center gap-2.5 p-2 rounded-lg border transition-all text-left',
                                       isSelectedInvitee
-                                        ? 'border-[#D91CD2] bg-[#D91CD2]/15'
+                                        ? 'border-accent bg-accent/15'
                                         : 'border-white/10 hover:border-white/30 bg-zinc-900/40'
                                     )}
                                   >
@@ -1877,7 +1893,7 @@ END:VCALENDAR`;
                                           : t('invitation_match_days_ago', { days: ageDays })}
                                       </p>
                                     </div>
-                                    {isSelectedInvitee && <Check className="h-4 w-4 text-[#D91CD2] flex-shrink-0" />}
+                                    {isSelectedInvitee && <Check className="h-4 w-4 text-accent flex-shrink-0" />}
                                   </button>
                                 );
                               })}
@@ -1918,7 +1934,7 @@ END:VCALENDAR`;
                         <>
                           Duo
                           {selectedInviteeUid && (
-                            <span className="text-[#D91CD2] ml-1">
+                            <span className="text-accent ml-1">
                               · {matchProfiles[selectedInviteeUid]?.displayName || ''}
                             </span>
                           )}
@@ -1948,55 +1964,29 @@ END:VCALENDAR`;
                   </div>
                 </div>
 
-                {/* Tabs méthode de paiement (Stripe vs Crédits) */}
+                {/* Tabs méthode de paiement (Carte vs TWINT).
+                    BUG #15 (historique) avait 3 onglets dont Crédits Spordateur.
+                    Fix UX : retiré Crédits → 2 onglets uniquement (Carte / TWINT).
+                    Default paymentMethod='card' set au mount (Step 1 reset). */}
                 {getCurrentPrice() > 0 && (
                   <div data-testid="payment-method-tabs">
-                    <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'credits' | 'card' | 'twint')}>
-                      {/* BUG #15 — 3 onglets explicites (avant : 2 onglets dont
-                          "Carte/TWINT" qui déléguait le choix à Stripe Checkout) */}
-                      <TabsList className="grid grid-cols-3 w-full bg-zinc-900 border border-white/10 rounded-xl p-1 h-auto">
-                        <TabsTrigger value="credits" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-1.5 py-2.5">
-                          <Coins className="h-4 w-4" />
-                          <span className="text-xs sm:text-sm">{t('payment_method_credits') || 'Crédits'}</span>
-                        </TabsTrigger>
-                        <TabsTrigger value="card" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-1.5 py-2.5">
+                    <Tabs value={paymentMethod} onValueChange={(v) => setPaymentMethod(v as 'card' | 'twint')}>
+                      <TabsList className="grid grid-cols-2 w-full bg-zinc-900 border border-white/10 rounded-xl p-1 h-auto">
+                        <TabsTrigger value="card" className="data-[state=active]:bg-accent data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-1.5 py-2.5">
                           <CreditCard className="h-4 w-4" />
                           <span className="text-xs sm:text-sm">Carte</span>
                         </TabsTrigger>
-                        <TabsTrigger value="twint" className="data-[state=active]:bg-[#D91CD2] data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-1.5 py-2.5">
-                          {/* TWINT logo via emoji/text — pas de lucide icon dédiée */}
+                        <TabsTrigger value="twint" className="data-[state=active]:bg-accent data-[state=active]:text-white text-white/60 rounded-lg flex items-center gap-1.5 py-2.5">
                           <span className="text-[10px] font-bold tracking-wider">TWINT</span>
                         </TabsTrigger>
                       </TabsList>
-                      <TabsContent value="credits" className="mt-3">
-                        <div className="bg-zinc-900/50 rounded-xl p-4 border border-white/10 space-y-2">
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-400">{t('payment_credits_balance')}</span>
-                            <span className="font-semibold text-white">{creditCount} {t('payment_credits_unit')}</span>
-                          </div>
-                          <div className="flex justify-between items-center text-sm">
-                            <span className="text-gray-400">{t('payment_credits_cost')}</span>
-                            <span className="font-semibold text-[#D91CD2]">
-                              {computeCreditsCost(getCurrentPrice())} {t('payment_credits_unit')}
-                              <span className="text-xs text-white/40 font-normal ml-1">
-                                ≈ {getCurrentPrice()} CHF
-                              </span>
-                            </span>
-                          </div>
-                          {creditCount < computeCreditsCost(getCurrentPrice()) && (
-                            <p className="text-xs text-red-400 pt-1">
-                              {t('payment_credits_insufficient_hint')}
-                            </p>
-                          )}
-                        </div>
-                      </TabsContent>
                     </Tabs>
                   </div>
                 )}
 
-                <div className="bg-gradient-to-r from-[#D91CD2]/10 to-[#E91E63]/10 rounded-xl p-3 border border-white/5">
+                <div className="bg-gradient-to-r from-accent/10 to-[#E91E63]/10 rounded-xl p-3 border border-white/5">
                   <div className="flex items-center gap-3">
-                    <CreditCard className="h-4 w-4 text-[#D91CD2]" />
+                    <CreditCard className="h-4 w-4 text-accent" />
                     <div>
                       <p className="text-[11px] font-medium text-white/60">{t('payment_stripe_notice')}</p>
                       <p className="text-[10px] text-white/30">{t('payment_methods_accepted')}</p>
@@ -2029,37 +2019,24 @@ END:VCALENDAR`;
                 data-testid="wizard-next"
                 onClick={() => setCurrentStep((prev) => (prev < 3 ? ((prev + 1) as 1 | 2 | 3) : prev))}
                 disabled={!canAdvanceStep()}
-                className="bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white font-semibold px-6 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="bg-gradient-to-br from-accent to-[#E91E63] text-white font-semibold px-6 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {t('common_next') || 'Suivant'} →
               </Button>
             ) : (
               <Button
                 data-testid="pay-button"
-                onClick={paymentMethod === 'credits' ? handlePaymentCredits : handlePayment}
+                onClick={handlePayment}
                 disabled={
                   isProcessing ||
-                  (paymentMethod === 'credits' &&
-                    getCurrentPrice() > 0 &&
-                    creditCount < computeCreditsCost(getCurrentPrice())) ||
                   (isDuoTicket && invitationMethod === 'match' && !selectedInviteeUid)
                 }
-                className="bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white font-semibold px-5 h-11 disabled:opacity-70 disabled:cursor-not-allowed"
+                className="bg-gradient-to-br from-accent to-[#E91E63] text-white font-semibold px-5 h-11 disabled:opacity-70 disabled:cursor-not-allowed"
               >
                 {isProcessing ? (
                   <div className="flex items-center gap-2">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     <span className="text-sm">{getCurrentPrice() === 0 ? t('payment_button_loading_free') : t('payment_button_loading_paid')}</span>
-                  </div>
-                ) : paymentMethod === 'credits' && getCurrentPrice() > 0 ? (
-                  <div className="flex items-center gap-2">
-                    <Coins className="h-4 w-4" />
-                    <span className="text-sm">
-                      {creditCount < computeCreditsCost(getCurrentPrice())
-                        ? t('payment_credits_topup_button')
-                        : t('payment_credits_pay_button', { cost: computeCreditsCost(getCurrentPrice()) })}
-                    </span>
-                    {isDuoTicket && <Badge className="bg-white/20 text-white text-[10px]">Duo</Badge>}
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -2082,10 +2059,10 @@ END:VCALENDAR`;
 
       {/* Partner Detail Modal */}
       <Dialog open={showPartnerModal} onOpenChange={setShowPartnerModal}>
-        <DialogContent className="max-w-md w-full bg-[#0a0a0a] border-[#D91CD2]/30 text-white p-0 overflow-hidden">
-          <DialogHeader className="p-6 pb-0 bg-gradient-to-b from-[#D91CD2]/15 to-transparent">
+        <DialogContent className="max-w-md w-full bg-[#0a0a0a] border-accent/30 text-white p-0 overflow-hidden">
+          <DialogHeader className="p-6 pb-0 bg-gradient-to-b from-accent/15 to-transparent">
             <div className="flex items-center gap-4 mb-4">
-              <div className="w-16 h-16 rounded-xl bg-[#D91CD2] flex items-center justify-center text-white font-bold text-2xl">
+              <div className="w-16 h-16 rounded-xl bg-accent flex items-center justify-center text-white font-bold text-2xl">
                 {selectedPartner?.name.charAt(0)}
               </div>
               <div>
@@ -2142,7 +2119,7 @@ END:VCALENDAR`;
                 <div className="flex -space-x-3">
                   {mockParticipants.map((p) => (
                     <Avatar key={p.id} className="border-2 border-[#0a0a0a] w-10 h-10">
-                      <AvatarFallback className="bg-[#D91CD2] text-white text-sm">
+                      <AvatarFallback className="bg-accent text-white text-sm">
                         {p.avatar}
                       </AvatarFallback>
                     </Avatar>
@@ -2159,7 +2136,7 @@ END:VCALENDAR`;
             <div className="flex gap-3">
               <Button 
                 onClick={() => setShowPartnerModal(false)}
-                className="flex-1 bg-[#D91CD2]"
+                className="flex-1 bg-accent"
               >
                 <Ticket className="mr-2 h-4 w-4" />
                 Réserver ici
@@ -2202,7 +2179,7 @@ END:VCALENDAR`;
                 <Ticket className="h-5 w-5 text-violet-400" />
                 <span className="font-semibold">Votre ticket {lastBooking?.isDuo ? 'Duo' : 'Solo'}</span>
                 {lastBooking?.isDuo && (
-                  <Badge className="bg-[#D91CD2] text-white text-xs">
+                  <Badge className="bg-accent text-white text-xs">
                     <Gift className="h-3 w-3 mr-1" />
                     2 places
                   </Badge>
@@ -2261,7 +2238,7 @@ END:VCALENDAR`;
                 setShowTicketSuccess(false);
                 router.push(`/share?sport=${encodeURIComponent(lastBooking?.profile || 'Sport Date')}&partner=${encodeURIComponent(lastBooking?.partner || '')}`);
               }}
-              className="w-full bg-gradient-to-r from-[#D91CD2] to-[#E91E63] hover:bg-[#D91CD2]/90 text-white"
+              className="w-full bg-gradient-to-r from-accent to-[#E91E63] hover:bg-accent/90 text-white"
             >
               <Share2 className="mr-2 h-4 w-4" />
               Partager mon Sport Date
@@ -2296,7 +2273,7 @@ END:VCALENDAR`;
           <div className="px-5 pb-24 pt-2">
             <div className="flex items-center justify-between mb-5">
               <div className="flex items-center gap-2">
-                <MapPin className="h-5 w-5 text-[#D91CD2]" />
+                <MapPin className="h-5 w-5 text-accent" />
                 <h3 className="text-lg font-semibold text-white">{t('discovery_where_to_practice')}</h3>
               </div>
               <button
@@ -2327,16 +2304,16 @@ END:VCALENDAR`;
                   }}
                   className={`flex items-center gap-3 p-4 rounded-2xl cursor-pointer transition-all duration-200 min-h-[56px]
                     ${selectedMeetingPlace === partner.id
-                      ? 'bg-[#D91CD2]/15 border border-[#D91CD2]/40'
+                      ? 'bg-accent/15 border border-accent/40'
                       : isBoosted
-                        ? 'bg-[#D91CD2]/5 border border-[#D91CD2]/20 active:bg-[#D91CD2]/10'
+                        ? 'bg-accent/5 border border-accent/20 active:bg-accent/10'
                         : 'bg-white/5 border border-transparent active:bg-white/10'}
                   `}
                 >
                   <div className={`w-11 h-11 rounded-xl flex items-center justify-center text-white font-bold text-sm flex-shrink-0 ${
                     isBoosted
-                      ? 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63] ring-2 ring-[#D91CD2]/40'
-                      : 'bg-gradient-to-br from-[#D91CD2] to-[#E91E63]'
+                      ? 'bg-gradient-to-br from-accent to-[#E91E63] ring-2 ring-accent/40'
+                      : 'bg-gradient-to-br from-accent to-[#E91E63]'
                   }`}>
                     {partner.name.charAt(0)}
                   </div>
@@ -2344,7 +2321,7 @@ END:VCALENDAR`;
                     <div className="flex items-center gap-1.5">
                       <h4 className="font-medium text-sm text-white truncate">{partner.name}</h4>
                       {isBoosted && (
-                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-[#D91CD2]/20 text-[#D91CD2] whitespace-nowrap flex items-center gap-0.5">
+                        <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-accent/20 text-accent whitespace-nowrap flex items-center gap-0.5">
                           <Zap className="h-2.5 w-2.5" />{t('discovery_location_recommended')}
                         </span>
                       )}
@@ -2355,7 +2332,7 @@ END:VCALENDAR`;
                     </p>
                   </div>
                   {selectedMeetingPlace === partner.id ? (
-                    <CheckCircle className="h-5 w-5 text-[#D91CD2] flex-shrink-0" />
+                    <CheckCircle className="h-5 w-5 text-accent flex-shrink-0" />
                   ) : (
                     <ChevronRight className="h-4 w-4 text-white/20 flex-shrink-0" />
                   )}
@@ -2365,8 +2342,8 @@ END:VCALENDAR`;
             </div>
 
             {selectedMeetingPlace && (
-              <div className="mt-4 p-3 bg-[#D91CD2]/5 border border-[#D91CD2]/15 rounded-xl">
-                <p className="text-xs text-[#D91CD2]">
+              <div className="mt-4 p-3 bg-accent/5 border border-accent/15 rounded-xl">
+                <p className="text-xs text-accent">
                   Lieu sélectionné pour votre prochaine réservation
                 </p>
               </div>
@@ -2383,7 +2360,7 @@ END:VCALENDAR`;
         <DialogContent className="bg-[#0A0A0A] border-white/10 text-white max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-white text-2xl font-light tracking-tight flex items-center gap-2">
-              <Building2 className="h-6 w-6 text-[#D91CD2]" />
+              <Building2 className="h-6 w-6 text-accent" />
               {t('discovery_where_to_practice')}
             </DialogTitle>
             <DialogDescription className="text-white/40 text-xs">
@@ -2394,14 +2371,14 @@ END:VCALENDAR`;
             {wherePracticeGroups.length === 0 ? (
               <div className="text-center py-12 text-white/30">
                 <Building2 className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                <p className="text-sm">Aucune activité boostée pour le moment.</p>
+                <p className="text-sm">Aucune activité disponible pour le moment.</p>
                 <p className="text-xs mt-1 text-white/20">Reviens plus tard ou explore le swipe.</p>
               </div>
             ) : (
               wherePracticeGroups.map((group) => (
                 <div key={group.city}>
                   <div className="flex items-center gap-2 mb-3">
-                    <MapPin className="h-4 w-4 text-[#D91CD2]" />
+                    <MapPin className="h-4 w-4 text-accent" />
                     <h3 className="text-base font-medium text-white tracking-wide">{group.city}</h3>
                     <span className="text-[10px] text-white/30">({group.activities.length})</span>
                   </div>
@@ -2424,10 +2401,10 @@ END:VCALENDAR`;
                             setShowWherePracticeModal(false);
                             router.push(buildActivityListUrl(navId));
                           }}
-                          className="text-left p-3 rounded-xl bg-white/5 border border-white/10 hover:border-[#D91CD2]/40 hover:bg-[#D91CD2]/5 transition active:scale-[0.98]"
+                          className="text-left p-3 rounded-xl bg-white/5 border border-white/10 hover:border-accent/40 hover:bg-accent/5 transition active:scale-[0.98]"
                         >
                           <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold">
+                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-[#E91E63] flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold">
                               <Zap className="h-4 w-4" />
                             </div>
                             <div className="flex-1 min-w-0">
@@ -2436,7 +2413,7 @@ END:VCALENDAR`;
                                 {a.sport ? `${a.sport} · ` : ''}{a.partnerName || ''}
                               </p>
                               {typeof a.price === 'number' && a.price > 0 && (
-                                <p className="text-[11px] text-[#D91CD2] mt-0.5">{a.price} CHF</p>
+                                <p className="text-[11px] text-accent mt-0.5">{a.price} CHF</p>
                               )}
                             </div>
                             <ChevronRight className="h-4 w-4 text-white/20 flex-shrink-0 mt-1" />

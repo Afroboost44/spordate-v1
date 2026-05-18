@@ -9,13 +9,13 @@
  *
  * Charte stricte :
  * - fond #000 (transparent → hérite parent)
- * - bordure white/10, hover/focus border-[#D91CD2]/40
+ * - bordure white/10, hover/focus border-accent/40
  * - texte white pour titre, white/60 pour secondary
  * - prix en font-medium, accent #D91CD2 sur le chiffre
  *
  * Accessibilité :
  * - <Link> entoure toute la card (skill: touch-target-size — toute la card est cliquable)
- * - focus-visible:ring-2 ring-[#D91CD2] sur le focus
+ * - focus-visible:ring-2 ring-accent sur le focus
  * - aria-label avec titre + ville + prix pour SR
  * - cursor-pointer (skill)
  *
@@ -62,7 +62,7 @@ export function SessionCard({
     <Link
       href={href}
       aria-label={ariaLabel}
-      className={`group block rounded-xl border border-white/10 bg-black/40 overflow-hidden cursor-pointer transition-colors hover:border-[#D91CD2]/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] ${className}`}
+      className={`group block rounded-xl border border-white/10 bg-black/40 overflow-hidden cursor-pointer transition-colors hover:border-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${className}`}
     >
       {/* Média (caché en variant compact) */}
       {!isCompact && (
@@ -80,7 +80,7 @@ export function SessionCard({
             {session.title}
           </h3>
           <p className="flex items-center gap-1.5 text-xs text-white/60 font-light">
-            <MapPin className="h-3 w-3 text-[#D91CD2] flex-shrink-0" aria-hidden="true" />
+            <MapPin className="h-3 w-3 text-accent flex-shrink-0" aria-hidden="true" />
             <span>{session.city}</span>
           </p>
         </div>
@@ -105,12 +105,12 @@ export function SessionCard({
             <span className="text-[10px] uppercase tracking-wider text-white/40 font-light">
               À partir de
             </span>
-            <span className="text-lg sm:text-xl text-[#D91CD2] font-medium tabular-nums">
+            <span className="text-lg sm:text-xl text-accent font-medium tabular-nums">
               {priceText}
             </span>
           </div>
           <ArrowRight
-            className="h-4 w-4 text-white/40 group-hover:text-[#D91CD2] transition-colors flex-shrink-0"
+            className="h-4 w-4 text-white/40 group-hover:text-accent transition-colors flex-shrink-0"
             aria-hidden="true"
           />
         </div>

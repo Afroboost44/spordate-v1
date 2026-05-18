@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useLanguage } from '@/context/LanguageContext';
+import { SpordateurLogo } from '@/components/SpordateurLogo';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let deferredPrompt: any = null;
@@ -161,18 +162,22 @@ export default function PWARegister() {
           animation: 'splashFade 0.3s ease 0.5s forwards',
         }}
       >
-        <img
-          src="/icons/icon-192.png?v=29"
-          alt="Spordateur"
-          width={160}
-          height={160}
+        <div
           style={{
+            width: 160,
+            height: 160,
             marginBottom: 24,
             borderRadius: '50%',
-            boxShadow: '0 0 80px rgba(217,28,210,0.5)',
+            backgroundColor: 'rgb(var(--accent-color-rgb) / 0.10)',
+            boxShadow: '0 0 80px rgb(var(--accent-color-rgb) / 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
           }}
-        />
-        <h1 style={{ color: '#D91CD2', fontSize: 36, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>
+        >
+          <SpordateurLogo className="h-24 w-24 text-accent" />
+        </div>
+        <h1 style={{ color: 'var(--accent-color)', fontSize: 36, fontWeight: 700, margin: 0, letterSpacing: -0.5 }}>
           Spordateur
         </h1>
         <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: 15, marginTop: 8 }}>
@@ -200,16 +205,23 @@ export default function PWARegister() {
           alignItems: 'center',
           gap: 12,
           boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-          border: '1px solid rgba(217, 28, 210, 0.3)',
+          border: '1px solid rgb(var(--accent-color-rgb) / 0.3)',
         }}
       >
-        <img
-          src="/icons/icon-192.png?v=29"
-          alt=""
-          width={48}
-          height={48}
-          style={{ borderRadius: '50%' }}
-        />
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            backgroundColor: 'rgb(var(--accent-color-rgb) / 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0,
+          }}
+        >
+          <SpordateurLogo className="h-7 w-7 text-accent" />
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ color: 'white', margin: 0, fontWeight: 600, fontSize: 15 }}>
             {t('pwa_install_title')}
@@ -221,7 +233,7 @@ export default function PWARegister() {
         <button
           onClick={handleInstall}
           style={{
-            background: '#D91CD2',
+            background: 'var(--accent-color)',
             color: 'white',
             border: 'none',
             borderRadius: 12,
@@ -275,16 +287,26 @@ export default function PWARegister() {
           alignItems: 'center',
           gap: 12,
           boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
-          border: '1px solid rgba(217, 28, 210, 0.3)',
+          border: '1px solid rgb(var(--accent-color-rgb) / 0.3)',
         }}
       >
-        <img
-          src="/icons/icon-192.png?v=29"
-          alt=""
-          width={48}
-          height={48}
-          style={{ borderRadius: '50%', flexShrink: 0 }}
-        />
+        {/* Accent feature : inline SVG SpordateurLogo suit text-accent
+            (dynamique via /admin "Couleur principale"). Wrapper rounded bg
+            pour conserver visuellement le "badge" rond du logo PWA. */}
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            flexShrink: 0,
+            backgroundColor: 'rgb(var(--accent-color-rgb) / 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <SpordateurLogo className="h-7 w-7 text-accent" />
+        </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ color: 'white', margin: 0, fontWeight: 600, fontSize: 14 }}>
             {t('pwa_install_title') || 'Installer Spordateur'}
@@ -301,8 +323,8 @@ export default function PWARegister() {
                 style={{ display: 'inline-block', verticalAlign: 'middle' }}
                 aria-label="share icon"
               >
-                <path d="M7 1L4 4M7 1L10 4M7 1V11" stroke="#D91CD2" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M2 8H1V16C1 16.5523 1.44772 17 2 17H12C12.5523 17 13 16.5523 13 16V8H12" stroke="#D91CD2" strokeWidth="1.5" strokeLinecap="round" />
+                <path d="M7 1L4 4M7 1L10 4M7 1V11" stroke="var(--accent-color)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M2 8H1V16C1 16.5523 1.44772 17 2 17H12C12.5523 17 13 16.5523 13 16V8H12" stroke="var(--accent-color)" strokeWidth="1.5" strokeLinecap="round" />
               </svg>
               <span>{t('pwa_ios_install_step2') || "puis « Ajouter à l'écran d'accueil »"}</span>
             </p>
@@ -315,7 +337,7 @@ export default function PWARegister() {
                 width="4"
                 height="16"
                 viewBox="0 0 4 16"
-                fill="#D91CD2"
+                fill="var(--accent-color)"
                 xmlns="http://www.w3.org/2000/svg"
                 style={{ display: 'inline-block', verticalAlign: 'middle' }}
                 aria-label="menu icon"
@@ -337,7 +359,7 @@ export default function PWARegister() {
           <button
             onClick={handleInstall}
             style={{
-              background: '#D91CD2',
+              background: 'var(--accent-color)',
               color: 'white',
               border: 'none',
               borderRadius: 12,

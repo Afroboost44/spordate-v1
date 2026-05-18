@@ -77,8 +77,8 @@ export default function StripeConnectReturnPage() {
       <div className="max-w-sm w-full text-center space-y-6">
         {status === 'loading' && (
           <>
-            <div className="w-16 h-16 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center mx-auto">
-              <Loader2 className="h-8 w-8 text-[#D91CD2] animate-spin" />
+            <div className="w-16 h-16 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto">
+              <Loader2 className="h-8 w-8 text-accent animate-spin" />
             </div>
             <p className="text-white/50 font-light">Vérification de votre compte...</p>
           </>
@@ -95,7 +95,7 @@ export default function StripeConnectReturnPage() {
             </div>
             <Button
               onClick={() => router.push('/partner/wallet')}
-              className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white rounded-full h-12 px-8 font-light"
+              className="bg-accent hover:bg-accent/80 text-white rounded-full h-12 px-8 font-light"
             >
               Retour au portefeuille
             </Button>

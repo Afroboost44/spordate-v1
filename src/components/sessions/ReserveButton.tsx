@@ -18,10 +18,10 @@
  * - Sur erreur → toast (système useToast existant)
  *
  * Charte stricte :
- * - Actif : bg-[#D91CD2] text-black font-medium (le seul bouton vraiment violet de la page)
+ * - Actif : bg-accent text-black font-medium (le seul bouton vraiment violet de la page)
  * - Disabled : bg-white/5 text-white/30 cursor-not-allowed (différenciation par opacité)
- * - Hover actif : bg-[#D91CD2]/90 (atténuation, pas de scale ni transform — reduced-motion friendly)
- * - Focus visible : ring-2 ring-[#D91CD2] ring-offset-2 ring-offset-black
+ * - Hover actif : bg-accent/90 (atténuation, pas de scale ni transform — reduced-motion friendly)
+ * - Focus visible : ring-2 ring-accent ring-offset-2 ring-offset-black
  * - Loading : opacity-50 + spinner Loader2 motion-safe
  * - w-full par défaut (pattern CTA primaire — plus tappable mobile, layout stable)
  *
@@ -210,9 +210,9 @@ export function ReserveButton({
   // Classes différenciées par état (charte stricte)
   // w-full par défaut = pattern CTA primaire (plus tappable mobile, layout stable selon copy phase)
   const baseClass =
-    'w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-black';
+    'w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black';
   const enabledClass = state.enabled
-    ? 'bg-[#D91CD2] text-black font-medium hover:bg-[#D91CD2]/90 cursor-pointer'
+    ? 'bg-accent text-black font-medium hover:bg-accent/90 cursor-pointer'
     : 'bg-white/5 text-white/30 cursor-not-allowed';
   const loadingClass = loading ? 'opacity-50' : '';
 

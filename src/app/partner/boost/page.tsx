@@ -217,7 +217,7 @@ export default function PartnerBoostPage() {
       toast({
         title: 'Boost activé !',
         description: `Solde restant : ${data.creditsRemaining} crédits.`,
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
       setPaymentStatus('success');
     } catch (err: any) {
@@ -253,7 +253,7 @@ export default function PartnerBoostPage() {
           <p className="text-white/40 font-light mb-8">Votre visibilité est maintenant boostée. Les utilisateurs verront votre offre en priorité.</p>
           <Button
             onClick={() => setPaymentStatus(null)}
-            className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white rounded-full h-12 px-8 font-light"
+            className="bg-accent hover:bg-accent/80 text-white rounded-full h-12 px-8 font-light"
           >
             Configurer un autre boost
           </Button>
@@ -267,8 +267,8 @@ export default function PartnerBoostPage() {
       {/* Header */}
       <div>
         <div className="flex items-center gap-3 mb-2">
-          <div className="w-10 h-10 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center">
-            <Rocket className="h-5 w-5 text-[#D91CD2]" />
+          <div className="w-10 h-10 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center">
+            <Rocket className="h-5 w-5 text-accent" />
           </div>
           <h1 className="text-2xl md:text-3xl font-extralight tracking-tight">
             Booster ma visibilité
@@ -293,7 +293,7 @@ export default function PartnerBoostPage() {
         {/* Configuration — left column */}
         <div className="md:col-span-3 space-y-6">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-6">
-            <h3 className="text-sm text-[#D91CD2] uppercase tracking-[0.2em] font-light">
+            <h3 className="text-sm text-accent uppercase tracking-[0.2em] font-light">
               Configurer votre Boost
             </h3>
 
@@ -305,7 +305,7 @@ export default function PartnerBoostPage() {
 
               {selectedCity && (
                 <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-[#D91CD2]/10 text-[#D91CD2] border border-[#D91CD2]/30 text-sm font-light">
+                  <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-accent/10 text-accent border border-accent/30 text-sm font-light">
                     <MapPin className="h-3 w-3" />
                     {locationLabel}
                   </span>
@@ -419,11 +419,11 @@ export default function PartnerBoostPage() {
                     onClick={() => setSelectedDuration(d.value)}
                     className={`p-4 rounded-xl text-center transition border ${
                       selectedDuration === d.value
-                        ? 'bg-[#D91CD2]/10 border-[#D91CD2]/30'
+                        ? 'bg-accent/10 border-accent/30'
                         : 'bg-white/5 border-white/5 hover:bg-white/10'
                     }`}
                   >
-                    <p className={`text-sm font-light ${selectedDuration === d.value ? 'text-[#D91CD2]' : 'text-white/50'}`}>
+                    <p className={`text-sm font-light ${selectedDuration === d.value ? 'text-accent' : 'text-white/50'}`}>
                       {d.label}
                     </p>
                     <p className={`text-2xl font-extralight mt-1 ${selectedDuration === d.value ? 'text-white' : 'text-white/30'}`}>
@@ -447,7 +447,7 @@ export default function PartnerBoostPage() {
                   onClick={() => setPaymentMethod('stripe')}
                   className={`flex items-center justify-center gap-2 p-3 rounded-xl text-sm font-light transition border ${
                     paymentMethod === 'stripe'
-                      ? 'bg-[#D91CD2]/10 border-[#D91CD2]/40 text-[#D91CD2]'
+                      ? 'bg-accent/10 border-accent/40 text-accent'
                       : 'bg-white/5 border-white/5 text-white/40 hover:text-white/60'
                   }`}
                 >
@@ -461,7 +461,7 @@ export default function PartnerBoostPage() {
                   onClick={() => setPaymentMethod('credits')}
                   className={`flex items-center justify-center gap-2 p-3 rounded-xl text-sm font-light transition border ${
                     paymentMethod === 'credits'
-                      ? 'bg-[#D91CD2]/10 border-[#D91CD2]/40 text-[#D91CD2]'
+                      ? 'bg-accent/10 border-accent/40 text-accent'
                       : 'bg-white/5 border-white/5 text-white/40 hover:text-white/60'
                   }`}
                 >
@@ -491,7 +491,7 @@ export default function PartnerBoostPage() {
                     disabled={!selectedCity || !selectedDuration || isLoading}
                     className={`w-full rounded-full h-14 text-base font-semibold ${
                       selectedCity && selectedDuration
-                        ? 'bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white'
+                        ? 'bg-accent hover:bg-accent/80 text-white'
                         : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
                     }`}
                   >
@@ -537,7 +537,7 @@ export default function PartnerBoostPage() {
                       disabled={!selectedCity || !selectedDuration || isLoading || !hasEnoughCredits}
                       className={`w-full rounded-full h-14 text-base font-semibold ${
                         selectedCity && selectedDuration && hasEnoughCredits
-                          ? 'bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white'
+                          ? 'bg-accent hover:bg-accent/80 text-white'
                           : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
                       }`}
                     >
@@ -569,7 +569,7 @@ export default function PartnerBoostPage() {
         {/* Info — right column */}
         <div className="md:col-span-2 space-y-6">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
-            <h3 className="text-sm text-[#D91CD2] uppercase tracking-[0.2em] font-light">
+            <h3 className="text-sm text-accent uppercase tracking-[0.2em] font-light">
               Comment ça marche ?
             </h3>
             <p className="text-white/40 font-light text-sm leading-relaxed">
@@ -579,8 +579,8 @@ export default function PartnerBoostPage() {
 
             <div className="space-y-4 pt-2">
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Eye className="h-4 w-4 text-[#D91CD2]" />
+                <div className="w-8 h-8 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Eye className="h-4 w-4 text-accent" />
                 </div>
                 <div>
                   <p className="text-sm text-white/70 font-light">Visibilité x10</p>
@@ -589,8 +589,8 @@ export default function PartnerBoostPage() {
               </div>
 
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <MapPin className="h-4 w-4 text-[#D91CD2]" />
+                <div className="w-8 h-8 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <MapPin className="h-4 w-4 text-accent" />
                 </div>
                 <div>
                   <p className="text-sm text-white/70 font-light">Ciblage précis</p>
@@ -599,8 +599,8 @@ export default function PartnerBoostPage() {
               </div>
 
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <Users className="h-4 w-4 text-[#D91CD2]" />
+                <div className="w-8 h-8 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <Users className="h-4 w-4 text-accent" />
                 </div>
                 <div>
                   <p className="text-sm text-white/70 font-light">Badge &quot;Recommandé&quot;</p>
@@ -609,8 +609,8 @@ export default function PartnerBoostPage() {
               </div>
 
               <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center flex-shrink-0 mt-0.5">
-                  <TrendingUp className="h-4 w-4 text-[#D91CD2]" />
+                <div className="w-8 h-8 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center flex-shrink-0 mt-0.5">
+                  <TrendingUp className="h-4 w-4 text-accent" />
                 </div>
                 <div>
                   <p className="text-sm text-white/70 font-light">Plus de réservations</p>
@@ -626,8 +626,8 @@ export default function PartnerBoostPage() {
             {activeBoosts.length > 0 ? (
               <div className="space-y-3">
                 {activeBoosts.map(b => (
-                  <div key={b.id} className="flex items-center gap-3 p-3 bg-[#D91CD2]/5 border border-[#D91CD2]/10 rounded-xl">
-                    <Zap className="h-4 w-4 text-[#D91CD2] flex-shrink-0" />
+                  <div key={b.id} className="flex items-center gap-3 p-3 bg-accent/5 border border-accent/10 rounded-xl">
+                    <Zap className="h-4 w-4 text-accent flex-shrink-0" />
                     <div className="flex-1">
                       <p className="text-sm text-white/70 font-light">{b.city}</p>
                       <p className="text-xs text-white/30 font-light">

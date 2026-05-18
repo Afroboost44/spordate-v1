@@ -122,7 +122,7 @@ export function PushOptInSwitch({ uid, initialEnabled }: PushOptInSwitchProps) {
           className="text-sm font-medium text-white cursor-pointer flex items-center gap-1.5"
         >
           {enabled ? (
-            <Bell className="h-3.5 w-3.5 text-[#D91CD2]" aria-hidden="true" />
+            <Bell className="h-3.5 w-3.5 text-accent" aria-hidden="true" />
           ) : (
             <BellOff className="h-3.5 w-3.5 text-white/40" aria-hidden="true" />
           )}
@@ -147,7 +147,7 @@ export function PushOptInSwitch({ uid, initialEnabled }: PushOptInSwitchProps) {
         checked={enabled && supported}
         onCheckedChange={handleToggle}
         disabled={saving || !supported}
-        className="mt-1 data-[state=checked]:bg-[#D91CD2] flex-shrink-0"
+        className="mt-1 data-[state=checked]:bg-accent flex-shrink-0"
       />
     </div>
   );

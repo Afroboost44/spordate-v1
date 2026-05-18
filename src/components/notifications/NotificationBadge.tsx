@@ -14,7 +14,7 @@
  * markRead.ts set les deux (isRead=true ET readAt=serverTimestamp), donc le
  * comportement converge.
  *
- * Charte stricte : Bell text-foreground/70, pastille bg-[#D91CD2] text-white.
+ * Charte stricte : Bell text-foreground/70, pastille bg-accent text-white.
  */
 
 'use client';
@@ -64,7 +64,7 @@ export function NotificationBadge() {
         <div className="relative">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#D91CD2] px-1 text-[10px] font-bold text-white">
+            <span className="absolute -top-1.5 -right-1.5 flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white">
               {display}
             </span>
           )}

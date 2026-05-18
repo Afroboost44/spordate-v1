@@ -16,6 +16,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import BackButton from '@/components/BackButton';
+import { SpordateurLogo } from '@/components/SpordateurLogo';
 
 const ACTIVITIES = ['Danse / Zumba', 'Afroboost', 'Fitness', 'Yoga', 'Running', 'Crossfit', 'Massage / Bien-être', 'Autre'];
 const SWISS_CITIES = ['Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Lucerne', 'Fribourg', 'Neuchâtel'];
@@ -124,9 +125,8 @@ export default function PartnersPage() {
           <div className="flex items-center gap-3">
             <button onClick={() => router.back()} className="text-white/40 hover:text-white/70 transition mr-2"><ArrowLeft className="h-5 w-5" /></button>
             <Link href="/" className="flex items-center gap-2">
-              {/* Phase 9.5 c19 — vrai logo Afroboost cercle */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icons/icon-192.png?v=29" alt="Spordateur" width={32} height={32} />
+              {/* Accent feature — SVG inline (admin Couleur principale). */}
+              <SpordateurLogo className="h-8 w-8 text-accent" />
               <span className="text-lg font-light tracking-widest uppercase">Spordateur</span>
             </Link>
           </div>
@@ -134,7 +134,7 @@ export default function PartnersPage() {
             <Link href="/partner/login" className="text-xs text-white/50 hover:text-white/80 transition hidden sm:inline">
               Espace partenaire
             </Link>
-            <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-xs font-normal uppercase tracking-wide px-6 h-10 rounded-full">
+            <Button asChild className="bg-accent hover:bg-accent/80 text-white text-xs font-normal uppercase tracking-wide px-6 h-10 rounded-full">
               <a href="#formulaire">Devenir partenaire</a>
             </Button>
           </div>
@@ -143,17 +143,17 @@ export default function PartnersPage() {
 
       {/* ── HERO ── */}
       <section className="relative min-h-[70vh] flex items-center overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#D91CD2]/10 via-black/80 to-black" />
+        <div className="absolute inset-0 bg-gradient-to-b from-accent/10 via-black/80 to-black" />
         <div className="relative z-10 container mx-auto px-6 py-24">
           <div className="max-w-2xl space-y-8">
-            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#D91CD2]/30 bg-[#D91CD2]/5">
-              <Gift className="h-4 w-4 text-[#D91CD2]" />
-              <span className="text-sm text-[#D91CD2] font-light">Offre de lancement : 1 mois gratuit</span>
+            <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/30 bg-accent/5">
+              <Gift className="h-4 w-4 text-accent" />
+              <span className="text-sm text-accent font-light">Offre de lancement : 1 mois gratuit</span>
             </div>
 
             <h1 className="text-4xl md:text-6xl font-extralight leading-tight tracking-tight">
               Remplis tes cours avec de
-              <span className="text-[#D91CD2]"> nouveaux clients.</span>
+              <span className="text-accent"> nouveaux clients.</span>
             </h1>
 
             <p className="text-lg font-light text-white/50 max-w-lg leading-relaxed">
@@ -161,7 +161,7 @@ export default function PartnersPage() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4">
-              <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold text-base px-10 h-14 rounded-full">
+              <Button asChild className="bg-accent hover:bg-accent/80 text-white font-semibold text-base px-10 h-14 rounded-full">
                 <a href="#formulaire">Devenir partenaire maintenant <ArrowRight className="ml-2 h-4 w-4" /></a>
               </Button>
             </div>
@@ -186,8 +186,8 @@ export default function PartnersPage() {
                 ))}
               </div>
             </div>
-            <div className="bg-[#D91CD2]/5 border border-[#D91CD2]/20 rounded-3xl p-8 space-y-4">
-              <Zap className="h-8 w-8 text-[#D91CD2]" />
+            <div className="bg-accent/5 border border-accent/20 rounded-3xl p-8 space-y-4">
+              <Zap className="h-8 w-8 text-accent" />
               <h3 className="text-xl font-light text-white">La solution Spordateur</h3>
               <p className="text-white/50 font-light leading-relaxed">Des clients motivés, envoyés directement dans tes cours. Ils ont déjà payé — tu n&apos;as plus qu&apos;à les accueillir.</p>
             </div>
@@ -199,7 +199,7 @@ export default function PartnersPage() {
       <section className="py-24 border-t border-white/5">
         <div className="container mx-auto px-6">
           <div className="text-center mb-16">
-            <p className="text-sm text-[#D91CD2] uppercase tracking-[0.3em] mb-4">Comment ça marche</p>
+            <p className="text-sm text-accent uppercase tracking-[0.3em] mb-4">Comment ça marche</p>
             <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">3 étapes. C&apos;est tout.</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
@@ -209,7 +209,7 @@ export default function PartnersPage() {
               { num: '03', title: 'Tu accueilles et tu gagnes', desc: 'Tu remplis tes créneaux, fidélises une nouvelle clientèle et augmentes tes revenus.', icon: <Wallet className="h-6 w-6" /> },
             ].map(s => (
               <div key={s.num} className="text-center space-y-4 p-6">
-                <div className="w-14 h-14 rounded-2xl bg-[#D91CD2]/10 flex items-center justify-center text-[#D91CD2] mx-auto">{s.icon}</div>
+                <div className="w-14 h-14 rounded-2xl bg-accent/10 flex items-center justify-center text-accent mx-auto">{s.icon}</div>
                 <span className="text-3xl font-extralight text-white/10">{s.num}</span>
                 <h3 className="text-lg font-light text-white">{s.title}</h3>
                 <p className="text-sm text-white/40 font-light leading-relaxed">{s.desc}</p>
@@ -223,7 +223,7 @@ export default function PartnersPage() {
       <section className="py-24 border-t border-white/5">
         <div className="container mx-auto px-6 max-w-4xl">
           <div className="text-center mb-16">
-            <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">Plus que des clients,<br /><span className="text-[#D91CD2]">une machine à revenus.</span></h2>
+            <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">Plus que des clients,<br /><span className="text-accent">une machine à revenus.</span></h2>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {[
@@ -235,7 +235,7 @@ export default function PartnersPage() {
               { icon: <Shield className="h-5 w-5" />, text: 'Un seul date peut te payer ton abonnement' },
             ].map((b, i) => (
               <div key={i} className="flex items-center gap-4 p-4 bg-white/5 rounded-2xl border border-white/5">
-                <div className="text-[#D91CD2]">{b.icon}</div>
+                <div className="text-accent">{b.icon}</div>
                 <span className="text-sm text-white/70 font-light">{b.text}</span>
               </div>
             ))}
@@ -246,9 +246,9 @@ export default function PartnersPage() {
       {/* ── OFFRE PARTENAIRE ── */}
       <section className="py-24 border-t border-white/5">
         <div className="container mx-auto px-6 max-w-lg">
-          <Card className="bg-gradient-to-br from-[#1A1A1A] to-black border-[#D91CD2]/30 shadow-xl shadow-[#D91CD2]/5 overflow-hidden">
+          <Card className="bg-gradient-to-br from-[#1A1A1A] to-black border-accent/30 shadow-xl shadow-accent/5 overflow-hidden">
             <CardContent className="p-8 space-y-6 text-center">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#D91CD2]/10 text-[#D91CD2] text-xs">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-accent/10 text-accent text-xs">
                 <Gift className="h-3.5 w-3.5" /> 1er mois gratuit
               </div>
               <h3 className="text-2xl font-light text-white">Abonnement partenaire</h3>
@@ -266,12 +266,12 @@ export default function PartnersPage() {
                   'Code promo 1 mois gratuit',
                 ].map(f => (
                   <div key={f} className="flex items-start gap-2.5">
-                    <CheckCircle className="h-4 w-4 text-[#D91CD2] mt-0.5 flex-shrink-0" />
+                    <CheckCircle className="h-4 w-4 text-accent mt-0.5 flex-shrink-0" />
                     <span className="text-sm text-white/60 font-light">{f}</span>
                   </div>
                 ))}
               </div>
-              <Button asChild className="w-full h-14 bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold text-base rounded-full">
+              <Button asChild className="w-full h-14 bg-accent hover:bg-accent/80 text-white font-semibold text-base rounded-full">
                 <a href="#formulaire">Activer mon offre gratuite <ArrowRight className="ml-2 h-4 w-4" /></a>
               </Button>
               <p className="text-[11px] text-white/20">Sans engagement — résiliable à tout moment</p>
@@ -300,7 +300,7 @@ export default function PartnersPage() {
           <p className="text-lg text-white/60 font-light italic">
             &ldquo;Nous sélectionnons seulement quelques partenaires par ville pour garantir leur visibilité.&rdquo;
           </p>
-          <p className="text-[#D91CD2] font-medium">Ta ville est-elle encore disponible ?</p>
+          <p className="text-accent font-medium">Ta ville est-elle encore disponible ?</p>
         </div>
       </section>
 
@@ -362,11 +362,11 @@ export default function PartnersPage() {
                   {/* Swiss / International toggle */}
                   <div className="flex gap-2 mb-3">
                     <button type="button" onClick={() => { setLocationMode('swiss'); setSelectedCountry(''); setFormData(p => ({ ...p, city: '' })); }}
-                      className={`flex-1 h-10 rounded-full text-sm font-light transition ${locationMode === 'swiss' ? 'bg-[#D91CD2]/20 text-[#D91CD2] border border-[#D91CD2]/30' : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'}`}>
+                      className={`flex-1 h-10 rounded-full text-sm font-light transition ${locationMode === 'swiss' ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'}`}>
                       Suisse
                     </button>
                     <button type="button" onClick={() => { setLocationMode('international'); setFormData(p => ({ ...p, city: '' })); }}
-                      className={`flex-1 h-10 rounded-full text-sm font-light transition ${locationMode === 'international' ? 'bg-[#D91CD2]/20 text-[#D91CD2] border border-[#D91CD2]/30' : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'}`}>
+                      className={`flex-1 h-10 rounded-full text-sm font-light transition ${locationMode === 'international' ? 'bg-accent/20 text-accent border border-accent/30' : 'bg-white/5 text-white/40 border border-white/10 hover:bg-white/10'}`}>
                       International
                     </button>
                   </div>
@@ -405,7 +405,7 @@ export default function PartnersPage() {
                     <Input type="email" value={formData.email} onChange={e => setFormData(p => ({ ...p, email: e.target.value }))} placeholder="contact@..." className="bg-[#1A1A1A] border-white/10 h-12 text-white" required />
                   </div>
                 </div>
-                <Button type="submit" disabled={isLoading} className="w-full h-14 bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold text-base rounded-full mt-4">
+                <Button type="submit" disabled={isLoading} className="w-full h-14 bg-accent hover:bg-accent/80 text-white font-semibold text-base rounded-full mt-4">
                   {isLoading ? <Loader2 className="animate-spin mr-2 h-5 w-5" /> : null}
                   Rejoindre Spordateur <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
@@ -416,7 +416,7 @@ export default function PartnersPage() {
                 </div>
                 <p className="text-center text-sm text-white/40 mt-6">
                   Déjà partenaire ?{' '}
-                  <Link href="/partner/login" className="text-[#D91CD2] hover:underline">
+                  <Link href="/partner/login" className="text-accent hover:underline">
                     Se connecter à mon espace
                   </Link>
                 </p>

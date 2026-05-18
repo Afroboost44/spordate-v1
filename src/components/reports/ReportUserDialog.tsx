@@ -174,8 +174,8 @@ export function ReportUserDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="border-l-2 border-[#D91CD2] pl-3 py-1 my-2 flex items-start gap-2">
-          <ShieldAlert className="h-4 w-4 text-[#D91CD2] shrink-0 mt-0.5" aria-hidden="true" />
+        <div className="border-l-2 border-accent pl-3 py-1 my-2 flex items-start gap-2">
+          <ShieldAlert className="h-4 w-4 text-accent shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-xs text-white/70 font-light leading-relaxed">
             Ton signalement est <span className="text-white">100% anonyme</span>. {targetName} ne saura
             jamais qui l&apos;a signalé. Les abus de signalement sont sanctionnés.
@@ -195,14 +195,14 @@ export function ReportUserDialog({
                 htmlFor={`report-cat-${opt.value}`}
                 className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border cursor-pointer transition-colors ${
                   category === opt.value
-                    ? 'border-[#D91CD2] bg-white/5'
+                    ? 'border-accent bg-white/5'
                     : 'border-white/10 hover:bg-white/5'
                 }`}
               >
                 <RadioGroupItem
                   value={opt.value}
                   id={`report-cat-${opt.value}`}
-                  className="border-white/30 text-[#D91CD2]"
+                  className="border-white/30 text-accent"
                 />
                 <span className={`h-2 w-2 rounded-full ${opt.dotClass}`} aria-hidden="true" />
                 <span className="text-sm font-light text-white/90 flex-1">{opt.label}</span>
@@ -226,20 +226,20 @@ export function ReportUserDialog({
                 maxLength={FREETEXT_MAX_LENGTH}
                 disabled={submitting}
                 rows={3}
-                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-[#D91CD2]"
+                className="bg-white/5 border-white/10 text-white placeholder:text-white/30 focus:border-accent"
               />
               <div className="flex justify-between text-xs text-white/40 font-light tabular-nums">
                 <span
                   className={
                     freeText.length > 0 && freeText.length < FREETEXT_MIN_LENGTH
-                      ? 'text-[#D91CD2]'
+                      ? 'text-accent'
                       : ''
                   }
                 >
                   Minimum {FREETEXT_MIN_LENGTH} caractères
                 </span>
                 <span
-                  className={freeText.length > FREETEXT_MAX_LENGTH * 0.9 ? 'text-[#D91CD2]' : ''}
+                  className={freeText.length > FREETEXT_MAX_LENGTH * 0.9 ? 'text-accent' : ''}
                 >
                   {freeText.length} / {FREETEXT_MAX_LENGTH}
                 </span>
@@ -262,7 +262,7 @@ export function ReportUserDialog({
             type="button"
             onClick={handleSubmit}
             disabled={!canSubmit}
-            className="flex-1 bg-[#D91CD2] text-black font-medium hover:bg-[#D91CD2]/90 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 bg-accent text-black font-medium hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {submitting ? (
               <>

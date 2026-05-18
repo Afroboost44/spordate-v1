@@ -83,7 +83,7 @@ export function StarRatingInput({
             aria-label={`${star} étoile${star > 1 ? 's' : ''}`}
             aria-checked={value === star}
             role="radio"
-            className={`p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
+            className={`p-1 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black ${
               disabled ? '' : 'hover:bg-white/5 cursor-pointer'
             }`}
           >
@@ -91,8 +91,8 @@ export function StarRatingInput({
               className={`${iconSize} ${
                 isFilled
                   ? isHover && star > (value ?? 0)
-                    ? 'text-[#D91CD2]/60 fill-[#D91CD2]/60' // hover preview
-                    : 'text-[#D91CD2] fill-[#D91CD2]'
+                    ? 'text-accent/60 fill-accent/60' // hover preview
+                    : 'text-accent fill-accent'
                   : 'text-white/30'
               } transition-colors`}
               strokeWidth={1.5}

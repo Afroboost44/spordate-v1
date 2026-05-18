@@ -90,7 +90,7 @@ export function BlockButton({
           onClick={() => setOpen(true)}
           aria-label={`Bloquer ${targetName}`}
           title={`Bloquer ${targetName}`}
-          className={`h-8 w-8 text-white/60 hover:text-[#D91CD2] hover:bg-white/5 ${className}`}
+          className={`h-8 w-8 text-white/60 hover:text-accent hover:bg-white/5 ${className}`}
         >
           <Ban className="h-4 w-4" aria-hidden="true" />
         </Button>
@@ -114,7 +114,7 @@ export function BlockButton({
         variant="outline"
         size="sm"
         onClick={() => setOpen(true)}
-        className={`border-white/10 text-white/70 hover:bg-white/5 hover:text-[#D91CD2] hover:border-[#D91CD2]/40 font-light ${className}`}
+        className={`border-white/10 text-white/70 hover:bg-white/5 hover:text-accent hover:border-accent/40 font-light ${className}`}
       >
         <Ban className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
         Bloquer

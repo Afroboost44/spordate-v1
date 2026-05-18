@@ -64,21 +64,21 @@ export function CreditsBadge() {
             type="button"
             onClick={handleClick}
             aria-label={`${credits} crédits chat — recharger`}
-            className={`relative inline-flex items-center gap-1.5 rounded-full border border-[#D91CD2]/30 bg-black/60 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:border-[#D91CD2]/60 hover:bg-[#D91CD2]/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
+            className={`relative inline-flex items-center gap-1.5 rounded-full border border-accent/30 bg-black/60 px-2.5 py-1 text-sm font-medium text-white transition-colors hover:border-accent/60 hover:bg-accent/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-background ${
               pulsing ? 'credits-badge-pulse' : ''
             }`}
           >
-            <Coins className="h-4 w-4 text-[#D91CD2]" />
+            <Coins className="h-4 w-4 text-accent" />
             <span className="tabular-nums">{credits}</span>
             <span className="hidden lg:inline text-xs text-white/60">crédits</span>
           </button>
         </TooltipTrigger>
         <TooltipContent
           side="bottom"
-          className="bg-zinc-900 border border-[#D91CD2]/40 text-white"
+          className="bg-zinc-900 border border-accent/40 text-white"
         >
           <p className="text-xs">
-            Tu as <span className="font-semibold text-[#D91CD2]">{credits}</span> crédits chat.
+            Tu as <span className="font-semibold text-accent">{credits}</span> crédits chat.
             <br />
             <span className="text-white/60">1 crédit = 1 message.</span>
           </p>

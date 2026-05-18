@@ -98,7 +98,7 @@ function SuggestionCardItem({
   return (
     <div
       className={cn(
-        'border border-white/10 rounded-xl p-3 hover:border-[#D91CD2]/30',
+        'border border-white/10 rounded-xl p-3 hover:border-accent/30',
         'transition-colors',
       )}
     >
@@ -135,7 +135,7 @@ function SuggestionCardItem({
         <Link
           href={`/activities/${card.activityId}`}
           className={cn(
-            'inline-flex items-center gap-1 bg-[#D91CD2] text-black text-xs font-medium',
+            'inline-flex items-center gap-1 bg-accent text-black text-xs font-medium',
             'px-3 py-1.5 rounded-lg hover:opacity-90 transition-opacity',
           )}
         >
@@ -187,12 +187,12 @@ export function SuggestionMessage({
       {/* Bot avatar */}
       <div
         className={cn(
-          'flex-shrink-0 h-7 w-7 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20',
+          'flex-shrink-0 h-7 w-7 rounded-full bg-accent/10 border border-accent/20',
           'flex items-center justify-center',
         )}
         title="Spordateur IA — suggestions d'activités"
       >
-        <Sparkles className="h-3.5 w-3.5 text-[#D91CD2]" />
+        <Sparkles className="h-3.5 w-3.5 text-accent" />
       </div>
 
       {/* Bubble */}

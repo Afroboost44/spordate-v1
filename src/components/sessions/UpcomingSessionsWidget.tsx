@@ -127,7 +127,7 @@ export function UpcomingSessionsWidget({
       <Link
         href={viewAllHref}
         aria-label="Voir toutes les sessions"
-        className="inline-flex items-center gap-1.5 self-start text-sm text-[#D91CD2] font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
+        className="inline-flex items-center gap-1.5 self-start text-sm text-accent font-medium hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
       >
         <span>Voir toutes</span>
         <ArrowRight className="h-4 w-4" aria-hidden="true" />

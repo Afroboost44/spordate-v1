@@ -72,7 +72,7 @@ export function CountdownBadge({
       className={`inline-flex items-center rounded-full border border-white/10 bg-black/40 ${sizeClasses} text-white tabular-nums whitespace-nowrap ${className}`}
       aria-label={label ? `${label} ${formatted}` : formatted}
     >
-      <Clock className={`${iconSize} text-[#D91CD2] flex-shrink-0`} aria-hidden="true" />
+      <Clock className={`${iconSize} text-accent flex-shrink-0`} aria-hidden="true" />
       {label && <span className="text-white/60 font-light">{label}</span>}
       <span
         aria-live={ariaLive}

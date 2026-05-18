@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { SpordateurLogo } from '@/components/SpordateurLogo';
 
 interface PartnerData {
   partnerId: string;
@@ -70,7 +71,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
   if (authLoading || checking) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-black">
-        <Loader2 className="h-8 w-8 text-[#D91CD2] animate-spin" />
+        <Loader2 className="h-8 w-8 text-accent animate-spin" />
       </div>
     );
   }
@@ -88,7 +89,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
             <Button asChild className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-light rounded-full px-6 h-11">
               <Link href="/">Accueil</Link>
             </Button>
-            <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold rounded-full px-6 h-11">
+            <Button asChild className="bg-accent hover:bg-accent/80 text-white font-semibold rounded-full px-6 h-11">
               <Link href="/partner/register">Devenir partenaire</Link>
             </Button>
           </div>
@@ -107,9 +108,8 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
             <Link href="/" className="flex items-center gap-2">
-              {/* Phase 9.5 c19 — vrai logo Afroboost cercle (était Dumbbell placeholder) */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/icons/icon-192.png?v=29" alt="Spordateur" width={32} height={32} />
+              {/* Accent feature — SVG inline (admin Couleur principale). */}
+              <SpordateurLogo className="h-8 w-8 text-accent" />
               <span className="text-lg font-light tracking-widest uppercase hidden sm:block">Spordateur</span>
             </Link>
             {partner && (
@@ -123,7 +123,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
               <Link key={link.href} href={link.href}
                 className={`flex items-center gap-2 px-4 py-2 rounded-full text-sm font-light transition ${
                   pathname === link.href
-                    ? 'bg-[#D91CD2]/10 text-[#D91CD2] border border-[#D91CD2]/20'
+                    ? 'bg-accent/10 text-accent border border-accent/20'
                     : 'text-white/40 hover:text-white/70 hover:bg-white/5'
                 }`}>
                 {link.icon}
@@ -157,7 +157,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
               <Link key={link.href} href={link.href} onClick={() => setMobileOpen(false)}
                 className={`flex items-center gap-3 px-5 py-4 rounded-2xl text-base font-light transition ${
                   pathname === link.href
-                    ? 'bg-[#D91CD2]/10 text-[#D91CD2] border border-[#D91CD2]/20'
+                    ? 'bg-accent/10 text-accent border border-accent/20'
                     : 'text-white/50 hover:bg-white/5'
                 }`}>
                 {link.icon}

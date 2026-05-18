@@ -107,7 +107,7 @@ function BlockRow({ block, profile, onUnblock }: BlockRowProps) {
             size="sm"
             onClick={handleConfirm}
             disabled={submitting}
-            className="h-8 px-3 bg-[#D91CD2] text-black font-medium hover:bg-[#D91CD2]/90 disabled:opacity-40"
+            className="h-8 px-3 bg-accent text-black font-medium hover:bg-accent/90 disabled:opacity-40"
           >
             {submitting ? (
               <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" aria-hidden="true" />
@@ -122,7 +122,7 @@ function BlockRow({ block, profile, onUnblock }: BlockRowProps) {
           variant="outline"
           size="sm"
           onClick={() => setConfirming(true)}
-          className="h-8 px-3 border-white/10 text-white/70 hover:bg-white/5 hover:text-[#D91CD2] hover:border-[#D91CD2]/40 font-light shrink-0"
+          className="h-8 px-3 border-white/10 text-white/70 hover:bg-white/5 hover:text-accent hover:border-accent/40 font-light shrink-0"
         >
           Débloquer
         </Button>

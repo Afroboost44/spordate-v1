@@ -33,10 +33,10 @@ export function BookingPendingHero({
   return (
     <section className="flex flex-col gap-6">
       {/* Confirmation banner */}
-      <div className="rounded-lg border border-[#D91CD2]/40 bg-gradient-to-br from-[#D91CD2]/10 via-black to-black p-6 sm:p-8">
+      <div className="rounded-lg border border-accent/40 bg-gradient-to-br from-accent/10 via-black to-black p-6 sm:p-8">
         <div className="flex items-start gap-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#D91CD2]/15">
-            <Check className="h-5 w-5 text-[#D91CD2]" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/15">
+            <Check className="h-5 w-5 text-accent" />
           </div>
           <div className="flex flex-col gap-1.5 min-w-0">
             <h1 className="text-2xl sm:text-3xl text-white font-light">
@@ -64,7 +64,7 @@ export function BookingPendingHero({
 
         {partnerName && (
           <div className="flex items-center gap-2 text-sm text-white/70">
-            <MapPin className="h-4 w-4 text-[#D91CD2]" />
+            <MapPin className="h-4 w-4 text-accent" />
             <span className="font-medium">{partnerName}</span>
             {city && <span className="text-white/40">— {city}</span>}
           </div>
@@ -77,8 +77,8 @@ export function BookingPendingHero({
         )}
 
         {creditsGranted > 0 && (
-          <div className="flex items-center gap-2 rounded-md border border-[#D91CD2]/30 bg-[#D91CD2]/5 px-3 py-2">
-            <Coins className="h-4 w-4 text-[#D91CD2]" />
+          <div className="flex items-center gap-2 rounded-md border border-accent/30 bg-accent/5 px-3 py-2">
+            <Coins className="h-4 w-4 text-accent" />
             <span className="text-sm text-white">
               <span className="font-semibold">+{creditsGranted}</span> crédits chat reçus
             </span>

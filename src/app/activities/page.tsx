@@ -101,7 +101,7 @@ function CardVideoFallbackThumb({ item }: { item: MediaItem }) {
       )}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
         <div className="bg-black/50 rounded-full p-3 backdrop-blur-sm">
-          <Play className="h-7 w-7 text-[#D91CD2] fill-[#D91CD2]" aria-hidden="true" />
+          <Play className="h-7 w-7 text-accent fill-accent" aria-hidden="true" />
         </div>
       </div>
     </div>
@@ -200,7 +200,7 @@ function CardVideoEmbed({ item }: { item: MediaItem }) {
       <button
         type="button"
         onClick={handleToggleMute}
-        className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/60 backdrop-blur-sm text-[#D91CD2] hover:text-white hover:bg-[#D91CD2]/80 transition-colors"
+        className="absolute top-2 right-2 z-10 p-1.5 rounded-full bg-black/60 backdrop-blur-sm text-accent hover:text-white hover:bg-accent/80 transition-colors"
         aria-label={muted ? 'Activer le son' : 'Couper le son'}
       >
         {muted ? (
@@ -303,7 +303,7 @@ function ActivityCardComponent({
       id={`activity-${activity.activityId}`}
       className={`overflow-hidden bg-card transition-all duration-300 transform hover:-translate-y-2 scroll-mt-24 ${
         existingBookingId
-          ? 'border-[#D91CD2]/60 shadow-lg shadow-[#D91CD2]/20'
+          ? 'border-accent/60 shadow-lg shadow-accent/20'
           : 'border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20'
       }`}
     >
@@ -326,7 +326,7 @@ function ActivityCardComponent({
             goToDetail();
           }
         }}
-        className="block hover:opacity-95 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2]/40"
+        className="block hover:opacity-95 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
       >
         <div className="relative h-56 w-full group" style={{ touchAction: 'pan-y' }}>
           <BackButton fallbackUrl="/" />
@@ -353,7 +353,7 @@ function ActivityCardComponent({
           </div>
           {/* Phase 9.5 c16 BUG F — badge "Déjà réservée" si user a un booking actif */}
           {existingBookingId && (
-            <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 bg-[#D91CD2] text-white text-xs px-3 py-1 rounded-full font-medium shadow-lg">
+            <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 bg-accent text-white text-xs px-3 py-1 rounded-full font-medium shadow-lg">
               <CheckCircle className="h-3.5 w-3.5" />
               Déjà réservée
             </div>
@@ -423,7 +423,7 @@ function ActivityCardComponent({
             schedule texte libre est obsolète, retiré du formulaire partner). Backward-
             compat : si Activity legacy a schedule mais pas scheduledAt, on affiche
             "Date à venir" plutôt que le texte schedule non structuré. */}
-        <p className="text-xs text-[#D91CD2] mb-4 font-medium">
+        <p className="text-xs text-accent mb-4 font-medium">
           {activity.scheduledAt
             ? `Prochaine séance : ${formatScheduledLabel(activity)}`
             : 'Date à venir'}
@@ -440,7 +440,7 @@ function ActivityCardComponent({
               isDuo: false,
             });
             return (
-              <p className="text-xl font-bold text-[#D91CD2]">
+              <p className="text-xl font-bold text-accent">
                 {effectivePriceCHF === 0 ? 'Gratuit' : `${effectivePriceCHF} CHF`}
               </p>
             );
@@ -458,7 +458,7 @@ function ActivityCardComponent({
               /* Phase 9.5 c16 BUG F — lien direct vers réservation existante (skip flow réservation) */
               <Button
                 asChild
-                className="bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white text-sm font-semibold px-4"
+                className="bg-accent hover:bg-accent/90 text-white text-sm font-semibold px-4"
               >
                 <Link href={`/sessions/${existingBookingId}?status=success`}>
                   Voir ma réservation →
@@ -649,7 +649,7 @@ export default function ActivitiesPage() {
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
-          <Loader2 className="h-8 w-8 text-[#D91CD2] animate-spin" />
+          <Loader2 className="h-8 w-8 text-accent animate-spin" />
         </div>
       ) : (
         <div className="space-y-16">
@@ -669,7 +669,7 @@ export default function ActivitiesPage() {
                       </p>
                     )}
                   </div>
-                  <Badge className="bg-[#D91CD2]/10 text-[#D91CD2] border-[#D91CD2]/30 text-xs">
+                  <Badge className="bg-accent/10 text-accent border-accent/30 text-xs">
                     {partnerActivities.length} activité{partnerActivities.length > 1 ? 's' : ''}
                   </Badge>
                 </div>
@@ -695,7 +695,7 @@ export default function ActivitiesPage() {
       <div className="mt-16 text-center border-t border-white/5 pt-12">
         <p className="text-white/30 text-sm max-w-lg mx-auto">
           Les réservations incluent l&apos;accès au studio et l&apos;encadrement par un coach professionnel.
-          Vous êtes partenaire ? <Link href="/partner/register" className="text-[#D91CD2] hover:underline">Rejoignez le réseau Spordateur</Link>.
+          Vous êtes partenaire ? <Link href="/partner/register" className="text-accent hover:underline">Rejoignez le réseau Spordateur</Link>.
         </p>
       </div>
     </div>

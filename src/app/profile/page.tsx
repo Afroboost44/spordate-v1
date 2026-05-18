@@ -360,8 +360,8 @@ export default function ProfilePage() {
               : "Complétez votre profil pour commencer à matcher !"}
           </p>
           {!profileComplete && (
-            <div className="mt-3 px-4 py-2 bg-[#D91CD2]/10 border border-[#D91CD2]/30 rounded-lg">
-              <p className="text-sm text-[#D91CD2]">
+            <div className="mt-3 px-4 py-2 bg-accent/10 border border-accent/30 rounded-lg">
+              <p className="text-sm text-accent">
                 Complétez votre profil pour apparaître dans les résultats de matching.
               </p>
             </div>
@@ -369,7 +369,7 @@ export default function ProfilePage() {
         </div>
 
         {/* SECTION PHOTOS */}
-        <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
           <CardHeader>
             <CardTitle>Photos</CardTitle>
             <p className="text-xs text-gray-500">{t('profile_photos_subtitle')}</p>
@@ -398,11 +398,11 @@ export default function ProfilePage() {
                 <button
                   onClick={() => fileInputRef.current?.click()}
                   disabled={uploadingPhoto}
-                  className="aspect-square rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center text-gray-500 hover:border-[#D91CD2] hover:text-[#D91CD2] transition-colors bg-black/20 disabled:opacity-50 disabled:cursor-wait"
+                  className="aspect-square rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center text-gray-500 hover:border-accent hover:text-accent transition-colors bg-black/20 disabled:opacity-50 disabled:cursor-wait"
                 >
                   {uploadingPhoto ? (
                     <>
-                      <Loader2 className="h-6 w-6 mb-2 animate-spin text-[#D91CD2]" />
+                      <Loader2 className="h-6 w-6 mb-2 animate-spin text-accent" />
                       <span className="text-xs font-bold">Upload…</span>
                     </>
                   ) : (
@@ -423,7 +423,7 @@ export default function ProfilePage() {
         </Card>
 
         {/* SECTION INFOS */}
-        <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
           <CardHeader><CardTitle>{t('profile_about_section_title')}</CardTitle></CardHeader>
           <CardContent className="space-y-6">
             <div className="space-y-2">
@@ -475,7 +475,7 @@ export default function ProfilePage() {
                     onClick={() => setGender(g.id)}
                     className={`cursor-pointer px-4 py-2 text-sm border ${
                       gender === g.id
-                        ? 'bg-[#D91CD2]/10 border-[#D91CD2] text-[#D91CD2]'
+                        ? 'bg-accent/10 border-accent text-accent'
                         : 'bg-black/40 border-white/10 text-white/40 hover:border-white/20'
                     }`}
                   >
@@ -488,7 +488,7 @@ export default function ProfilePage() {
         </Card>
 
         {/* SECTION SPORTS */}
-        <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
           <CardHeader>
             <CardTitle>{t('profile_sports_section_title')}</CardTitle>
             <p className="text-xs text-gray-500">{t('profile_sports_subtitle')}</p>
@@ -514,7 +514,7 @@ export default function ProfilePage() {
         </Card>
 
         {/* SECTION DANSE */}
-        <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 font-light tracking-wide">{t('profile_dances_section_title')}</CardTitle>
             <p className="text-xs text-gray-500">{t('profile_dances_subtitle')}</p>
@@ -527,7 +527,7 @@ export default function ProfilePage() {
                   onClick={() => toggleDance(dance.id)}
                   className={`cursor-pointer px-4 py-2 text-sm border transition-all ${
                     selectedDances.includes(dance.id)
-                      ? 'bg-[#D91CD2]/10 border-[#D91CD2] text-[#D91CD2] scale-105'
+                      ? 'bg-accent/10 border-accent text-accent scale-105'
                       : 'bg-black/40 border-white/10 text-white/40 hover:border-white/20'
                   }`}
                 >
@@ -550,7 +550,7 @@ export default function ProfilePage() {
                       onClick={() => setDanceLevel(danceLevel === lvl.id ? '' : lvl.id)}
                       className={`cursor-pointer px-2 py-2 text-xs border transition-all flex items-center justify-center gap-1 min-w-0 ${
                         danceLevel === lvl.id
-                          ? 'bg-[#D91CD2]/10 border-[#D91CD2] text-[#D91CD2]'
+                          ? 'bg-accent/10 border-accent text-accent'
                           : 'bg-black/40 border-white/10 text-white/40 hover:border-white/20'
                       }`}
                     >
@@ -565,10 +565,10 @@ export default function ProfilePage() {
         </Card>
 
         {/* SECTION PARRAINAGE & CRÉDITS */}
-        <Card className="bg-[#1A1A1A] border-white/5 hover:border-[#D91CD2]/20 transition-colors">
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Gift className="h-5 w-5 text-[#D91CD2]" />
+              <Gift className="h-5 w-5 text-accent" />
               Parrainage & Crédits
             </CardTitle>
             <p className="text-xs text-gray-500">Invite tes amis et gagne des crédits gratuits</p>
@@ -577,7 +577,7 @@ export default function ProfilePage() {
             {/* Crédits */}
             <div className="flex items-center justify-between p-4 bg-black/40 rounded-xl border border-white/5">
               <div className="flex items-center gap-3">
-                <CreditCard className="h-5 w-5 text-[#D91CD2]" />
+                <CreditCard className="h-5 w-5 text-accent" />
                 <span className="text-sm text-white/70">Mes crédits</span>
               </div>
               <span className="text-2xl font-light text-white">{userProfile?.credits ?? 0}</span>
@@ -595,7 +595,7 @@ export default function ProfilePage() {
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-12 w-12 border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10"
+                  className="h-12 w-12 border-accent/30 text-accent hover:bg-accent/10"
                   onClick={() => {
                     if (userProfile?.referralCode) {
                       navigator.clipboard.writeText(userProfile.referralCode);
@@ -622,7 +622,7 @@ export default function ProfilePage() {
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-12 w-12 border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10"
+                  className="h-12 w-12 border-accent/30 text-accent hover:bg-accent/10"
                   onClick={() => {
                     if (userProfile?.referralCode) {
                       navigator.clipboard.writeText(`https://spordateur.com/signup?ref=${userProfile.referralCode}`);
@@ -637,36 +637,36 @@ export default function ProfilePage() {
                     url={`https://spordateur.com/signup?ref=${userProfile.referralCode}`}
                     label="Lien d'invitation"
                     code={userProfile.referralCode}
-                    className="h-12 w-12 inline-flex items-center justify-center rounded-md border border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10 transition active:scale-95"
+                    className="h-12 w-12 inline-flex items-center justify-center rounded-md border border-accent/30 text-accent hover:bg-accent/10 transition active:scale-95"
                   />
                 )}
               </div>
             </div>
 
             {/* Explication */}
-            <div className="p-4 bg-[#D91CD2]/5 border border-[#D91CD2]/10 rounded-xl">
+            <div className="p-4 bg-accent/5 border border-accent/10 rounded-xl">
               <p className="text-xs text-white/50 leading-relaxed">
-                Quand un ami s'inscrit avec ton lien et achète des crédits, tu reçois automatiquement <span className="text-[#D91CD2] font-medium">+1 crédit gratuit</span> par achat.
+                Quand un ami s'inscrit avec ton lien et achète des crédits, tu reçois automatiquement <span className="text-accent font-medium">+1 crédit gratuit</span> par achat.
               </p>
             </div>
           </CardContent>
         </Card>
 
         {/* SECTION DEVENIR CRÉATEUR */}
-        <Card className="bg-gradient-to-br from-[#D91CD2]/5 to-[#E91E63]/5 border-[#D91CD2]/20 hover:border-[#D91CD2]/40 transition-colors">
+        <Card className="bg-gradient-to-br from-accent/5 to-[#E91E63]/5 border-accent/20 hover:border-accent/40 transition-colors">
           <CardContent className="p-6 flex flex-col md:flex-row items-center gap-4">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
-                <TrendingUp className="h-5 w-5 text-[#D91CD2]" />
+                <TrendingUp className="h-5 w-5 text-accent" />
                 <h3 className="text-base font-medium text-white">Devenir Créateur</h3>
               </div>
               <p className="text-xs text-white/40 leading-relaxed">
-                Partage ton lien sur TikTok, Instagram ou avec tes amis. Gagne <span className="text-[#D91CD2]">10% de commission</span> sur chaque achat généré.
+                Partage ton lien sur TikTok, Instagram ou avec tes amis. Gagne <span className="text-accent">10% de commission</span> sur chaque achat généré.
               </p>
             </div>
             <Link
               href="/creator/dashboard"
-              className="w-full md:w-auto h-12 px-6 bg-white/5 backdrop-blur-xl border border-[#D91CD2] rounded-full text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2 hover:bg-[#D91CD2]/10 transition-all"
+              className="w-full md:w-auto h-12 px-6 bg-white/5 backdrop-blur-xl border border-accent rounded-full text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2 hover:bg-accent/10 transition-all"
             >
               Mon dashboard
               <ArrowRight className="h-4 w-4" />
@@ -678,7 +678,7 @@ export default function ProfilePage() {
         <Card className="bg-white/5 border-white/10">
           <CardHeader>
             <CardTitle className="text-base font-medium text-white flex items-center gap-2">
-              <Shield className="h-4 w-4 text-[#D91CD2]" />
+              <Shield className="h-4 w-4 text-accent" />
               Confidentialité
             </CardTitle>
           </CardHeader>
@@ -691,7 +691,7 @@ export default function ProfilePage() {
                 <p className="text-xs text-white/40 mt-1 leading-relaxed">
                   Activées par défaut. Recevoir au maximum 1 suggestion d&apos;activité toutes les 72 h
                   dans les chats post-session, générée par Google Gemini Flash. Désactivable à tout moment.{' '}
-                  <Link href="/privacy" className="text-[#D91CD2] hover:underline">
+                  <Link href="/privacy" className="text-accent hover:underline">
                     En savoir plus
                   </Link>
                   .
@@ -702,7 +702,7 @@ export default function ProfilePage() {
                 checked={aiSuggestionsOptIn}
                 onCheckedChange={handleAiOptInToggle}
                 disabled={isAiOptInSaving}
-                className="mt-1 data-[state=checked]:bg-[#D91CD2] flex-shrink-0"
+                className="mt-1 data-[state=checked]:bg-accent flex-shrink-0"
               />
             </div>
 
@@ -748,7 +748,7 @@ export default function ProfilePage() {
           <Button
             onClick={handleSave}
             disabled={isSaving}
-            className="w-auto bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white font-medium h-11 px-8 rounded-full text-sm"
+            className="w-auto bg-accent hover:bg-accent/90 text-white font-medium h-11 px-8 rounded-full text-sm"
           >
             {isSaving ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
             Sauvegarder mon profil

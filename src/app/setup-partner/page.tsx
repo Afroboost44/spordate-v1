@@ -149,7 +149,7 @@ export default function SetupPartnerPage() {
             <CheckCircle className="h-12 w-12 text-green-400 mx-auto" />
             <p className="text-green-400 font-medium">Compte partenaire créé !</p>
             <a href="/partner/login"
-              className="inline-block mt-4 px-6 py-3 bg-[#D91CD2] text-white rounded-full text-sm hover:bg-[#D91CD2]/80 transition">
+              className="inline-block mt-4 px-6 py-3 bg-accent text-white rounded-full text-sm hover:bg-accent/80 transition">
               Se connecter maintenant →
             </a>
           </div>
@@ -181,7 +181,7 @@ export default function SetupPartnerPage() {
               <p className="text-white/60"><span className="text-white/30">Mot de passe:</span> Afroboost2026!</p>
             </div>
             <Button onClick={handleEmailSetup} disabled={loading}
-              className="w-full h-12 bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white rounded-full">
+              className="w-full h-12 bg-accent hover:bg-accent/80 text-white rounded-full">
               {loading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
               Créer avec email/mot de passe
             </Button>

@@ -28,10 +28,10 @@ export function RechargeBanner() {
   return (
     <div
       role="alert"
-      className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-[#D91CD2]/40 bg-gradient-to-r from-[#D91CD2]/15 via-black to-[#D91CD2]/10 px-4 py-2.5 text-sm text-white"
+      className="sticky top-0 z-40 flex items-center justify-between gap-3 border-b border-accent/40 bg-gradient-to-r from-accent/15 via-black to-accent/10 px-4 py-2.5 text-sm text-white"
     >
       <div className="flex items-center gap-2 min-w-0">
-        <Coins className="h-4 w-4 text-[#D91CD2] shrink-0" />
+        <Coins className="h-4 w-4 text-accent shrink-0" />
         <span className="truncate">
           <span className="font-medium">Plus de crédits chat.</span>{' '}
           <span className="text-white/70">Recharge pour continuer à discuter.</span>
@@ -40,7 +40,7 @@ export function RechargeBanner() {
       <button
         type="button"
         onClick={() => router.push('/payment')}
-        className="inline-flex items-center gap-1 rounded-full bg-[#D91CD2] px-3 py-1 text-xs font-semibold text-white hover:bg-[#D91CD2]/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-black shrink-0"
+        className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white hover:bg-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black shrink-0"
       >
         Recharger
         <ArrowRight className="h-3 w-3" />

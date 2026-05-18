@@ -88,7 +88,7 @@ export default function LegalPage() {
             <h2 className="text-lg text-white font-normal mb-3">Protection des données</h2>
             <p>
               Le traitement des données personnelles est régi par notre{' '}
-              <Link href="/privacy" className="text-[#D91CD2] hover:underline">
+              <Link href="/privacy" className="text-accent hover:underline">
                 Politique de Confidentialité
               </Link>
               , établie conformément à la nouvelle Loi fédérale sur la protection des données

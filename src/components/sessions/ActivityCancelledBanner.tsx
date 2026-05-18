@@ -14,10 +14,10 @@ export function ActivityCancelledBanner() {
   return (
     <div
       role="alert"
-      className="flex items-start gap-3 rounded-xl border border-[#D91CD2]/40 bg-[#D91CD2]/10 px-4 py-3.5 sm:px-5 sm:py-4"
+      className="flex items-start gap-3 rounded-xl border border-accent/40 bg-accent/10 px-4 py-3.5 sm:px-5 sm:py-4"
     >
       <AlertTriangle
-        className="h-5 w-5 text-[#D91CD2] flex-shrink-0 mt-0.5"
+        className="h-5 w-5 text-accent flex-shrink-0 mt-0.5"
         aria-hidden="true"
       />
       <div className="flex flex-col gap-1">
@@ -28,7 +28,7 @@ export function ActivityCancelledBanner() {
           La session n&apos;est plus réservable. Si tu avais déjà réservé, écris à{' '}
           <a
             href="mailto:support@spordateur.com"
-            className="text-[#D91CD2] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
+            className="text-accent hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded"
           >
             support@spordateur.com
           </a>{' '}

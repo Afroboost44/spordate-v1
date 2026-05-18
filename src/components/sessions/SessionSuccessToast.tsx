@@ -33,7 +33,7 @@ export function SessionSuccessToast({ creditsGranted }: SessionSuccessToastProps
       description: creditsGranted
         ? `Tu as reçu ${creditsGranted} crédits chat.`
         : 'Bonne séance !',
-      className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+      className: 'bg-zinc-900 border-accent/40 text-white',
       duration: 7000,
     });
 

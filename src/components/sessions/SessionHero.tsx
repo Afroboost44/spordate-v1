@@ -102,7 +102,7 @@ export function SessionHero({
       <div className="lg:w-2/5 flex flex-col justify-center gap-5">
         {/* Sport + état chat */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs uppercase tracking-[0.2em] text-[#D91CD2] font-light">
+          <span className="text-xs uppercase tracking-[0.2em] text-accent font-light">
             {session.sport}
           </span>
           <span className="text-white/20" aria-hidden="true">·</span>
@@ -117,12 +117,12 @@ export function SessionHero({
         {/* Ville + partenaire */}
         <div className="flex flex-col gap-1.5 text-sm text-white/70 font-light">
           <p className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-[#D91CD2] flex-shrink-0" aria-hidden="true" />
+            <MapPin className="h-4 w-4 text-accent flex-shrink-0" aria-hidden="true" />
             <span>{session.city}</span>
           </p>
           {partnerName && (
             <p className="flex items-center gap-2">
-              <Building2 className="h-4 w-4 text-[#D91CD2] flex-shrink-0" aria-hidden="true" />
+              <Building2 className="h-4 w-4 text-accent flex-shrink-0" aria-hidden="true" />
               <span>{partnerName}</span>
             </p>
           )}

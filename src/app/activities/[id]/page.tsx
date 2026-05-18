@@ -38,9 +38,11 @@ import { ReviewsList } from '@/components/reviews/ReviewsList';
 import { ReviewTrigger } from '@/components/reviews/ReviewTrigger';
 import { ActivityInviteSection } from '@/components/activities/ActivityInviteSection';
 import { InvitedActivityBanner } from '@/components/activities/InvitedActivityBanner';
+import { BackToChatLink } from '@/components/activities/BackToChatLink';
 
 interface PageProps {
   params: Promise<{ id: string }>;
+  searchParams?: Promise<{ [key: string]: string | string[] | undefined }>;
 }
 
 // ISR 60s (cohérent /sessions/page.tsx)
@@ -71,7 +73,9 @@ export async function generateMetadata({
   };
 }
 
-export default async function ActivityDetailPage({ params }: PageProps) {
+export default async function ActivityDetailPage({ params, searchParams }: PageProps) {
+  const search = searchParams ? await searchParams : {};
+  const fromInvite = search?.fromInvite === 'chat';
   const { id } = await params;
 
   const activity = await getActivity(id).catch((err) => {
@@ -105,21 +109,27 @@ export default async function ActivityDetailPage({ params }: PageProps) {
   return (
     <div className="bg-black text-white min-h-screen">
       <div className="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8 sm:py-12 flex flex-col gap-8 sm:gap-10">
-        {/* Lien retour */}
-        <Link
-          href="/activities"
-          className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white font-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded self-start"
-        >
-          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          <span>Toutes les activités</span>
-        </Link>
+        {/* Lien retour — si arrivé depuis modal chat (fromInvite=chat),
+            propose un retour direct au chat (history.back côté Client). Sinon
+            retour standard vers /activities. */}
+        {fromInvite ? (
+          <BackToChatLink />
+        ) : (
+          <Link
+            href="/activities"
+            className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white font-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded self-start"
+          >
+            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <span>Toutes les activités</span>
+          </Link>
+        )}
 
         {/* BUG #36 C3 — Banner visible si user arrive depuis invite acceptée (?inviteId=X) */}
         <InvitedActivityBanner />
 
         {/* Header */}
         <header className="flex flex-col gap-3">
-          <span className="text-xs uppercase tracking-[0.2em] text-[#D91CD2] font-light">
+          <span className="text-xs uppercase tracking-[0.2em] text-accent font-light">
             {activity.sport}
           </span>
           <div className="flex items-start justify-between gap-4">
@@ -138,7 +148,7 @@ export default async function ActivityDetailPage({ params }: PageProps) {
           <div className="flex flex-col gap-1.5 text-sm text-white/70 font-light">
             <p className="flex items-center gap-2">
               <MapPin
-                className="h-4 w-4 text-[#D91CD2] flex-shrink-0"
+                className="h-4 w-4 text-accent flex-shrink-0"
                 aria-hidden="true"
               />
               <span>{activity.city}</span>
@@ -146,7 +156,7 @@ export default async function ActivityDetailPage({ params }: PageProps) {
             {activity.partnerName && (
               <p className="flex items-center gap-2">
                 <Building2
-                  className="h-4 w-4 text-[#D91CD2] flex-shrink-0"
+                  className="h-4 w-4 text-accent flex-shrink-0"
                   aria-hidden="true"
                 />
                 <span>{activity.partnerName}</span>

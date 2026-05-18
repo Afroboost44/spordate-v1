@@ -60,7 +60,7 @@ export function ReportButton({
           onClick={() => setOpen(true)}
           aria-label={`Signaler ${targetName}`}
           title={`Signaler ${targetName}`}
-          className={`h-8 w-8 text-white/60 hover:text-[#D91CD2] hover:bg-white/5 ${className}`}
+          className={`h-8 w-8 text-white/60 hover:text-accent hover:bg-white/5 ${className}`}
         >
           <Flag className="h-4 w-4" aria-hidden="true" />
         </Button>
@@ -83,7 +83,7 @@ export function ReportButton({
         variant="outline"
         size="sm"
         onClick={() => setOpen(true)}
-        className={`border-white/10 text-white/70 hover:bg-white/5 hover:text-[#D91CD2] hover:border-[#D91CD2]/40 font-light ${className}`}
+        className={`border-white/10 text-white/70 hover:bg-white/5 hover:text-accent hover:border-accent/40 font-light ${className}`}
       >
         <Flag className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
         Signaler

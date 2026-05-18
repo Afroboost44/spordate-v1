@@ -69,7 +69,7 @@ export function SessionTSActions({ partnerId, partnerName }: SessionTSActionsPro
         />
         <Link
           href="/profile/blocks"
-          className="inline-flex items-center gap-1 text-xs text-white/40 hover:text-[#D91CD2] font-light transition-colors"
+          className="inline-flex items-center gap-1 text-xs text-white/40 hover:text-accent font-light transition-colors"
         >
           Gérer mes blocages
           <ChevronRight className="h-3 w-3" aria-hidden="true" />

@@ -51,7 +51,7 @@ export function SessionParticipantCard({ participant, viewerUid }: SessionPartic
         <p className="text-sm text-white font-light truncate">
           {participant.displayName}
           {isSelf && (
-            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#D91CD2]/10 text-[#D91CD2] border border-[#D91CD2]/30 align-middle">
+            <span className="ml-2 inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-accent/10 text-accent border border-accent/30 align-middle">
               Toi
             </span>
           )}

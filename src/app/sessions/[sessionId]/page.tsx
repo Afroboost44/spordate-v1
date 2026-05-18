@@ -248,7 +248,7 @@ export default async function SessionDetailPage({ params }: PageProps) {
         {/* ============= LIEN RETOUR ============= */}
         <Link
           href="/activities"
-          className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white font-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded self-start"
+          className="inline-flex items-center gap-2 text-sm text-white/70 hover:text-white font-light transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black rounded self-start"
         >
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           <span>Voir toutes les activités</span>

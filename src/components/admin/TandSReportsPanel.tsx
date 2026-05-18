@@ -142,7 +142,7 @@ export function TandSReportsPanel({ adminUid }: TandSReportsPanelProps) {
       <Card className="bg-zinc-950 border border-zinc-800">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-medium text-white flex items-center gap-2">
-            <ShieldAlert className="h-4 w-4 text-[#D91CD2]" />
+            <ShieldAlert className="h-4 w-4 text-accent" />
             Reports en modération ({reports.length})
           </CardTitle>
         </CardHeader>
@@ -183,7 +183,7 @@ export function TandSReportsPanel({ adminUid }: TandSReportsPanelProps) {
                       <Badge
                         className={
                           r.source === 'partner_no_show'
-                            ? 'bg-[#D91CD2]/15 text-[#D91CD2] border-[#D91CD2]/30'
+                            ? 'bg-accent/15 text-accent border-accent/30'
                             : 'bg-gray-700/40 text-gray-300 border-gray-600/30'
                         }
                       >

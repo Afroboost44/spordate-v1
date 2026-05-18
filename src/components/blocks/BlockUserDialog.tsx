@@ -120,7 +120,7 @@ export function BlockUserDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="border-l-2 border-[#D91CD2] pl-3 py-1 my-2">
+        <div className="border-l-2 border-accent pl-3 py-1 my-2">
           <p className="text-xs text-white/70 font-light leading-relaxed">
             Aucune notification ne lui sera envoyée.
             <br />
@@ -142,7 +142,7 @@ export function BlockUserDialog({
             type="button"
             onClick={handleSubmit}
             disabled={submitting}
-            className="flex-1 bg-[#D91CD2] text-black font-medium hover:bg-[#D91CD2]/90 disabled:opacity-40 disabled:cursor-not-allowed"
+            className="flex-1 bg-accent text-black font-medium hover:bg-accent/90 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             {submitting ? (
               <>

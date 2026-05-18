@@ -105,7 +105,7 @@ export default function PartnerWalletPage() {
   if (loadingData) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="h-8 w-8 text-[#D91CD2] animate-spin" />
+        <Loader2 className="h-8 w-8 text-accent animate-spin" />
       </div>
     );
   }
@@ -126,8 +126,8 @@ export default function PartnerWalletPage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center">
-              <Wallet className="h-5 w-5 text-[#D91CD2]" />
+            <div className="w-10 h-10 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center">
+              <Wallet className="h-5 w-5 text-accent" />
             </div>
             <span className="text-xs text-white/30 uppercase tracking-wider font-light">Solde disponible</span>
           </div>
@@ -161,8 +161,8 @@ export default function PartnerWalletPage() {
         {/* Bank connection card */}
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-6">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center">
-              <CreditCard className="h-5 w-5 text-[#D91CD2]" />
+            <div className="w-10 h-10 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center">
+              <CreditCard className="h-5 w-5 text-accent" />
             </div>
             <div>
               <h3 className="text-base font-light text-white">Compte bancaire</h3>
@@ -203,7 +203,7 @@ export default function PartnerWalletPage() {
               <Button
                 onClick={handleConnectStripe}
                 disabled={isLoading}
-                className="w-full bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold rounded-full h-12"
+                className="w-full bg-accent hover:bg-accent/80 text-white font-semibold rounded-full h-12"
               >
                 {isLoading ? (
                   <><Loader2 className="animate-spin mr-2 h-4 w-4" /> Connexion en cours...</>
@@ -239,7 +239,7 @@ export default function PartnerWalletPage() {
             disabled={!isConnected}
             className={`w-full rounded-full h-12 font-light ${
               isConnected
-                ? 'bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white'
+                ? 'bg-accent hover:bg-accent/80 text-white'
                 : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
             }`}
           >

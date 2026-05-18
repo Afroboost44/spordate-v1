@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Eye, EyeOff } from 'lucide-react';
+import { SpordateurLogo } from "@/components/SpordateurLogo";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
@@ -122,7 +123,7 @@ export default function LoginPage() {
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-12rem)]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D91CD2]"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
       </div>
     );
   }
@@ -135,9 +136,8 @@ export default function LoginPage() {
           <form onSubmit={handleResetPassword}>
             <CardHeader className="items-center text-center">
               <Link href="/" className="flex items-center justify-center space-x-2 mb-4">
-                {/* Phase 9.5 c19 — vrai logo Afroboost cercle (était Dumbbell placeholder) */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/icons/icon-192.png?v=29" alt="Spordateur" width={40} height={40} />
+                {/* Accent feature — SVG inline qui suit text-accent (admin Couleur principale). */}
+                <SpordateurLogo className="h-10 w-10 text-accent" />
                 <span className="font-bold text-2xl">Spordateur</span>
               </Link>
               <CardTitle className="text-2xl font-bold">Mot de passe oublié</CardTitle>
@@ -160,7 +160,7 @@ export default function LoginPage() {
                 </div>
                 <Button
                   type="submit"
-                  className="w-full bg-[#D91CD2] text-white font-semibold"
+                  className="w-full bg-accent text-white font-semibold"
                   disabled={loading}
                 >
                   {loading ? (
@@ -188,9 +188,8 @@ export default function LoginPage() {
           <form onSubmit={handleSubmit}>
             <CardHeader className="items-center text-center">
               <Link href="/" className="flex items-center justify-center space-x-2 mb-4">
-                {/* Phase 9.5 c19 — vrai logo Afroboost cercle (était Dumbbell placeholder) */}
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src="/icons/icon-192.png?v=29" alt="Spordateur" width={40} height={40} />
+                {/* Accent feature — SVG inline qui suit text-accent (admin Couleur principale). */}
+                <SpordateurLogo className="h-10 w-10 text-accent" />
                 <span className="font-bold text-2xl">Spordateur</span>
               </Link>
               <CardTitle className="text-2xl font-bold">Connexion</CardTitle>
@@ -269,7 +268,7 @@ export default function LoginPage() {
                 </div>
                 <Button
                   type="submit"
-                  className="w-full bg-[#D91CD2] text-white font-semibold"
+                  className="w-full bg-accent text-white font-semibold"
                   disabled={loading}
                 >
                   {loading ? (

@@ -78,14 +78,14 @@ export default function SharePage() {
         {/* Header visuel */}
         <div className="text-center pt-8 pb-4">
           <div className="relative inline-block mb-6">
-            <div className="absolute inset-0 bg-[#D91CD2]/20 rounded-full blur-3xl" />
-            <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
+            <div className="absolute inset-0 bg-accent/20 rounded-full blur-3xl" />
+            <div className="relative w-24 h-24 rounded-full bg-gradient-to-br from-accent to-[#E91E63] flex items-center justify-center">
               <Share2 className="h-10 w-10 text-white" />
             </div>
           </div>
           <h1 className="text-3xl font-light tracking-tight mb-2">Partage ton Sport Date</h1>
           <p className="text-white/40 text-sm font-light">
-            Montre à tes amis que tu bouges. Chaque partage = <span className="text-[#D91CD2]">1 crédit offert</span>
+            Montre à tes amis que tu bouges. Chaque partage = <span className="text-accent">1 crédit offert</span>
           </p>
         </div>
 
@@ -93,7 +93,7 @@ export default function SharePage() {
         <Card className="bg-[#1A1A1A] border-white/5">
           <CardContent className="p-5">
             <div className="flex items-center gap-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center text-xl">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-accent to-[#E91E63] flex items-center justify-center text-xl">
                 {sport.includes('Danse') || sport.includes('Zumba') ? '💃' :
                  sport.includes('Fitness') ? '🏋️' :
                  sport.includes('Running') ? '🏃' :
@@ -102,7 +102,7 @@ export default function SharePage() {
               <div className="flex-1">
                 <p className="text-white font-medium">{sport}</p>
                 {partner && <p className="text-white/40 text-sm">avec {partner}</p>}
-                <p className="text-[#D91CD2] text-xs mt-1">Réservé avec succès</p>
+                <p className="text-accent text-xs mt-1">Réservé avec succès</p>
               </div>
               <Check className="h-6 w-6 text-green-400" />
             </div>
@@ -185,8 +185,8 @@ export default function SharePage() {
               onClick={handleCopyLink}
               variant="outline"
               size="icon"
-              className={`h-12 w-12 border-[#D91CD2]/30 transition-all ${
-                copied ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'text-[#D91CD2] hover:bg-[#D91CD2]/10'
+              className={`h-12 w-12 border-accent/30 transition-all ${
+                copied ? 'bg-green-500/10 border-green-500/30 text-green-400' : 'text-accent hover:bg-accent/10'
               }`}
             >
               {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
@@ -198,13 +198,13 @@ export default function SharePage() {
         <Card className={`border transition-all ${
           rewardClaimed
             ? 'bg-green-500/5 border-green-500/20'
-            : 'bg-[#D91CD2]/5 border-[#D91CD2]/20'
+            : 'bg-accent/5 border-accent/20'
         }`}>
           <CardContent className="p-5 flex items-center gap-4">
             <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-              rewardClaimed ? 'bg-green-500/10' : 'bg-[#D91CD2]/10'
+              rewardClaimed ? 'bg-green-500/10' : 'bg-accent/10'
             }`}>
-              <Gift className={`h-6 w-6 ${rewardClaimed ? 'text-green-400' : 'text-[#D91CD2]'}`} />
+              <Gift className={`h-6 w-6 ${rewardClaimed ? 'text-green-400' : 'text-accent'}`} />
             </div>
             <div className="flex-1">
               {rewardClaimed ? (
@@ -226,7 +226,7 @@ export default function SharePage() {
         <div className="pt-4 pb-8 space-y-3">
           <Link
             href="/activities"
-            className="block w-full h-14 bg-white/5 backdrop-blur-xl border border-[#D91CD2] rounded-full text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2 hover:bg-[#D91CD2]/10 transition-all"
+            className="block w-full h-14 bg-white/5 backdrop-blur-xl border border-accent rounded-full text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2 hover:bg-accent/10 transition-all"
           >
             Prêt pour un nouveau date ?
             <ArrowRight className="h-4 w-4" />

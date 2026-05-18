@@ -107,7 +107,7 @@ export function TandSReviewsPanel({ adminUid }: TandSReviewsPanelProps) {
       <Card className="bg-zinc-950 border border-zinc-800">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-medium text-white flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-[#D91CD2]" />
+            <ShieldCheck className="h-4 w-4 text-accent" />
             Reviews en modération ({reviews.length})
           </CardTitle>
         </CardHeader>

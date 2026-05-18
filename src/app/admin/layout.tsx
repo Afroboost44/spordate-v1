@@ -40,7 +40,7 @@ function FullScreenLoader({ label }: { label?: string }) {
   return (
     <div className="flex items-center justify-center min-h-screen bg-black text-white">
       <div className="flex flex-col items-center gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-[#D91CD2]" />
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
         {label && <p className="text-white/50 text-sm font-light">{label}</p>}
       </div>
     </div>

@@ -48,7 +48,7 @@ export default function ProfileActions({
         size="lg"
         onClick={onLike}
         disabled={!canLike || isProcessing}
-        className="h-16 w-16 rounded-full bg-[#D91CD2] hover:bg-[#D91CD2]/90 shadow-lg shadow-purple-500/30 disabled:opacity-30"
+        className="h-16 w-16 rounded-full bg-accent hover:bg-accent/90 shadow-lg shadow-purple-500/30 disabled:opacity-30"
         title="Liker"
       >
         <Heart className="h-7 w-7 text-white fill-white" />

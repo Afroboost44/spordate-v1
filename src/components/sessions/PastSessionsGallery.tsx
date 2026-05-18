@@ -123,7 +123,7 @@ export function PastSessionsGallery({
                 className="object-cover"
                 loading="lazy"
               />
-              <span className="absolute top-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] uppercase tracking-wider text-[#D91CD2] font-light">
+              <span className="absolute top-2 left-2 bg-black/60 px-2 py-1 rounded text-[10px] uppercase tracking-wider text-accent font-light">
                 {item.sport}
               </span>
             </div>
@@ -131,7 +131,7 @@ export function PastSessionsGallery({
               <p className="flex items-center gap-1.5 text-sm text-white font-medium leading-tight">
                 <span>{item.sport}</span>
                 <span className="text-white/20" aria-hidden="true">·</span>
-                <MapPin className="h-3 w-3 text-[#D91CD2] flex-shrink-0" aria-hidden="true" />
+                <MapPin className="h-3 w-3 text-accent flex-shrink-0" aria-hidden="true" />
                 <span className="text-white/70 font-light">{item.city}</span>
               </p>
               <p className="text-xs text-white/40 font-light tabular-nums">

@@ -109,7 +109,7 @@ export default function PartnerDashboardPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="h-8 w-8 text-[#D91CD2] animate-spin" />
+        <Loader2 className="h-8 w-8 text-accent animate-spin" />
       </div>
     );
   }
@@ -118,7 +118,7 @@ export default function PartnerDashboardPage() {
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-light text-white tracking-tight flex items-center gap-3">
-          <BarChart className="h-6 w-6 text-[#D91CD2]" />
+          <BarChart className="h-6 w-6 text-accent" />
           Tableau de Bord
         </h1>
         <p className="text-sm text-white/40 mt-1">Suivez vos performances en temps réel</p>
@@ -155,7 +155,7 @@ export default function PartnerDashboardPage() {
         <Card className="bg-[#1A1A1A] border-white/5">
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-2">
-              <Wallet className="h-4 w-4 text-[#D91CD2]" />
+              <Wallet className="h-4 w-4 text-accent" />
               <span className="text-xs text-white/40 uppercase tracking-wider">Revenus</span>
             </div>
             <p className="text-3xl font-light text-white">{stats.revenue.toFixed(2)} <span className="text-base text-white/40">CHF</span></p>
@@ -168,7 +168,7 @@ export default function PartnerDashboardPage() {
         <Card className="bg-[#1A1A1A] border-white/5">
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-light text-white flex items-center gap-2">
-              <UserX className="h-4 w-4 text-[#D91CD2]" />
+              <UserX className="h-4 w-4 text-accent" />
               Check-in no-show (sessions terminées 24h)
             </CardTitle>
           </CardHeader>
@@ -178,7 +178,7 @@ export default function PartnerDashboardPage() {
                 <Link
                   key={s.sessionId}
                   href={`/partner/sessions/${s.sessionId}/check-in`}
-                  className="flex items-center justify-between p-3 bg-black/40 rounded-xl border border-white/5 hover:border-[#D91CD2]/40 hover:bg-white/5 transition-colors"
+                  className="flex items-center justify-between p-3 bg-black/40 rounded-xl border border-white/5 hover:border-accent/40 hover:bg-white/5 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white truncate">{s.title}</p>
@@ -198,7 +198,7 @@ export default function PartnerDashboardPage() {
       <Card className="bg-[#1A1A1A] border-white/5">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-light text-white flex items-center gap-2">
-            <Bell className="h-4 w-4 text-[#D91CD2]" />
+            <Bell className="h-4 w-4 text-accent" />
             Dernières réservations
           </CardTitle>
         </CardHeader>
@@ -216,7 +216,7 @@ export default function PartnerDashboardPage() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-[#D91CD2] font-medium">{b.amount || 0} CHF</p>
+                    <p className="text-sm text-accent font-medium">{b.amount || 0} CHF</p>
                     <Badge className="text-[10px] bg-green-500/10 text-green-400 border-green-500/20">Confirmé</Badge>
                   </div>
                 </div>

@@ -5,6 +5,7 @@ import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { SpordateurLogo } from "@/components/SpordateurLogo";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Building, Eye, EyeOff } from 'lucide-react';
@@ -131,7 +132,7 @@ export default function SignupPage() {
   if (authLoading) {
     return (
       <div className="flex items-center justify-center min-h-[calc(100vh-12rem)]">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#D91CD2]"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
       </div>
     );
   }
@@ -142,9 +143,8 @@ export default function SignupPage() {
         <form onSubmit={handleSubmit}>
           <CardHeader className="items-center text-center">
               <Link href="/" className="flex items-center justify-center space-x-2 mb-4">
-                  {/* Phase 9.5 c17 — vrai logo Afroboost (était Dumbbell placeholder) */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src="/icons/icon-192.png?v=29" alt="Spordateur" width={40} height={40} />
+                  {/* Accent feature — SVG inline qui suit text-accent (admin Couleur principale). */}
+                  <SpordateurLogo className="h-10 w-10 text-accent" />
                   <span className="font-bold text-2xl">Spordateur</span>
               </Link>
             <CardTitle className="text-2xl font-bold">Inscription</CardTitle>
@@ -253,7 +253,7 @@ export default function SignupPage() {
 
               <Button
                 type="submit"
-                className="w-full bg-[#D91CD2] text-white font-semibold"
+                className="w-full bg-accent text-white font-semibold"
                 disabled={loading}
               >
                 {loading ? (

@@ -16,6 +16,7 @@ import { auth, db, isFirebaseConfigured } from '@/lib/firebase';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { createPartner } from '@/services/firestore';
 import { GeoPoint, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import { SpordateurLogo } from '@/components/SpordateurLogo';
 
 export default function PartnerRegisterPage() {
   const [step, setStep] = useState<'form' | 'payment' | 'done'>('form');
@@ -113,13 +114,12 @@ export default function PartnerRegisterPage() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <Link href="/" className="flex items-center gap-2">
-            {/* Phase 9.5 c19 — vrai logo Afroboost cercle */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icons/icon-192.png?v=29" alt="Spordateur" width={32} height={32} />
+            {/* Accent feature — SVG inline (admin Couleur principale). */}
+            <SpordateurLogo className="h-8 w-8 text-accent" />
             <span className="text-lg font-light tracking-widest uppercase">Spordateur</span>
           </Link>
         </div>
-        <Link href="/partner/login" className="text-sm text-[#D91CD2] hover:text-[#D91CD2]/80 transition font-light">
+        <Link href="/partner/login" className="text-sm text-accent hover:text-accent/80 transition font-light">
           Déjà partenaire ?
         </Link>
       </div>
@@ -181,8 +181,8 @@ export default function PartnerRegisterPage() {
         <div className="flex items-center justify-center min-h-[85vh] px-4">
           <div className="max-w-md w-full space-y-8">
             <div className="text-center space-y-3">
-              <div className="w-16 h-16 rounded-2xl bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center mx-auto">
-                <CreditCard className="h-8 w-8 text-[#D91CD2]" />
+              <div className="w-16 h-16 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto">
+                <CreditCard className="h-8 w-8 text-accent" />
               </div>
               <h1 className="text-3xl font-extralight tracking-tight">Abonnement Partenaire</h1>
               <p className="text-white/50 font-light">Un abonnement mensuel est requis pour accéder au portail.</p>
@@ -190,7 +190,7 @@ export default function PartnerRegisterPage() {
 
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
-            <div className="bg-[#D91CD2]/10 border border-[#D91CD2]/20 rounded-3xl p-8 text-center space-y-6">
+            <div className="bg-accent/10 border border-accent/20 rounded-3xl p-8 text-center space-y-6">
               <div>
                 <p className="text-5xl font-extralight text-white">49 <span className="text-xl text-white/40">CHF/mois</span></p>
                 <p className="text-xs text-white/30 mt-2 font-light">Annulable à tout moment</p>
@@ -203,7 +203,7 @@ export default function PartnerRegisterPage() {
                   'Visibilité sur la plateforme Spordateur',
                 ].map(f => (
                   <div key={f} className="flex items-center gap-3">
-                    <CheckCircle className="h-4 w-4 text-[#D91CD2] flex-shrink-0" />
+                    <CheckCircle className="h-4 w-4 text-accent flex-shrink-0" />
                     <span className="text-sm text-white/60 font-light">{f}</span>
                   </div>
                 ))}
@@ -213,7 +213,7 @@ export default function PartnerRegisterPage() {
             <Button
               onClick={handlePayment}
               disabled={isLoading}
-              className="w-full bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold h-14 text-base rounded-full"
+              className="w-full bg-accent hover:bg-accent/80 text-white font-semibold h-14 text-base rounded-full"
             >
               {isLoading ? <Loader2 className="animate-spin mr-2" /> : <CreditCard className="mr-2 h-5 w-5" />}
               Payer et activer mon compte
@@ -231,14 +231,14 @@ export default function PartnerRegisterPage() {
 
       {/* Hero */}
       <section className="relative py-16 md:py-20">
-        <div className="absolute inset-0 bg-gradient-to-b from-[#D91CD2]/5 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-accent/5 via-transparent to-transparent" />
         <div className="relative container mx-auto px-6 text-center space-y-4">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-[#D91CD2]/30 bg-[#D91CD2]/5">
-            <Building className="h-4 w-4 text-[#D91CD2]" />
-            <span className="text-sm text-[#D91CD2] font-light">Espace Partenaire</span>
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/30 bg-accent/5">
+            <Building className="h-4 w-4 text-accent" />
+            <span className="text-sm text-accent font-light">Espace Partenaire</span>
           </div>
           <h1 className="text-3xl md:text-5xl font-extralight tracking-tight leading-tight">
-            Rejoins le réseau <span className="text-[#D91CD2]">Spordateur.</span>
+            Rejoins le réseau <span className="text-accent">Spordateur.</span>
           </h1>
           <p className="text-white/50 font-light max-w-md mx-auto">
             Crée ton compte partenaire et commence à recevoir des réservations.
@@ -253,24 +253,24 @@ export default function PartnerRegisterPage() {
             {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
 
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
-              <h3 className="text-sm text-[#D91CD2] uppercase tracking-[0.2em] font-light">Informations du studio</h3>
+              <h3 className="text-sm text-accent uppercase tracking-[0.2em] font-light">Informations du studio</h3>
 
               <div>
                 <Label className="text-white/40 text-xs font-light">Nom du Club / Studio</Label>
                 <Input placeholder="Ex: Afroboost Genève" required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})}
-                  className="bg-black/50 text-white border-white/10 focus:border-[#D91CD2]/50 mt-1.5 h-12 rounded-xl" />
+                  className="bg-black/50 text-white border-white/10 focus:border-accent/50 mt-1.5 h-12 rounded-xl" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-white/40 text-xs font-light">Numéro IDE <span className="text-white/20">(optionnel)</span></Label>
                   <Input placeholder="CHE-123.456.789" value={formData.ide} onChange={e => setFormData({...formData, ide: e.target.value})}
-                    className="bg-black/50 text-white border-white/10 focus:border-[#D91CD2]/50 mt-1.5 h-12 rounded-xl" />
+                    className="bg-black/50 text-white border-white/10 focus:border-accent/50 mt-1.5 h-12 rounded-xl" />
                 </div>
                 <div>
                   <Label className="text-white/40 text-xs font-light">Type</Label>
                   <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})}
-                    className="w-full h-12 mt-1.5 bg-black/50 text-white border border-white/10 rounded-xl px-3 text-sm focus:border-[#D91CD2]/50 outline-none">
+                    className="w-full h-12 mt-1.5 bg-black/50 text-white border border-white/10 rounded-xl px-3 text-sm focus:border-accent/50 outline-none">
                     <option value="studio">Studio de danse</option>
                     <option value="gym">Salle de sport</option>
                     <option value="outdoor">Plein air</option>
@@ -281,47 +281,47 @@ export default function PartnerRegisterPage() {
             </div>
 
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
-              <h3 className="text-sm text-[#D91CD2] uppercase tracking-[0.2em] font-light">Contact</h3>
+              <h3 className="text-sm text-accent uppercase tracking-[0.2em] font-light">Contact</h3>
 
               <div>
                 <Label className="text-white/40 text-xs font-light">Email Professionnel</Label>
                 <Input type="email" placeholder="contact@votreclub.ch" required value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})}
-                  className="bg-black/50 text-white border-white/10 focus:border-[#D91CD2]/50 mt-1.5 h-12 rounded-xl" />
+                  className="bg-black/50 text-white border-white/10 focus:border-accent/50 mt-1.5 h-12 rounded-xl" />
               </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-white/40 text-xs font-light">Téléphone</Label>
                   <Input placeholder="+41 22 ..." value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})}
-                    className="bg-black/50 text-white border-white/10 focus:border-[#D91CD2]/50 mt-1.5 h-12 rounded-xl" />
+                    className="bg-black/50 text-white border-white/10 focus:border-accent/50 mt-1.5 h-12 rounded-xl" />
                 </div>
                 <div>
                   <Label className="text-white/40 text-xs font-light">Ville</Label>
                   <Input placeholder="Genève" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})}
-                    className="bg-black/50 text-white border-white/10 focus:border-[#D91CD2]/50 mt-1.5 h-12 rounded-xl" />
+                    className="bg-black/50 text-white border-white/10 focus:border-accent/50 mt-1.5 h-12 rounded-xl" />
                 </div>
               </div>
 
               <div>
                 <Label className="text-white/40 text-xs font-light">Adresse</Label>
                 <Input placeholder="Rue du Studio 10" value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})}
-                  className="bg-black/50 text-white border-white/10 focus:border-[#D91CD2]/50 mt-1.5 h-12 rounded-xl" />
+                  className="bg-black/50 text-white border-white/10 focus:border-accent/50 mt-1.5 h-12 rounded-xl" />
               </div>
             </div>
 
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
-              <h3 className="text-sm text-[#D91CD2] uppercase tracking-[0.2em] font-light">Accès</h3>
+              <h3 className="text-sm text-accent uppercase tracking-[0.2em] font-light">Accès</h3>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label className="text-white/40 text-xs font-light">Mot de passe</Label>
                   <Input type="password" placeholder="Min. 6 caractères" required value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})}
-                    className="bg-black/50 text-white border-white/10 focus:border-[#D91CD2]/50 mt-1.5 h-12 rounded-xl" />
+                    className="bg-black/50 text-white border-white/10 focus:border-accent/50 mt-1.5 h-12 rounded-xl" />
                 </div>
                 <div>
                   <Label className="text-white/40 text-xs font-light">Confirmer</Label>
                   <Input type="password" placeholder="Confirmer" required value={formData.confirm} onChange={e => setFormData({...formData, confirm: e.target.value})}
-                    className="bg-black/50 text-white border-white/10 focus:border-[#D91CD2]/50 mt-1.5 h-12 rounded-xl" />
+                    className="bg-black/50 text-white border-white/10 focus:border-accent/50 mt-1.5 h-12 rounded-xl" />
                 </div>
               </div>
 
@@ -336,7 +336,7 @@ export default function PartnerRegisterPage() {
                     value={formData.promoCode}
                     onChange={e => { setFormData({...formData, promoCode: e.target.value}); setPromoValid(null); }}
                     onBlur={() => checkPromoCode(formData.promoCode)}
-                    className={`bg-black/50 text-white border-white/10 focus:border-[#D91CD2]/50 h-12 rounded-xl pr-10 uppercase ${
+                    className={`bg-black/50 text-white border-white/10 focus:border-accent/50 h-12 rounded-xl pr-10 uppercase ${
                       promoValid === true ? 'border-green-500/50' : promoValid === false ? 'border-red-500/50' : ''
                     }`}
                   />
@@ -352,7 +352,7 @@ export default function PartnerRegisterPage() {
             </div>
 
             <Button type="submit" disabled={isLoading}
-              className="w-full bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold h-14 text-base rounded-full">
+              className="w-full bg-accent hover:bg-accent/80 text-white font-semibold h-14 text-base rounded-full">
               {isLoading ? <Loader2 className="animate-spin mr-2" /> : null}
               {formData.promoCode && promoValid === true
                 ? 'Créer mon compte (gratuit)'
@@ -360,7 +360,7 @@ export default function PartnerRegisterPage() {
             </Button>
 
             <p className="text-center text-sm text-white/30 font-light">
-              Déjà partenaire ? <Link href="/partner/login" className="text-[#D91CD2] hover:underline">Se connecter</Link>
+              Déjà partenaire ? <Link href="/partner/login" className="text-accent hover:underline">Se connecter</Link>
             </p>
           </form>
         </div>

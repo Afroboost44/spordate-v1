@@ -62,7 +62,7 @@ export function InterestCounter({
       <div
         className={`flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] p-4 ${className}`}
       >
-        <Users className="h-5 w-5 text-[#D91CD2] flex-shrink-0" aria-hidden="true" />
+        <Users className="h-5 w-5 text-accent flex-shrink-0" aria-hidden="true" />
         <p className="text-sm text-white/70 font-light">
           <span className="text-white font-medium tabular-nums">{value}</span>{' '}
           {label}
@@ -75,7 +75,7 @@ export function InterestCounter({
     <p
       className={`flex items-center gap-2 text-sm text-white/70 font-light ${className}`}
     >
-      <Users className="h-4 w-4 text-[#D91CD2] flex-shrink-0" aria-hidden="true" />
+      <Users className="h-4 w-4 text-accent flex-shrink-0" aria-hidden="true" />
       <span>
         <span className="text-white font-medium tabular-nums">{value}</span>{' '}
         {label}

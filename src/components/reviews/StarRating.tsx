@@ -82,7 +82,7 @@ export function StarRating({
                   aria-hidden="true"
                 >
                   <Star
-                    className={`${iconSize} text-[#D91CD2] fill-[#D91CD2]`}
+                    className={`${iconSize} text-accent fill-accent`}
                     strokeWidth={1.5}
                   />
                 </span>

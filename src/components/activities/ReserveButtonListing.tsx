@@ -93,7 +93,7 @@ export function ReserveButtonListing({ activity, nextSessionId, className }: Res
             toast({
               title: 'Tu as déjà réservé',
               description: 'On t\'amène à ta réservation existante.',
-              className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+              className: 'bg-zinc-900 border-accent/40 text-white',
               duration: 4000,
             });
             router.push(`/sessions/${data.existingBookingId}?status=success`);
@@ -135,7 +135,7 @@ export function ReserveButtonListing({ activity, nextSessionId, className }: Res
         toast({
           title: '🎉 Réservation confirmée',
           description: `Tu as reçu ${data.creditsGranted ?? 5} crédits chat.`,
-          className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+          className: 'bg-zinc-900 border-accent/40 text-white',
           duration: 7000,
         });
         // Phase 9.5 c8 BUG 2 : redirect /sessions/{bookingId} pour countdown ou état "en attente"

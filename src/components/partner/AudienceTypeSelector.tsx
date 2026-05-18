@@ -84,18 +84,18 @@ export function AudienceTypeSelector({
             <label
               key={opt.value}
               htmlFor={id}
-              className="flex items-start gap-3 rounded-md border border-white/10 bg-zinc-900/40 p-3 hover:border-[#D91CD2]/40 cursor-pointer transition-colors"
+              className="flex items-start gap-3 rounded-md border border-white/10 bg-zinc-900/40 p-3 hover:border-accent/40 cursor-pointer transition-colors"
             >
               <RadioGroupItem
                 value={opt.value}
                 id={id}
-                className="mt-1 border-white/30 text-[#D91CD2]"
+                className="mt-1 border-white/30 text-accent"
               />
               <div className="flex flex-col gap-0.5 flex-1">
                 <span className="text-sm font-medium text-white flex items-center gap-2">
                   {opt.label}
                   {opt.recommended && (
-                    <span className="inline-flex items-center rounded border border-[#D91CD2]/40 bg-[#D91CD2]/15 px-1.5 py-0 text-[9px] uppercase tracking-wider text-[#D91CD2]">
+                    <span className="inline-flex items-center rounded border border-accent/40 bg-accent/15 px-1.5 py-0 text-[9px] uppercase tracking-wider text-accent">
                       Recommandé
                     </span>
                   )}

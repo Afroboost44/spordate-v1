@@ -25,20 +25,24 @@ import type { ActivityInviteMode, InviteStatus, ActivityInviteData } from '@/typ
  * quand le champ Firestore `title` est vide/whitespace (legacy data ou test
  * data). Ordre :
  *   1. title.trim() s'il est non-vide
- *   2. "sport · city" si les deux sont fournis
- *   3. sport seul si présent
- *   4. "Activité" en dernier recours (jamais retourner '')
+ *   2. name.trim() (champ legacy Activity, ex: 'Afroboost')
+ *   3. "sport · city" si les deux sont fournis
+ *   4. sport seul si présent
+ *   5. "Activité" en dernier recours (jamais retourner '')
  *
  * Utilisé par ActivitySelectorModal (carte) + InviteModeModal (description)
  * + buildActivityInvitePayload (snapshot dénormalisé).
  */
 export function displayActivityTitle(input: {
   title?: string;
+  name?: string;
   sport?: string;
   city?: string;
 }): string {
   const title = (input.title ?? '').trim();
   if (title) return title;
+  const name = (input.name ?? '').trim();
+  if (name) return name;
   const sport = (input.sport ?? '').trim();
   const city = (input.city ?? '').trim();
   if (sport && city) return `${sport} · ${city}`;

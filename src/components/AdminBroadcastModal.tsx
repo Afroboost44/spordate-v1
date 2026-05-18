@@ -105,17 +105,17 @@ export default function AdminBroadcastModal() {
   return (
     <Dialog open={true} onOpenChange={(open) => { if (!open) handleAck(); }}>
       <DialogContent
-        className="bg-black border border-[#D91CD2]/40 text-white max-w-md p-0 overflow-hidden"
+        className="bg-black border border-accent/40 text-white max-w-md p-0 overflow-hidden"
         // Empêche fermeture par Escape ou click outside — broadcast obligatoire
         onEscapeKeyDown={(e) => e.preventDefault()}
         onInteractOutside={(e) => e.preventDefault()}
       >
-        <div className="bg-gradient-to-b from-[#D91CD2]/30 to-transparent p-6 pb-4">
+        <div className="bg-gradient-to-b from-accent/30 to-transparent p-6 pb-4">
           <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
+            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-accent to-[#E91E63] flex items-center justify-center">
               <Megaphone className="h-5 w-5 text-white" />
             </div>
-            <span className="text-xs uppercase tracking-[0.18em] text-[#D91CD2] font-semibold">
+            <span className="text-xs uppercase tracking-[0.18em] text-accent font-semibold">
               Annonce Spordateur
             </span>
           </div>
@@ -134,7 +134,7 @@ export default function AdminBroadcastModal() {
           <Button
             onClick={handleAck}
             disabled={submitting}
-            className="w-full h-12 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] text-white font-semibold disabled:opacity-70"
+            className="w-full h-12 bg-gradient-to-br from-accent to-[#E91E63] text-white font-semibold disabled:opacity-70"
           >
             {submitting ? 'Validation…' : 'OK, compris'}
           </Button>

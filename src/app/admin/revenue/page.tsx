@@ -39,7 +39,7 @@ interface DailyRevenue {
   count: number;
 }
 
-const COLORS = ['#D91CD2', '#E91E63', '#9C27B0', '#7B1FA2', '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'];
+const COLORS = ['var(--accent-color)', '#E91E63', '#9C27B0', '#7B1FA2', '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0'];
 
 function formatCHF(amount: number): string {
   return (amount / 100).toFixed(2) + ' CHF';
@@ -166,7 +166,7 @@ export default function RevenueDashboardPage() {
     URL.revokeObjectURL(url);
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 text-[#D91CD2] animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 text-accent animate-spin" /></div>;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -176,7 +176,7 @@ export default function RevenueDashboardPage() {
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
             <h1 className="text-3xl font-light tracking-tight flex items-center gap-3">
-              <BarChart3 className="h-7 w-7 text-[#D91CD2]" />
+              <BarChart3 className="h-7 w-7 text-accent" />
               Dashboard Revenus
             </h1>
             <p className="text-sm text-white/40 mt-1">Analytics temps réel — {totalTransactions} transactions</p>
@@ -185,7 +185,7 @@ export default function RevenueDashboardPage() {
             <a href="/admin/manage">
               <Button variant="outline" className="border-white/10 text-white/50 hover:text-white h-10">Gestion site</Button>
             </a>
-            <Button onClick={exportCSV} variant="outline" className="border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10 h-10">
+            <Button onClick={exportCSV} variant="outline" className="border-accent/30 text-accent hover:bg-accent/10 h-10">
               <Download className="h-4 w-4 mr-2" /> Export CSV
             </Button>
           </div>
@@ -225,7 +225,7 @@ export default function RevenueDashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2"><Wallet className="h-4 w-4 text-[#D91CD2]" /><span className="text-xs text-white/40 uppercase tracking-wider">Revenus</span></div>
+              <div className="flex items-center gap-2 mb-2"><Wallet className="h-4 w-4 text-accent" /><span className="text-xs text-white/40 uppercase tracking-wider">Revenus</span></div>
               <p className="text-2xl font-light">{(totalRevenue / 100).toFixed(2)} <span className="text-sm text-white/40">CHF</span></p>
             </CardContent>
           </Card>
@@ -253,7 +253,7 @@ export default function RevenueDashboardPage() {
         <Card className="bg-[#1A1A1A] border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-light text-white flex items-center gap-2">
-              <TrendingUp className="h-4 w-4 text-[#D91CD2]" /> Revenus par jour
+              <TrendingUp className="h-4 w-4 text-accent" /> Revenus par jour
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -271,7 +271,7 @@ export default function RevenueDashboardPage() {
                     formatter={(v: number) => [`${v.toFixed(2)} CHF`, 'Revenus']}
                     labelFormatter={v => `Date: ${v}`}
                   />
-                  <Bar dataKey="revenue" fill="#D91CD2" radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="revenue" fill="var(--accent-color)" radius={[4, 4, 0, 0]} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -284,7 +284,7 @@ export default function RevenueDashboardPage() {
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-light text-white flex items-center gap-2">
-                <Wallet className="h-4 w-4 text-[#D91CD2]" /> Par méthode de paiement
+                <Wallet className="h-4 w-4 text-accent" /> Par méthode de paiement
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -307,7 +307,7 @@ export default function RevenueDashboardPage() {
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardHeader className="pb-2">
               <CardTitle className="text-base font-light text-white flex items-center gap-2">
-                <Dumbbell className="h-4 w-4 text-[#D91CD2]" /> Par package
+                <Dumbbell className="h-4 w-4 text-accent" /> Par package
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -332,7 +332,7 @@ export default function RevenueDashboardPage() {
         <Card className="bg-[#1A1A1A] border-white/5">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-light text-white flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-[#D91CD2]" /> Par ville
+              <MapPin className="h-4 w-4 text-accent" /> Par ville
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -381,7 +381,7 @@ export default function RevenueDashboardPage() {
                   {filtered.slice(0, 20).map((tx) => (
                     <tr key={tx.transactionId} className="border-b border-white/5">
                       <td className="py-2 px-2 text-white/50">{formatDate(tx.createdAt)}</td>
-                      <td className="py-2 px-2 text-[#D91CD2] font-medium">{formatCHF(tx.amount)}</td>
+                      <td className="py-2 px-2 text-accent font-medium">{formatCHF(tx.amount)}</td>
                       <td className="py-2 px-2">
                         <Badge className={`text-xs ${tx.paymentMethod === 'twint' ? 'bg-purple-500/10 text-purple-400 border-purple-500/20' : 'bg-blue-500/10 text-blue-400 border-blue-500/20'}`}>
                           {tx.paymentMethod === 'twint' ? 'TWINT' : 'Carte'}

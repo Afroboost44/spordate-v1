@@ -46,7 +46,7 @@ function iconForType(type: NotificationType) {
     case 'booking':
       return <CheckCircle className="h-6 w-6 text-cyan-400" />;
     case 'message':
-      return <MessageSquare className="h-6 w-6 text-[#D91CD2]" />;
+      return <MessageSquare className="h-6 w-6 text-accent" />;
     case 'promo':
       return <Sparkles className="h-6 w-6 text-yellow-400" />;
     case 'system':
@@ -156,7 +156,7 @@ export function NotificationsList() {
       toast({
         title: 'Notifications lues',
         description: 'Toutes les notifications ont été marquées comme lues.',
-        className: 'bg-[#1A1A1A] border-[#D91CD2]/40 text-white',
+        className: 'bg-[#1A1A1A] border-accent/40 text-white',
       });
     } catch (err) {
       console.warn('[NotificationsList] markAllRead failed:', err);
@@ -227,8 +227,8 @@ export function NotificationsList() {
           Activité Récente
           {unreadCount > 0 && (
             <div className="relative">
-              <Bell className="h-8 w-8 text-[#D91CD2]" />
-              <span className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-[#D91CD2] text-xs text-white font-bold">
+              <Bell className="h-8 w-8 text-accent" />
+              <span className="absolute -top-1 -right-1 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-xs text-white font-bold">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             </div>
@@ -238,7 +238,7 @@ export function NotificationsList() {
           variant="outline"
           onClick={handleMarkAllAsRead}
           disabled={unreadCount === 0}
-          className="border-[#D91CD2]/40 text-[#D91CD2] hover:bg-[#D91CD2]/10"
+          className="border-accent/40 text-accent hover:bg-accent/10"
         >
           Tout marquer comme lu
         </Button>
@@ -265,7 +265,7 @@ export function NotificationsList() {
               key={notif.notificationId}
               className={cn(
                 'bg-card border-border/20 shadow-lg transition-all duration-300',
-                url ? 'cursor-pointer hover:bg-card/80 hover:border-[#D91CD2]/30' : '',
+                url ? 'cursor-pointer hover:bg-card/80 hover:border-accent/30' : '',
                 !unread && 'opacity-60 hover:opacity-100',
               )}
               onClick={() => url && handleNotificationClick(notif)}
@@ -275,8 +275,8 @@ export function NotificationsList() {
                   {iconForType(notif.type)}
                   {unread && (
                     <span className="absolute -top-1 -left-1 flex h-2.5 w-2.5">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#D91CD2] opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-[#D91CD2]"></span>
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
                     </span>
                   )}
                 </div>
@@ -290,7 +290,7 @@ export function NotificationsList() {
                 <button
                   type="button"
                   onClick={(e) => handleDismiss(notif, e)}
-                  className="p-1 text-white/40 hover:text-[#D91CD2] transition-colors"
+                  className="p-1 text-white/40 hover:text-accent transition-colors"
                   aria-label="Masquer"
                 >
                   <X className="h-4 w-4" />

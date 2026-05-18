@@ -237,7 +237,7 @@ function PublicProfileContent() {
         {/* Back to chat */}
         <Button
           onClick={() => router.back()}
-          className="w-full bg-[#D91CD2] text-white font-light hover:opacity-90 rounded-xl h-11"
+          className="w-full bg-accent text-white font-light hover:opacity-90 rounded-xl h-11"
         >
           <MessageCircle className="mr-2 h-4 w-4" />
           Retour au chat

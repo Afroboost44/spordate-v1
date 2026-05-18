@@ -172,7 +172,7 @@ export function SanctionsTable({ adminUid }: SanctionsTableProps) {
       <Card className="bg-zinc-950 border border-zinc-800">
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-medium text-white flex items-center gap-2">
-            <ShieldOff className="h-4 w-4 text-[#D91CD2]" />
+            <ShieldOff className="h-4 w-4 text-accent" />
             Sanctions actives ({filtered.length})
           </CardTitle>
         </CardHeader>
@@ -255,7 +255,7 @@ export function SanctionsTable({ adminUid }: SanctionsTableProps) {
                     </TableCell>
                     <TableCell className="text-center">
                       {s.refundDue === true ? (
-                        <Badge className="bg-[#D91CD2]/15 text-[#D91CD2] border-[#D91CD2]/30">
+                        <Badge className="bg-accent/15 text-accent border-accent/30">
                           due
                         </Badge>
                       ) : (

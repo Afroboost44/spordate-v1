@@ -66,7 +66,7 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
         toast({
           title: 'Invitation acceptée ✓',
           description: `Ta place pour ${invite.activityTitle} est confirmée.`,
-          className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+          className: 'bg-zinc-900 border-accent/40 text-white',
         });
         return;
       }
@@ -74,7 +74,7 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
       toast({
         title: 'Invitation acceptée 🎉',
         description: 'Redirection vers la page de réservation...',
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
       const params = new URLSearchParams();
       params.set('inviteId', msg.messageId);
@@ -133,7 +133,7 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
           className="w-full h-28 object-cover"
         />
       ) : (
-        <div className="w-full h-28 bg-gradient-to-br from-[#D91CD2] to-[#E91E63] flex items-center justify-center">
+        <div className="w-full h-28 bg-gradient-to-br from-accent to-[#E91E63] flex items-center justify-center">
           <Calendar className="h-10 w-10 text-white/30" />
         </div>
       )}
@@ -148,7 +148,7 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
         </div>
         {/* BUG #36 C4 — Badge spécial Duo (sponsor a payé) */}
         {isDuoSponsored && (
-          <div className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-gradient-to-r from-[#D91CD2]/15 to-[#E91E63]/15 border border-[#D91CD2]/40 text-[#D91CD2]">
+          <div className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-gradient-to-r from-accent/15 to-[#E91E63]/15 border border-accent/40 text-accent">
             <Sparkles className="h-2.5 w-2.5" />
             {view.isReceiver ? 'Ton ami a payé pour toi 💝' : 'Tu paies pour les 2 ✓'}
           </div>
@@ -175,7 +175,7 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
                 type="button"
                 onClick={handleAccept}
                 disabled={!!busy}
-                className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-md bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white text-xs font-medium transition disabled:opacity-50"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 h-8 rounded-md bg-accent hover:bg-accent/90 text-white text-xs font-medium transition disabled:opacity-50"
               >
                 {busy === 'accept' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                 Accepter
@@ -201,11 +201,11 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
         <AlertDialogContent className="bg-[#0A0A0A] border-white/10 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-[#D91CD2]" />
+              <Sparkles className="h-5 w-5 text-accent" />
               Accepter l&apos;invitation Duo ?
             </AlertDialogTitle>
             <AlertDialogDescription className="text-white/60">
-              Ton sponsor a déjà payé ta place pour <span className="text-[#D91CD2] font-medium">{invite.activityTitle}</span>.
+              Ton sponsor a déjà payé ta place pour <span className="text-accent font-medium">{invite.activityTitle}</span>.
               En acceptant, tu confirmes ta participation à la séance{' '}
               {sessionLabel !== 'Date à venir' && <span className="text-white">{sessionLabel}</span>}.
             </AlertDialogDescription>
@@ -219,7 +219,7 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
                 setDuoAcceptConfirmOpen(false);
                 doAccept();
               }}
-              className="bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white"
+              className="bg-accent hover:bg-accent/90 text-white"
             >
               Confirmer ma place ✓
             </AlertDialogAction>

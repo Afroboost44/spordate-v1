@@ -99,7 +99,7 @@ export function PartnerDiscoveryOptInCard() {
         description: next
           ? 'Tes participants pourront se rencontrer entre eux et avec d\'autres participants des partenaires opt-in.'
           : 'Tes participants ne seront pas visibles dans /discovery (opt-out).',
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
     } catch (err) {
       console.error('[PartnerDiscoveryOptInCard] toggle failed:', err);
@@ -110,10 +110,10 @@ export function PartnerDiscoveryOptInCard() {
   };
 
   return (
-    <Card className="bg-[#111] border-[#D91CD2]/20">
+    <Card className="bg-[#111] border-accent/20">
       <CardContent className="p-5 flex items-start gap-4">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#D91CD2]/10">
-          <Sparkles className="h-5 w-5 text-[#D91CD2]" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-accent/10">
+          <Sparkles className="h-5 w-5 text-accent" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-3">

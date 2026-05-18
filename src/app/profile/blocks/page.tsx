@@ -119,7 +119,7 @@ function BlocksPageContent() {
         <Button
           variant="ghost"
           size="icon"
-          className="h-8 w-8 text-gray-400 hover:text-[#D91CD2]"
+          className="h-8 w-8 text-gray-400 hover:text-accent"
           onClick={() => router.push('/profile')}
           aria-label="Retour au profil"
         >

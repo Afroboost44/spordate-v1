@@ -32,7 +32,7 @@ export default function BottomNav() {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-[#D91CD2]/30 bg-black/80 backdrop-blur-xl safe-area-bottom">
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-accent/30 bg-black/80 backdrop-blur-xl safe-area-bottom">
       {/* BUG #37 — w-16 (64px fixe) × 4 items + padding débordait sur petits
           écrans (iPhone SE 320px). flex-1 distribue équitablement la largeur.
           justify-around remplacé par défaut flex (gap-0) pour pas double-spacing. */}
@@ -46,11 +46,11 @@ export default function BottomNav() {
               href={item.href}
               className={`flex flex-col items-center justify-center gap-0.5 flex-1 min-w-0 h-full transition-colors ${
                 isActive
-                  ? 'text-[#D91CD2]'
+                  ? 'text-accent'
                   : 'text-white/40 active:text-white/70'
               }`}
             >
-              <Icon className={`h-6 w-6 flex-shrink-0 ${isActive ? 'drop-shadow-[0_0_8px_rgba(217,28,210,0.6)]' : ''}`} strokeWidth={isActive ? 2.5 : 1.5} />
+              <Icon className={`h-6 w-6 flex-shrink-0 ${isActive ? 'drop-shadow-[0_0_8px_rgb(var(--accent-color-rgb) / 0.6)]' : ''}`} strokeWidth={isActive ? 2.5 : 1.5} />
               <span className="text-[10px] font-medium truncate max-w-full px-1">{item.label}</span>
             </Link>
           );

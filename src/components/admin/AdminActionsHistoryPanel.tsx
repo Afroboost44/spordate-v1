@@ -181,7 +181,7 @@ export function AdminActionsHistoryPanel() {
         description: result.truncated
           ? `${result.actions.length} actions exportées (cap 5000 atteint — affine les filtres pour exporter le reste).`
           : `${result.actions.length} actions exportées.`,
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
     } catch (err) {
       console.error('[AdminActionsHistoryPanel] export failed', err);
@@ -199,9 +199,9 @@ export function AdminActionsHistoryPanel() {
     <Card className="bg-zinc-950 border border-zinc-800">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-white">
-          <HistoryIcon className="h-5 w-5 text-[#D91CD2]" />
+          <HistoryIcon className="h-5 w-5 text-accent" />
           Historique audit trail
-          <Badge className="bg-[#D91CD2]/15 border-[#D91CD2]/40 text-[#D91CD2] ml-2">
+          <Badge className="bg-accent/15 border-accent/40 text-accent ml-2">
             {actions.length}
           </Badge>
         </CardTitle>
@@ -210,7 +210,7 @@ export function AdminActionsHistoryPanel() {
         {/* Filtres */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 p-3 rounded-md border border-zinc-800 bg-zinc-900/50">
           <div className="flex items-center gap-2">
-            <Filter className="h-4 w-4 text-[#D91CD2]" />
+            <Filter className="h-4 w-4 text-accent" />
             <span className="text-xs text-zinc-400">Filtres</span>
           </div>
           <Select value={dateRange} onValueChange={(v) => setDateRange(v as DateRangeKey)}>
@@ -268,7 +268,7 @@ export function AdminActionsHistoryPanel() {
           <Button
             onClick={handleExportCsv}
             disabled={exporting || actions.length === 0}
-            className="bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white"
+            className="bg-accent hover:bg-accent/90 text-white"
           >
             {exporting ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -320,7 +320,7 @@ export function AdminActionsHistoryPanel() {
                     {shortUid(a.adminId)}
                   </TableCell>
                   <TableCell>
-                    <Badge className="bg-[#D91CD2]/15 border-[#D91CD2]/40 text-[#D91CD2] text-xs">
+                    <Badge className="bg-accent/15 border-accent/40 text-accent text-xs">
                       {a.actionType}
                     </Badge>
                   </TableCell>

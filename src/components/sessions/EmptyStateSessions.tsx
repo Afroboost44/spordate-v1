@@ -96,7 +96,7 @@ export function EmptyStateSessions({
         </p>
         <a
           href={mailtoHref}
-          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-[#D91CD2] text-[#D91CD2] text-sm font-medium hover:bg-[#D91CD2] hover:text-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+          className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-accent text-accent text-sm font-medium hover:bg-accent hover:text-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         >
           <span>Me prévenir</span>
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -139,7 +139,7 @@ export function EmptyStateSessions({
       <button
         type="button"
         onClick={handleRetry}
-        className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-[#D91CD2] text-[#D91CD2] text-sm font-medium hover:bg-[#D91CD2] hover:text-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+        className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-accent text-accent text-sm font-medium hover:bg-accent hover:text-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black"
       >
         <RefreshCw className="h-4 w-4" aria-hidden="true" />
         <span>Réessayer</span>

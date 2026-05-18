@@ -19,7 +19,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[calc(100vh-12rem)] gap-3">
-        <Loader2 className="h-8 w-8 animate-spin text-[#D91CD2]" />
+        <Loader2 className="h-8 w-8 animate-spin text-accent" />
         <p className="text-sm text-muted-foreground">Chargement...</p>
       </div>
     );

@@ -50,7 +50,7 @@ export default function AdminLoginPage() {
     <div className="flex items-center justify-center min-h-screen bg-black p-4">
       <Card className="w-full max-w-sm bg-[#0A0A0A] border-white/10">
         <CardHeader className="text-center pb-4">
-          <ShieldAlert className="h-10 w-10 text-[#D91CD2] mx-auto mb-3" />
+          <ShieldAlert className="h-10 w-10 text-accent mx-auto mb-3" />
           <CardTitle className="text-xl font-light text-white tracking-wide">Administration</CardTitle>
           <CardDescription className="text-white/40">Connectez-vous avec votre compte admin</CardDescription>
         </CardHeader>
@@ -58,7 +58,7 @@ export default function AdminLoginPage() {
           <Button
             onClick={handleGoogleLogin}
             disabled={loading}
-            className="w-full h-14 bg-white/5 backdrop-blur-xl border border-[#D91CD2] text-white font-light tracking-wider hover:bg-[#D91CD2]/10 transition-all flex items-center justify-center gap-3"
+            className="w-full h-14 bg-white/5 backdrop-blur-xl border border-accent text-white font-light tracking-wider hover:bg-accent/10 transition-all flex items-center justify-center gap-3"
           >
             {loading ? (
               <Loader2 className="h-5 w-5 animate-spin" />

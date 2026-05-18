@@ -55,7 +55,7 @@ interface SiteConfig {
 const DEFAULT_SITE: SiteConfig = {
   heroTitle1: "Rencontre quelqu'un", heroTitle2: "en partageant une", heroTitle3: "activité sportive.",
   heroSubtitle: "Danse, fitness, running... Choisis ton sport, matche, et vis une vraie rencontre.",
-  ctaText: "Commencer", primaryColor: "#D91CD2",
+  ctaText: "Commencer", primaryColor: "var(--accent-color)",
   heroImage: "https://picsum.photos/seed/hero-dance/1920/1080",
   step1Title: "Choisis ton style", step1Desc: "Afroboost, Salsa, Tennis, Yoga... Selectionne tes activites et ton niveau.", step1Image: "https://picsum.photos/seed/step1/800/600",
   step2Title: "Matche & discute", step2Desc: "On te propose des partenaires pres de toi. Connecte-toi, organise ta session.", step2Image: "https://picsum.photos/seed/step2/800/600",
@@ -469,7 +469,7 @@ export default function AdminManagePage() {
     { id: 'errors', label: 'Erreurs', icon: <Bug className="h-4 w-4" />, count: errors.length },
   ];
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 text-[#D91CD2] animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 text-accent animate-spin" /></div>;
 
   return (
     <div className="min-h-screen bg-black text-white">
@@ -479,10 +479,10 @@ export default function AdminManagePage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-light tracking-tight flex items-center gap-2">
-              <Shield className="h-6 w-6 text-[#D91CD2]" /> Admin Spordateur
+              <Shield className="h-6 w-6 text-accent" /> Admin Spordateur
             </h1>
           </div>
-          <Link href="/admin/revenue"><Button variant="outline" size="sm" className="border-[#D91CD2]/30 text-[#D91CD2] text-xs">Revenus</Button></Link>
+          <Link href="/admin/revenue"><Button variant="outline" size="sm" className="border-accent/30 text-accent text-xs">Revenus</Button></Link>
         </div>
 
         {/* Tabs — horizontal scroll on mobile */}
@@ -490,7 +490,7 @@ export default function AdminManagePage() {
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs whitespace-nowrap transition-all ${
-                tab === t.id ? 'bg-[#D91CD2]/10 border border-[#D91CD2]/30 text-[#D91CD2]' : 'bg-white/5 text-white/40'
+                tab === t.id ? 'bg-accent/10 border border-accent/30 text-accent' : 'bg-white/5 text-white/40'
               }`}
             >
               {t.icon} {t.label} {t.count !== undefined && <span className="text-[10px] opacity-60">({t.count})</span>}
@@ -511,14 +511,14 @@ export default function AdminManagePage() {
           <div className="space-y-4">
             {/* Pending partner alert */}
             {pendingRequests.length > 0 && (
-              <Card className="bg-[#D91CD2]/5 border-[#D91CD2]/20 cursor-pointer hover:bg-[#D91CD2]/10 transition" onClick={() => setTab('partners')}>
+              <Card className="bg-accent/5 border-accent/20 cursor-pointer hover:bg-accent/10 transition" onClick={() => setTab('partners')}>
                 <CardContent className="p-4 flex items-center gap-3">
-                  <div className="h-3 w-3 rounded-full bg-[#D91CD2] animate-pulse" />
+                  <div className="h-3 w-3 rounded-full bg-accent animate-pulse" />
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-[#D91CD2]">{pendingRequests.length} nouvelle(s) demande(s) de partenariat</p>
+                    <p className="text-sm font-medium text-accent">{pendingRequests.length} nouvelle(s) demande(s) de partenariat</p>
                     <p className="text-xs text-white/40">Formulaire de contact — cliquez pour traiter</p>
                   </div>
-                  <Building2 className="h-5 w-5 text-[#D91CD2]" />
+                  <Building2 className="h-5 w-5 text-accent" />
                 </CardContent>
               </Card>
             )}
@@ -536,11 +536,11 @@ export default function AdminManagePage() {
             )}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
               {[
-                { label: 'Revenus total', value: `${totalRevenue.toFixed(0)} CHF`, icon: <Wallet className="h-4 w-4 text-[#D91CD2]" /> },
+                { label: 'Revenus total', value: `${totalRevenue.toFixed(0)} CHF`, icon: <Wallet className="h-4 w-4 text-accent" /> },
                 { label: "Aujourd'hui", value: `${todayRevenue.toFixed(0)} CHF`, icon: <TrendingUp className="h-4 w-4 text-green-400" /> },
                 { label: 'Utilisateurs', value: String(totalUsers), icon: <Users className="h-4 w-4 text-blue-400" /> },
                 { label: 'Premium', value: String(premiumUsers), icon: <Crown className="h-4 w-4 text-amber-400" /> },
-                { label: 'Partenaires', value: String(activePartners), icon: <Building2 className="h-4 w-4 text-[#D91CD2]" /> },
+                { label: 'Partenaires', value: String(activePartners), icon: <Building2 className="h-4 w-4 text-accent" /> },
                 { label: 'Transactions', value: String(transactions.length), icon: <CreditCard className="h-4 w-4 text-purple-400" /> },
                 { label: 'Erreurs', value: String(errors.length), icon: <Bug className="h-4 w-4 text-red-400" /> },
                 { label: 'Conversion', value: transactions.length > 0 ? `${((transactions.filter(t=>t.status==='succeeded').length / totalUsers) * 100).toFixed(0)}%` : '0%', icon: <Zap className="h-4 w-4 text-yellow-400" /> },
@@ -579,7 +579,7 @@ export default function AdminManagePage() {
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-sm text-white truncate">{u.displayName || 'Sans nom'}</span>
                       <Badge className={`text-[9px] ${u.role === 'admin' ? 'bg-red-500/10 text-red-400' : u.role === 'creator' ? 'bg-amber-500/10 text-amber-400' : 'bg-white/5 text-white/30'}`}>{u.role || 'user'}</Badge>
-                      {u.isPremium && <Badge className="text-[9px] bg-[#D91CD2]/10 text-[#D91CD2]">Premium</Badge>}
+                      {u.isPremium && <Badge className="text-[9px] bg-accent/10 text-accent">Premium</Badge>}
                     </div>
                     <p className="text-[11px] text-white/25 truncate">{u.email} · {u.city || '?'} · {u.credits || 0} crédits</p>
                   </div>
@@ -677,7 +677,7 @@ export default function AdminManagePage() {
                   <Button
                     onClick={saveUserCommission}
                     disabled={commissionUserSaving}
-                    className="bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white h-9"
+                    className="bg-accent hover:bg-accent/90 text-white h-9"
                   >
                     {commissionUserSaving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Sauvegarder'}
                   </Button>
@@ -694,19 +694,19 @@ export default function AdminManagePage() {
             {pendingRequests.length > 0 && (
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
-                  <div className="h-2 w-2 rounded-full bg-[#D91CD2] animate-pulse" />
-                  <h3 className="text-sm font-medium text-[#D91CD2] uppercase tracking-wider">
+                  <div className="h-2 w-2 rounded-full bg-accent animate-pulse" />
+                  <h3 className="text-sm font-medium text-accent uppercase tracking-wider">
                     Nouvelles demandes ({pendingRequests.length})
                   </h3>
                 </div>
                 {pendingRequests.map(r => (
-                  <Card key={r.requestId} className="bg-[#D91CD2]/5 border-[#D91CD2]/20">
+                  <Card key={r.requestId} className="bg-accent/5 border-accent/20">
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex-1 min-w-0 space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="text-base font-medium text-white">{r.name}</span>
-                            <Badge className="text-[10px] bg-[#D91CD2]/10 text-[#D91CD2] border-[#D91CD2]/20">{r.activity}</Badge>
+                            <Badge className="text-[10px] bg-accent/10 text-accent border-accent/20">{r.activity}</Badge>
                           </div>
                           <p className="text-xs text-white/40">{r.email} {r.phone ? `· ${r.phone}` : ''}</p>
                           <p className="text-xs text-white/30 flex items-center gap-1"><MapPin className="h-3 w-3" /> {r.city}</p>
@@ -874,7 +874,7 @@ export default function AdminManagePage() {
                   </div>
                 )}
                 {!commissionEnabled && <p className="text-xs text-white/20">Désactivé — 100% des revenus vont au partenaire</p>}
-                <Button onClick={saveCommission} disabled={commissionSaving} size="sm" className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-xs h-9">
+                <Button onClick={saveCommission} disabled={commissionSaving} size="sm" className="bg-accent hover:bg-accent/80 text-white text-xs h-9">
                   {commissionSaving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                   Sauvegarder commission
                 </Button>
@@ -928,7 +928,7 @@ export default function AdminManagePage() {
                   <Input type="number" value={promoDiscount} onChange={e => setPromoDiscount(e.target.value)} placeholder="0" className="bg-black border-white/10 h-11" />
                 </div>
               </div>
-              <Button onClick={createPromo} disabled={!promoCode} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-11"><Gift className="h-4 w-4 mr-2" /> Créer le code promo</Button>
+              <Button onClick={createPromo} disabled={!promoCode} className="bg-accent hover:bg-accent/80 text-white h-11"><Gift className="h-4 w-4 mr-2" /> Créer le code promo</Button>
             </CardContent>
           </Card>
         )}
@@ -940,13 +940,13 @@ export default function AdminManagePage() {
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-base text-white font-medium">Modifier les tarifs</h3>
-                <Button onClick={savePricing} disabled={pricingSaving} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-10 text-xs">
+                <Button onClick={savePricing} disabled={pricingSaving} className="bg-accent hover:bg-accent/80 text-white h-10 text-xs">
                   {pricingSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Settings className="h-4 w-4 mr-1" />}
                   Sauvegarder
                 </Button>
               </div>
 
-              <p className="text-xs text-[#D91CD2] uppercase tracking-wider">Crédits</p>
+              <p className="text-xs text-accent uppercase tracking-wider">Crédits</p>
               {pricing.filter(p => p.type === 'one_time').map(p => (
                 <Card key={p.id} className={`bg-[#111] border-white/10 ${!p.isActive ? 'border-red-500/20' : ''}`}>
                   <CardContent className="p-4 space-y-3">
@@ -966,7 +966,7 @@ export default function AdminManagePage() {
                 </Card>
               ))}
 
-              <p className="text-xs text-[#D91CD2] uppercase tracking-wider mt-2">Abonnements</p>
+              <p className="text-xs text-accent uppercase tracking-wider mt-2">Abonnements</p>
               {pricing.filter(p => p.type === 'subscription').map(p => (
                 <Card key={p.id} className={`bg-[#111] border-white/10 ${!p.isActive ? 'border-red-500/20' : ''}`}>
                   <CardContent className="p-4 space-y-3">
@@ -990,7 +990,7 @@ export default function AdminManagePage() {
 
             {/* RIGHT — Aperçu en direct */}
             <div className="space-y-4">
-              <h3 className="text-base text-white font-medium flex items-center gap-2"><Eye className="h-4 w-4 text-[#D91CD2]" /> Aperçu en direct</h3>
+              <h3 className="text-base text-white font-medium flex items-center gap-2"><Eye className="h-4 w-4 text-accent" /> Aperçu en direct</h3>
 
               <p className="text-xs text-white/30 uppercase tracking-wider">Page Crédits</p>
               <div className="space-y-3">
@@ -1003,7 +1003,7 @@ export default function AdminManagePage() {
                       </div>
                       <div className="text-right">
                         <p className="text-2xl font-light text-white">{p.price} <span className="text-sm text-white/40">CHF</span></p>
-                        {p.credits > 1 && <p className="text-[10px] text-[#D91CD2]">{(p.price / p.credits).toFixed(2)} CHF/crédit</p>}
+                        {p.credits > 1 && <p className="text-[10px] text-accent">{(p.price / p.credits).toFixed(2)} CHF/crédit</p>}
                       </div>
                     </CardContent>
                   </Card>
@@ -1013,14 +1013,14 @@ export default function AdminManagePage() {
               <p className="text-xs text-white/30 uppercase tracking-wider mt-2">Page Premium</p>
               <div className="space-y-3">
                 {pricing.filter(p => p.type === 'subscription' && p.isActive).map(p => (
-                  <Card key={p.id} className="bg-[#111] border-[#D91CD2]/20 overflow-hidden">
+                  <Card key={p.id} className="bg-[#111] border-accent/20 overflow-hidden">
                     <CardContent className="p-4 flex items-center justify-between">
                       <div>
                         <p className="text-white font-medium text-sm">{p.label}</p>
                         <p className="text-white/30 text-xs">{p.credits} crédits · {p.interval === 'month' ? 'par mois' : 'par an'}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-2xl font-light text-[#D91CD2]">{p.price} <span className="text-sm text-white/40">CHF</span></p>
+                        <p className="text-2xl font-light text-accent">{p.price} <span className="text-sm text-white/40">CHF</span></p>
                       </div>
                     </CardContent>
                   </Card>
@@ -1039,7 +1039,7 @@ export default function AdminManagePage() {
           <div className="space-y-4">
             <div className="flex items-center justify-between sticky top-0 z-10 bg-black py-2">
               <h3 className="text-base text-white font-medium">Page d'accueil — Tout modifier</h3>
-              <Button onClick={saveSiteConfig} disabled={siteSaving} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-10 text-xs">
+              <Button onClick={saveSiteConfig} disabled={siteSaving} className="bg-accent hover:bg-accent/80 text-white h-10 text-xs">
                 {siteSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Settings className="h-4 w-4 mr-1" />}
                 Sauvegarder tout
               </Button>
@@ -1069,7 +1069,7 @@ export default function AdminManagePage() {
                   <input type="color" value={siteConfig.primaryColor} onChange={e => updateSite('primaryColor', e.target.value)} className="w-12 h-12 rounded-lg border border-white/10 bg-transparent cursor-pointer" />
                   <Input value={siteConfig.primaryColor} onChange={e => updateSite('primaryColor', e.target.value)} className="bg-black border-white/15 h-11 text-white font-mono w-32" />
                   <div className="flex gap-2">
-                    {['#D91CD2', '#E91E63', '#7B1FA2', '#FF6B35', '#00BCD4', '#4CAF50'].map(c => (
+                    {['var(--accent-color)', '#E91E63', '#7B1FA2', '#FF6B35', '#00BCD4', '#4CAF50'].map(c => (
                       <button key={c} onClick={() => updateSite('primaryColor', c)} className="w-8 h-8 rounded-lg border border-white/10 hover:scale-110 transition" style={{ backgroundColor: c }} />
                     ))}
                   </div>
@@ -1218,7 +1218,7 @@ export default function AdminManagePage() {
                   <label className="text-xs text-white/30 block mb-1">Message</label>
                   <Input value={notifBody} onChange={e => setNotifBody(e.target.value)} placeholder="Réserve ta place pour la Zumba de ce soir" className="bg-black border-white/10 h-11" />
                 </div>
-                <Button onClick={sendNotification} disabled={!notifTitle} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white h-11"><Send className="h-4 w-4 mr-2" /> Envoyer à {users.length} utilisateurs</Button>
+                <Button onClick={sendNotification} disabled={!notifTitle} className="bg-accent hover:bg-accent/80 text-white h-11"><Send className="h-4 w-4 mr-2" /> Envoyer à {users.length} utilisateurs</Button>
               </div>
             </CardContent>
           </Card>
@@ -1312,7 +1312,7 @@ function DiscoveryToggleCard() {
       toast({
         title: `Mode Rencontres : ${opt?.label || next}`,
         description: opt?.description || '',
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
     } catch (err) {
       console.error('[DiscoveryToggle]', err);
@@ -1344,19 +1344,19 @@ function DiscoveryToggleCard() {
                 onClick={() => handleSelectMode(opt.value)}
                 className={`flex items-start gap-3 rounded-md border p-3 text-left transition-colors ${
                   selected
-                    ? 'border-[#D91CD2]/60 bg-[#D91CD2]/10'
+                    ? 'border-accent/60 bg-accent/10'
                     : 'border-white/10 bg-zinc-900/40 hover:border-white/20'
                 } disabled:opacity-50`}
               >
                 <span
                   className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
-                    selected ? 'border-[#D91CD2] bg-[#D91CD2]' : 'border-white/30'
+                    selected ? 'border-accent bg-accent' : 'border-white/30'
                   }`}
                 >
                   {selected && <span className="h-1.5 w-1.5 rounded-full bg-white" />}
                 </span>
                 <span className="flex flex-col gap-0.5 min-w-0">
-                  <span className={`text-sm font-medium ${selected ? 'text-[#D91CD2]' : 'text-white'}`}>
+                  <span className={`text-sm font-medium ${selected ? 'text-accent' : 'text-white'}`}>
                     {opt.label}
                   </span>
                   <span className="text-[11px] text-white/50">{opt.description}</span>
@@ -1429,7 +1429,7 @@ function MigratePricingTiersCard() {
       toast({
         title: dryRun ? 'Simulation OK' : 'Migration appliquée',
         description: `${data.totalMigrated}/${data.totalScanned} sessions ${dryRun ? 'à migrer' : 'migrées'} (${data.totalSkipped} skip, ${data.errors?.length ?? 0} err).`,
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
     } catch (err) {
       console.error('[MigratePricingTiers]', err);
@@ -1463,7 +1463,7 @@ function MigratePricingTiersCard() {
             onClick={() => runMigration(false)}
             disabled={running || !report}
             size="sm"
-            className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-xs h-9"
+            className="bg-accent hover:bg-accent/80 text-white text-xs h-9"
           >
             {running ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
             Appliquer
@@ -1473,7 +1473,7 @@ function MigratePricingTiersCard() {
           <div className="mt-2 text-[11px] text-white/60 space-y-1">
             <p>
               <span className="text-white/40">Mode :</span>{' '}
-              <span className="text-[#D91CD2]">{report.dryRun ? 'simulation' : 'appliqué'}</span>{' · '}
+              <span className="text-accent">{report.dryRun ? 'simulation' : 'appliqué'}</span>{' · '}
               <span className="text-white/40">Scanned :</span> {report.totalScanned}{' · '}
               <span className="text-white/40">Migrated :</span> {report.totalMigrated}{' · '}
               <span className="text-white/40">Skip :</span> {report.totalSkipped}
@@ -1550,7 +1550,7 @@ function MigrateActivityPartnerCard() {
       toast({
         title: dryRun ? 'Simulation OK' : 'Migration appliquée',
         description: `${data.totalMigrated}/${data.totalScanned} activities ${dryRun ? 'à migrer' : 'migrées'} (${data.totalAlreadyOk} déjà OK, ${data.errors?.length ?? 0} err).`,
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
     } catch (err) {
       console.error('[MigrateActivityPartner]', err);
@@ -1584,7 +1584,7 @@ function MigrateActivityPartnerCard() {
             onClick={() => run(false)}
             disabled={running || !report}
             size="sm"
-            className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-xs h-9"
+            className="bg-accent hover:bg-accent/80 text-white text-xs h-9"
           >
             {running ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
             Appliquer
@@ -1594,7 +1594,7 @@ function MigrateActivityPartnerCard() {
           <div className="mt-2 text-[11px] text-white/60 space-y-1">
             <p>
               <span className="text-white/40">Mode :</span>{' '}
-              <span className="text-[#D91CD2]">{report.dryRun ? 'simulation' : 'appliqué'}</span>{' · '}
+              <span className="text-accent">{report.dryRun ? 'simulation' : 'appliqué'}</span>{' · '}
               <span className="text-white/40">Scanned :</span> {report.totalScanned}{' · '}
               <span className="text-white/40">Migrated :</span> {report.totalMigrated}{' · '}
               <span className="text-white/40">OK :</span> {report.totalAlreadyOk}
@@ -1671,7 +1671,7 @@ function MigrateBoostPartnerCard() {
       toast({
         title: dryRun ? 'Simulation OK' : 'Migration appliquée',
         description: `${data.totalMigrated}/${data.totalScanned} boosts ${dryRun ? 'à migrer' : 'migrés'} (${data.totalAlreadyOk} déjà OK, ${data.errors?.length ?? 0} err).`,
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
     } catch (err) {
       console.error('[MigrateBoostPartner]', err);
@@ -1705,7 +1705,7 @@ function MigrateBoostPartnerCard() {
             onClick={() => run(false)}
             disabled={running || !report}
             size="sm"
-            className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-xs h-9"
+            className="bg-accent hover:bg-accent/80 text-white text-xs h-9"
           >
             {running ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
             Appliquer
@@ -1715,7 +1715,7 @@ function MigrateBoostPartnerCard() {
           <div className="mt-2 text-[11px] text-white/60 space-y-1">
             <p>
               <span className="text-white/40">Mode :</span>{' '}
-              <span className="text-[#D91CD2]">{report.dryRun ? 'simulation' : 'appliqué'}</span>{' · '}
+              <span className="text-accent">{report.dryRun ? 'simulation' : 'appliqué'}</span>{' · '}
               <span className="text-white/40">Scanned :</span> {report.totalScanned}{' · '}
               <span className="text-white/40">Migrated :</span> {report.totalMigrated}{' · '}
               <span className="text-white/40">OK :</span> {report.totalAlreadyOk}
@@ -1796,7 +1796,7 @@ function DedupeMatchesCard() {
       toast({
         title: dryRun ? 'Simulation OK' : 'Dedupe appliqué',
         description: `${data.totalKept} gardés / ${data.totalDeleted} supprimés / ${data.totalMigrated} migrés (${data.totalGroups} paires uniques, ${data.errors?.length ?? 0} err).`,
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
     } catch (err) {
       console.error('[DedupeMatches]', err);
@@ -1830,7 +1830,7 @@ function DedupeMatchesCard() {
             onClick={() => run(false)}
             disabled={running || !report}
             size="sm"
-            className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white text-xs h-9"
+            className="bg-accent hover:bg-accent/80 text-white text-xs h-9"
           >
             {running ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : null}
             Appliquer
@@ -1840,7 +1840,7 @@ function DedupeMatchesCard() {
           <div className="mt-2 text-[11px] text-white/60 space-y-1">
             <p>
               <span className="text-white/40">Mode :</span>{' '}
-              <span className="text-[#D91CD2]">{report.dryRun ? 'simulation' : 'appliqué'}</span>{' · '}
+              <span className="text-accent">{report.dryRun ? 'simulation' : 'appliqué'}</span>{' · '}
               <span className="text-white/40">Scanned :</span> {report.totalScanned}{' · '}
               <span className="text-white/40">Paires :</span> {report.totalGroups}{' · '}
               <span className="text-white/40">Kept :</span> {report.totalKept}{' · '}

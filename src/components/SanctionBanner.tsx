@@ -45,7 +45,7 @@ function getLevelMessage(sanction: UserSanction): { headline: string; toneClass:
     case 'warning':
       return {
         headline: 'Avertissement enregistré sur ton compte',
-        toneClass: 'bg-[#D91CD2]/20 border-[#D91CD2]/40',
+        toneClass: 'bg-accent/20 border-accent/40',
       };
     case 'suspension_7d':
     case 'suspension_30d': {
@@ -121,7 +121,7 @@ export function SanctionBanner() {
               Tu peux faire appel 1× —{' '}
               <a
                 href={mailtoHref}
-                className="text-white underline hover:text-[#D91CD2] transition-colors"
+                className="text-white underline hover:text-accent transition-colors"
               >
                 écris-nous à {APPEAL_EMAIL}
               </a>

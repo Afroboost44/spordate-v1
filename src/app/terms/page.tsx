@@ -172,7 +172,7 @@ export default function TermsPage() {
             <p className="mt-3">
               <span className="text-white">Droit d&apos;appel (1× par niveau de sanction).</span>{' '}
               L&apos;Utilisateur sanctionné dispose d&apos;un droit d&apos;appel exerçable une seule fois par
-              niveau de sanction. L&apos;appel se formule par écrit à <span className="text-[#D91CD2]">contact@afroboosteur.com</span>{' '}
+              niveau de sanction. L&apos;appel se formule par écrit à <span className="text-accent">contact@afroboosteur.com</span>{' '}
               en répondant à l&apos;e-mail de notification, en exposant les motifs détaillés et les
               éléments contradictoires. Délai de réponse de notre équipe modération : 7 jours
               calendaires (SLA Phase 7 ; 48 heures à terme avec équipe modération étendue).
@@ -271,7 +271,7 @@ export default function TermsPage() {
               <span className="text-white">suggestions contextuelles d&apos;activités</span>{' '}
               générées par IA dans le chat (cf. section 7.quinquies) sont désactivables à tout
               moment via le toggle dédié dans{' '}
-              <Link href="/profile" className="text-[#D91CD2] hover:underline">votre profil</Link>{' '}
+              <Link href="/profile" className="text-accent hover:underline">votre profil</Link>{' '}
               (rubrique Confidentialité).
             </p>
           </section>
@@ -292,7 +292,7 @@ export default function TermsPage() {
               tous les Utilisateurs (intérêt légitime prépondérant — art. 31 nLPD ; les suggestions
               favorisent la valeur d&apos;usage du service sans transfert nouveau de données). Tout
               Utilisateur peut désactiver les suggestions IA à tout moment via le toggle dédié
-              dans <Link href="/profile" className="text-[#D91CD2] hover:underline">son profil</Link>{' '}
+              dans <Link href="/profile" className="text-accent hover:underline">son profil</Link>{' '}
               (rubrique Confidentialité). Lorsqu&apos;un membre du chat désactive les suggestions,
               aucune suggestion n&apos;est générée pour ce chat (consensus opt-out).
             </p>
@@ -324,7 +324,7 @@ export default function TermsPage() {
             <h2 className="text-lg text-white font-normal mb-3">10. Protection des données</h2>
             <p>
               Le traitement des données personnelles est régi par notre{' '}
-              <Link href="/privacy" className="text-[#D91CD2] hover:underline">
+              <Link href="/privacy" className="text-accent hover:underline">
                 Politique de Confidentialité
               </Link>
               , établie conformément à la Loi fédérale sur la protection des données (nLPD, RS 235.1)

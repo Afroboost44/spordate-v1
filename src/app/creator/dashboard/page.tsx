@@ -102,7 +102,7 @@ export default function CreatorDashboardPage() {
   if (loading) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center">
-        <Loader2 className="h-8 w-8 text-[#D91CD2] animate-spin" />
+        <Loader2 className="h-8 w-8 text-accent animate-spin" />
       </div>
     );
   }
@@ -131,7 +131,7 @@ export default function CreatorDashboardPage() {
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
-                <Wallet className="h-4 w-4 text-[#D91CD2]" />
+                <Wallet className="h-4 w-4 text-accent" />
                 <span className="text-xs text-white/40 uppercase tracking-wider">Gains totaux</span>
               </div>
               <p className="text-2xl font-light text-white">{formatCHF(creator.totalEarnings)}</p>
@@ -183,7 +183,7 @@ export default function CreatorDashboardPage() {
                 onClick={handleCopyLink}
                 variant="outline"
                 size="icon"
-                className="h-12 w-12 border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10"
+                className="h-12 w-12 border-accent/30 text-accent hover:bg-accent/10"
               >
                 <Copy className="h-4 w-4" />
               </Button>
@@ -192,12 +192,12 @@ export default function CreatorDashboardPage() {
                   url={creator.referralLink}
                   label="Lien créateur"
                   code={creator.referralCode}
-                  className="h-12 w-12 inline-flex items-center justify-center rounded-md border border-[#D91CD2]/30 text-[#D91CD2] hover:bg-[#D91CD2]/10 transition active:scale-95"
+                  className="h-12 w-12 inline-flex items-center justify-center rounded-md border border-accent/30 text-accent hover:bg-accent/10 transition active:scale-95"
                 />
               )}
             </div>
             <p className="text-xs text-white/30">
-              Commission : <span className="text-[#D91CD2]">{(creator.commissionRate * 100).toFixed(0)}%</span> sur chaque achat via ton lien
+              Commission : <span className="text-accent">{(creator.commissionRate * 100).toFixed(0)}%</span> sur chaque achat via ton lien
             </p>
           </CardContent>
         </Card>
@@ -213,7 +213,7 @@ export default function CreatorDashboardPage() {
             <Button
               onClick={handleRequestPayout}
               disabled={requestingPayout || creator.pendingPayout < 10}
-              className="h-14 px-8 bg-white/5 backdrop-blur-xl border border-[#D91CD2] text-white font-light tracking-wider uppercase hover:bg-[#D91CD2]/10 disabled:opacity-30"
+              className="h-14 px-8 bg-white/5 backdrop-blur-xl border border-accent text-white font-light tracking-wider uppercase hover:bg-accent/10 disabled:opacity-30"
             >
               {requestingPayout ? (
                 <Loader2 className="h-4 w-4 animate-spin mr-2" />

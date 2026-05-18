@@ -24,7 +24,7 @@
  * Charte stricte :
  * - Bouton outlined accent #D91CD2 (CTA secondaire — distingue du "Réserver" plein violet)
  * - Hover : fill #D91CD2 + text-black (transition-colors, pas de scale → reduced-motion)
- * - focus-visible:ring-2 ring-[#D91CD2] cohérent avec ReserveButton
+ * - focus-visible:ring-2 ring-accent cohérent avec ReserveButton
  *
  * Accessibilité :
  * - <article> sémantique avec aria-labelledby (id slugifié)
@@ -98,7 +98,7 @@ export function WaitlistCityCard({
         className="flex items-center gap-2 text-lg text-white font-medium leading-tight"
       >
         <MapPin
-          className="h-5 w-5 text-[#D91CD2] flex-shrink-0"
+          className="h-5 w-5 text-accent flex-shrink-0"
           aria-hidden="true"
         />
         <span>{city}</span>
@@ -111,7 +111,7 @@ export function WaitlistCityCard({
         </span>
         <p className="flex items-center gap-2 text-sm text-white font-light">
           <Calendar
-            className="h-4 w-4 text-[#D91CD2] flex-shrink-0"
+            className="h-4 w-4 text-accent flex-shrink-0"
             aria-hidden="true"
           />
           <span>{expectedDate}</span>
@@ -122,7 +122,7 @@ export function WaitlistCityCard({
       {showCounter && (
         <p className="flex items-center gap-2 text-sm text-white/70 font-light">
           <Users
-            className="h-4 w-4 text-[#D91CD2] flex-shrink-0"
+            className="h-4 w-4 text-accent flex-shrink-0"
             aria-hidden="true"
           />
           <span>
@@ -138,7 +138,7 @@ export function WaitlistCityCard({
       <a
         href={mailtoHref}
         aria-describedby={dateDescId}
-        className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-[#D91CD2] text-[#D91CD2] text-sm font-medium hover:bg-[#D91CD2] hover:text-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#D91CD2] focus-visible:ring-offset-2 focus-visible:ring-offset-black"
+        className="w-full inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl border border-accent text-accent text-sm font-medium hover:bg-accent hover:text-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black"
       >
         <span>Me notifier</span>
         <ArrowRight className="h-4 w-4" aria-hidden="true" />

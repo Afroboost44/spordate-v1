@@ -41,7 +41,7 @@ const VISUAL_CONFIG: Record<string, Omit<CreditPackage, 'id' | 'credits' | 'pric
   },
   '3_dates': {
     subtitle: 'Multiplie les rencontres',
-    color: 'from-[#D91CD2] to-[#E91E63]',
+    color: 'from-accent to-[#E91E63]',
     icon: <Star className="h-6 w-6" />,
     badge: 'Populaire',
     features: ['Économise sur le prix/crédit', 'Accès prioritaire Afroboost & Zumba', 'Offre la plus choisie'],
@@ -207,7 +207,7 @@ export default function PaymentPage() {
 
           {verifyingPayment ? (
             <div className="flex items-center justify-center gap-2">
-              <Loader2 className="h-4 w-4 text-[#D91CD2] animate-spin" />
+              <Loader2 className="h-4 w-4 text-accent animate-spin" />
               <p className="text-white/40 text-sm">Activation de vos crédits...</p>
             </div>
           ) : creditsVerified ? (
@@ -219,7 +219,7 @@ export default function PaymentPage() {
           <div className="space-y-3 pt-2">
             <Button
               onClick={() => router.push('/activities')}
-              className="w-full h-14 bg-gradient-to-r from-[#D91CD2] to-[#E91E63] text-white rounded-full text-base"
+              className="w-full h-14 bg-gradient-to-r from-accent to-[#E91E63] text-white rounded-full text-base"
             >
               Découvrir des profils
             </Button>
@@ -249,7 +249,7 @@ export default function PaymentPage() {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
-          <Loader2 className="h-12 w-12 text-[#D91CD2] animate-spin mx-auto mb-4" />
+          <Loader2 className="h-12 w-12 text-accent animate-spin mx-auto mb-4" />
           <p className="text-white/40">Redirection vers le paiement sécurisé...</p>
         </div>
       </div>
@@ -268,7 +268,7 @@ export default function PaymentPage() {
       <div className="max-w-4xl mx-auto px-4 py-8 md:py-16">
         {/* Header */}
         <div className="text-center mb-10 md:mb-14">
-          <p className="text-xs text-[#D91CD2] uppercase tracking-[0.3em] mb-3">Crédits Sport Date</p>
+          <p className="text-xs text-accent uppercase tracking-[0.3em] mb-3">Crédits Sport Date</p>
           <h1 className="text-3xl md:text-5xl font-light text-white tracking-tight mb-3">
             Trouve ton match.<br />Bouge ensemble.
           </h1>
@@ -284,7 +284,7 @@ export default function PaymentPage() {
               key={pkg.id}
               className={`relative overflow-hidden transition-all duration-300 cursor-pointer group ${
                 pkg.popular
-                  ? 'bg-[#1A1A1A] border-[#D91CD2]/40 shadow-lg shadow-[#D91CD2]/10 md:scale-105'
+                  ? 'bg-[#1A1A1A] border-accent/40 shadow-lg shadow-accent/10 md:scale-105'
                   : 'bg-[#111] border-white/5 hover:border-white/15'
               }`}
               onClick={() => setSelectedId(pkg.id)}
@@ -332,7 +332,7 @@ export default function PaymentPage() {
                   onClick={(e) => { e.stopPropagation(); handlePayment(pkg); }}
                   className={`w-full h-12 rounded-full font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2 transition-all active:scale-[0.98] ${
                     pkg.popular
-                      ? `bg-gradient-to-r ${pkg.color} text-white shadow-lg shadow-[#D91CD2]/20`
+                      ? `bg-gradient-to-r ${pkg.color} text-white shadow-lg shadow-accent/20`
                       : 'bg-white/5 backdrop-blur-xl border border-white/10 text-white hover:bg-white/10'
                   }`}
                 >
@@ -358,9 +358,9 @@ export default function PaymentPage() {
 
         {/* Bonus section */}
         <div className="max-w-md mx-auto">
-          <Card className="bg-[#D91CD2]/5 border-[#D91CD2]/15">
+          <Card className="bg-accent/5 border-accent/15">
             <CardContent className="p-5 flex items-center gap-4">
-              <Gift className="h-8 w-8 text-[#D91CD2] flex-shrink-0" />
+              <Gift className="h-8 w-8 text-accent flex-shrink-0" />
               <div>
                 <p className="text-sm text-white font-medium">Invite un ami = crédits offerts</p>
                 <p className="text-xs text-white/30">Partage ton lien de parrainage et gagne des crédits gratuits</p>

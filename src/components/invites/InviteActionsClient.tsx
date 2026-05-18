@@ -148,7 +148,7 @@ export function InviteActionsClient({
         onClick={handleAccept}
         disabled={busy !== null}
         className={cn(
-          'flex-1 bg-[#D91CD2] text-white font-light hover:opacity-90',
+          'flex-1 bg-accent text-white font-light hover:opacity-90',
           'h-12 rounded-xl text-sm',
         )}
       >

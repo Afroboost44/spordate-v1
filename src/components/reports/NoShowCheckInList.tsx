@@ -99,7 +99,7 @@ function ParticipantRow({ participant, onMark, onCancel }: RowProps) {
       <div className="flex flex-col flex-1 min-w-0 gap-0.5">
         <p className="text-sm text-white font-medium truncate">{participant.displayName}</p>
         {participant.hasNoShow === true && (
-          <p className="text-xs text-[#D91CD2]/90 font-light">No-show enregistré</p>
+          <p className="text-xs text-accent/90 font-light">No-show enregistré</p>
         )}
       </div>
       {participant.hasNoShow !== true ? (
@@ -109,7 +109,7 @@ function ParticipantRow({ participant, onMark, onCancel }: RowProps) {
           size="sm"
           onClick={handleMark}
           disabled={submitting}
-          className="h-8 px-3 border-white/10 text-white/70 hover:bg-white/5 hover:text-[#D91CD2] hover:border-[#D91CD2]/40 font-light shrink-0 disabled:opacity-40"
+          className="h-8 px-3 border-white/10 text-white/70 hover:bg-white/5 hover:text-accent hover:border-accent/40 font-light shrink-0 disabled:opacity-40"
         >
           {submitting ? (
             <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" aria-hidden="true" />

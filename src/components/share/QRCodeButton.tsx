@@ -104,7 +104,7 @@ export function QRCodeButton({ url, label, code, filename, className }: QRCodeBu
         title={`Afficher le QR code — ${label}`}
         className={
           className ??
-          'inline-flex items-center justify-center w-9 h-9 rounded-md border border-white/10 text-white/70 hover:text-white hover:border-[#D91CD2]/40 hover:bg-[#D91CD2]/10 transition active:scale-95'
+          'inline-flex items-center justify-center w-9 h-9 rounded-md border border-white/10 text-white/70 hover:text-white hover:border-accent/40 hover:bg-accent/10 transition active:scale-95'
         }
       >
         <QrCode className="h-4 w-4" />
@@ -114,7 +114,7 @@ export function QRCodeButton({ url, label, code, filename, className }: QRCodeBu
         <DialogContent className="bg-[#0A0A0A] border-white/10 text-white max-w-md">
           <DialogHeader>
             <DialogTitle className="text-white flex items-center gap-2">
-              <QrCode className="h-5 w-5 text-[#D91CD2]" />
+              <QrCode className="h-5 w-5 text-accent" />
               {label}
             </DialogTitle>
             <DialogDescription className="text-white/40 text-xs break-all">
@@ -136,7 +136,7 @@ export function QRCodeButton({ url, label, code, filename, className }: QRCodeBu
             <Button
               onClick={handleDownload}
               disabled={!dataUrl || loading}
-              className="flex-1 bg-[#D91CD2] hover:bg-[#D91CD2]/90 text-white h-10"
+              className="flex-1 bg-accent hover:bg-accent/90 text-white h-10"
             >
               <Download className="h-4 w-4 mr-2" />
               Télécharger PNG

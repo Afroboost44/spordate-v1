@@ -101,8 +101,8 @@ export function MediaCarousel({ items, className = '' }: MediaCarouselProps) {
         {/* BUG #17 — flèches : visibles md+ uniquement (mobile = swipe seul) */}
         {layout.showArrows && (
           <>
-            <CarouselPrevious className="hidden md:inline-flex -left-4 bg-black/60 border-white/15 text-white hover:bg-[#D91CD2]/20 hover:border-[#D91CD2]/40" />
-            <CarouselNext className="hidden md:inline-flex -right-4 bg-black/60 border-white/15 text-white hover:bg-[#D91CD2]/20 hover:border-[#D91CD2]/40" />
+            <CarouselPrevious className="hidden md:inline-flex -left-4 bg-black/60 border-white/15 text-white hover:bg-accent/20 hover:border-accent/40" />
+            <CarouselNext className="hidden md:inline-flex -right-4 bg-black/60 border-white/15 text-white hover:bg-accent/20 hover:border-accent/40" />
             {/* BUG #33 — Counter badge "‹ X/Y ›" bottom-right pour rendre
                 explicite qu'il y a plusieurs medias à swiper (Bassi : "l'user
                 peut oublier qu'il existe d'autres image et vidéo"). Pattern
@@ -125,7 +125,7 @@ export function MediaCarousel({ items, className = '' }: MediaCarouselProps) {
               type="button"
               onClick={() => api?.scrollTo(i)}
               aria-label={`Aller au média ${i + 1}`}
-              className={`w-2 h-2 rounded-full transition-all shadow-sm ${i === currentSlide ? 'bg-[#D91CD2] w-5' : 'bg-white/40 hover:bg-white/70'}`}
+              className={`w-2 h-2 rounded-full transition-all shadow-sm ${i === currentSlide ? 'bg-accent w-5' : 'bg-white/40 hover:bg-white/70'}`}
             />
           ))}
         </div>
@@ -191,7 +191,7 @@ function MediaItemRender({
             />
             <div className="absolute inset-0 flex items-center justify-center bg-black/30 group-hover:bg-black/40 transition-colors">
               <div className="bg-black/60 rounded-full p-3 backdrop-blur-sm border border-white/20">
-                <Play className="h-7 w-7 text-[#D91CD2] fill-[#D91CD2]" aria-hidden="true" />
+                <Play className="h-7 w-7 text-accent fill-accent" aria-hidden="true" />
               </div>
             </div>
           </button>

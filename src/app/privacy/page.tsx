@@ -256,7 +256,7 @@ export default function PrivacyPage() {
               dans le chat sont activées par défaut sur la base d&apos;un intérêt légitime
               prépondérant (art. 31 nLPD). Vous pouvez les désactiver à tout moment via le toggle
               dédié dans la rubrique « Confidentialité » de{' '}
-              <Link href="/profile" className="text-[#D91CD2] hover:underline">votre profil</Link>.
+              <Link href="/profile" className="text-accent hover:underline">votre profil</Link>.
               Lorsqu&apos;un membre du chat désactive les suggestions, aucune suggestion n&apos;est
               générée pour ce chat (consensus opt-out).
             </p>

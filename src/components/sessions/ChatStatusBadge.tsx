@@ -55,7 +55,7 @@ export function ChatStatusBadge({
     : 'text-sm px-2.5 py-1 gap-2';
 
   const iconSize = size === 'sm' ? 'h-3 w-3' : 'h-3.5 w-3.5';
-  const iconColor = meta.active ? 'text-[#D91CD2]' : 'text-white/40';
+  const iconColor = meta.active ? 'text-accent' : 'text-white/40';
   const textColor = meta.active ? 'text-white' : 'text-white/60';
 
   return (

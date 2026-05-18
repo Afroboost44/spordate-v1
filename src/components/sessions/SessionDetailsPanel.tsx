@@ -125,7 +125,7 @@ export function SessionDetailsPanel({
             className="flex gap-3 items-start py-3 border-b border-white/5 last:border-0"
           >
             <Icon
-              className="h-4 w-4 text-[#D91CD2] flex-shrink-0 mt-0.5"
+              className="h-4 w-4 text-accent flex-shrink-0 mt-0.5"
               aria-hidden="true"
             />
             <div className="flex flex-col gap-0.5 min-w-0 flex-1">

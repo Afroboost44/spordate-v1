@@ -165,7 +165,7 @@ export function SessionEditModal({
         description: data?.mode === 'custom'
           ? `Prix : ${data.effectivePriceCHF} CHF`
           : `Prix : ${activityDefaultPriceCHF} CHF (héritage activité)`,
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
       onOpenChange(false);
       if (onSaved) onSaved();
@@ -198,7 +198,7 @@ export function SessionEditModal({
       toast({
         title: 'Session supprimée ✓',
         description: 'La session ne sera plus visible.',
-        className: 'bg-zinc-900 border-[#D91CD2]/40 text-white',
+        className: 'bg-zinc-900 border-accent/40 text-white',
       });
       setConfirmDeleteOpen(false);
       onOpenChange(false);
@@ -219,7 +219,7 @@ export function SessionEditModal({
             <DialogTitle className="text-white">Modifier la session</DialogTitle>
             <DialogDescription className="text-white/50 text-xs">
               {activityLabel && (
-                <span>Activité : <span className="text-[#D91CD2]">{activityLabel}</span></span>
+                <span>Activité : <span className="text-accent">{activityLabel}</span></span>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -324,7 +324,7 @@ export function SessionEditModal({
                 type="button"
                 onClick={handleSave}
                 disabled={!canSave}
-                className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white"
+                className="bg-accent hover:bg-accent/80 text-white"
               >
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Enregistrer

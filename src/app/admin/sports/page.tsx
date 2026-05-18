@@ -173,7 +173,7 @@ export default function AdminSportsPage() {
         </div>
 
         {/* Phase 9 SC0 c1/X — Status badge admin (granted via AdminGuard layout) */}
-        <div className="text-center py-2 px-4 rounded-lg text-sm bg-[#D91CD2]/10 text-[#D91CD2] border border-[#D91CD2]/30">
+        <div className="text-center py-2 px-4 rounded-lg text-sm bg-accent/10 text-accent border border-accent/30">
           🔓 Mode édition activé (admin)
         </div>
 
@@ -211,7 +211,7 @@ export default function AdminSportsPage() {
             </div>
             <Button
               onClick={handleAddSport}
-              className="w-full h-9 bg-[#D91CD2]"
+              className="w-full h-9 bg-accent"
             >
               <Plus className="h-4 w-4 mr-2" />
               Ajouter

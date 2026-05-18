@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { auth, isFirebaseConfigured, db } from '@/lib/firebase';
 import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { collection, query, where, getDocs, limit, doc, setDoc, serverTimestamp, GeoPoint } from 'firebase/firestore';
+import { SpordateurLogo } from '@/components/SpordateurLogo';
 
 type PartnerStatus = 'loading' | 'no_partner' | 'needs_payment' | 'pending_approval' | 'active' | 'cancelled' | 'refused';
 
@@ -270,13 +271,12 @@ export default function PartnerLoginPage() {
             <ArrowLeft className="h-5 w-5" />
           </button>
           <Link href="/" className="flex items-center gap-2">
-            {/* Phase 9.5 c19 — vrai logo Afroboost cercle (était Dumbbell placeholder) */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/icons/icon-192.png?v=29" alt="Spordateur" width={32} height={32} />
+            {/* Accent feature — SVG inline (admin Couleur principale). */}
+            <SpordateurLogo className="h-8 w-8 text-accent" />
             <span className="text-lg font-light tracking-widest uppercase">Spordateur</span>
           </Link>
         </div>
-        <Link href="/partner/register" className="text-sm text-[#D91CD2] hover:text-[#D91CD2]/80 transition font-light">
+        <Link href="/partner/register" className="text-sm text-accent hover:text-accent/80 transition font-light">
           Devenir partenaire
         </Link>
       </div>
@@ -297,7 +297,7 @@ export default function PartnerLoginPage() {
                 </div>
                 <h1 className="text-2xl font-extralight tracking-tight">Compte non partenaire</h1>
                 <p className="text-white/50 font-light">Ce compte n&apos;est pas enregistré comme partenaire.</p>
-                <Button asChild className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold h-12 rounded-full px-8">
+                <Button asChild className="bg-accent hover:bg-accent/80 text-white font-semibold h-12 rounded-full px-8">
                   <Link href="/partner/register">Devenir partenaire</Link>
                 </Button>
               </>
@@ -312,11 +312,11 @@ export default function PartnerLoginPage() {
                 <p className="text-white/50 font-light">
                   Bienvenue <strong className="text-white">{partnerName}</strong>. Activez votre abonnement pour accéder au portail.
                 </p>
-                <div className="bg-[#D91CD2]/5 border border-[#D91CD2]/20 rounded-2xl p-6">
+                <div className="bg-accent/5 border border-accent/20 rounded-2xl p-6">
                   <p className="text-4xl font-extralight text-white">49 <span className="text-lg text-white/40">CHF/mois</span></p>
                 </div>
                 {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-                <Button onClick={handlePayNow} disabled={isLoading} className="w-full bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold h-14 rounded-full">
+                <Button onClick={handlePayNow} disabled={isLoading} className="w-full bg-accent hover:bg-accent/80 text-white font-semibold h-14 rounded-full">
                   {isLoading ? <Loader2 className="animate-spin mr-2" /> : <CreditCard className="mr-2 h-4 w-4" />}
                   Payer l&apos;abonnement
                 </Button>
@@ -356,7 +356,7 @@ export default function PartnerLoginPage() {
                 <h1 className="text-2xl font-extralight tracking-tight text-red-400">Abonnement annulé</h1>
                 <p className="text-white/50 font-light">Votre abonnement a été annulé. Renouvelez-le pour retrouver l&apos;accès.</p>
                 {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-                <Button onClick={handlePayNow} disabled={isLoading} className="w-full bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold h-14 rounded-full">
+                <Button onClick={handlePayNow} disabled={isLoading} className="w-full bg-accent hover:bg-accent/80 text-white font-semibold h-14 rounded-full">
                   {isLoading ? <Loader2 className="animate-spin mr-2" /> : <CreditCard className="mr-2 h-4 w-4" />}
                   Renouveler l&apos;abonnement
                 </Button>
@@ -406,8 +406,8 @@ export default function PartnerLoginPage() {
             ) : (
               <form onSubmit={handleForgotPassword} className="space-y-4">
                 <Input type="email" placeholder="Votre email professionnel" value={email} onChange={e => setEmail(e.target.value)} required
-                  className="bg-black/50 border-white/10 text-white h-12 rounded-xl focus:border-[#D91CD2]/50" />
-                <Button disabled={isLoading} type="submit" className="w-full bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold h-12 rounded-full">
+                  className="bg-black/50 border-white/10 text-white h-12 rounded-xl focus:border-accent/50" />
+                <Button disabled={isLoading} type="submit" className="w-full bg-accent hover:bg-accent/80 text-white font-semibold h-12 rounded-full">
                   {isLoading ? <Loader2 className="animate-spin mr-2" /> : null} Envoyer le lien
                 </Button>
                 <button type="button" onClick={() => setView('login')} className="w-full text-sm text-white/30 hover:text-white/50 font-light py-2">
@@ -429,8 +429,8 @@ export default function PartnerLoginPage() {
       <div className="flex items-center justify-center min-h-[85vh] px-4">
         <div className="max-w-md w-full space-y-8">
           <div className="text-center space-y-4">
-            <div className="w-16 h-16 rounded-2xl bg-[#D91CD2]/10 border border-[#D91CD2]/20 flex items-center justify-center mx-auto">
-              <Building className="h-8 w-8 text-[#D91CD2]" />
+            <div className="w-16 h-16 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto">
+              <Building className="h-8 w-8 text-accent" />
             </div>
             <h1 className="text-3xl font-extralight tracking-tight">Espace Partenaire</h1>
           </div>
@@ -442,18 +442,18 @@ export default function PartnerLoginPage() {
               <div>
                 <Label className="text-white/40 text-xs font-light">Email Professionnel</Label>
                 <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-                  className="bg-black/50 border-white/10 text-white h-12 rounded-xl mt-1.5 focus:border-[#D91CD2]/50" />
+                  className="bg-black/50 border-white/10 text-white h-12 rounded-xl mt-1.5 focus:border-accent/50" />
               </div>
               <div>
                 <div className="flex justify-between items-center">
                   <Label className="text-white/40 text-xs font-light">Mot de passe</Label>
-                  <button type="button" onClick={() => setView('forgot')} className="text-xs text-[#D91CD2] hover:underline font-light">
+                  <button type="button" onClick={() => setView('forgot')} className="text-xs text-accent hover:underline font-light">
                     Mot de passe oublié ?
                   </button>
                 </div>
                 <div className="relative mt-1.5">
                   <Input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} required
-                    className="bg-black/50 border-white/10 text-white h-12 rounded-xl pr-12 focus:border-[#D91CD2]/50" />
+                    className="bg-black/50 border-white/10 text-white h-12 rounded-xl pr-12 focus:border-accent/50" />
                   <button type="button" onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60 transition">
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
@@ -462,7 +462,7 @@ export default function PartnerLoginPage() {
               </div>
             </div>
 
-            <Button disabled={isLoading} type="submit" className="w-full bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white font-semibold h-14 text-base rounded-full">
+            <Button disabled={isLoading} type="submit" className="w-full bg-accent hover:bg-accent/80 text-white font-semibold h-14 text-base rounded-full">
               {isLoading ? <Loader2 className="animate-spin mr-2" /> : <Lock className="mr-2 h-4 w-4" />}
               Se connecter
             </Button>
@@ -492,7 +492,7 @@ export default function PartnerLoginPage() {
           </Button>
 
           <p className="text-center text-sm text-white/30 font-light">
-            Pas encore partenaire ? <Link href="/partner/register" className="text-[#D91CD2] hover:underline">Faites une demande ici</Link>
+            Pas encore partenaire ? <Link href="/partner/register" className="text-accent hover:underline">Faites une demande ici</Link>
           </p>
         </div>
       </div>

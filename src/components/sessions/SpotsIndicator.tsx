@@ -59,7 +59,7 @@ export function SpotsIndicator({
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
       <div className={`flex items-center gap-2 ${textSize} text-white/80 font-light`}>
-        <Users className="h-3.5 w-3.5 text-[#D91CD2] flex-shrink-0" aria-hidden="true" />
+        <Users className="h-3.5 w-3.5 text-accent flex-shrink-0" aria-hidden="true" />
         <span>{labelText}</span>
       </div>
       <div
@@ -71,7 +71,7 @@ export function SpotsIndicator({
         aria-valuemax={safeMax}
       >
         <div
-          className="h-full bg-[#D91CD2] rounded-full"
+          className="h-full bg-accent rounded-full"
           style={{ width: `${fillRatio * 100}%` }}
         />
       </div>

@@ -149,7 +149,7 @@ function PartnerCardMedia({ act }: { act: Activity }) {
         )}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="bg-black/50 rounded-full p-2 backdrop-blur-sm">
-            <Play className="h-5 w-5 text-[#D91CD2] fill-[#D91CD2]" aria-hidden="true" />
+            <Play className="h-5 w-5 text-accent fill-accent" aria-hidden="true" />
           </div>
         </div>
         <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent pointer-events-none" />
@@ -565,7 +565,7 @@ export default function PartnerOffersPage() {
     await loadActivities();
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 text-[#D91CD2] animate-spin" /></div>;
+  if (loading) return <div className="flex items-center justify-center h-64"><Loader2 className="h-8 w-8 text-accent animate-spin" /></div>;
 
   return (
     <div className="space-y-6">
@@ -574,7 +574,7 @@ export default function PartnerOffersPage() {
           <h1 className="text-2xl font-light text-white tracking-tight">Mes Activités</h1>
           <p className="text-sm text-white/40">Créez, modifiez ou supprimez vos activités sportives</p>
         </div>
-        <Button onClick={openCreate} className="bg-white/5 backdrop-blur-xl border border-[#D91CD2] text-white font-light tracking-wider uppercase h-12 px-6 hover:bg-[#D91CD2]/10">
+        <Button onClick={openCreate} className="bg-white/5 backdrop-blur-xl border border-accent text-white font-light tracking-wider uppercase h-12 px-6 hover:bg-accent/10">
           <PlusCircle className="mr-2 h-4 w-4" /> Nouvelle activité
         </Button>
       </div>
@@ -611,7 +611,7 @@ export default function PartnerOffersPage() {
                   <p className="text-xs text-white/30 mb-3 line-clamp-2">{act.description}</p>
                 )}
                 <div className="space-y-2 text-sm text-white/50 mb-4">
-                  <p className="flex items-center gap-2"><span className="text-[#D91CD2]">{act.sport}</span> · <span className="text-white font-medium">{act.price} CHF</span> · <span>{act.duration || 60} min</span></p>
+                  <p className="flex items-center gap-2"><span className="text-accent">{act.sport}</span> · <span className="text-white font-medium">{act.price} CHF</span> · <span>{act.duration || 60} min</span></p>
                   <p className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {act.city}{act.address ? ` — ${act.address}` : ''}</p>
                   <p className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> {act.schedule}</p>
                   <p className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {act.currentParticipants || 0}/{act.maxParticipants} participants</p>
@@ -654,7 +654,7 @@ export default function PartnerOffersPage() {
               </div>
               <div className="grid gap-2">
                 <Label className="text-white/50">Description</Label>
-                <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Décrivez votre activité, l'ambiance, ce que les participants vont vivre..." className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[80px] resize-none focus:outline-none focus:ring-1 focus:ring-[#D91CD2]" />
+                <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Décrivez votre activité, l'ambiance, ce que les participants vont vivre..." className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[80px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
               </div>
               {/* Phase 9.5 c4 — MediaManager (drag&drop reorder + image upload + URL embed) */}
               {user && (
@@ -764,7 +764,7 @@ export default function PartnerOffersPage() {
                     <button
                       type="button"
                       onClick={populateSuggestedTiers}
-                      className="text-[11px] text-[#D91CD2]/70 hover:text-[#D91CD2] underline transition-colors"
+                      className="text-[11px] text-accent/70 hover:text-accent underline transition-colors"
                     >
                       {t('partner_pricing_reset_button')}
                     </button>
@@ -783,7 +783,7 @@ export default function PartnerOffersPage() {
               {editing && (
                 <div className="rounded-xl border border-white/10 bg-[#1A1A1A]/40 p-4 space-y-3">
                   <div className="flex items-center gap-2">
-                    <Calendar className="h-4 w-4 text-[#D91CD2]" />
+                    <Calendar className="h-4 w-4 text-accent" />
                     <Label className="text-white text-sm font-medium">Sessions à venir</Label>
                     {editingSessions.length > 0 && (
                       <span className="text-[10px] text-white/40 ml-auto">
@@ -797,14 +797,14 @@ export default function PartnerOffersPage() {
                     size="sm"
                     variant="outline"
                     onClick={handleOpenCreateSession}
-                    className="w-full border-dashed border-[#D91CD2]/40 text-[#D91CD2] hover:bg-[#D91CD2]/5 hover:border-[#D91CD2]/60 h-9"
+                    className="w-full border-dashed border-accent/40 text-accent hover:bg-accent/5 hover:border-accent/60 h-9"
                   >
                     <PlusCircle className="h-3.5 w-3.5 mr-1.5" />
                     Ajouter une session
                   </Button>
                   {loadingEditingSessions ? (
                     <div className="flex justify-center py-4">
-                      <Loader2 className="h-4 w-4 text-[#D91CD2] animate-spin" />
+                      <Loader2 className="h-4 w-4 text-accent animate-spin" />
                     </div>
                   ) : editingSessions.length === 0 ? (
                     <p className="text-[11px] text-white/40 font-light py-2">
@@ -843,7 +843,7 @@ export default function PartnerOffersPage() {
                                   OFFERT
                                 </Badge>
                               ) : (
-                                <span className="text-xs font-medium text-[#D91CD2]">{effectivePriceCHF} CHF</span>
+                                <span className="text-xs font-medium text-accent">{effectivePriceCHF} CHF</span>
                               )}
                               {isFrozen && (
                                 <Badge className="bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[9px] h-5">
@@ -918,7 +918,7 @@ export default function PartnerOffersPage() {
             </div>
             <DialogFooter className="gap-2">
               <DialogClose asChild><Button type="button" variant="outline" className="border-white/10">Annuler</Button></DialogClose>
-              <Button type="submit" disabled={saving} className="bg-[#D91CD2] hover:bg-[#D91CD2]/80 text-white">
+              <Button type="submit" disabled={saving} className="bg-accent hover:bg-accent/80 text-white">
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{editing ? "Mettre à jour" : "Publier"}
               </Button>
             </DialogFooter>

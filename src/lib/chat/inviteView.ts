@@ -125,7 +125,7 @@ export function resolveInviteCardView(
     case 'pending':
     default:
       statusLabel = 'En attente';
-      statusBadgeClass = 'bg-[#D91CD2]/15 text-[#D91CD2] border-[#D91CD2]/30';
+      statusBadgeClass = 'bg-accent/15 text-accent border-accent/30';
       break;
   }
 

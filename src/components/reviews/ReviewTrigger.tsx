@@ -132,7 +132,7 @@ export function ReviewTrigger({
       <Button
         type="button"
         onClick={() => setOpen(true)}
-        className={`bg-[#D91CD2] text-black font-medium hover:bg-[#D91CD2]/90 ${className}`}
+        className={`bg-accent text-black font-medium hover:bg-accent/90 ${className}`}
       >
         <Star className="h-4 w-4 mr-2" aria-hidden="true" />
         Laisser un avis

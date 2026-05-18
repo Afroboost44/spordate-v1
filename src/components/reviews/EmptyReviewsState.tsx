@@ -31,7 +31,7 @@ export function EmptyReviewsState({
         aria-live="polite"
       >
         <Sparkles
-          className="h-10 w-10 text-[#D91CD2]"
+          className="h-10 w-10 text-accent"
           aria-hidden="true"
           strokeWidth={1.25}
         />
@@ -52,7 +52,7 @@ export function EmptyReviewsState({
       aria-live="polite"
     >
       <MessageCircle
-        className="h-10 w-10 text-[#D91CD2]"
+        className="h-10 w-10 text-accent"
         aria-hidden="true"
         strokeWidth={1.25}
       />
