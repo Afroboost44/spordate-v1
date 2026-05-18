@@ -15,6 +15,38 @@
 import type { NextRequest } from 'next/server';
 
 // =====================================================================
+// parseServiceAccountKeyDefensive (B2 hotfix)
+// =====================================================================
+
+/**
+ * Parse défensif de FIREBASE_SERVICE_ACCOUNT_KEY. La valeur téléchargée via
+ * `vercel env pull` contient parfois des newlines LITTÉRAUX (char 10) dans
+ * la `private_key`, ce qui casse JSON.parse natif avec :
+ *   SyntaxError: Bad control character in string literal in JSON at position N
+ *
+ * Stratégie : try direct, sinon re-escape les newlines (`\n` real → `\\n` JSON
+ * escape sequence) et les CR (`\r` real → `\\r`) avant retry. JSON.parse les
+ * reconvertit ensuite en char 10/13 dans la string résolue, ce que Firebase
+ * Admin SDK `cert()` attend nativement.
+ *
+ * Exporté pour test unitaire (helper pur).
+ */
+export function parseServiceAccountKeyDefensive(raw: string): Record<string, unknown> {
+  try {
+    return JSON.parse(raw);
+  } catch (firstErr) {
+    try {
+      const repaired = raw.replace(/\n/g, '\\n').replace(/\r/g, '\\r');
+      return JSON.parse(repaired);
+    } catch (secondErr) {
+      throw new Error(
+        `FIREBASE_SERVICE_ACCOUNT_KEY parse failed (first: ${(firstErr as Error).message} / retry: ${(secondErr as Error).message})`,
+      );
+    }
+  }
+}
+
+// =====================================================================
 // DI seam (cohérent SC1+SC2+SC3 __set*ForTesting)
 // =====================================================================
 
@@ -56,13 +88,16 @@ export async function verifyAuth(req: NextRequest): Promise<string | null> {
     const { getAuth } = await import('firebase-admin/auth');
     if (!getApps().length) {
       if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-        initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+        // B2 hotfix : parseServiceAccountKeyDefensive gère le cas Vercel
+        // env pull qui peut sortir des newlines littéraux dans la private_key.
+        initializeApp({ credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]) });
       } else {
         initializeApp({
-          projectId:
+          projectId: (
             process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
             process.env.GCLOUD_PROJECT ||
-            'spordateur-claude',
+            'spordateur-claude'
+          ).trim(),
         });
       }
     }

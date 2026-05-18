@@ -375,6 +375,19 @@ export interface Session {
   createdBy: string;
   createdAt: Timestamp;
   updatedAt: Timestamp;
+
+  // ----- Fix B B2 (additif optionnel) — Partner per-session pricing override -----
+  /**
+   * Mode de tarification de la session. Absence (legacy / sessions créées avant
+   * Fix B) = 'inherit' implicite (session utilise Activity.defaultPricingTiers
+   * ou computeFallbackTiers via /api/sessions/ensure-from-activity).
+   *
+   * 'custom' : pricingTiers a été override par le partner via /partner/offers
+   *  → 3 tiers identiques à un prix unique (modèle override total, Bassi).
+   * 'inherit' : pricingTiers copié depuis Activity.defaultPricingTiers ou
+   *  re-synced via /api/partner/sessions/[id]/pricing avec useCustomPrice=false.
+   */
+  pricingMode?: 'custom' | 'inherit';
 }
 
 // ===================== BOOKINGS =====================

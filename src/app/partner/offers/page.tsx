@@ -18,6 +18,7 @@ import type { AudienceType } from "@/lib/audience";
 import { MediaManager } from "@/components/partner/MediaManager";
 import type { MediaItem, PricingTier, Session } from "@/types/firestore";
 import { getBookingPriceCHF } from "@/lib/booking/price";
+import { SessionPricingModal } from "@/components/partner/SessionPricingModal";
 import { getMediaItems } from "@/lib/activities/media";
 import {
   buildPricingTiersPayload,
@@ -237,6 +238,10 @@ export default function PartnerOffersPage() {
   // permettre au partenaire de voir + éditer le prix de chaque session.
   const [editingSessions, setEditingSessions] = useState<Session[]>([]);
   const [loadingEditingSessions, setLoadingEditingSessions] = useState(false);
+  // Fix B B2 — modal édition prix per-session (override 1 valeur ou inherit)
+  const [pricingModalOpen, setPricingModalOpen] = useState(false);
+  const [pricingModalSession, setPricingModalSession] = useState<Session | null>(null);
+  const [sessionsRefreshTick, setSessionsRefreshTick] = useState(0);
   const { t } = useLanguage();
 
   useEffect(() => {
@@ -246,6 +251,7 @@ export default function PartnerOffersPage() {
 
   // Fix B B1 — Fetch sessions futures de l'activité éditée pour les afficher
   // dans la section "Sessions à venir" du modal (sous les champs form).
+  // B2 : re-fetch après chaque save de SessionPricingModal via sessionsRefreshTick.
   useEffect(() => {
     if (!open || !editing || !db || !isFirebaseConfigured) {
       setEditingSessions([]);
@@ -291,13 +297,15 @@ export default function PartnerOffersPage() {
     return () => {
       cancelled = true;
     };
-  }, [open, editing]);
+  }, [open, editing, sessionsRefreshTick]);
 
-  const handleEditSessionPrice = () => {
-    toast({
-      title: 'Édition du prix bientôt disponible',
-      description: 'La modal d\'édition arrive dans le prochain déploiement.',
-    });
+  const handleEditSessionPrice = (session: Session) => {
+    setPricingModalSession(session);
+    setPricingModalOpen(true);
+  };
+
+  const handlePricingSaved = () => {
+    setSessionsRefreshTick((tick) => tick + 1);
   };
 
   const loadActivities = async () => {
@@ -830,7 +838,7 @@ export default function PartnerOffersPage() {
                               type="button"
                               size="sm"
                               variant="ghost"
-                              onClick={handleEditSessionPrice}
+                              onClick={() => handleEditSessionPrice(s)}
                               disabled={isFrozen}
                               className="text-white/50 hover:text-white hover:bg-white/5 disabled:opacity-40 h-7 text-[11px]"
                             >
@@ -899,6 +907,19 @@ export default function PartnerOffersPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Fix B B2 — Modal édition prix per-session (rendue en dehors du
+          Dialog d'édition activity pour éviter les conflits z-index/portal). */}
+      <SessionPricingModal
+        open={pricingModalOpen}
+        onOpenChange={(o) => {
+          if (!o) setPricingModalSession(null);
+          setPricingModalOpen(o);
+        }}
+        session={pricingModalSession}
+        activity={editing}
+        onSaved={handlePricingSaved}
+      />
     </div>
   );
 }
