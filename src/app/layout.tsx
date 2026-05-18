@@ -36,11 +36,12 @@ export const metadata: Metadata = {
   // Bump v27 = c46 : nouveau logo neon Spordateur (généré depuis logo-source.png
   // via src/scripts/generate-pwa-assets.ts → public/icons/). À incrémenter à
   // chaque regénération d'asset pour éviter d'avoir à demander Cmd+Shift+Delete.
+  // Accent feature Phase 2 : icons 16/32 servis dynamiquement par
+  // src/app/icon.tsx (suit settings/site.primaryColor admin, revalidate 60s).
+  // Les tailles 192/512 (PWA) + apple-touch-icon restent statiques (charte
+  // officielle), régénération dynamique reportée (Cloud Function Phase 3).
   icons: {
     icon: [
-      { url: "/favicon.ico?v=29", sizes: "any" },
-      { url: "/icons/favicon-16.png?v=29", type: "image/png", sizes: "16x16" },
-      { url: "/icons/favicon-32.png?v=29", type: "image/png", sizes: "32x32" },
       { url: "/icons/icon-192.png?v=29", type: "image/png", sizes: "192x192" },
       { url: "/icons/icon-512.png?v=29", type: "image/png", sizes: "512x512" },
     ],
