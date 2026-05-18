@@ -4,7 +4,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PlusCircle, Edit, Trash2, Loader2, Clock, MapPin, Users, ImagePlus, X, Video, Play } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, Clock, MapPin, Users, ImagePlus, X, Video, Play, Calendar, Gift, Lock, Edit3 } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter, DialogClose,
@@ -16,7 +16,8 @@ import { Switch } from "@/components/ui/switch";
 import { AudienceTypeSelector } from "@/components/partner/AudienceTypeSelector";
 import type { AudienceType } from "@/lib/audience";
 import { MediaManager } from "@/components/partner/MediaManager";
-import type { MediaItem, PricingTier } from "@/types/firestore";
+import type { MediaItem, PricingTier, Session } from "@/types/firestore";
+import { getBookingPriceCHF } from "@/lib/booking/price";
 import { getMediaItems } from "@/lib/activities/media";
 import {
   buildPricingTiersPayload,
@@ -35,6 +36,7 @@ import {
   serverTimestamp, orderBy, Timestamp, writeBatch
 } from 'firebase/firestore';
 import { computeFallbackTiers } from '@/services/firestore';
+import { limit as firestoreLimit } from 'firebase/firestore';
 
 /**
  * BUG #3 — Cascade suppression/désactivation activity → sessions futures.
@@ -230,12 +232,73 @@ export default function PartnerOffersPage() {
   const [formEarlyPrice, setFormEarlyPrice] = useState('');
   const [formStandardPrice, setFormStandardPrice] = useState('');
   const [formLastPrice, setFormLastPrice] = useState('');
+  // Fix B B1 (refactor) — sessions futures de l'activité éditée, chargées
+  // dès l'ouverture du modal d'édition. Affichées en bas du formulaire pour
+  // permettre au partenaire de voir + éditer le prix de chaque session.
+  const [editingSessions, setEditingSessions] = useState<Session[]>([]);
+  const [loadingEditingSessions, setLoadingEditingSessions] = useState(false);
   const { t } = useLanguage();
 
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
     loadActivities();
   }, [user]);
+
+  // Fix B B1 — Fetch sessions futures de l'activité éditée pour les afficher
+  // dans la section "Sessions à venir" du modal (sous les champs form).
+  useEffect(() => {
+    if (!open || !editing || !db || !isFirebaseConfigured) {
+      setEditingSessions([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingEditingSessions(true);
+    (async () => {
+      try {
+        const nowTs = Timestamp.now();
+        let snap;
+        try {
+          const q = query(
+            collection(db!, 'sessions'),
+            where('activityId', '==', editing.activityId),
+            where('startAt', '>', nowTs),
+            orderBy('startAt', 'asc'),
+            firestoreLimit(50),
+          );
+          snap = await getDocs(q);
+        } catch {
+          // Fallback : index pas prêt → query sans orderBy + sort client-side
+          const q = query(
+            collection(db!, 'sessions'),
+            where('activityId', '==', editing.activityId),
+            firestoreLimit(50),
+          );
+          snap = await getDocs(q);
+        }
+        if (cancelled) return;
+        const now = Date.now();
+        const futures = snap.docs
+          .map((d) => ({ ...(d.data() as Session), sessionId: d.id }))
+          .filter((s) => s.startAt && s.startAt.toMillis() > now)
+          .sort((a, b) => a.startAt.toMillis() - b.startAt.toMillis());
+        setEditingSessions(futures);
+      } catch (err) {
+        console.warn('[Offers] sessions list load failed', err);
+      } finally {
+        if (!cancelled) setLoadingEditingSessions(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, editing]);
+
+  const handleEditSessionPrice = () => {
+    toast({
+      title: 'Édition du prix bientôt disponible',
+      description: 'La modal d\'édition arrive dans le prochain déploiement.',
+    });
+  };
 
   const loadActivities = async () => {
     if (!db || !user) return;
@@ -697,6 +760,91 @@ export default function PartnerOffersPage() {
                   </p>
                 )}
               </div>
+
+              {/* Fix B B1 (refactor) — Section "Sessions à venir" positionnée
+                  juste après le bloc tarification (logique : sessions = overrides
+                  du prix activity). Visible UNIQUEMENT en édition d'une activité
+                  existante. Bouton "Modifier" stub B1 → modal édition prix B2. */}
+              {editing && (
+                <div className="rounded-xl border border-white/10 bg-[#1A1A1A]/40 p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4 text-[#D91CD2]" />
+                    <Label className="text-white text-sm font-medium">Sessions à venir</Label>
+                    {editingSessions.length > 0 && (
+                      <span className="text-[10px] text-white/40 ml-auto">
+                        {editingSessions.length} session{editingSessions.length > 1 ? 's' : ''}
+                      </span>
+                    )}
+                  </div>
+                  {loadingEditingSessions ? (
+                    <div className="flex justify-center py-4">
+                      <Loader2 className="h-4 w-4 text-[#D91CD2] animate-spin" />
+                    </div>
+                  ) : editingSessions.length === 0 ? (
+                    <p className="text-[11px] text-white/40 font-light py-2">
+                      Aucune session future programmée. Ajoute une date via le champ
+                      « Prochaine séance » ci-dessous pour créer une session.
+                    </p>
+                  ) : (
+                    <div className="rounded-xl border border-white/10 bg-black/30 divide-y divide-white/5">
+                      {editingSessions.map((s) => {
+                        const effectivePriceCHF = getBookingPriceCHF({
+                          session: s,
+                          activity: editing,
+                          now: new Date(),
+                          isDuo: false,
+                        });
+                        const isFree = effectivePriceCHF === 0;
+                        const isFrozen = (s.currentParticipants ?? 0) > 0;
+                        const startDate = s.startAt && typeof s.startAt.toDate === 'function' ? s.startAt.toDate() : null;
+                        return (
+                          <div key={s.sessionId} className="px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap">
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <span className="text-xs text-white/70 font-light">
+                                {startDate
+                                  ? startDate.toLocaleString('fr-FR', {
+                                      weekday: 'short',
+                                      day: 'numeric',
+                                      month: 'short',
+                                      hour: '2-digit',
+                                      minute: '2-digit',
+                                    })
+                                  : '—'}
+                              </span>
+                              {isFree ? (
+                                <Badge className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[9px] h-5">
+                                  <Gift className="h-2.5 w-2.5 mr-1" />
+                                  OFFERT
+                                </Badge>
+                              ) : (
+                                <span className="text-xs font-medium text-[#D91CD2]">{effectivePriceCHF} CHF</span>
+                              )}
+                              {isFrozen && (
+                                <Badge className="bg-amber-500/10 text-amber-300 border border-amber-500/20 text-[9px] h-5">
+                                  <Lock className="h-2.5 w-2.5 mr-1" />
+                                  {s.currentParticipants}
+                                </Badge>
+                              )}
+                            </div>
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="ghost"
+                              onClick={handleEditSessionPrice}
+                              disabled={isFrozen}
+                              className="text-white/50 hover:text-white hover:bg-white/5 disabled:opacity-40 h-7 text-[11px]"
+                            >
+                              <Edit3 className="h-3 w-3 mr-1" />
+                              Modifier
+                            </Button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label className="text-white/50">Durée (min) *</Label>

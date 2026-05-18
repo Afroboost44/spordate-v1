@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Building, LogOut, Wallet, Loader2,
-  ShieldAlert, Rocket, Menu, X, Compass, Home, Calendar
+  ShieldAlert, Rocket, Menu, X, Compass, Home
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
@@ -33,7 +33,6 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
   const navLinks = [
     { href: "/partner/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
     { href: "/partner/offers", label: "Mes Offres", icon: <Building className="h-5 w-5" /> },
-    { href: "/partner/sessions", label: "Sessions", icon: <Calendar className="h-5 w-5" /> },
     { href: "/partner/wallet", label: "Portefeuille", icon: <Wallet className="h-5 w-5" /> },
     { href: "/partner/boost", label: "Boost", icon: <Rocket className="h-5 w-5" /> },
   ];
