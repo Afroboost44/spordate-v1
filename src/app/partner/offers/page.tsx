@@ -18,7 +18,8 @@ import type { AudienceType } from "@/lib/audience";
 import { MediaManager } from "@/components/partner/MediaManager";
 import type { MediaItem, PricingTier, Session } from "@/types/firestore";
 import { getBookingPriceCHF } from "@/lib/booking/price";
-import { SessionPricingModal } from "@/components/partner/SessionPricingModal";
+import { SessionEditModal } from "@/components/partner/SessionEditModal";
+import { CreateSessionModal } from "@/components/partner/CreateSessionModal";
 import { getMediaItems } from "@/lib/activities/media";
 import {
   buildPricingTiersPayload,
@@ -238,9 +239,11 @@ export default function PartnerOffersPage() {
   // permettre au partenaire de voir + éditer le prix de chaque session.
   const [editingSessions, setEditingSessions] = useState<Session[]>([]);
   const [loadingEditingSessions, setLoadingEditingSessions] = useState(false);
-  // Fix B B2 — modal édition prix per-session (override 1 valeur ou inherit)
-  const [pricingModalOpen, setPricingModalOpen] = useState(false);
-  const [pricingModalSession, setPricingModalSession] = useState<Session | null>(null);
+  // Fix B B2/Option3 — modal édition session (date + prix + delete)
+  const [editSessionModalOpen, setEditSessionModalOpen] = useState(false);
+  const [editSessionTarget, setEditSessionTarget] = useState<Session | null>(null);
+  // Fix B Option 3 — modal création nouvelle session
+  const [createSessionModalOpen, setCreateSessionModalOpen] = useState(false);
   const [sessionsRefreshTick, setSessionsRefreshTick] = useState(0);
   const { t } = useLanguage();
 
@@ -251,7 +254,7 @@ export default function PartnerOffersPage() {
 
   // Fix B B1 — Fetch sessions futures de l'activité éditée pour les afficher
   // dans la section "Sessions à venir" du modal (sous les champs form).
-  // B2 : re-fetch après chaque save de SessionPricingModal via sessionsRefreshTick.
+  // B2/Option3 : re-fetch après chaque create/save/delete via sessionsRefreshTick.
   useEffect(() => {
     if (!open || !editing || !db || !isFirebaseConfigured) {
       setEditingSessions([]);
@@ -299,12 +302,16 @@ export default function PartnerOffersPage() {
     };
   }, [open, editing, sessionsRefreshTick]);
 
-  const handleEditSessionPrice = (session: Session) => {
-    setPricingModalSession(session);
-    setPricingModalOpen(true);
+  const handleEditSession = (session: Session) => {
+    setEditSessionTarget(session);
+    setEditSessionModalOpen(true);
   };
 
-  const handlePricingSaved = () => {
+  const handleOpenCreateSession = () => {
+    setCreateSessionModalOpen(true);
+  };
+
+  const handleSessionMutated = () => {
     setSessionsRefreshTick((tick) => tick + 1);
   };
 
@@ -784,6 +791,17 @@ export default function PartnerOffersPage() {
                       </span>
                     )}
                   </div>
+                  {/* Fix B Option 3 — bouton "Ajouter une session" */}
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={handleOpenCreateSession}
+                    className="w-full border-dashed border-[#D91CD2]/40 text-[#D91CD2] hover:bg-[#D91CD2]/5 hover:border-[#D91CD2]/60 h-9"
+                  >
+                    <PlusCircle className="h-3.5 w-3.5 mr-1.5" />
+                    Ajouter une session
+                  </Button>
                   {loadingEditingSessions ? (
                     <div className="flex justify-center py-4">
                       <Loader2 className="h-4 w-4 text-[#D91CD2] animate-spin" />
@@ -838,7 +856,7 @@ export default function PartnerOffersPage() {
                               type="button"
                               size="sm"
                               variant="ghost"
-                              onClick={() => handleEditSessionPrice(s)}
+                              onClick={() => handleEditSession(s)}
                               disabled={isFrozen}
                               className="text-white/50 hover:text-white hover:bg-white/5 disabled:opacity-40 h-7 text-[11px]"
                             >
@@ -908,17 +926,25 @@ export default function PartnerOffersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Fix B B2 — Modal édition prix per-session (rendue en dehors du
-          Dialog d'édition activity pour éviter les conflits z-index/portal). */}
-      <SessionPricingModal
-        open={pricingModalOpen}
+      {/* Fix B B2/Option3 — Modal édition session (date + prix + delete).
+          Rendue en dehors du Dialog activity pour éviter conflits portal. */}
+      <SessionEditModal
+        open={editSessionModalOpen}
         onOpenChange={(o) => {
-          if (!o) setPricingModalSession(null);
-          setPricingModalOpen(o);
+          if (!o) setEditSessionTarget(null);
+          setEditSessionModalOpen(o);
         }}
-        session={pricingModalSession}
+        session={editSessionTarget}
         activity={editing}
-        onSaved={handlePricingSaved}
+        onSaved={handleSessionMutated}
+      />
+
+      {/* Fix B Option 3 — Modal création nouvelle session */}
+      <CreateSessionModal
+        open={createSessionModalOpen}
+        onOpenChange={setCreateSessionModalOpen}
+        activity={editing}
+        onCreated={handleSessionMutated}
       />
     </div>
   );
