@@ -185,9 +185,10 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
                   onClick={() =>
                     onSelect({
                       activityId: a.activityId,
-                      activityTitle: a.title,
-                      activityCity: a.city,
-                      activitySport: a.sport,
+                      // BUG hotfix : fallback chain (title legacy can be missing)
+                      activityTitle: (a.title || '').trim() || 'Activité',
+                      activityCity: a.city || undefined,
+                      activitySport: a.sport || undefined,
                       activityImageUrl: imageUrl || undefined,
                     })
                   }

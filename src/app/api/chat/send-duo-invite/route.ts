@@ -101,12 +101,16 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
     }
     const body = (await request.json().catch(() => ({}))) as BodyShape;
-    if (!body.matchId || !body.senderUid || !body.receiverUid || !body.activityId || !body.activityTitle) {
+    if (!body.matchId || !body.senderUid || !body.receiverUid || !body.activityId) {
       return NextResponse.json(
-        { error: 'invalid-input', detail: 'matchId, senderUid, receiverUid, activityId, activityTitle requis' },
+        { error: 'invalid-input', detail: 'matchId, senderUid, receiverUid, activityId requis' },
         { status: 400 },
       );
     }
+    // BUG hotfix : activityTitle accepté vide, fallback côté server (le doc
+    // Firestore activity peut avoir title manquant — webhook utilisera la
+    // valeur dénormalisée via metadata.activityInviteActivityTitle).
+    const safeActivityTitle = (body.activityTitle ?? '').trim() || 'Activité';
     if (body.senderUid !== uid) {
       return NextResponse.json({ error: 'forbidden', detail: 'senderUid != auth uid' }, { status: 403 });
     }
@@ -203,7 +207,7 @@ export async function POST(request: NextRequest) {
             currency: 'chf',
             product_data: {
               name: `${session.title} (Duo — 2 places)`,
-              description: `${tierLabel[tier]} • 2 places • ${grantedCredits} crédits chat inclus • Invitation à ${body.activityTitle}`,
+              description: `${tierLabel[tier]} • 2 places • ${grantedCredits} crédits chat inclus • Invitation à ${safeActivityTitle}`,
               images: ['https://spordateur.com/logo.png'],
             },
             unit_amount: unitAmount,
@@ -236,7 +240,7 @@ export async function POST(request: NextRequest) {
         activityInviteMatchId: body.matchId,
         activityInviteSenderUid: body.senderUid,
         activityInviteReceiverUid: body.receiverUid,
-        activityInviteActivityTitle: body.activityTitle.slice(0, 200), // Stripe metadata 500 chars max
+        activityInviteActivityTitle: safeActivityTitle.slice(0, 200), // Stripe metadata 500 chars max
         activityInviteActivityCity: (body.activityCity || '').slice(0, 100),
         activityInviteActivitySport: (body.activitySport || '').slice(0, 100),
         activityInviteActivityImageUrl: (body.activityImageUrl || '').slice(0, 400),

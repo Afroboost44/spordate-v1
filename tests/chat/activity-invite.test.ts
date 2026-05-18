@@ -92,6 +92,37 @@ async function run() {
     else fail('unexpected', p);
   }
 
+  section('AI2b — build : activityTitle vide/undefined → fallback "Activité" (anti Firestore undefined)');
+  {
+    const p1 = buildActivityInvitePayload({ senderId: 'A', activityId: 'a', activityTitle: '', inviteMode: 'individual' });
+    if (p1.invite?.activityTitle === 'Activité') ok('empty → fallback');
+    else fail('unexpected empty', p1);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const p2 = buildActivityInvitePayload({ senderId: 'A', activityId: 'a', activityTitle: undefined as any, inviteMode: 'individual' });
+    if (p2.invite?.activityTitle === 'Activité') ok('undefined → fallback');
+    else fail('unexpected undef', p2);
+  }
+
+  section('AI2c — build : champs optionnels undefined ne sont PAS dans invite (anti Firestore undefined)');
+  {
+    const p = buildActivityInvitePayload({
+      senderId: 'A',
+      activityId: 'a',
+      activityTitle: 'Test',
+      inviteMode: 'individual',
+      // activityCity, activitySport, activityImageUrl, nextSessionId, nextSessionAt non fournis
+    });
+    if (
+      p.invite &&
+      !('activityCity' in p.invite) &&
+      !('activitySport' in p.invite) &&
+      !('activityImageUrl' in p.invite) &&
+      !('nextSessionId' in p.invite) &&
+      !('nextSessionAt' in p.invite)
+    ) ok('keys undefined absentes');
+    else fail('unexpected keys présents', p.invite);
+  }
+
   section('AI3 — build : inviteStatus systématique = pending');
   {
     const p = buildActivityInvitePayload({

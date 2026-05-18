@@ -56,10 +56,16 @@ export function buildActivityInvitePayload(input: BuildInviteInput): ActivityInv
       (input.nextSessionAt as any)
     : undefined;
 
+  // BUG #36 hotfix — Firestore refuse les `undefined` dans les docs. activityTitle
+  // est dénormalisé snapshot mais peut arriver undefined/empty (legacy activities
+  // sans champ title). Fallback 'Activité' pour ne JAMAIS bloquer le send.
+  const safeTitle = (input.activityTitle ?? '').trim() || 'Activité';
+
+  // Build invite avec ONLY les champs définis (skip undefined → Firestore-safe).
   const invite: ActivityInviteData = {
     activityId: input.activityId,
     inviteMode: input.inviteMode,
-    activityTitle: input.activityTitle,
+    activityTitle: safeTitle,
   };
   if (input.nextSessionId) invite.nextSessionId = input.nextSessionId;
   if (nextSessionAtConverted) invite.nextSessionAt = nextSessionAtConverted;

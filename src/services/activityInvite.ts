@@ -26,7 +26,6 @@ import {
   query,
   serverTimestamp,
   setDoc,
-  Timestamp,
   updateDoc,
   where,
   type Firestore,
@@ -94,27 +93,33 @@ export async function sendActivityInvite(
   const messagesRef = collection(fsdb, 'chats', input.matchId, 'messages');
 
   // BUG #36 C3 — Soft limit invites/jour (toast warning, pas hard block).
-  // Compte les invites du sender aujourd'hui (cross-chats via collectionGroup
-  // sur 'messages' serait idéal mais demande un index. MVP : on compte
-  // uniquement dans le chat courant — simpler + rapide.)
+  // BUG hotfix : retiré where('createdAt', '>=', ...) qui demandait un index
+  // composite (senderId + type + createdAt). On query juste sur type + senderId
+  // (auto-indexable Firestore) puis filter aujourd'hui côté code.
   let rateLimitMessage: string | undefined;
   try {
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
     const todayQuery = query(
       messagesRef,
       where('type', '==', 'activity_invite'),
       where('senderId', '==', input.senderId),
-      where('createdAt', '>=', Timestamp.fromDate(startOfDay)),
     );
     const todaySnap = await getDocs(todayQuery);
-    const limit = checkInviteRateLimit(todaySnap.size);
+    const startOfDayMs = (() => {
+      const d = new Date();
+      d.setHours(0, 0, 0, 0);
+      return d.getTime();
+    })();
+    let countToday = 0;
+    todaySnap.docs.forEach((d) => {
+      const created = d.data().createdAt as { toMillis?: () => number } | undefined;
+      if (created?.toMillis && created.toMillis() >= startOfDayMs) countToday++;
+    });
+    const limit = checkInviteRateLimit(countToday);
     if (!limit.allowed) {
       throw new Error(limit.message ?? 'Rate limit exceeded');
     }
     rateLimitMessage = limit.message;
   } catch (err) {
-    // Best-effort : si la query échoue (index manquant), on laisse passer.
     console.warn('[sendActivityInvite] rate limit check failed (non-bloquant)', err);
   }
 

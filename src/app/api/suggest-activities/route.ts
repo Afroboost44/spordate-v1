@@ -203,10 +203,15 @@ export async function POST(request: NextRequest) {
           }
 
           // Fallback : legacy `schedule[]` denormalisé sur Activity (pre-Phase 1 sessions)
+          // BUG hotfix : defensive Array.isArray (certains docs legacy ont
+          // schedule en objet/string, ce qui faisait throw `.find is not a function`).
           if (!nextSessionAt) {
-            const schedule = (data.schedule as ScheduleEntry[] | undefined) ?? [];
+            const scheduleRaw = data.schedule;
+            const schedule: ScheduleEntry[] = Array.isArray(scheduleRaw)
+              ? (scheduleRaw as ScheduleEntry[])
+              : [];
             const nextSchedule = schedule.find(
-              (s) => s.startAt && typeof s.startAt.toMillis === 'function' && s.startAt.toMillis()! > nowMs,
+              (s) => s && s.startAt && typeof s.startAt.toMillis === 'function' && s.startAt.toMillis()! > nowMs,
             );
             nextSessionAt = nextSchedule?.startAt;
           }
