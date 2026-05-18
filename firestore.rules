@@ -36,6 +36,40 @@ service cloud.firestore {
         || resource.data.currentParticipants == 0;
     }
 
+    // Fix B B3 — defense-in-depth pour Fix B Option 3 (create/edit/delete
+    // sessions par partner via /api/partner/sessions/*). Le endpoint applique
+    // déjà les checks ownership + V9 freeze, mais ces rules empêchent un
+    // partner malveillant de bypasser via DevTools direct Firestore write.
+    //
+    // Whitelist : seuls ces champs peuvent être modifiés par le partner-owner.
+    // - pricingTiers / pricingMode : B2 override prix
+    // - startAt / endAt / chatOpenAt / chatCloseAt : Option 3 modif date+heure
+    // - maxParticipants : update capacity (déjà gated par validMaxParticipantsUpdate)
+    // - status / updatedAt : lifecycle + audit
+    //
+    // Blacklist implicite (PAS dans la whitelist, rejet rules) :
+    // - currentParticipants / currentTier / currentPrice : server-only (webhook)
+    // - partnerId / activityId / creatorId / createdBy / createdAt : immutables
+    //
+    // V9 freeze : aucune modif si currentParticipants > 0 (sauf admin via
+    // branche supérieure du allow update). Cohérent avec validPricingTiersUpdate
+    // mais étendu à TOUS les fields (au lieu de juste pricingTiers).
+    function validPartnerSessionUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'pricingTiers',
+          'pricingMode',
+          'startAt',
+          'endAt',
+          'chatOpenAt',
+          'chatCloseAt',
+          'maxParticipants',
+          'status',
+          'updatedAt'
+        ])
+        && resource.data.currentParticipants == 0
+        && validMaxParticipantsUpdate();
+    }
+
     // === USERS ===
     // Phase 9 SC6 c3/4 — soft delete user-facing UI (RGPD/nLPD Art. 17).
     // Owner allowed full update inclut softDelete fields (preserved Phase 9).
@@ -467,17 +501,27 @@ service cloud.firestore {
           isAdmin()
           || get(/databases/$(database)/documents/activities/$(request.resource.data.activityId)).data.partnerId == request.auth.uid
         );
+      // Fix B B3 — partner update via validPartnerSessionUpdate (whitelist +
+      // V9 freeze global). Couvre create/edit prix B2 + date+heure Option 3.
       allow update: if isAuth()
         && (
           isAdmin()
           || (
             get(/databases/$(database)/documents/activities/$(resource.data.activityId)).data.partnerId == request.auth.uid
-            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['currentParticipants', 'currentTier', 'currentPrice'])
-            && validMaxParticipantsUpdate()
-            && validPricingTiersUpdate()
+            && validPartnerSessionUpdate()
           )
         );
-      allow delete: if isAdmin();
+      // Fix B B3 — partner peut delete sa session si pas de réservation (V9 freeze).
+      // Auparavant : admin-only (Phase 1 conservative). Maintenant cohérent avec
+      // Option 3 DELETE endpoint + UX bouton "Supprimer" dans SessionEditModal.
+      allow delete: if isAuth()
+        && (
+          isAdmin()
+          || (
+            get(/databases/$(database)/documents/activities/$(resource.data.activityId)).data.partnerId == request.auth.uid
+            && resource.data.currentParticipants == 0
+          )
+        );
     }
 
     // === REVIEWS (Phase 7 T&S — public read si published, anonymisation graduée 1-2★) ===
