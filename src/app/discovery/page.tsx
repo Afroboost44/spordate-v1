@@ -137,6 +137,12 @@ export default function DiscoveryPage() {
   // afficher le prix EFFECTIVEMENT chargé par /api/checkout (computePricingTier
   // sur session.pricingTiers) au lieu d'Activity.price (vitrine) qui peut diverger.
   const [previewedSession, setPreviewedSession] = useState<PricingSession | null>(null);
+  // Fix B post-B2 — map activityId → Session (next future), pour que le Step 1
+  // card list affiche le prix effectif de chaque activity (cohérent step 2/3).
+  // Sans cette map, les cards montraient `act.price` (Activity.price legacy
+  // vitrine) qui peut diverger des pricingTiers de la session (custom override
+  // partner via B2, ou progression tiers triggés).
+  const [sessionsByActivityId, setSessionsByActivityId] = useState<Record<string, PricingSession>>({});
 
   // New states for social features
   const [selectedPartner, setSelectedPartner] = useState<Partner | null>(null);
@@ -705,20 +711,67 @@ export default function DiscoveryPage() {
     // Don't reset selectedMeetingPlace if already set from partner selection
     setIsDuoTicket(false);
     setShowPaymentModal(true);
+    // Fix B post-B2 — prefetch sessions des AUTRES activités du modal pour
+    // que leurs cards Step 1 affichent aussi le prix effectif (cohérence).
+    // Run in background, results merge dans sessionsByActivityId.
+    if (partnerActivities.length > 0) {
+      void prefetchSessionsForActivities(partnerActivities);
+    }
   };
 
   // BUG pricing FIX A — Centralise la sélection d'activité + preview de la
   // session de référence (next future). Sans preview, getBookingPriceCHF
   // retombe sur Activity.price (vitrine) qui peut diverger du prix réellement
   // chargé par /api/checkout (computePricingTier sur session.pricingTiers).
+  //
+  // Fix B post-B2 : si la session est déjà dans le cache sessionsByActivityId
+  // (prefetched au modal open), on l'utilise directement — pas de re-fetch.
   const selectActivityWithPreview = (act: any | null) => {
     setSelectedActivity(act);
-    setPreviewedSession(null);
-    if (act?.activityId) {
-      getNextFutureSessionForActivity(act.activityId)
-        .then((s) => setPreviewedSession(s))
-        .catch(() => setPreviewedSession(null));
+    if (!act?.activityId) {
+      setPreviewedSession(null);
+      return;
     }
+    const cached = sessionsByActivityId[act.activityId];
+    if (cached) {
+      setPreviewedSession(cached);
+      return;
+    }
+    setPreviewedSession(null);
+    getNextFutureSessionForActivity(act.activityId)
+      .then((s) => {
+        if (s) {
+          setPreviewedSession(s);
+          setSessionsByActivityId((prev) => ({ ...prev, [act.activityId]: s }));
+        }
+      })
+      .catch(() => setPreviewedSession(null));
+  };
+
+  // Fix B post-B2 — prefetch parallèle des sessions next-future pour TOUTES
+  // les activités d'une liste. Utilisé au modal open + pour cohérence des
+  // prix affichés dans le picker Step 1.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const prefetchSessionsForActivities = async (acts: any[]) => {
+    const missing = acts
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .filter((a: any) => a?.activityId && !sessionsByActivityId[a.activityId]);
+    if (missing.length === 0) return;
+    const results = await Promise.all(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      missing.map((a: any) =>
+        getNextFutureSessionForActivity(a.activityId)
+          .then((s) => ({ id: a.activityId as string, session: s }))
+          .catch(() => ({ id: a.activityId as string, session: null })),
+      ),
+    );
+    setSessionsByActivityId((prev) => {
+      const next = { ...prev };
+      results.forEach((r) => {
+        if (r.session) next[r.id] = r.session;
+      });
+      return next;
+    });
   };
 
   // BUG pricing FIX A — Prix résolu par helper pur depuis la session de
@@ -1708,9 +1761,22 @@ END:VCALENDAR`;
                               <h4 className="text-white text-sm font-medium truncate">
                                 {act.name || act.title}
                               </h4>
-                              <span className="text-[#D91CD2] text-sm font-semibold whitespace-nowrap">
-                                {act.price === 0 ? t('payment_free_label') : `${act.price} CHF`}
-                              </span>
+                              {(() => {
+                                // Fix B post-B2 — prix effectif via getBookingPriceCHF
+                                // (session.pricingTiers prioritaire, fallback Activity.price).
+                                // Respecte les overrides per-session du partner (B2).
+                                const cardEffectivePriceCHF = getBookingPriceCHF({
+                                  session: sessionsByActivityId[act.activityId] ?? null,
+                                  activity: { price: act.price },
+                                  now: new Date(),
+                                  isDuo: false,
+                                });
+                                return (
+                                  <span className="text-[#D91CD2] text-sm font-semibold whitespace-nowrap">
+                                    {cardEffectivePriceCHF === 0 ? t('payment_free_label') : `${cardEffectivePriceCHF} CHF`}
+                                  </span>
+                                );
+                              })()}
                             </div>
                             {(act.description || act.sport) && (
                               <p className="text-white/60 text-xs line-clamp-1 mt-0.5">

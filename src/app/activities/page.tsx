@@ -14,7 +14,8 @@ import BackButton from '@/components/BackButton';
 import { CheckCircle } from 'lucide-react';
 import { getMediaItems } from '@/lib/activities/media';
 import { getVideoThumbnailChain, getVideoEmbedUrl } from '@/lib/activities/mediaParser';
-import type { MediaItem } from '@/types/firestore';
+import type { MediaItem, Session } from '@/types/firestore';
+import { getBookingPriceCHF } from '@/lib/booking/price';
 import { ReserveButtonListing } from '@/components/activities/ReserveButtonListing';
 import {
   Carousel,
@@ -247,6 +248,7 @@ function ActivityCardComponent({
   activity,
   existingBookingId,
   nextSessionId,
+  nextSession,
 }: {
   activity: ActivityCard;
   /** Phase 9.5 c16 BUG F — bookingId du user pour cette activity (si réservée < 24h). */
@@ -254,6 +256,11 @@ function ActivityCardComponent({
   /** Phase 9.5 c30 BUG GG — sessionId de la prochaine séance future, forward au
    *  ReserveButtonListing pour route vers /sessions/{id} au lieu de /activities/{id}. */
   nextSessionId?: string;
+  /** Fix B post-B2 — Session de référence (next future). Permet d'afficher
+   *  le prix EFFECTIVEMENT chargé (computePricingTier sur pricingTiers de la
+   *  session, donc respecte les overrides per-session du partner via B2)
+   *  au lieu d'Activity.price (vitrine) qui peut diverger. */
+  nextSession?: Session;
 }) {
   const router = useRouter();
   // BUG #23 — mini-carousel via shadcn Carousel (embla). setApi pour sync dots +
@@ -422,9 +429,22 @@ function ActivityCardComponent({
             : 'Date à venir'}
         </p>
         <div className="flex justify-between items-center">
-          <p className="text-xl font-bold text-[#D91CD2]">
-            {activity.price === 0 ? 'Gratuit' : `${activity.price} CHF`}
-          </p>
+          {/* Fix B post-B2 — Prix effectif via getBookingPriceCHF (Fix A) :
+              priorité session.pricingTiers (respecte les overrides per-session
+              du partner), fallback Activity.price si pas de session future. */}
+          {(() => {
+            const effectivePriceCHF = getBookingPriceCHF({
+              session: nextSession ?? null,
+              activity: { price: activity.price },
+              now: new Date(),
+              isDuo: false,
+            });
+            return (
+              <p className="text-xl font-bold text-[#D91CD2]">
+                {effectivePriceCHF === 0 ? 'Gratuit' : `${effectivePriceCHF} CHF`}
+              </p>
+            );
+          })()}
           <div className="flex items-center gap-2">
             {/* Phase 9.5 c10.B — Share standalone (Like + Comment viendront 10.C/10.D via SocialBar) */}
             <ShareButton
@@ -449,7 +469,14 @@ function ActivityCardComponent({
                 activity={{
                   activityId: activity.activityId,
                   title: activity.title,
-                  price: activity.price,
+                  // Fix B post-B2 — passe le prix effectif (session OU fallback
+                  // activity) pour cohérence avec le label CHF affiché.
+                  price: getBookingPriceCHF({
+                    session: nextSession ?? null,
+                    activity: { price: activity.price },
+                    now: new Date(),
+                    isDuo: false,
+                  }),
                   // Phase 9.5 c42 — passe scheduledAt pour aligner le gate du
                   // bouton avec le texte "Prochaine séance" affiché. Si défini
                   // et futur, le bouton est activé même sans nextSessionId.
@@ -467,10 +494,11 @@ function ActivityCardComponent({
 
 export default function ActivitiesPage() {
   const [activities, setActivities] = useState<ActivityCard[]>([]);
-  // Phase 9.5 c30 BUG GG — Map activityId → sessionId de la prochaine séance future.
-  // Permet à ReserveButtonListing (paid flow) de router vers /sessions/{nextSessionId}
-  // au lieu de /activities/{activityId} (page sans countdown ni tabs prix).
-  const [nextSessionByActivity, setNextSessionByActivity] = useState<Record<string, string>>({});
+  // Phase 9.5 c30 BUG GG — Map activityId → Session (la prochaine future).
+  // Fix B post-B2 : stocke maintenant la Session complète (au lieu du sessionId
+  // seul) pour que la card calcule le prix effectif via getBookingPriceCHF
+  // (respecte les overrides per-session du partner).
+  const [nextSessionByActivity, setNextSessionByActivity] = useState<Record<string, Session>>({});
   const [loading, setLoading] = useState(true);
   // Phase 9.5 c16 BUG F — map activityId → bookingId pour les bookings actifs (< 24h) du user.
   // Single-query batch au mount (limit 50, ordered DESC) pour éviter N×M queries.
@@ -574,12 +602,12 @@ export default function ActivitiesPage() {
             limit(200),
           );
           const sessionsSnap = await getDocs(sessionsQ);
-          const map: Record<string, string> = {};
+          const map: Record<string, Session> = {};
           sessionsSnap.docs.forEach((sd) => {
-            const sdata = sd.data();
+            const sdata = sd.data() as Session;
             const aid = sdata?.activityId as string | undefined;
             if (aid && !map[aid]) {
-              map[aid] = sd.id;
+              map[aid] = { ...sdata, sessionId: sd.id };
             }
           });
           setNextSessionByActivity(map);
@@ -653,7 +681,8 @@ export default function ActivitiesPage() {
                       key={activity.activityId}
                       activity={activity}
                       existingBookingId={activeBookings[activity.activityId]}
-                      nextSessionId={nextSessionByActivity[activity.activityId]}
+                      nextSessionId={nextSessionByActivity[activity.activityId]?.sessionId}
+                      nextSession={nextSessionByActivity[activity.activityId]}
                     />
                   ))}
                 </div>
