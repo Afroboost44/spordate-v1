@@ -1,0 +1,59 @@
+# Dependencies (rebuild dans le stage `deps`)
+node_modules
+**/node_modules
+.pnp
+.pnp.*
+
+# Next.js build artifacts (rebuild dans le stage `builder`)
+.next
+out
+build
+
+# Logs & debug
+*.log
+firebase-debug.log
+firestore-debug.log
+.genkit/
+
+# Local env (env vars passent par Coolify, jamais dans l'image)
+.env
+.env.*
+!.env.example
+
+# Vercel (incompatible avec déploiement Coolify)
+.vercel
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# IDE / OS
+.vscode
+.idea
+.DS_Store
+*.swp
+*.swo
+
+# Tests & scripts (pas nécessaires runtime)
+tests
+scripts
+coverage
+
+# Docs (markdown, handover, etc.)
+*.md
+docs
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# Firebase emulator data
+firebase.json.bak
+
+# Dockerfile / dockerignore (pas la peine de copier dans l'image)
+Dockerfile
+.dockerignore
+
+# Cloud Functions (déployées séparément via firebase deploy)
+functions/node_modules
+functions/lib

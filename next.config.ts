@@ -3,8 +3,10 @@ import type {NextConfig} from 'next';
 const isExport = process.env.NEXT_OUTPUT === 'export';
 
 const nextConfig: NextConfig = {
-  // Static export for GitHub Pages preview
-  ...(isExport ? { output: 'export', basePath: '/spordate-v1' } : {}),
+  // Static export for GitHub Pages preview, sinon `standalone` pour Docker/Coolify
+  // (output: 'standalone' produit .next/standalone autonome ~200 Mo vs ~1 Go,
+  // critique pour Hetzner 4 Go RAM partagés avec Afroboost).
+  ...(isExport ? { output: 'export', basePath: '/spordate-v1' } : { output: 'standalone' }),
   // Phase 8 SC2 hotfix : isolation Genkit + dépendances Node-only côté serveur.
   // Sans ça, webpack tente de bundler @grpc/grpc-js + @opentelemetry/sdk-node
   // dans le client → "Module not found: 'fs'/'tls'/'net'" au build Vercel.
