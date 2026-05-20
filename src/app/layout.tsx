@@ -8,6 +8,7 @@ import PWARegister from "@/components/PWARegister";
 import { SanctionBanner } from "@/components/SanctionBanner";
 import AdminBroadcastModal from "@/components/AdminBroadcastModal";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { getServerTheme, buildThemeStyleString } from "@/lib/theme/server";
 
 // Phase 9.5 c18 BUG K — police globale Plus Jakarta Sans (alternative libre proche
 // de Canva Sans, souhait Bassi). Chargée via next/font/google : self-hosted, pas de
@@ -77,14 +78,23 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Fix FOUC — fetch settings/site.primaryColor en SSR via Admin SDK et
+  // injecte les CSS variables (--accent-color, --primary, etc.) dans un
+  // <style> inline en <head>. Le premier paint utilise la bonne couleur,
+  // plus de flash 1s entre la couleur du :root et la couleur sauvegardée.
+  // Le ThemeProvider client reste actif pour les updates realtime admin.
+  const theme = await getServerTheme();
+  const themeStyle = buildThemeStyleString(theme);
+
   return (
     <html lang="fr" className={`dark ${jakarta.variable}`}>
       <head>
+        <style id="server-theme" dangerouslySetInnerHTML={{ __html: themeStyle }} />
         <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=29" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />

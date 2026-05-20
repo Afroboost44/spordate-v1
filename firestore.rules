@@ -469,6 +469,16 @@ service cloud.firestore {
     }
 
     // === SETTINGS (admin only — pricing, config, etc.) ===
+    // Bug fix : settings/site = thème + textes hero du site public.
+    // ThemeProvider subscribe via onSnapshot AVANT auth restore (root layout
+    // mount), donc isAuth() bloquait la lecture → CSS variables jamais mises
+    // à jour → modif couleur admin ne se propage pas visuellement.
+    // Public read ici cohérent avec activities/ et boosts/ (contenu marketing
+    // public, pas de PII). Write reste admin-only.
+    match /settings/site {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
     match /settings/{doc} {
       allow read: if isAuth();
       allow write: if isAdmin();
