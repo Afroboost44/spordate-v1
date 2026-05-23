@@ -30,8 +30,43 @@ interface CreditPackage {
   popular?: boolean;
 }
 
-// Visual config per package (colors, icons, features — not editable by admin)
+// BUG #93 — VISUAL_CONFIG pour les 4 nouveaux packs crédits
+// (PRICING-PROPOSAL.md §3). Les crédits servent UNIQUEMENT pour les services
+// intra-app : likes premium, boost user, messages (texte/audio). JAMAIS pour
+// réserver une activité (qui se paye Stripe direct via mode='session').
 const VISUAL_CONFIG: Record<string, Omit<CreditPackage, 'id' | 'credits' | 'price' | 'pricePerCredit' | 'title'>> = {
+  'pack_starter': {
+    subtitle: 'Pour commencer',
+    color: 'from-emerald-500 to-teal-500',
+    icon: <Zap className="h-6 w-6" />,
+    features: ['50 crédits Spordateur', 'Likes premium + messages audio', 'Pas d\'expiration'],
+    cta: 'Acheter Starter',
+  },
+  'pack_confort': {
+    subtitle: 'Le bon équilibre',
+    color: 'from-accent to-[#E91E63]',
+    icon: <Star className="h-6 w-6" />,
+    features: ['150 crédits Spordateur', 'Économise 20% vs Starter', 'Idéal usage régulier'],
+    cta: 'Choisir Confort',
+  },
+  'pack_pro': {
+    subtitle: 'Power user',
+    color: 'from-amber-500 to-orange-500',
+    icon: <Rocket className="h-6 w-6" />,
+    badge: 'Populaire',
+    features: ['500 crédits Spordateur', 'Économise 40% vs Starter', '~10 boost user 30min inclus'],
+    cta: 'Choisir Pro',
+    popular: true,
+  },
+  'pack_vip': {
+    subtitle: 'Le maximum',
+    color: 'from-purple-500 to-fuchsia-500',
+    icon: <Crown className="h-6 w-6" />,
+    badge: 'Meilleur prix',
+    features: ['1500 crédits Spordateur', 'Économise 52% vs Starter', 'Réserve longue durée'],
+    cta: 'Choisir VIP',
+  },
+  // Legacy (conservés si jamais Firestore les expose encore)
   '1_date': {
     subtitle: 'Idéal pour tester',
     color: 'from-emerald-500 to-teal-500',
@@ -75,11 +110,16 @@ export default function PaymentPage() {
   // Load pricing from Firestore (admin-editable) then build display packages
   useEffect(() => {
     const loadPricing = async () => {
-      // Defaults
+      // BUG #93 — Defaults pour les 4 nouveaux packs (PRICING-PROPOSAL.md §3).
+      // Les legacy 1_date/3_dates/10_dates restent dans VISUAL_CONFIG pour fallback
+      // mais ne sont plus affichés par défaut. Si l'admin les réactive via
+      // settings/pricing.packages.{id}.isActive=true, ils réapparaîtront — pour
+      // ne pas casser les déploiements existants qui dépendent encore d'eux.
       const defaults: Record<string, { price: number; credits: number; label: string; isActive: boolean }> = {
-        '1_date': { price: 10, credits: 1, label: 'Starter', isActive: true },
-        '3_dates': { price: 25, credits: 3, label: 'Populaire', isActive: true },
-        '10_dates': { price: 60, credits: 10, label: 'Premium', isActive: true },
+        'pack_starter': { price: 4.90,  credits: 50,   label: 'Starter',  isActive: true },
+        'pack_confort': { price: 11.90, credits: 150,  label: 'Confort',  isActive: true },
+        'pack_pro':     { price: 29.90, credits: 500,  label: 'Pro',      isActive: true },
+        'pack_vip':     { price: 69.90, credits: 1500, label: 'VIP',      isActive: true },
       };
 
       // Try Firestore — read from settings/pricing (single source of truth)
@@ -103,22 +143,39 @@ export default function PaymentPage() {
         } catch { /* use defaults */ }
       }
 
-      // Build display packages
-      const pkgs: CreditPackage[] = Object.entries(defaults)
-        .filter(([, d]) => d.isActive)
-        .map(([id, d]) => {
-          const vis = VISUAL_CONFIG[id] || {};
-          const savings = d.credits > 1 ? `${Math.round((1 - (d.price / d.credits) / 10) * 100)}%` : undefined;
-          return {
-            id,
-            credits: d.credits,
-            price: d.price,
-            pricePerCredit: d.price / d.credits,
-            title: d.label,
-            savings: d.credits > 1 ? savings : undefined,
-            ...vis,
-          } as CreditPackage;
-        });
+      // BUG #93 — Savings calculé dynamiquement vs le pack le plus petit
+      // (= base 100%). Avant : formule divisait par 10 (legacy 10 CHF/crédit)
+      // → cassait avec les nouveaux ratios (Starter à 0.098 CHF/crédit).
+      // Maintenant : on prend le pack au plus petit nombre de crédits comme
+      // baseline et on calcule (1 - currentRatio/baselineRatio) * 100.
+      const activeEntries = Object.entries(defaults).filter(([, d]) => d.isActive);
+      // BUG #101 — Baseline = pack le moins économique (PLUS GRAND CHF/crédit).
+      // Avant : `{ price: Infinity, credits: 1 }` comme seed donnait baselineRatio = Infinity
+      // → savings calculé = 100% partout, sans crash mais affichage cassé. Maintenant
+      // on calcule directement le max ratio parmi les packs actifs valides.
+      const baselineRatio = activeEntries.reduce<number>((max, [, d]) => {
+        if (!Number.isFinite(d.price) || !Number.isFinite(d.credits) || d.credits <= 0 || d.price <= 0) return max;
+        const r = d.price / d.credits;
+        return r > max ? r : max;
+      }, 0);
+
+      const pkgs: CreditPackage[] = activeEntries.map(([id, d]) => {
+        const vis = VISUAL_CONFIG[id] || {};
+        const ratio = d.credits > 0 && Number.isFinite(d.price) ? d.price / d.credits : 0;
+        // Défensif : Math.round(NaN) = NaN, donc on vérifie isFinite avant
+        const pct = baselineRatio > 0 && ratio > 0 && ratio < baselineRatio
+          ? Math.round((1 - ratio / baselineRatio) * 100)
+          : 0;
+        return {
+          id,
+          credits: d.credits,
+          price: d.price,
+          pricePerCredit: ratio,
+          title: d.label,
+          savings: pct > 0 ? `${pct}%` : undefined,
+          ...vis,
+        } as CreditPackage;
+      });
 
       setPackages(pkgs);
     };

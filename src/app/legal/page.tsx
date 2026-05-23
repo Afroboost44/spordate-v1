@@ -25,14 +25,16 @@ export default function LegalPage() {
           <section>
             <h2 className="text-lg text-white font-normal mb-3">Éditeur du site</h2>
             <p>
-              <span className="text-white">Association Afroboosteur</span><br />
-              Association à but non lucratif au sens des art. 60 ss du Code civil suisse<br />
+              <span className="text-white">Spordateur</span><br />
               Rue des Maillefer 39<br />
               2000 Neuchâtel, Suisse
             </p>
             <p className="mt-3">
+              {/* BUG #82/#100 — Numéro IDE conservé (information légale obligatoire),
+                  mention de l'entité juridique retirée (politique branding),
+                  email unique : contact@spordateur.com. */}
               Numéro IDE : CHE-407.097.646<br />
-              E-mail : contact@afroboosteur.com<br />
+              E-mail : contact@spordateur.com<br />
               Site web : spordateur.com
             </p>
           </section>
@@ -40,8 +42,8 @@ export default function LegalPage() {
           <section>
             <h2 className="text-lg text-white font-normal mb-3">Représentant légal</h2>
             <p>
-              Le ou la président(e) de l&apos;Association Afroboosteur, agissant au nom et pour le compte
-              de celle-ci conformément aux statuts.
+              Le ou la responsable légal·e de Spordateur, agissant au nom et pour le compte
+              de la structure conformément aux statuts.
             </p>
           </section>
 
@@ -123,7 +125,7 @@ export default function LegalPage() {
             <h2 className="text-lg text-white font-normal mb-3">Résolution des litiges</h2>
             <p>
               En cas de litige, nous encourageons l&apos;Utilisateur à nous contacter en premier lieu
-              à contact@afroboosteur.com afin de rechercher une solution amiable. À défaut d&apos;accord,
+              à contact@spordateur.com afin de rechercher une solution amiable. À défaut d&apos;accord,
               les tribunaux du canton de Neuchâtel sont compétents, sous réserve des fors impératifs prévus par
               le droit suisse. Le droit suisse est applicable.
             </p>
@@ -132,7 +134,7 @@ export default function LegalPage() {
               dans le cadre du système de modération privée Trust &amp; Safety (cf. CGU section 7.bis)
               ne constituent pas des décisions juridictionnelles. Elles relèvent exclusivement de la
               modération privée de Spordateur. Tout Utilisateur sanctionné dispose d&apos;un droit d&apos;appel
-              motivé adressé par écrit à contact@afroboosteur.com (1 appel par niveau de sanction,
+              motivé adressé par écrit à contact@spordateur.com (1 appel par niveau de sanction,
               SLA de réponse 7 jours calendaires) avant tout recours juridictionnel.
             </p>
           </section>

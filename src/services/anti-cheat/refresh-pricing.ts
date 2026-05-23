@@ -21,6 +21,7 @@
 
 import { computePricingTier } from '@/services/firestore';
 import type { Session, SessionStatus, PricingTierKind } from '@/types/firestore';
+import { parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 
 // =============================================================
 // Lazy init Admin SDK (pattern webhooks/stripe/handler.ts)
@@ -41,7 +42,7 @@ async function initAdmin(): Promise<{ db: AdminFirestore; FV: AdminFieldValue }>
   if (!getApps().length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       initializeApp({
-        credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
+        credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]),
       });
     } else {
       initializeApp({

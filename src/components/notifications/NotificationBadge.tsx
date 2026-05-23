@@ -64,7 +64,9 @@ export function NotificationBadge() {
         <div className="relative">
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
-            <span className="absolute -top-1.5 -right-1.5 flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white">
+            // BUG #111 — z-50 + ring noir + shadow accent pour pop visuel +
+            // garantir visibilité au-dessus du menu mobile et du status bar PWA.
+            <span className="absolute -top-1.5 -right-1.5 z-50 flex min-h-[18px] min-w-[18px] items-center justify-center rounded-full bg-accent px-1 text-[10px] font-bold text-white ring-2 ring-black shadow-lg shadow-accent/40">
               {display}
             </span>
           )}

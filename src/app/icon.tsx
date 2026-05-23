@@ -17,6 +17,11 @@
  * SpordateurLogo + offline.html. Stroke + fill cercles utilisent la couleur
  * d'accent dynamique.
  *
+ * Fix #128 — Lorsque l'admin uploade un logo via /admin/manage → Site, le
+ * layout.tsx injecte des <link rel="icon"> explicites qui prennent priorité
+ * sur ce fichier. Cette icon.tsx reste comme fallback si brand n'est pas
+ * configuré.
+ *
  * @module
  */
 

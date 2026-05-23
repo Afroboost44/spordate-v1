@@ -213,9 +213,16 @@ export function getVideoThumbnail(item: { type: string; url?: string; provider?:
  *          empty si Vimeo / provider inconnu
  */
 export function getVideoThumbnailChain(
-  item: { type: string; url?: string; provider?: string; videoId?: string },
+  item: { type: string; url?: string; provider?: string; videoId?: string; thumbnailUrl?: string },
 ): string[] {
   if (item.type !== 'video') return [];
+  // Fix #122 — Si une miniature custom est définie (frame capturée par le
+  // partner via VideoThumbnailPicker), elle gagne TOUJOURS sur la chain auto
+  // (YouTube hq/mq/default ou Drive w800/w400). Garantit que l'instant choisi
+  // par le partner s'affiche partout : cards listing, recherche, /partner/offers.
+  if (item.thumbnailUrl) {
+    return [item.thumbnailUrl];
+  }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stored = (item as any).videoId as string | undefined;
   let provider = item.provider;

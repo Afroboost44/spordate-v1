@@ -58,3 +58,19 @@ memory/
 
 # Claude Code workspace (privé, ne pas committer)
 .claude/
+.env*.local
+
+# Marketing assets (lourd, 1.6 GB — déplacés hors public/ par task #64,
+# non commités au repo car non utilisés par le build Next.js)
+/marketing/
+
+# Backups locaux .bak (manifest, sw, etc.) — pas pertinent en VCS
+*.bak
+
+# Fichier accidentel "main" vide (artefact d'un cat > main)
+/main
+
+# Documents de handover personnels (drafts)
+/HANDOVER-DEMAIN.md
+/PRICING-PROPOSAL.md
+/README-original.md

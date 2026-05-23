@@ -9,7 +9,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { computePricingTier, isSessionBookable } from '@/services/firestore';
 import type { Session, Activity, PricingTierKind, Invite } from '@/types/firestore';
-import { verifyAuth } from '@/lib/auth/verifyAuth';
+import { verifyAuth, parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 import { getSharedStripe } from '@/lib/stripe/sharedStripe';
 import { resolvePaymentMethodTypes } from '@/lib/payment/methodResolver';
 
@@ -28,18 +28,40 @@ let _cachedPackages: typeof DEFAULT_PACKAGES | null = null;
 let _cacheTs = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 min
 
+// BUG #93 — `durationHours` permet aux plans Premium one_time (24h, 1 semaine)
+// de transporter une durée d'activation jusqu'au webhook qui calcule
+// `premiumExpiresAt = now + durationHours * 3600 * 1000`. Pour les subscriptions
+// mensuel/annuel : Stripe gère le cycle via customer.subscription.* events,
+// donc `durationHours` reste absent (-> isPremium tant que subscription active).
 const DEFAULT_PACKAGES: Record<string, {
   price: number; credits: number; label: string;
   description: string; type: 'one_time' | 'subscription';
   interval?: 'month' | 'year'; isActive?: boolean;
+  durationHours?: number;
 }> = {
   'test_1chf': { price: 100, credits: 1, label: 'Test 1 CHF', description: 'Package de test — 1 CHF', type: 'one_time' },
-  '1_date':    { price: 1000, credits: 1, label: 'Starter', description: '1 crédit Sport Date', type: 'one_time' },
-  '3_dates':   { price: 2500, credits: 3, label: 'Populaire', description: '3 crédits Sport Date', type: 'one_time' },
-  '10_dates':  { price: 6000, credits: 10, label: 'Premium', description: '10 crédits Sport Date', type: 'one_time' },
-  'premium_monthly': { price: 1990, credits: 5, label: 'Premium Mensuel', description: 'Abonnement Premium mensuel', type: 'subscription', interval: 'month' },
-  'premium_yearly':  { price: 14900, credits: 60, label: 'Premium Annuel', description: 'Abonnement Premium annuel', type: 'subscription', interval: 'year' },
+  // ----- Legacy packs (conservés pour rétro-compat, désactivables via admin) -----
+  '1_date':    { price: 1000, credits: 1, label: 'Starter (legacy)', description: '1 crédit Sport Date', type: 'one_time' },
+  '3_dates':   { price: 2500, credits: 3, label: 'Populaire (legacy)', description: '3 crédits Sport Date', type: 'one_time' },
+  '10_dates':  { price: 6000, credits: 10, label: 'Premium (legacy)', description: '10 crédits Sport Date', type: 'one_time' },
+  'premium_monthly': { price: 1990, credits: 5, label: 'Premium Mensuel (legacy)', description: 'Abonnement Premium mensuel', type: 'subscription', interval: 'month' },
+  'premium_yearly':  { price: 14900, credits: 60, label: 'Premium Annuel (legacy)', description: 'Abonnement Premium annuel', type: 'subscription', interval: 'year' },
   'partner_monthly': { price: 4900, credits: 0, label: 'Partenaire Pro', description: 'Abonnement partenaire mensuel', type: 'subscription', interval: 'month' },
+
+  // ----- BUG #93 — Nouveaux packs crédits (PRICING-PROPOSAL.md §3) -----
+  // Coûts intra-app : likes premium + boost user + messages chat. JAMAIS pour réserver
+  // une activité (qui se paye en Stripe direct via mode='session').
+  'pack_starter': { price: 490,  credits: 50,   label: 'Starter',  description: '50 crédits Spordateur',   type: 'one_time' },
+  'pack_confort': { price: 1190, credits: 150,  label: 'Confort',  description: '150 crédits Spordateur — économise 20%',  type: 'one_time' },
+  'pack_pro':     { price: 2990, credits: 500,  label: 'Pro',      description: '500 crédits Spordateur — économise 40%',  type: 'one_time' },
+  'pack_vip':     { price: 6990, credits: 1500, label: 'VIP',      description: '1500 crédits Spordateur — économise 52%', type: 'one_time' },
+
+  // ----- BUG #93 — Abonnements Premium (PRICING-PROPOSAL.md §5) -----
+  // 24h + semaine = one_time avec `durationHours` ; mois + an = Stripe subscription.
+  'premium_24h':   { price: 490,   credits: 50,  label: 'Premium Flash 24h',        description: 'Accès Premium 24h + 50 crédits offerts',  type: 'one_time', durationHours: 24 },
+  'premium_week':  { price: 1490,  credits: 100, label: 'Premium Découverte 1 semaine', description: 'Accès Premium 7 jours + 100 crédits',    type: 'one_time', durationHours: 24 * 7 },
+  'premium_month': { price: 2990,  credits: 200, label: 'Premium Standard 1 mois',  description: 'Premium mensuel + 200 crédits / mois',   type: 'subscription', interval: 'month' },
+  'premium_year':  { price: 19990, credits: 250, label: 'Premium Fidélité 1 an',    description: 'Premium annuel + 250 crédits / mois (16.65 CHF/mois)', type: 'subscription', interval: 'year' },
 };
 
 async function getDb() {
@@ -48,7 +70,7 @@ async function getDb() {
   const { getFirestore } = await import('firebase-admin/firestore');
   if (!getApps().length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+      initializeApp({ credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]) });
     } else {
       initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'spordateur-claude' });
     }
@@ -152,6 +174,12 @@ export async function POST(request: NextRequest) {
 
     const paymentMethodTypes: ('card' | 'twint')[] = isSubscription ? ['card'] : ['card', 'twint'];
 
+    // BUG #93 — `durationHours` propagé jusqu'au webhook pour les Premium
+    // one_time (24h, 1 semaine). Le webhook calcule
+    // `users/{uid}.premiumExpiresAt = now + durationHours * 3600_000` et active
+    // isPremium=true. Pour les subscriptions month/year : Stripe gère le cycle.
+    const durationHours = (pkg as { durationHours?: number }).durationHours;
+
     const sessionParams: Record<string, unknown> = {
       payment_method_types: paymentMethodTypes,
       mode: isSubscription ? 'subscription' : 'payment',
@@ -164,6 +192,8 @@ export async function POST(request: NextRequest) {
         referralCode: referralCode || '',
         isPremium: isPremium ? 'true' : 'false',
         partnerId: partnerId || '',
+        // BUG #93 — durée d'activation Premium (one_time uniquement)
+        premiumDurationHours: durationHours ? String(durationHours) : '',
       },
     };
 
@@ -324,9 +354,13 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
 
     // 5. Construire la session Stripe
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
-    // TODO Phase 5: change success_url to `/sessions/${body.sessionId}?status=success&session_id={CHECKOUT_SESSION_ID}` once page exists
-    const successUrl = `${baseUrl}/dashboard?status=success&sessionId=${body.sessionId}&session_id={CHECKOUT_SESSION_ID}`;
-    const cancelUrl = `${baseUrl}/dashboard?status=cancel&sessionId=${body.sessionId}`;
+    // BUG #83 — Retour Stripe (success ET cancel) → /sessions/{id} (la page
+    // compte à rebours de la séance réservée). Avant : redirigeait vers
+    // /dashboard qui est une page mock "Find Your Match" avec activités
+    // fictives, ne devrait pas exister en prod. Désormais le user revient
+    // sur la séance elle-même avec le status query param.
+    const successUrl = `${baseUrl}/sessions/${body.sessionId}?status=success&session_id={CHECKOUT_SESSION_ID}`;
+    const cancelUrl = `${baseUrl}/activities?status=cancel`;
 
     const tierLabel: Record<PricingTierKind, string> = {
       early: 'Early Bird',

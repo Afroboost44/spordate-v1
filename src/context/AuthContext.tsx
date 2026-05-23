@@ -207,7 +207,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userCredential = await createUserWithEmailAndPassword(auth, email, password);
       // Set display name
       await updateProfile(userCredential.user, { displayName });
-      router.push('/activities');
+      // BUG #70 — Onboarding obligatoire (3 prompts profil style Hinge).
+      // Le user remplit ses 3 réponses puis la page redirige vers /activities.
+      router.push('/onboard/prompts');
     } catch (err: any) {
       setError(getFirebaseErrorMessage(err.code));
       throw err;
@@ -226,8 +228,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // (au lieu de connecter direct le dernier compte mis en cache). UX critique
       // pour les users multi-comptes (Bassi a souvent contact.artboost + autre).
       provider.setCustomParameters({ prompt: 'select_account' });
-      await signInWithPopup(auth, provider);
-      router.push('/activities');
+      const credential = await signInWithPopup(auth, provider);
+      // BUG #70 — Différencier signup vs login Google :
+      //  - First-time signup (creationTime ≈ lastSignInTime) → /onboard/prompts
+      //  - Login existant → /activities
+      const meta = credential.user.metadata;
+      const isFirstTime =
+        meta.creationTime && meta.lastSignInTime &&
+        Math.abs(
+          new Date(meta.lastSignInTime).getTime() - new Date(meta.creationTime).getTime(),
+        ) < 5000;
+      router.push(isFirstTime ? '/onboard/prompts' : '/activities');
     } catch (err: any) {
       // Phase 9.5 hotfix — surface real err.code pour debug prod
       console.error('[loginWithGoogle] Firebase error code:', err?.code, 'message:', err?.message);

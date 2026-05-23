@@ -2,12 +2,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle, Gift, Copy, CreditCard, TrendingUp, ArrowRight, LogOut, Shield
+  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle, Gift, Copy, CreditCard, TrendingUp, ArrowRight, LogOut, Shield, MessageSquareQuote, Sparkles, UserCircle, Crown, Settings, SlidersHorizontal, BadgeCheck, AudioLines
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -15,6 +18,18 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { updateUser, updateUserAiOptIn, getUser } from "@/services/firestore";
 import { PushOptInSwitch } from "@/components/profile/PushOptInSwitch";
+import { ProfileExtrasEditor } from "@/components/profile/ProfileExtrasEditor";
+import { ProfilePreviewModal } from "@/components/profile/ProfilePreviewModal";
+import { ProfileSafetySection } from "@/components/profile/ProfileSafetySection";
+import { ProfilePremiumCard } from "@/components/profile/ProfilePremiumCard";
+import { UnverifiedBanner } from "@/components/profile/UnverifiedBanner";
+import { ProfileImageCropper } from "@/components/profile/ProfileImageCropper";
+import { VoicePromptRecorder } from "@/components/profile/VoicePromptRecorder";
+import { VoicePromptPlayer } from "@/components/profile/VoicePromptPlayer";
+import { VOICE_PROMPT_MAX_SECONDS } from "@/lib/profile/voicePrompt";
+
+// Alias label : "20 secondes" pour le sous-titre profile, avec fallback
+const VOICE_PROMPT_MAX_SECONDS_LABEL = String(VOICE_PROMPT_MAX_SECONDS);
 import { QRCodeButton } from "@/components/share/QRCodeButton";
 import { uploadProfilePhoto, StorageUploadError, PROFILE_PHOTO_MAX_BYTES } from "@/lib/storage/uploadProfilePhoto";
 import { readProfilePhotos, normalizePhotosForSave } from "@/lib/profile/photos";
@@ -71,6 +86,13 @@ export default function ProfilePage() {
   const [photos, setPhotos] = useState<string[]>([]);
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [gender, setGender] = useState<'male' | 'female' | 'other'>('other');
+  // BUG #71 — Champs étendus profil (lifestyle + infos perso style Hinge).
+  // Stocké dans users/{uid}.profileExtras. Tous optionnels.
+  const [profileExtras, setProfileExtras] = useState<NonNullable<UserProfile['profileExtras']>>({});
+  // BUG #78 — Modal aperçu profil public (live preview depuis les states courants).
+  const [previewOpen, setPreviewOpen] = useState(false);
+  // BUG #86 — Autosave : indique l'état de sauvegarde auto en bas de page.
+  const [autoSaveState, setAutoSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
 
   // Phase 8 sub-chantier 0 — toggle suggestions IA chat (default-on doctrine §D.Q1).
   // undefined === true (opt-in implicite). false === opt-out explicite.
@@ -79,6 +101,11 @@ export default function ProfilePage() {
 
   const [isLoaded, setIsLoaded] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  // BUG #86 (révisé) — Snapshot de l'état déjà sauvegardé (JSON.stringify).
+  // Compare à chaque trigger du useEffect : si égal → skip (évite la boucle
+  // infinie qui se produisait car handleSave appelait refreshProfile qui
+  // re-hydratait les states → re-trigger autosave → save → re-hydrate ...).
+  const lastSavedSnapshotRef = useRef<string>('');
   const [profileComplete, setProfileComplete] = useState(false);
 
   // Load profile from Firestore
@@ -93,6 +120,8 @@ export default function ProfilePage() {
           setBio(userProfile.bio || '');
           setCity(userProfile.city || '');
           setGender(userProfile.gender || 'other');
+          // BUG #71 — load profileExtras (lifestyle + infos perso)
+          setProfileExtras(userProfile.profileExtras ?? {});
 
           // Parse sports: separate regular sports from dance categories
           const sports: string[] = [];
@@ -175,11 +204,33 @@ export default function ProfilePage() {
     );
   };
 
-  // BUG #13 — Image upload via Firebase Storage (avant : base64 inline dans Firestore
-  // dépassait la limite 1MB/doc → updateDoc silent fail → photo perdue + discovery
-  // affichait l'image par défaut). On upload vers users/{uid}/profile/* puis on
-  // stocke la download URL HTTPS courte dans photos[] (qui devient photoURL au save).
-  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+  // BUG #13 — Image upload via Firebase Storage.
+  // BUG #104 — Ajout d'un step "Cropper" AVANT l'upload : quand l'utilisateur
+  // choisit une photo, on stocke le File dans `croppingFile` et on affiche un
+  // modal `ProfileImageCropper` qui produit un File JPEG 1024×1024 recadré.
+  // Au "Recadrer" du modal → handleCroppedUpload reçoit le File final et
+  // lance l'upload Firebase Storage. Au "Annuler" → on remet croppingFile à null.
+  const [croppingFile, setCroppingFile] = useState<File | null>(null);
+  // BUG #107 — Accroche vocale : modal open + valeurs (synchronisées via callbacks
+  // VoicePromptRecorder qui écrit déjà dans Firestore).
+  const [voicePromptModalOpen, setVoicePromptModalOpen] = useState(false);
+  const [voicePromptData, setVoicePromptData] = useState<{ url?: string; question?: string; duration?: number }>({
+    url: userProfile?.voicePromptUrl,
+    question: userProfile?.voicePromptQuestion,
+    duration: userProfile?.voicePromptDuration,
+  });
+  // Sync depuis userProfile quand il se charge (premier render)
+  useEffect(() => {
+    if (userProfile) {
+      setVoicePromptData({
+        url: userProfile.voicePromptUrl,
+        question: userProfile.voicePromptQuestion,
+        duration: userProfile.voicePromptDuration,
+      });
+    }
+  }, [userProfile?.voicePromptUrl, userProfile?.voicePromptQuestion, userProfile?.voicePromptDuration]);
+
+  const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     // Reset input pour permettre de re-uploader le même file après remove
     if (event.target) event.target.value = '';
@@ -192,9 +243,16 @@ export default function ProfilePage() {
       toast({ title: "Limite atteinte", description: "Max 5 photos.", variant: "destructive" });
       return;
     }
+    // Ouvre le modal cropper. L'upload se fera dans handleCroppedUpload.
+    setCroppingFile(file);
+  };
+
+  const handleCroppedUpload = async (croppedFile: File) => {
+    setCroppingFile(null);
+    if (!user) return;
     setUploadingPhoto(true);
     try {
-      const { url } = await uploadProfilePhoto(file, user.uid);
+      const { url } = await uploadProfilePhoto(croppedFile, user.uid);
       setPhotos(prev => [...prev, url]);
       toast({ title: "Photo ajoutée", className: "bg-green-600 text-white" });
     } catch (err) {
@@ -287,6 +345,13 @@ export default function ProfilePage() {
       // + sync photoURL legacy pour consumers (discovery firestoreProfileToCard
       // line 101 utilise toujours user.photoURL singulier).
       const normalized = normalizePhotosForSave(photos);
+      // BUG #71 — clean profileExtras : ne persiste que les champs non-vides
+      // (storage lean : pas de clés undefined dans Firestore).
+      const cleanedExtras: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(profileExtras)) {
+        if (v === undefined || v === null || v === '') continue;
+        cleanedExtras[k] = v;
+      }
       await updateUser(user.uid, {
         displayName: displayName.trim(),
         bio: bio.trim(),
@@ -296,6 +361,8 @@ export default function ProfilePage() {
         photoURL: normalized.photoURL,
         photos: normalized.photos,
         onboardingComplete: true,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        profileExtras: cleanedExtras as any,
       });
 
       // Also save to localStorage for backward compatibility
@@ -338,6 +405,18 @@ export default function ProfilePage() {
     }
   };
 
+  // BUG #87 — Autosave RETIRÉ : malgré le snapshot ref + save silencieuse,
+  // l'autosave continuait à déclencher la notification "Profil sauvegardé"
+  // en boucle (probablement à cause d'un onSnapshot quelque part qui ré-
+  // hydrate userProfile et re-trigger l'effet). Retour au bouton manuel
+  // uniquement, qui est fiable et explicite pour l'utilisateur.
+  //
+  // Le snapshot ref est conservé pour usage futur si on relance l'autosave
+  // avec une architecture plus robuste (ex: ref des states + flush on blur).
+  void lastSavedSnapshotRef;
+  void autoSaveState;
+  void setAutoSaveState;
+
   if (!isLoaded) {
     return (
       <div className="min-h-screen bg-black flex items-center justify-center text-white">
@@ -351,22 +430,158 @@ export default function ProfilePage() {
     <div className="min-h-screen bg-black text-white p-4 md:p-8 pb-24">
       <div className="max-w-4xl mx-auto space-y-10">
 
-        {/* HEADER */}
-        <div className="pt-4">
-          <h1 className="text-3xl font-light tracking-wide">Mon Profil</h1>
-          <p className="text-white/40 text-sm font-light mt-1">
-            {profileComplete
-              ? "Gérez vos informations et vos photos."
-              : "Complétez votre profil pour commencer à matcher !"}
-          </p>
+        {/* BUG #80 — Icônes top-right (préférences matching + paramètres) façon
+            Hinge top-right (sliders + settings cog).
+            BUG #81 — Si user est admin, ajout d'une 3ème icône Shield qui
+            pointe vers /admin/manage. Visible mobile + desktop (avant l'admin
+            ne pouvait accéder au dashboard que via le menu hamburger du Header
+            global, peu pratique depuis /profile). */}
+        <div className="flex items-center justify-end gap-2 pt-4 -mb-2">
+          {userProfile?.role === 'admin' && (
+            <Link
+              href="/admin/manage"
+              aria-label="Tableau de bord admin"
+              title="Tableau de bord admin"
+              className="p-2 rounded-full border border-accent/30 bg-accent/10 text-accent hover:bg-accent/20 transition-colors"
+            >
+              <Shield className="h-4 w-4" />
+            </Link>
+          )}
+          <Link
+            href="/preferences"
+            aria-label="Préférences de matching"
+            className="p-2 rounded-full border border-white/10 text-white/60 hover:text-accent hover:border-accent/30 transition-colors"
+          >
+            <SlidersHorizontal className="h-4 w-4" />
+          </Link>
+          <Link
+            href="/settings"
+            aria-label="Paramètres"
+            className="p-2 rounded-full border border-white/10 text-white/60 hover:text-accent hover:border-accent/30 transition-colors"
+          >
+            <Settings className="h-4 w-4" />
+          </Link>
+        </div>
+
+        {/* BUG #77 — HEADER ÉPURÉ STYLE HINGE : avatar grand centré + nom + tabs.
+            Avant : H1 "Mon Profil" + 9 sections empilées (chargé). Maintenant :
+            header centré minimaliste + 3 tabs thématiques pour aérer le contenu. */}
+        <div className="flex flex-col items-center gap-3 pt-6 pb-2">
+          {/* BUG #105 — Wrapper avatar pour pouvoir superposer le badge "Vérifié"
+              en bas à droite. Avant : badge invisible sur /profile (alors qu'il
+              s'affichait bien sur /profile/[uid] et /discovery). */}
+          <div className="relative">
+            <Avatar className="h-24 w-24 sm:h-28 sm:w-28 ring-2 ring-white/10">
+              <AvatarImage src={photos[0] || ''} className="object-cover" />
+              <AvatarFallback className="bg-zinc-900 text-white/40 text-2xl font-light">
+                {displayName.charAt(0).toUpperCase() || '?'}
+              </AvatarFallback>
+            </Avatar>
+            {userProfile?.selfieVerificationStatus === 'verified' && (
+              <div
+                className="absolute -bottom-1 -right-1 bg-black rounded-full p-0.5 ring-2 ring-black"
+                title="Profil vérifié"
+                aria-label="Profil vérifié"
+              >
+                <BadgeCheck className="h-7 w-7 text-accent" />
+              </div>
+            )}
+          </div>
+          <h1 className="text-xl sm:text-2xl font-light tracking-wide text-white flex items-center gap-2">
+            {displayName || 'Mon Profil'}
+            {userProfile?.selfieVerificationStatus === 'verified' && (
+              <BadgeCheck
+                className="h-5 w-5 text-accent flex-shrink-0"
+                aria-label="Profil vérifié"
+              />
+            )}
+          </h1>
           {!profileComplete && (
-            <div className="mt-3 px-4 py-2 bg-accent/10 border border-accent/30 rounded-lg">
-              <p className="text-sm text-accent">
-                Complétez votre profil pour apparaître dans les résultats de matching.
+            <div className="px-3 py-1.5 bg-accent/10 border border-accent/30 rounded-full">
+              <p className="text-[11px] text-accent font-light">
+                Complète ton profil pour apparaître dans les matchs
               </p>
             </div>
           )}
+
+          {/* BUG #78 — Bouton "Aperçu de mon profil" : icône Crown premium-look,
+              ouvre la Dialog ProfilePreviewModal qui montre le rendu public live
+              (depuis les states courants, pas besoin de sauvegarder avant). */}
+          <button
+            type="button"
+            onClick={() => setPreviewOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-accent/40 bg-gradient-to-r from-accent/10 via-accent/5 to-accent/10 text-accent hover:bg-accent/20 transition-colors text-sm font-medium"
+          >
+            <Crown className="h-4 w-4" aria-hidden="true" />
+            Aperçu de mon profil
+          </button>
         </div>
+
+        {/* BUG #77 — Tabs Hinge-style : "Mon profil" / "Parrainage" / "Confidentialité".
+            Mobile : tabs prennent toute la largeur. Desktop : tabs centrées. */}
+        <Tabs defaultValue="profile" className="w-full">
+          <TabsList className="grid w-full grid-cols-3 bg-zinc-900/60 border border-white/5 mb-8">
+            <TabsTrigger value="profile" className="text-xs sm:text-sm data-[state=active]:bg-accent/10 data-[state=active]:text-accent">
+              Mon profil
+            </TabsTrigger>
+            <TabsTrigger value="referral" className="text-xs sm:text-sm data-[state=active]:bg-accent/10 data-[state=active]:text-accent">
+              Parrainage
+            </TabsTrigger>
+            <TabsTrigger value="privacy" className="text-xs sm:text-sm data-[state=active]:bg-accent/10 data-[state=active]:text-accent">
+              Confidentialité
+            </TabsTrigger>
+          </TabsList>
+
+          {/* ===== TAB 1 : MON PROFIL (photos + infos + sports + danses + extras + prompts) ===== */}
+          <TabsContent value="profile" className="space-y-6 mt-0">
+
+        {/* BUG #85 — Bannière "Vérifie ton profil" pour nouveaux utilisateurs
+            (status not_started). Auto-hide si déjà verified/pending/rejected
+            ou dismissé 24h. */}
+        <UnverifiedBanner />
+
+        {/* BUG #80 — Card Premium + quick actions Boost / Découvrir en haut */}
+        <ProfilePremiumCard isPremium={!!userProfile?.isPremium} />
+
+        {/* BUG #107 — Section "Accroche vocale" (Hinge Voice Prompt).
+            Placée en 2e position après les photos (cf. mockup Bassi 2026-05-22).
+            Si pas d'enregistrement : bouton CTA. Sinon : lecteur + bouton Modifier. */}
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <AudioLines className="h-5 w-5 text-accent" />
+              Accroche vocale
+            </CardTitle>
+            <p className="text-xs text-gray-500">
+              Une voix dit plus qu&apos;un texte. Affiche-toi sous ton meilleur jour en {VOICE_PROMPT_MAX_SECONDS_LABEL} secondes.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {voicePromptData.url ? (
+              <div className="space-y-3">
+                <VoicePromptPlayer
+                  url={voicePromptData.url}
+                  question={voicePromptData.question}
+                  duration={voicePromptData.duration}
+                />
+                <button
+                  onClick={() => setVoicePromptModalOpen(true)}
+                  className="w-full h-11 rounded-xl border border-white/10 text-white/70 hover:text-accent hover:border-accent/30 transition-colors text-sm"
+                >
+                  Modifier / Remplacer
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setVoicePromptModalOpen(true)}
+                className="w-full h-14 rounded-2xl border-2 border-dashed border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 hover:border-accent/50 transition-colors flex items-center justify-center gap-2 text-sm font-light"
+              >
+                <AudioLines className="h-5 w-5" />
+                Ajouter mon accroche vocale
+              </button>
+            )}
+          </CardContent>
+        </Card>
 
         {/* SECTION PHOTOS */}
         <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
@@ -384,8 +599,31 @@ export default function ProfilePage() {
                 onChange={handleImageUpload}
               />
               {photos.map((photo, index) => (
-                <div key={index} className="relative aspect-square rounded-lg overflow-hidden border border-gray-700 group">
+                <div key={index} className={`relative aspect-square rounded-lg overflow-hidden border group ${index === 0 ? 'border-accent ring-2 ring-accent/30' : 'border-gray-700'}`}>
                   <img src={photo} alt="User" className="w-full h-full object-cover" />
+                  {/* BUG #107 — Badge "Principale" sur photo[0] + bouton "Mettre en principale"
+                      sur les autres photos. Au click → swap avec photos[0]. */}
+                  {index === 0 && (
+                    <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded-full bg-accent text-white text-[9px] uppercase tracking-wider font-medium">
+                      Principale
+                    </div>
+                  )}
+                  {index !== 0 && (
+                    <button
+                      onClick={() => {
+                        // Swap photos[index] avec photos[0] pour mettre en avant
+                        setPhotos(prev => {
+                          const next = [...prev];
+                          [next[0], next[index]] = [next[index], next[0]];
+                          return next;
+                        });
+                      }}
+                      title="Mettre cette photo en principale"
+                      className="absolute bottom-1 left-1 bg-black/70 backdrop-blur px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-[9px] uppercase tracking-wider text-white/80 hover:text-accent"
+                    >
+                      ★ Principale
+                    </button>
+                  )}
                   <button
                     onClick={() => removePhoto(index)}
                     className="absolute top-1 right-1 bg-red-600 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
@@ -564,6 +802,95 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
+        {/* BUG #71 — SECTION INFOS PERSO + LIFESTYLE (taille, profession, religion,
+            type de relation, alcool/tabac/etc.). Tout optionnel.
+            BUG #82 — Wrappé dans Accordion : replié par défaut pour réduire la
+            charge visuelle. L'utilisateur clique pour déplier et remplir. */}
+        <Accordion type="single" collapsible className="bg-[#1A1A1A] border border-white/5 rounded-xl">
+          <AccordionItem value="plus-sur-toi" className="border-0">
+            <AccordionTrigger className="px-6 py-4 hover:no-underline hover:bg-white/5 rounded-xl">
+              <div className="flex items-center gap-2 flex-1 text-left">
+                <UserCircle className="h-5 w-5 text-accent" />
+                <div>
+                  <p className="text-sm font-medium text-white">Plus sur toi</p>
+                  <p className="text-xs text-white/40 font-light mt-0.5">
+                    Tout est optionnel. Plus tu remplis, plus ton profil est riche.
+                  </p>
+                </div>
+              </div>
+            </AccordionTrigger>
+            <AccordionContent className="px-6 pb-6">
+              <ProfileExtrasEditor
+                value={profileExtras}
+                onChange={setProfileExtras}
+                disabled={isSaving}
+              />
+            </AccordionContent>
+          </AccordionItem>
+        </Accordion>
+
+        {/* BUG #70 — SECTION 3 RÉPONSES PROFIL (style Hinge prompts).
+            Affiche les 3 prompts répondus (lecture seule ici) + CTA vers
+            /onboard/prompts qui réutilise le picker complet pour modifier. */}
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquareQuote className="h-5 w-5 text-accent" />
+              Tes 3 réponses profil
+            </CardTitle>
+            <p className="text-xs text-white/40 font-light mt-1">
+              Les questions qui rendent ton profil unique. Inspiré style Hinge.
+            </p>
+          </CardHeader>
+          <CardContent>
+            {userProfile?.profilePrompts && userProfile.profilePrompts.length > 0 ? (
+              <div className="flex flex-col gap-3">
+                {userProfile.profilePrompts.map((p, i) => (
+                  <div
+                    key={`${p.questionId}-${i}`}
+                    className="rounded-lg border border-white/10 bg-zinc-950/60 p-3"
+                  >
+                    <p className="text-[11px] text-white/40 uppercase tracking-wider mb-1">
+                      {p.question}
+                    </p>
+                    <p className="text-sm text-white font-medium leading-snug">
+                      {p.answer}
+                    </p>
+                  </div>
+                ))}
+                <Link
+                  href="/onboard/prompts"
+                  className="self-start inline-flex items-center gap-2 mt-2 px-4 py-2 rounded-full border border-accent/40 text-accent hover:bg-accent/10 text-sm font-light transition-colors"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Modifier mes réponses
+                </Link>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center gap-3 py-6 text-center">
+                <div className="w-12 h-12 rounded-full bg-accent/10 border border-accent/30 flex items-center justify-center">
+                  <Sparkles className="h-5 w-5 text-accent" />
+                </div>
+                <p className="text-sm text-white/70 font-light">
+                  Tu n&apos;as pas encore choisi tes 3 questions profil.
+                </p>
+                <Link
+                  href="/onboard/prompts"
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-accent text-white hover:bg-accent/90 text-sm font-medium transition-colors"
+                >
+                  <Sparkles className="h-4 w-4" />
+                  Compléter mon profil
+                </Link>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+          </TabsContent>
+
+          {/* ===== TAB 2 : PARRAINAGE (referral + créateur) ===== */}
+          <TabsContent value="referral" className="space-y-6 mt-0">
+
         {/* SECTION PARRAINAGE & CRÉDITS */}
         <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
           <CardHeader>
@@ -674,6 +1001,14 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
+          </TabsContent>
+
+          {/* ===== TAB 3 : CONFIDENTIALITÉ (IA opt-in, push notif, supprimer compte) ===== */}
+          <TabsContent value="privacy" className="space-y-6 mt-0">
+
+        {/* BUG #80 — Section Sécurité enrichie (selfie + liste rouge + filtre) */}
+        <ProfileSafetySection profile={userProfile} />
+
         {/* SECTION CONFIDENTIALITÉ — Phase 8 sub-chantier 0 (commit 2/3) */}
         <Card className="bg-white/5 border-white/10">
           <CardHeader>
@@ -743,6 +1078,9 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
+          </TabsContent>
+        </Tabs>
+
         {/* ACTIONS */}
         <div className="flex justify-center md:justify-end mt-4">
           <Button
@@ -754,6 +1092,49 @@ export default function ProfilePage() {
             Sauvegarder mon profil
           </Button>
         </div>
+
+        {/* BUG #78 — Modal Aperçu du profil public. Construit un userProfile mock
+            depuis les states courants du form (live preview), réutilise les composants
+            publics (ProfilePromptsDisplay / ProfileStatsRow / ProfileInfoList). */}
+        <ProfilePreviewModal
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          profile={{
+            displayName,
+            bio,
+            city,
+            gender,
+            photoURL: photos[0] || '',
+            photos,
+            birthDate: userProfile?.birthDate,
+            profileExtras,
+            profilePrompts: userProfile?.profilePrompts,
+            // BUG #109 — Aperçu live : passer aussi les champs voicePrompt depuis
+            // le state local voicePromptData (mis à jour temps réel après save
+            // via VoicePromptRecorder callbacks). Avant : ces 3 champs étaient
+            // omis → l'aperçu n'affichait pas l'accroche même quand enregistrée.
+            voicePromptUrl: voicePromptData.url,
+            voicePromptQuestion: voicePromptData.question,
+            voicePromptDuration: voicePromptData.duration,
+            // Badge ✓ Vérifié dans l'aperçu (cohérent /profile/[uid])
+            selfieVerificationStatus: userProfile?.selfieVerificationStatus,
+          }}
+          photos={photos}
+          sports={[
+            ...selectedSports.map((name) => ({ name, level: 'intermediate' as const })),
+            ...selectedDances.map((danceId) => {
+              const danceLevelMap: Record<string, 'beginner' | 'intermediate' | 'advanced'> = {
+                debutant: 'beginner',
+                intermediaire: 'intermediate',
+                avance: 'advanced',
+              };
+              return {
+                name: danceId,
+                level: (danceLevel ? danceLevelMap[danceLevel] : 'beginner') as 'beginner' | 'intermediate' | 'advanced',
+              };
+            }),
+          ]}
+        />
 
         {/* DÉCONNEXION */}
         <button
@@ -770,6 +1151,26 @@ export default function ProfilePage() {
         </button>
 
       </div>
+
+      {/* BUG #104 — Modal cropper : ouvert quand croppingFile != null. */}
+      <ProfileImageCropper
+        file={croppingFile}
+        onCropped={(croppedFile) => { void handleCroppedUpload(croppedFile); }}
+        onCancel={() => setCroppingFile(null)}
+      />
+
+      {/* BUG #107 — Modal recorder accroche vocale. Écrit lui-même dans Firestore
+          via les callbacks ; on synchronise juste le state local pour réactivité. */}
+      {user && (
+        <VoicePromptRecorder
+          open={voicePromptModalOpen}
+          onOpenChange={setVoicePromptModalOpen}
+          uid={user.uid}
+          current={voicePromptData}
+          onSaved={(data) => setVoicePromptData(data)}
+          onDeleted={() => setVoicePromptData({})}
+        />
+      )}
     </div>
   );
 }

@@ -4,6 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +18,7 @@ async function initAdmin() {
 
   if (!getApps().length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+      initializeApp({ credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]) });
     } else {
       initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'spordateur-claude' });
     }

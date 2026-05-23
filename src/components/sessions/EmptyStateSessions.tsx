@@ -41,7 +41,7 @@
 import { useEffect } from 'react';
 import { Calendar, AlertCircle, ArrowRight, RefreshCw } from 'lucide-react';
 
-const DEFAULT_CONTACT_EMAIL = 'contact@afroboosteur.com';
+const DEFAULT_CONTACT_EMAIL = 'contact@spordateur.com';
 
 const EMPTY_MAILTO_SUBJECT = 'Me prévenir des prochaines sessions Spordateur';
 const EMPTY_MAILTO_BODY =
@@ -51,7 +51,7 @@ export interface EmptyStateSessionsProps {
   variant: 'empty' | 'error';
   /** Détails techniques (variant='error' uniquement). Affichés en text-xs white/40 font-mono. */
   errorDetails?: string;
-  /** Email pour le mailto du variant 'empty'. Défaut 'contact@afroboosteur.com'. */
+  /** Email pour le mailto du variant 'empty'. Défaut 'contact@spordateur.com'. */
   contactEmail?: string;
   /** Action de retry pour variant='error'. Si absente, fallback window.location.reload(). */
   onRetry?: () => void;

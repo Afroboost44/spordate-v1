@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import { saveReferralCode } from '@/lib/referral/refStorage';
+import { PartnerContactDialog } from '@/components/landing/PartnerContactDialog';
 
 // ─── S LOGO COMPONENT ────────────────────────────────────
 // Accent feature : inline SVG suit text-accent (dynamique admin /admin Couleur principale).
@@ -48,6 +49,8 @@ const SWISS_CITIES = ['Genève', 'Zurich', 'Lausanne', 'Bern', 'Bâle', 'Lucerne
 
 export default function LandingPage() {
   const [hoveredActivity, setHoveredActivity] = useState<string | null>(null);
+  // Fix #127 — état du dialog "Nous contacter" (formulaire partenaire home)
+  const [contactOpen, setContactOpen] = useState(false);
   const [site, setSite] = useState<Record<string, string>>({
     heroTitle1: "Rencontre quelqu'un", heroTitle2: "en partageant une", heroTitle3: "activité sportive.",
     heroSubtitle: "Danse, fitness, running... Choisis ton sport, matche, et vis une vraie rencontre.",
@@ -281,7 +284,12 @@ export default function LandingPage() {
             <Button asChild className="text-white font-normal text-sm tracking-wide uppercase px-8 h-12 rounded-none neon-glow" style={{ backgroundColor: site.primaryColor }}>
               <Link href="/partners">{site.partnerCta1}</Link>
             </Button>
-            <Button variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-8 h-12 rounded-none">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setContactOpen(true)}
+              className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-8 h-12 rounded-none"
+            >
               {site.partnerCta2}
             </Button>
           </div>
@@ -328,8 +336,7 @@ export default function LandingPage() {
               <ul className="space-y-2 text-xs font-light text-white/30">
                 <li><a href="#" className="hover:text-white transition">À propos</a></li>
                 <li><a href="#" className="hover:text-white transition">Studios partenaires</a></li>
-                <li><a href="#" className="hover:text-white transition">Blog</a></li>
-                <li><a href="#" className="hover:text-white transition">Presse</a></li>
+                {/* Fix #129 — Blog et Presse cachés (pages pas encore créées) */}
               </ul>
             </div>
             <div>
@@ -352,6 +359,9 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* Fix #127 — Modal formulaire NOUS CONTACTER (section partenaires) */}
+      <PartnerContactDialog open={contactOpen} onOpenChange={setContactOpen} />
     </div>
   );
 }

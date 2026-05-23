@@ -26,6 +26,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { sendEmail } from '@/lib/email/sendEmail';
 import { getAdminAuthOverride, type AdminAuthLike } from './_internal';
+import { parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,7 +49,7 @@ async function getAdminAuth(): Promise<AdminAuthLike> {
       _adminApp = getApps()[0];
     } else if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
       _adminApp = initializeApp({
-        credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
+        credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]),
       });
     } else {
       _adminApp = initializeApp({

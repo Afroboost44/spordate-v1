@@ -27,32 +27,10 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminDb: any = null;
-
-async function getAdminDb() {
-  if (_adminDb) return _adminDb;
-  const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-  const { getFirestore } = await import('firebase-admin/firestore');
-  if (!getApps().length) {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
-    } else {
-      initializeApp({
-        projectId:
-          process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
-          process.env.GCLOUD_PROJECT ||
-          'spordateur-claude',
-      });
-    }
-  }
-  _adminDb = getFirestore();
-  return _adminDb;
-}
 
 export async function POST(request: NextRequest) {
   try {
@@ -62,6 +40,95 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json().catch(() => ({}));
+
+    // Fix #118 — Action 'notify-message' : trigger push + email fallback pour
+    // un message chat. Réutilise cet endpoint qui compile déjà, contournement
+    // d'un bug Next.js qui refusait /api/chat/notify-message (build silencieux).
+    console.log('[MARKER-XYZ-118] route hit', { hasAction: !!body?.action, action: body?.action });
+    if (body?.action === 'notify-message') {
+      const chatId = body.chatId as string;
+      const recipientUid = body.recipientUid as string;
+      if (!chatId || !recipientUid) {
+        return NextResponse.json({ error: 'invalid-input', detail: 'chatId + recipientUid required' }, { status: 400 });
+      }
+      if (recipientUid === fromUid) {
+        return NextResponse.json({ ok: true, skipped: 'self' }, { status: 200 });
+      }
+      const db = await getAdminDb();
+      const chatSnap = await db.collection('chats').doc(chatId).get();
+      if (!chatSnap.exists) {
+        return NextResponse.json({ error: 'chat-not-found' }, { status: 404 });
+      }
+      const chatData = chatSnap.data() || {};
+      const participants = Array.isArray(chatData.participants) ? chatData.participants : [];
+      if (!participants.includes(fromUid) || !participants.includes(recipientUid)) {
+        return NextResponse.json({ error: 'not-participant' }, { status: 403 });
+      }
+      const senderName = (body.senderName || 'Quelqu’un').toString().slice(0, 40);
+      const preview = (body.preview || 'Tu as reçu un nouveau message').toString().slice(0, 200);
+      const clickUrl = `/chat?match=${chatId}`;
+      console.log('[notify-message] incoming', { fromUid, recipientUid, chatId });
+
+      const { notifyUser } = await import('@/lib/notifications/notifyUser');
+      const push = await notifyUser({
+        uid: recipientUid,
+        title: `${senderName} t'a écrit`,
+        body: preview,
+        clickUrl,
+        data: { type: 'message', chatId, matchId: chatId, senderId: fromUid },
+      });
+      console.log('[notify-message] push', { push });
+
+      let emailResult: { ok: boolean; reason?: string } = { ok: false, reason: 'skipped-push-ok' };
+      if (!push.ok) {
+        try {
+          const recipientSnap = await db.collection('users').doc(recipientUid).get();
+          const recipientData = recipientSnap.exists ? recipientSnap.data() || {} : {};
+          const recipientEmail = (recipientData.email as string | undefined) || '';
+          const emailEnabled = recipientData.emailNotificationsEnabled !== false;
+          const { FieldValue } = await import('firebase-admin/firestore');
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const lastNotifyMap = (recipientData.lastChatEmailNotifyAt || {}) as Record<string, any>;
+          const lastNotifyTs = lastNotifyMap[fromUid];
+          const lastMs = lastNotifyTs?.toMillis?.() ?? 0;
+          const rateLimited = Date.now() - lastMs < 5 * 60 * 1000;
+          if (!recipientEmail) emailResult = { ok: false, reason: 'no-email' };
+          else if (!emailEnabled) emailResult = { ok: false, reason: 'email-opt-out' };
+          else if (rateLimited) emailResult = { ok: false, reason: 'rate-limited-5min' };
+          else {
+            const { sendEmail } = await import('@/lib/email/sendEmail');
+            const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com').replace(/\/$/, '');
+            const r = await sendEmail({
+              to: recipientEmail,
+              templateName: 'chatMessageReceived',
+              templateData: {
+                toUserName: (recipientData.displayName as string | undefined) || undefined,
+                fromUserName: senderName,
+                messagePreview: preview,
+                chatLink: `${baseUrl}/chat?match=${chatId}`,
+              },
+            });
+            emailResult = { ok: r.ok, reason: r.error };
+            if (r.ok) {
+              try {
+                await db.collection('users').doc(recipientUid).set(
+                  { lastChatEmailNotifyAt: { [fromUid]: FieldValue.serverTimestamp() } },
+                  { merge: true },
+                );
+              } catch (err) {
+                console.warn('[notify-message] update lastChatEmailNotifyAt failed', err);
+              }
+            }
+          }
+        } catch (err) {
+          console.warn('[notify-message] email fallback failed', err);
+          emailResult = { ok: false, reason: 'email-error' };
+        }
+      }
+      console.log('[notify-message] email', { email: emailResult });
+      return NextResponse.json({ ok: true, push, email: emailResult }, { status: 200 });
+    }
+
     const targetUid = body?.targetUid as string;
     if (!targetUid || typeof targetUid !== 'string') {
       return NextResponse.json(
@@ -158,7 +225,34 @@ export async function POST(request: NextRequest) {
       createdAt: FieldValue.serverTimestamp(),
     });
 
-    // 6. Push notif → deferred c38b
+    // BUG #116 — Push notifs aux 2 users (fire-and-forget, ne bloque pas la réponse).
+    // Lit fcmToken depuis users/{uid} + check toggle pushNotificationsEnabled.
+    // Si l'app est ouverte chez le destinataire : foreground handler → toast.
+    // Si fermée : background SW → notif système iOS/Android avec son + vibration.
+    try {
+      const { notifyUser } = await import('@/lib/notifications/notifyUser');
+      // Match est mutuel : on notifie les 2 users en parallèle
+      const clickUrl = `/chat?match=${deterministicMatchId}`;
+      void Promise.all([
+        notifyUser({
+          uid: fromUid,
+          title: '🎉 C\'est un match !',
+          body: 'Vous vous êtes likés. Lancez la conversation.',
+          clickUrl,
+          data: { type: 'match', matchId: deterministicMatchId },
+        }),
+        notifyUser({
+          uid: targetUid,
+          title: '🎉 C\'est un match !',
+          body: 'Vous vous êtes likés. Lancez la conversation.',
+          clickUrl,
+          data: { type: 'match', matchId: deterministicMatchId },
+        }),
+      ]).catch(err => console.warn('[match/create-mutual] notifyUser failed', err));
+    } catch (err) {
+      console.warn('[match/create-mutual] push import failed', err);
+    }
+
     return NextResponse.json(
       { ok: true, mutual: true, matchId: deterministicMatchId, alreadyExisted: false },
       { status: 200 },

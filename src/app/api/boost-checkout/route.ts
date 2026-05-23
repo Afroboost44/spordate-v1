@@ -4,7 +4,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/auth/verifyAuth';
+import { verifyAuth, parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -25,13 +25,21 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
     }
 
-    const { duration, city, country } = await request.json();
+    const { duration, city, country, activityId } = await request.json();
 
     if (!duration || !BOOST_PRICES[duration]) {
       return NextResponse.json({ error: 'Durée invalide' }, { status: 400 });
     }
     if (!city) {
       return NextResponse.json({ error: 'Ville requise' }, { status: 400 });
+    }
+    // BUG #69 — activityId obligatoire désormais (boost par activité). Si absent,
+    // refus côté API pour forcer le client à passer la valeur (le form l'envoie déjà).
+    if (!activityId || typeof activityId !== 'string') {
+      return NextResponse.json(
+        { error: 'activity-required', detail: 'Choisis l\'activité à booster.' },
+        { status: 400 },
+      );
     }
 
     const partnerId = uid;
@@ -43,7 +51,7 @@ export async function POST(request: NextRequest) {
     const { getFirestore } = await import('firebase-admin/firestore');
     if (!getApps().length) {
       if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-        initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+        initializeApp({ credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]) });
       } else {
         initializeApp({
           projectId:
@@ -54,6 +62,27 @@ export async function POST(request: NextRequest) {
       }
     }
     const adminDb = getFirestore();
+
+    // BUG #69 — Validation : l'activity doit exister + appartenir au partner.
+    // Empêche un partner de booster une activité d'un autre compte.
+    const activitySnap = await adminDb.collection('activities').doc(activityId).get();
+    if (!activitySnap.exists) {
+      return NextResponse.json(
+        { error: 'activity-not-found', detail: 'Activité introuvable.' },
+        { status: 404 },
+      );
+    }
+    const activityData = activitySnap.data();
+    if (activityData?.partnerId !== partnerId) {
+      return NextResponse.json(
+        { error: 'activity-not-owned', detail: 'Cette activité ne t\'appartient pas.' },
+        { status: 403 },
+      );
+    }
+
+    // BUG #69 — Idempotence métier : 1 seul boost actif par
+    // (partnerId, activityId, city). Permet désormais de booster plusieurs
+    // activités dans la même ville (avant : 1 par city pour tout le compte).
     const activeBoostsSnap = await adminDb
       .collection('boosts')
       .where('partnerId', '==', partnerId)
@@ -62,7 +91,11 @@ export async function POST(request: NextRequest) {
       .get();
     const nowMs = Date.now();
     const hasActive = activeBoostsSnap.docs.some((d) => {
-      const exp = d.data().expiresAt;
+      const data = d.data();
+      // Si le boost existant cible une AUTRE activity (ou n'a pas d'activityId =
+      // legacy), on autorise un nouveau boost pour activityId courant.
+      if (data.activityId && data.activityId !== activityId) return false;
+      const exp = data.expiresAt;
       const expMs =
         typeof exp?.toMillis === 'function'
           ? exp.toMillis()
@@ -75,7 +108,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         {
           error: 'already-boosted',
-          detail: `Un boost est déjà actif pour ${city}. Attends son expiration ou cible une autre ville.`,
+          detail: `Cette activité est déjà boostée pour ${city}. Attends son expiration ou choisis une autre activité/ville.`,
         },
         { status: 409 },
       );
@@ -112,6 +145,9 @@ export async function POST(request: NextRequest) {
       metadata: {
         type: 'boost',
         partnerId,
+        // BUG #69 — activityId persisté dans metadata. Lu par le webhook
+        // handleBoostPayment qui l'écrit dans le doc boosts/{id} après payment.
+        activityId,
         duration,
         city,
         country: country || 'Suisse',

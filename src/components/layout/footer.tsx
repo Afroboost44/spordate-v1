@@ -41,7 +41,7 @@ export default function Footer() {
 
         <div className="mt-6 pt-4 border-t border-zinc-800/50 text-center">
           <Link href="/admin/login" className="text-xs text-gray-700 hover:text-gray-500 transition-colors font-light" title="Admin">
-            &copy; {new Date().getFullYear()} Spordateur — Association Afroboosteur, Neuchâtel, Suisse
+            &copy; {new Date().getFullYear()} Spordateur — Neuchâtel, Suisse — IDE : CHE-407.097.646
           </Link>
         </div>
       </div>

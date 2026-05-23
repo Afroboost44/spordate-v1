@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, Heart, MapPin, Undo2, Zap, Lock, CheckCircle, RefreshCcw, Handshake, Share2, CreditCard, Check, Ticket, Loader2, Building2, Navigation, Clock, Users, Calendar, MessageCircle, Send, ChevronRight, Download, Gift } from 'lucide-react';
+import { X, Heart, MapPin, Undo2, Zap, Lock, CheckCircle, RefreshCcw, Handshake, Share2, CreditCard, Check, Ticket, Loader2, Building2, Navigation, Clock, Users, Calendar, MessageCircle, Send, ChevronRight, Download, Gift, BadgeCheck } from 'lucide-react';
 // Using regular img tags instead of next/image for external URLs reliability
 import { Badge } from "@/components/ui/badge";
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -105,6 +105,9 @@ function firestoreProfileToCard(user: UserProfile, index: number) {
     bio: user.bio || 'Passionné de sport, à la recherche de partenaires !',
     imageId: 'discovery-' + ((index % 3) + 1), // Cycle through placeholder images
     photoURL: user.photoURL || '',
+    // BUG #84 — Propage le statut de vérification selfie pour afficher le
+    // badge ✓ Vérifié sur la card Discovery.
+    isVerified: user.selfieVerificationStatus === 'verified',
     matchScore: 0, // Will be computed
   };
 }
@@ -126,6 +129,10 @@ export default function DiscoveryPage() {
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
   const [boostedPartnerIds, setBoostedPartnerIds] = useState<Set<string>>(new Set());
+  // BUG #69 — Set des activityId boostés (nouveau modèle par-activité).
+  // Un boost peut désormais cibler 1 activity précise au lieu de tout le compte.
+  // boostedPartnerIds reste utilisé pour les boosts LEGACY (sans activityId).
+  const [boostedActivityIds, setBoostedActivityIds] = useState<Set<string>>(new Set());
   const [boostedActivities_db, setBoostedActivities_db] = useState<any[]>([]);
   const [realActivities, setRealActivities] = useState<any[]>([]);
   // Phase 9.5 c26 BUG BB — activity choisie dans la modal "Tu veux rencontrer X ?".
@@ -368,18 +375,27 @@ export default function DiscoveryPage() {
           where('expiresAt', '>', now)
         );
         const snapshot = await getDocs(q);
-        const ids = new Set<string>();
+        // BUG #69 — Sépare boosts per-activity (nouveau) vs legacy (sans activityId).
+        //  - Boost AVEC activityId → push dans boostedActivityIds (filtre précis)
+        //  - Boost SANS activityId → push dans boostedPartnerIds (fallback legacy
+        //    qui boost toutes les activités du partner). Ces docs ont été créés
+        //    AVANT le fix #69 et restent valides jusqu'à leur expiration naturelle.
+        const partnerIds = new Set<string>();
+        const activityIds = new Set<string>();
         const boostDocs: any[] = [];
         snapshot.forEach(doc => {
           const data = doc.data();
-          if (data.partnerId) {
-            ids.add(data.partnerId);
+          if (data.activityId) {
+            activityIds.add(data.activityId);
+          } else if (data.partnerId) {
+            partnerIds.add(data.partnerId);
           }
           boostDocs.push({ id: doc.id, ...data });
         });
-        setBoostedPartnerIds(ids);
+        setBoostedPartnerIds(partnerIds);
+        setBoostedActivityIds(activityIds);
         setBoostedActivities_db(boostDocs);
-        console.log(`[Discovery] ${ids.size} partenaires boostés chargés`);
+        console.log(`[Discovery] boosts chargés : ${activityIds.size} per-activity + ${partnerIds.size} legacy (partenaire)`);
       } catch (err) {
         console.warn('[Discovery] Erreur chargement boosts:', err);
       }
@@ -460,9 +476,28 @@ export default function DiscoveryPage() {
   // que les activités dont le partenaire est ACTUELLEMENT boosté (présent dans
   // la collection boosts/ avec active=true et expiresAt>now, cf. ligne 310).
   // Boostés en tête (sort stable : tous boostés donc ordre Firestore conservé).
-  const visibleActivities = realActivities.filter((act) =>
-    boostedPartnerIds.has(act.partnerId)
+  // BUG #69 — Une activity est boostée si :
+  //   - son activityId est dans boostedActivityIds (boost par-activité, nouveau modèle), OU
+  //   - son partnerId est dans boostedPartnerIds (legacy : boost tout le compte)
+  const visibleActivities = realActivities.filter(
+    (act) =>
+      boostedActivityIds.has(act.id) ||
+      boostedPartnerIds.has(act.partnerId),
   );
+
+  // BUG #69 — Set "effectif" des partners considérés boostés au niveau partner :
+  // legacy boost partner + partnerIds des activités boostées par-activité.
+  // Utilisé pour les UIs qui affichent les partners (sheet locations, partner cards)
+  // afin qu'un partner avec un boost per-activity apparaisse aussi en haut.
+  const effectiveBoostedPartnerIds = (() => {
+    const s = new Set(boostedPartnerIds);
+    for (const act of realActivities) {
+      if (act.id && boostedActivityIds.has(act.id) && act.partnerId) {
+        s.add(act.partnerId);
+      }
+    }
+    return s;
+  })();
 
 
   const handleNextProfile = () => {
@@ -1467,7 +1502,12 @@ END:VCALENDAR`;
   // activités actives par ville. UX utile, le user voit une liste plutôt
   // qu'un empty state inquiétant. Si boost actif → comportement standard.
   const wherePracticeGroups = useMemo(() => {
-    const boosted = groupBoostedActivitiesByCity(realActivities, boostedPartnerIds, { max: 50 });
+    // BUG #69 — passe les 2 sets (per-activity + legacy partner) au helper
+    const boosted = groupBoostedActivitiesByCity(
+      realActivities,
+      boostedPartnerIds,
+      { max: 50, boostedActivityIds },
+    );
     if (boosted.length > 0) return boosted;
     // Fallback : groupe toutes les activités actives par ville (set partnerIds
     // dérivé des activités elles-mêmes → tout pass le filtre boost dans le helper).
@@ -1478,7 +1518,7 @@ END:VCALENDAR`;
       allActive.map((a: any) => a.partnerId).filter((id): id is string => typeof id === 'string' && id.length > 0),
     );
     return groupBoostedActivitiesByCity(allActive, allPartnerIds, { max: 50 });
-  }, [realActivities, boostedPartnerIds]);
+  }, [realActivities, boostedPartnerIds, boostedActivityIds]);
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-black">
@@ -1568,14 +1608,30 @@ END:VCALENDAR`;
                 )}
               </div>
 
-              {/* Name + Location — name cliquable vers /profile/[uid] (BUG #18) */}
+              {/* Name + Location — name cliquable vers /profile/[uid] (BUG #18).
+                  BUG #84 — Badge ✓ Vérifié à droite du nom si le user a passé
+                  la reconnaissance faciale (selfieVerificationStatus='verified'). */}
               <div className="absolute bottom-0 left-0 right-0 p-6 pb-7 z-10">
                 {profileHref ? (
-                  <Link href={profileHref} className="inline-block hover:opacity-90 transition">
+                  <Link href={profileHref} className="inline-flex items-center gap-2 hover:opacity-90 transition">
                     <h2 className="text-4xl font-light tracking-tight text-white drop-shadow-2xl">{currentProfile.name}</h2>
+                    {currentProfile.isVerified && (
+                      <BadgeCheck
+                        className="h-7 w-7 text-accent drop-shadow-2xl"
+                        aria-label="Profil vérifié"
+                      />
+                    )}
                   </Link>
                 ) : (
-                  <h2 className="text-4xl font-light tracking-tight text-white drop-shadow-2xl">{currentProfile.name}</h2>
+                  <div className="inline-flex items-center gap-2">
+                    <h2 className="text-4xl font-light tracking-tight text-white drop-shadow-2xl">{currentProfile.name}</h2>
+                    {currentProfile.isVerified && (
+                      <BadgeCheck
+                        className="h-7 w-7 text-accent drop-shadow-2xl"
+                        aria-label="Profil vérifié"
+                      />
+                    )}
+                  </div>
                 )}
                 <p className="flex items-center gap-1.5 text-white/60 text-sm mt-1 tracking-wide">
                   <MapPin size={14} className="text-accent" />
@@ -1758,11 +1814,62 @@ END:VCALENDAR`;
                   <div className="space-y-2">
                     {partnerActivities.map((act) => {
                       const isSelected = selectedActivity?.activityId === act.activityId;
-                      // Phase 9.5 c48 BUG A — resolveThumbnail convertit URL YouTube
-                      // en miniature img.youtube.com/vi/{id}/hqdefault.jpg, sinon
-                      // passe l'URL CDN telle quelle.
-                      const rawSrc = act.imageUrl || act.mediaUrls?.[0]?.url || act.mediaUrls?.[0] || '';
-                      const thumbnail = resolveThumbnail(rawSrc);
+                      // BUG #113/#114 — Régression miniature. Cause racine : un legacy
+                      // `act.imageUrl` peut contenir une URL VIDÉO Firebase Storage
+                      // (.mp4/.webm) → rendu en <img> → broken → alt text affiché.
+                      // Fix robuste : on détecte si une URL est "image-rendrable" via
+                      // extension + provider (YouTube/Drive). Sinon → on traite comme
+                      // vidéo et on rend un <video> avec Media Fragments #t=0.1.
+                      const isImageLike = (u?: string | null): boolean => {
+                        if (!u) return false;
+                        const s = u.toLowerCase();
+                        // URLs YouTube / Drive → resolveThumbnail produira une image
+                        if (s.includes('youtube.com') || s.includes('youtu.be') || s.includes('drive.google.com')) return true;
+                        // Extensions image classiques
+                        if (/\.(jpg|jpeg|png|webp|gif|svg|avif)(\?|#|$)/i.test(s)) return true;
+                        // Firebase Storage URL → on regarde si le chemin contient une
+                        // image ou si content-disposition implique image
+                        if (s.includes('firebasestorage')) {
+                          // Ces URLs n'ont pas toujours d'extension dans le path encodé.
+                          // On accepte par défaut SAUF si le path encodé contient explicitement .mp4/.webm/.mov
+                          return !/(%2[fF])?[^/]*\.(mp4|webm|mov|m4v)/i.test(s);
+                        }
+                        // Sinon → considéré image par défaut (sera de toute façon fallback alt)
+                        return true;
+                      };
+                      const isVideoLike = (u?: string | null): boolean => {
+                        if (!u) return false;
+                        const s = u.toLowerCase();
+                        return /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(s)
+                          || /(%2[fF])?[^/]*\.(mp4|webm|mov|m4v)/i.test(s);
+                      };
+                      const mediaItems = Array.isArray(act.mediaUrls) ? act.mediaUrls : [];
+                      // 1. Cherche la 1ère IMAGE dans mediaUrls (type='image' OR URL-image-like)
+                      let rawImg = '';
+                      let videoUrl: string | null = null;
+                      for (const m of mediaItems) {
+                        if (!m) continue;
+                        const url = typeof m === 'string' ? m : m.url;
+                        const type = typeof m === 'object' ? m.type : undefined;
+                        if (!url) continue;
+                        if (type === 'image' || (!type && isImageLike(url))) {
+                          rawImg = url;
+                          break;
+                        }
+                        if ((type === 'video' || isVideoLike(url)) && !videoUrl) {
+                          videoUrl = url;
+                        }
+                      }
+                      // 2. Fallback legacy imageUrl SEULEMENT s'il a l'air image-like
+                      if (!rawImg && act.imageUrl && isImageLike(act.imageUrl) && !isVideoLike(act.imageUrl)) {
+                        rawImg = act.imageUrl;
+                      } else if (!rawImg && !videoUrl && act.imageUrl && isVideoLike(act.imageUrl)) {
+                        // imageUrl legacy contenait une vidéo → on l'utilise comme vidéo
+                        videoUrl = act.imageUrl;
+                      }
+                      const thumbnail = rawImg ? resolveThumbnail(rawImg) : null;
+                      // Si on a une image valide, on ignore la vidéo (image prioritaire)
+                      if (thumbnail) videoUrl = null;
                       return (
                         <button
                           key={act.activityId || act.id}
@@ -1783,6 +1890,23 @@ END:VCALENDAR`;
                               alt={act.name || act.title}
                               className="w-14 h-14 rounded-lg object-cover flex-shrink-0 bg-zinc-800"
                             />
+                          ) : videoUrl ? (
+                            /* BUG #113 — Aperçu vidéo miniature avec Media Fragments
+                               #t=0.1 pour forcer le seek 1ère frame (idem fix #102 pour
+                               les Firebase Storage URLs). */
+                            <div className="w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 bg-zinc-800 relative">
+                              {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+                              <video
+                                src={videoUrl.includes('#') ? videoUrl : `${videoUrl}#t=0.1`}
+                                muted
+                                playsInline
+                                preload="auto"
+                                className="w-full h-full object-cover pointer-events-none"
+                              />
+                              <span className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+                                <Zap className="h-4 w-4 text-white" />
+                              </span>
+                            </div>
                           ) : (
                             <div className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center flex-shrink-0">
                               <Zap className="h-5 w-5 text-white/30" />
@@ -2303,14 +2427,15 @@ END:VCALENDAR`;
             <div className="space-y-2">
               {[...partners]
                 .sort((a, b) => {
-                  const aBoost = a.id ? boostedPartnerIds.has(a.id) : false;
-                  const bBoost = b.id ? boostedPartnerIds.has(b.id) : false;
+                  // BUG #69 — utilise effectiveBoostedPartnerIds (legacy + per-activity)
+                  const aBoost = a.id ? effectiveBoostedPartnerIds.has(a.id) : false;
+                  const bBoost = b.id ? effectiveBoostedPartnerIds.has(b.id) : false;
                   if (aBoost && !bBoost) return -1;
                   if (!aBoost && bBoost) return 1;
                   return 0;
                 })
                 .map((partner) => {
-                const isBoosted = partner.id ? boostedPartnerIds.has(partner.id) : false;
+                const isBoosted = partner.id ? effectiveBoostedPartnerIds.has(partner.id) : false;
                 return (
                 <div
                   key={partner.id}

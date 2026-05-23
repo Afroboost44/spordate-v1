@@ -33,6 +33,8 @@ import { getActivity, getNextFutureSessionForActivity } from '@/services/firesto
 import { getReviewsByActivity, getReviewerProfiles } from '@/lib/reviews';
 import { getMediaItems } from '@/lib/activities/media';
 import { MediaCarousel } from '@/components/activities/MediaCarousel';
+import { ActivityVenueDetails } from '@/components/activities/ActivityVenueDetails';
+import { ActivityStoreOffer } from '@/components/activities/ActivityStoreOffer';
 import { ShareButton } from '@/components/activities/ShareButton';
 import { ReviewsList } from '@/components/reviews/ReviewsList';
 import { ReviewTrigger } from '@/components/reviews/ReviewTrigger';
@@ -189,6 +191,14 @@ export default async function ActivityDetailPage({ params, searchParams }: PageP
             </p>
           </section>
         )}
+
+        {/* BUG #57 — Bloc "Cadre & Ambiance" (bar/club/restaurant uniquement).
+            Le composant rend null si activity.venueDetails est absent ou vide. */}
+        <ActivityVenueDetails details={activity.venueDetails} />
+
+        {/* BUG #58 — Bloc "Avantages partenaire" (sports-store uniquement).
+            Le composant rend null si activity.storeOffer est absent ou vide. */}
+        <ActivityStoreOffer offer={activity.storeOffer} />
 
         {/* Phase 9 SC1 c3/5 — Inviter un match (client island, silent hide si non-eligible) */}
         <ActivityInviteSection

@@ -22,6 +22,7 @@
  */
 
 import type { Timestamp } from 'firebase-admin/firestore';
+import { parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 
 // =====================================================================
 // Constants
@@ -53,7 +54,7 @@ async function getAdminDb(): Promise<any> {
   const { getFirestore } = await import('firebase-admin/firestore');
   if (!getApps().length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+      initializeApp({ credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]) });
     } else {
       initializeApp({
         projectId:

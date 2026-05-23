@@ -5,11 +5,27 @@
 /* Phase 9.5 c18 BUG K — Plus Jakarta Sans chargée via next/font/google dans layout.tsx
    (self-hosted, pas de FOUT). L'import Inter Google Fonts (legacy) est retiré. */
 
+html,
+body {
+  /* BUG #89 — Force le fond noir à TOUS les niveaux (html + body) pour
+     éliminer le trait violet/rose qui apparaissait sous la status bar iOS.
+     Avant : seul body.bg-black était défini, mais le html sous-jacent
+     pouvait laisser passer la couleur accent à cause du safe-area-inset.
+     Maintenant : html ET body sont noirs partout. */
+  background-color: #000000;
+  /* Padding safe-area pour iPhone X+ (notch / dynamic island). Sans ça, le
+     contenu de la page passe SOUS la status bar et crée le trait coloré. */
+  -webkit-tap-highlight-color: transparent;
+}
 body {
   font-family: var(--font-jakarta), -apple-system, BlinkMacSystemFont, sans-serif;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  /* Anti-trait violet : padding top safe-area pour ne pas que le contenu
+     remonte derrière la status bar iOS PWA. */
+  padding-top: env(safe-area-inset-top);
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 @layer base {
@@ -148,4 +164,22 @@ body {
 }
 .credits-badge-pulse {
   animation: credits-badge-pulse 1.2s ease-out;
+}
+
+/* BUG #97 — Flash highlight quand on clique l'œil "Aperçu" sur une carte
+   éditeur tarifs. La mini-card cible scroll into view + flash 1.5s avec
+   ring accent. Pattern UX : guider l'œil de l'admin vers la zone modifiée. */
+@keyframes preview-flash {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(217, 28, 210, 0);
+  }
+  30% {
+    box-shadow: 0 0 0 4px rgba(217, 28, 210, 0.5), 0 0 30px 8px rgba(217, 28, 210, 0.25);
+  }
+  70% {
+    box-shadow: 0 0 0 2px rgba(217, 28, 210, 0.3), 0 0 20px 4px rgba(217, 28, 210, 0.15);
+  }
+}
+.preview-flash {
+  animation: preview-flash 1.5s ease-out;
 }

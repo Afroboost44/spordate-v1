@@ -16,6 +16,7 @@
  */
 
 import { getSharedStripe, __setSharedStripeForTesting } from './sharedStripe';
+import { parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _dbOverride: any = null;
@@ -43,7 +44,7 @@ async function getDb(): Promise<any> {
   const { getFirestore } = await import('firebase-admin/firestore');
   if (!getApps().length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+      initializeApp({ credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]) });
     } else {
       initializeApp({
         projectId:

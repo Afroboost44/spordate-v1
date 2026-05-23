@@ -3,7 +3,7 @@
  * Remplace l'ancien db.ts avec support complet de toutes les collections
  */
 
-import { db, isFirebaseConfigured } from '@/lib/firebase';
+import { db, auth, isFirebaseConfigured } from '@/lib/firebase';
 import {
   doc, setDoc, getDoc, getDocs, addDoc, updateDoc, deleteDoc,
   query, collection, where, orderBy, limit, onSnapshot,
@@ -861,9 +861,9 @@ export async function sendMessage(
   // Body enrichi avec senderName pour UX cohérent push notif (ex. "Bassi t'a
   // écrit : ...").
   if (otherUser) {
+    const senderName = (senderData.displayName as string | undefined) || 'Quelqu’un';
+    const preview = text.length > 60 ? `${text.substring(0, 60)}…` : text;
     try {
-      const senderName = (senderData.displayName as string | undefined) || 'Quelqu’un';
-      const preview = text.length > 60 ? `${text.substring(0, 60)}…` : text;
       const notifRef = doc(collection(fbDb, 'notifications'));
       await setDoc(notifRef, {
         notificationId: notifRef.id,
@@ -878,6 +878,41 @@ export async function sendMessage(
     } catch (err) {
       console.warn('[sendMessage] notification create failed (non-bloquant)', err);
     }
+
+    // Fix #118 — Fire-and-forget push FCM + email fallback via /api/chat/notify-message.
+    // L'endpoint vérifie l'auth (Bearer), confirme l'appartenance au chat, appelle
+    // notifyUser (push) puis sendEmail si push échoue. Ne bloque pas la réponse
+    // sendMessage : si la chaîne notif casse, le message Firestore est quand même créé
+    // (le badge cloche fonctionne via la doc notifications/ écrite plus haut).
+    //
+    // Pourquoi côté client : sendMessage est appelé depuis le navigateur (web SDK).
+    // Côté serveur la chaîne d'appel passerait par une Cloud Function trigger ou
+    // un endpoint dédié — on choisit l'endpoint pour rester full Next.js (cohérent
+    // c38a/c40 pour /api/match/create-mutual, déjà déployé sans Functions).
+    (async () => {
+      try {
+        if (!auth?.currentUser) return;
+        const idToken = await auth.currentUser.getIdToken();
+        await fetch('/api/match/create-mutual', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            action: 'notify-message',
+            chatId,
+            recipientUid: otherUser,
+            senderName,
+            preview: `${senderName} t'a écrit : ${preview}`,
+          }),
+          keepalive: true,
+        });
+      } catch (err) {
+        // Best-effort, ne pas bloquer le flux principal
+        console.warn('[sendMessage] notify-message fetch failed (non-bloquant)', err);
+      }
+    })();
   }
 
   // Phase 8 SC2 commit 5/6 — L4 admin escalation (best-effort, idempotent via senderLeakFlagged)
@@ -909,7 +944,7 @@ export async function sendMessage(
 
     // 3. Email admin (best-effort — log-only en absence RESEND_API_KEY/client-side)
     try {
-      const adminEmail = process.env.ADMIN_LEAK_EMAIL || 'contact@afroboosteur.com';
+      const adminEmail = process.env.ADMIN_LEAK_EMAIL || 'contact@spordateur.com';
       await sendEmail({
         to: adminEmail,
         templateName: 'leakEscalationAdmin',
@@ -935,6 +970,139 @@ export async function sendMessage(
     escalationLevel,
     leakCountAfter: newLeakCount,
   };
+}
+
+/**
+ * BUG #74 — Envoie un message audio.
+ *
+ * Différences vs sendMessage texte :
+ *   - Pas de scan anti-leak (pas de contenu texte à scanner)
+ *   - Debit credits selon settings/pricing.chatAudioCost (default 2)
+ *   - Message Firestore type='audio' avec audioUrl + durationSec
+ *   - URL audio déjà uploadée par le caller (cf. uploadChatAudio.ts)
+ *
+ * Le caller (UI chat) :
+ *   1. Enregistre via MediaRecorder
+ *   2. Upload Blob vers Firebase Storage via uploadChatAudio()
+ *   3. Appelle sendAudioMessage(chatId, senderId, audioUrl, durationSec, contentType)
+ */
+export async function sendAudioMessage(
+  chatId: string,
+  senderId: string,
+  audioUrl: string,
+  durationSec: number,
+  contentType?: string,
+): Promise<{ messageId: string }> {
+  const fbDb = getChatDb();
+
+  if (!chatId || !senderId || !audioUrl || !Number.isFinite(durationSec) || durationSec < 1) {
+    throw new Error('invalid-input');
+  }
+
+  // Vérifier que le chat est débloqué
+  const matchSnap = await getDoc(doc(fbDb, 'matches', chatId));
+  if (!matchSnap.exists()) throw new Error('Match non trouvé');
+  const match = matchSnap.data() as Match;
+  if (!match.chatUnlocked) throw new Error('Chat verrouillé — réserve une activité pour débloquer');
+
+  // Lit le prix audio depuis settings/pricing (fallback 2)
+  let audioCost = 2;
+  try {
+    const pricingSnap = await getDoc(doc(fbDb, 'settings', 'pricing'));
+    if (pricingSnap.exists()) {
+      const data = pricingSnap.data();
+      if (typeof data.chatAudioCost === 'number' && data.chatAudioCost >= 0) {
+        audioCost = data.chatAudioCost;
+      }
+    }
+  } catch {
+    // ignore — fallback default
+  }
+
+  // Check credits >= cost
+  const senderSnap = await getDoc(doc(fbDb, 'users', senderId));
+  if (!senderSnap.exists()) throw new Error('Utilisateur expéditeur non trouvé');
+  const senderData = senderSnap.data();
+  const senderCredits = (senderData.credits as number | undefined) ?? 0;
+  if (senderCredits < audioCost) throw new Error('insufficient-credits');
+
+  // Atomic batch : debit credits + create message
+  const batch = writeBatch(fbDb);
+  batch.update(doc(fbDb, 'users', senderId), {
+    credits: increment(-audioCost),
+    updatedAt: serverTimestamp(),
+  });
+  const msgRef = doc(collection(fbDb, 'chats', chatId, 'messages'));
+  batch.set(msgRef, {
+    messageId: msgRef.id,
+    senderId,
+    text: '', // pas de texte pour un message audio
+    type: 'audio',
+    audioUrl,
+    audioDurationSec: Math.round(durationSec),
+    audioContentType: contentType || null,
+    creditsCost: audioCost,
+    readBy: [senderId],
+    createdAt: serverTimestamp(),
+  });
+  await batch.commit();
+
+  // Post-batch : update lastMessage + notification (best-effort, non-bloquant)
+  const otherUser = match.userIds.find((id) => id !== senderId) || '';
+  try {
+    await updateDoc(doc(fbDb, 'chats', chatId), {
+      lastMessage: '🎙️ Message audio',
+      lastMessageAt: serverTimestamp(),
+      [`unreadCount.${otherUser}`]: increment(1),
+    });
+  } catch (err) {
+    console.warn('[sendAudioMessage] update chat.lastMessage failed (non-bloquant)', err);
+  }
+  if (otherUser) {
+    const senderName = (senderData.displayName as string | undefined) || 'Quelqu’un';
+    const previewAudio = `${senderName} t'a envoyé un message audio (${Math.round(durationSec)}s)`;
+    try {
+      const notifRef = doc(collection(fbDb, 'notifications'));
+      await setDoc(notifRef, {
+        notificationId: notifRef.id,
+        userId: otherUser,
+        type: 'message',
+        title: 'Nouveau message vocal',
+        body: previewAudio,
+        data: { chatId, matchId: chatId, senderId, kind: 'audio' },
+        isRead: false,
+        createdAt: serverTimestamp(),
+      });
+    } catch (err) {
+      console.warn('[sendAudioMessage] notification create failed (non-bloquant)', err);
+    }
+
+    // Fix #118 — Push FCM + email fallback (cohérent avec sendMessage texte).
+    (async () => {
+      try {
+        if (!auth?.currentUser) return;
+        const idToken = await auth.currentUser.getIdToken();
+        await fetch('/api/chat/notify-message', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          body: JSON.stringify({
+            chatId,
+            recipientUid: otherUser,
+            senderName,
+            preview: previewAudio,
+          }),
+          keepalive: true,
+        });
+      } catch (err) {
+        console.warn('[sendAudioMessage] notify-message fetch failed (non-bloquant)', err);
+      }
+    })();
+  }
+
+  return { messageId: msgRef.id };
 }
 
 export function subscribeToMessages(chatId: string, callback: (messages: ChatMessage[]) => void): Unsubscribe {

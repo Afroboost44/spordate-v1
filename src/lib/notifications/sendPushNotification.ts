@@ -1,3 +1,4 @@
+import { parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 /**
  * Phase 9 sub-chantier 3 commit 2/5 — Helper sendPushNotification (server-side).
  *
@@ -42,7 +43,7 @@ async function getMessaging(): Promise<any> {
   const { getMessaging: getMsgFn } = await import('firebase-admin/messaging');
   if (!getApps().length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+      initializeApp({ credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]) });
     } else {
       initializeApp({
         projectId:
@@ -100,7 +101,13 @@ export async function sendPushNotification(input: SendPushInput): Promise<SendPu
 
   const messaging = await getMessaging();
 
-  // FCM message structure cohérent firebase-admin/messaging API
+  // FCM message structure cohérent firebase-admin/messaging API.
+  // BUG #116 — Payload enrichi pour iOS PWA + Chrome Android :
+  //  - webpush.headers.Urgency 'high' : iOS livre immédiatement (vs batch)
+  //  - webpush.notification.icon : visuel branding Spordateur
+  //  - webpush.notification.requireInteraction false : auto-dismiss
+  //  - webpush.notification.vibrate : vibration Android
+  //  - fcmOptions.link : URL de redirection au click
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const message: any = {
     token: input.fcmToken,
@@ -108,15 +115,29 @@ export async function sendPushNotification(input: SendPushInput): Promise<SendPu
       title: input.title,
       body: input.body,
     },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    webpush: {
+      headers: {
+        Urgency: 'high',
+        TTL: '3600',
+      },
+      notification: {
+        title: input.title,
+        body: input.body,
+        icon: '/icons/icon-192.png',
+        badge: '/icons/icon-192.png',
+        // eslint-disable-next-line @typescript-eslint/naming-convention
+        vibrate: [200, 100, 200],
+        requireInteraction: false,
+        silent: false,
+      },
+    } as Record<string, unknown>,
   };
   if (input.data) {
     message.data = input.data;
   }
   if (input.clickUrl) {
-    // Web push fcm_options.link permet click → URL
-    message.webpush = {
-      fcmOptions: { link: input.clickUrl },
-    };
+    message.webpush.fcmOptions = { link: input.clickUrl };
   }
 
   try {

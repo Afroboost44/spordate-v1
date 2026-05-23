@@ -20,6 +20,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -27,29 +28,6 @@ export const dynamic = 'force-dynamic';
 // =====================================================================
 // Lazy Admin SDK init (cohérent SC4+SC5 pattern)
 // =====================================================================
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminDb: any = null;
-
-async function getAdminDb() {
-  if (_adminDb) return _adminDb;
-  const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-  const { getFirestore } = await import('firebase-admin/firestore');
-  if (!getApps().length) {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
-    } else {
-      initializeApp({
-        projectId:
-          process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
-          process.env.GCLOUD_PROJECT ||
-          'spordateur-claude',
-      });
-    }
-  }
-  _adminDb = getFirestore();
-  return _adminDb;
-}
 
 interface OtherUserOut {
   uid: string;

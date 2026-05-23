@@ -37,12 +37,11 @@ export default function PrivacyPage() {
               Le responsable du traitement des données est :
             </p>
             <p className="mt-2">
-              <span className="text-white">Association Afroboosteur</span><br />
-              Association à but non lucratif (art. 60 ss CC)<br />
+              <span className="text-white">Spordateur</span><br />
               Rue des Maillefer 39<br />
               2000 Neuchâtel, Suisse<br />
-              IDE : CHE-407.097.646<br />
-              E-mail : contact@afroboosteur.com
+              Numéro IDE : CHE-407.097.646<br />
+              E-mail : <a href="mailto:contact@spordateur.com" className="text-accent hover:underline">contact@spordateur.com</a>
             </p>
           </section>
 
@@ -144,7 +143,7 @@ export default function PrivacyPage() {
             </p>
             <p className="mt-3">
               <span className="text-white">Hostinger International Ltd.</span> — Mailbox{' '}
-              contact@afroboosteur.com (Lituanie, UE). Hostinger est conforme au RGPD. Finalité : relais
+              contact@spordateur.com (Lituanie, UE). Hostinger est conforme au RGPD. Finalité : relais
               des e-mails entrants utilisateurs (notamment les appels de sanctions T&amp;S).
             </p>
             <p className="mt-3">
@@ -236,7 +235,7 @@ export default function PrivacyPage() {
               — <span className="text-white">Droit de retirer votre consentement</span> à tout moment.
             </p>
             <p className="mt-3">
-              Pour exercer ces droits, contactez-nous à contact@afroboosteur.com. Nous répondrons dans
+              Pour exercer ces droits, contactez-nous à contact@spordateur.com. Nous répondrons dans
               un délai de 30 jours. En cas de désaccord, vous pouvez déposer une réclamation auprès
               du Préposé fédéral à la protection des données et à la transparence (PFPDT).
             </p>
@@ -247,7 +246,7 @@ export default function PrivacyPage() {
               signalement, la durée, la date de fin (si suspension) et le mécanisme d&apos;appel.
               L&apos;identité du signalant n&apos;est jamais communiquée (protection lanceur d&apos;alerte).
               Vous disposez d&apos;un droit d&apos;appel exerçable une seule fois par niveau de sanction
-              (réponse à l&apos;e-mail ou écrit à contact@afroboosteur.com), avec un délai de réponse
+              (réponse à l&apos;e-mail ou écrit à contact@spordateur.com), avec un délai de réponse
               de notre équipe modération de 7 jours calendaires (Phase 7) — voir CGU section 7.bis.
             </p>
             <p className="mt-3">
@@ -329,7 +328,7 @@ export default function PrivacyPage() {
               Pour toute question relative à la protection de vos données :
             </p>
             <p className="mt-2 text-white">
-              Spordateur — contact@afroboosteur.com
+              Spordateur — contact@spordateur.com
             </p>
           </section>
 

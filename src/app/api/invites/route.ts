@@ -26,6 +26,7 @@ import { verifyAuth } from '@/lib/auth/verifyAuth';
 import { createInvite, InviteError } from '@/lib/invites/service';
 import { sendEmail } from '@/lib/email/sendEmail';
 import type { Timestamp } from 'firebase-admin/firestore';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 export const runtime = 'nodejs'; // firebase-admin requires Node.js
 // DI seam `__setInvitesDbForTesting` est exporté depuis '@/lib/invites/service'
@@ -34,29 +35,6 @@ export const runtime = 'nodejs'; // firebase-admin requires Node.js
 // =====================================================================
 // Lazy Admin SDK init (cohérent /api/checkout, /api/suggest-activities)
 // =====================================================================
-
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminDb: any = null;
-
-async function getAdminDb() {
-  if (_adminDb) return _adminDb;
-  const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-  const { getFirestore } = await import('firebase-admin/firestore');
-  if (!getApps().length) {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
-    } else {
-      initializeApp({
-        projectId:
-          process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
-          process.env.GCLOUD_PROJECT ||
-          'spordateur-claude',
-      });
-    }
-  }
-  _adminDb = getFirestore();
-  return _adminDb;
-}
 
 /** Format FR date courte cohérent SuggestionMessage component (ex: "Sam 18 mai · 14h00"). */
 function formatSessionDateFR(ts: Timestamp | { toDate?: () => Date } | null | undefined): string {

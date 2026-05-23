@@ -85,6 +85,11 @@ export function resolveSessionImageChain(
   primaryUrl: string | null | undefined,
   fallbacks?: string[],
 ): string[] {
+  // BUG #65 — On ne push PLUS SPORDATEUR_LOGO_FALLBACK à la fin du chain.
+  // Le logo cœur-flèche (icon-512.png) n'est pas le bon logo Spordateur et
+  // s'affichait sur les pages session quand l'activity n'avait pas d'image
+  // statique (ex: vidéo upload Storage). SessionMediaPlayer gère désormais
+  // le cas chain vide via un placeholder neutre.
   const hasPrimary =
     typeof primaryUrl === 'string' && primaryUrl.trim().length > 0;
   const tail = (fallbacks ?? [])
@@ -93,7 +98,6 @@ export function resolveSessionImageChain(
   return [
     ...(hasPrimary ? [resolveMediaImageSrc(primaryUrl)] : []),
     ...tail,
-    SPORDATEUR_LOGO_FALLBACK,
   ];
 }
 

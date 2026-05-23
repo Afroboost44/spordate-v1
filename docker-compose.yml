@@ -1,0 +1,41 @@
+services:
+  spordateur:
+    container_name: spordateur
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_FIREBASE_API_KEY: ${NEXT_PUBLIC_FIREBASE_API_KEY}
+        NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN: ${NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN}
+        NEXT_PUBLIC_FIREBASE_PROJECT_ID: ${NEXT_PUBLIC_FIREBASE_PROJECT_ID}
+        NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET: ${NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET}
+        NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID: ${NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID}
+        NEXT_PUBLIC_FIREBASE_APP_ID: ${NEXT_PUBLIC_FIREBASE_APP_ID}
+        NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID: ${NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID}
+        NEXT_PUBLIC_FIREBASE_VAPID_KEY: ${NEXT_PUBLIC_FIREBASE_VAPID_KEY}
+        NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY}
+        NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL}
+    restart: unless-stopped
+    env_file:
+      - .env
+    expose:
+      - "3000"
+    volumes:
+      - ./public:/app/public:ro
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.docker.network=coolify"
+      - "traefik.http.routers.spordateur-http.rule=Host(`test.spordateur.com`) || Host(`spordateur.com`) || Host(`www.spordateur.com`)"
+      - "traefik.http.routers.spordateur-http.entrypoints=http"
+      - "traefik.http.routers.spordateur-http.middlewares=spordateur-https-redirect"
+      - "traefik.http.middlewares.spordateur-https-redirect.redirectscheme.scheme=https"
+      - "traefik.http.routers.spordateur.rule=Host(`test.spordateur.com`) || Host(`spordateur.com`) || Host(`www.spordateur.com`)"
+      - "traefik.http.routers.spordateur.entrypoints=https"
+      - "traefik.http.routers.spordateur.tls=true"
+      - "traefik.http.routers.spordateur.tls.certresolver=letsencrypt"
+      - "traefik.http.services.spordateur.loadbalancer.server.port=3000"
+networks:
+  coolify:
+    external: true

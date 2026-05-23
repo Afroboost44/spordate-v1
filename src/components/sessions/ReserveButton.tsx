@@ -18,7 +18,8 @@
  * - Sur erreur → toast (système useToast existant)
  *
  * Charte stricte :
- * - Actif : bg-accent text-black font-medium (le seul bouton vraiment violet de la page)
+ * - Actif : bg-accent text-white font-medium (BUG #68 — text passé du noir au blanc
+ *   sur demande explicite Bassi 2026-05-21 : "le texte doit être en blanc ici")
  * - Disabled : bg-white/5 text-white/30 cursor-not-allowed (différenciation par opacité)
  * - Hover actif : bg-accent/90 (atténuation, pas de scale ni transform — reduced-motion friendly)
  * - Focus visible : ring-2 ring-accent ring-offset-2 ring-offset-black
@@ -28,7 +29,7 @@
  * Accessibilité :
  * - aria-disabled cohérent avec disabled state
  * - aria-busy="true" pendant le loading
- * - Sub-titre tier en text-black plein (WCAG AA : ratio ~6.4:1 sur fond #D91CD2)
+ * - Sub-titre tier en text-white/90 (cohérent avec le label principal blanc).
  *
  * Usage :
  *   <ReserveButton session={session} phase={phase} isFull={isFull} />
@@ -211,8 +212,10 @@ export function ReserveButton({
   // w-full par défaut = pattern CTA primaire (plus tappable mobile, layout stable selon copy phase)
   const baseClass =
     'w-full inline-flex items-center justify-center gap-2 px-6 py-4 rounded-xl text-base transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black';
+  // BUG #68 — text-white (au lieu de text-black) sur demande Bassi. La couleur
+  // accent du site est suffisamment saturée pour rester lisible avec du blanc.
   const enabledClass = state.enabled
-    ? 'bg-accent text-black font-medium hover:bg-accent/90 cursor-pointer'
+    ? 'bg-accent text-white font-medium hover:bg-accent/90 cursor-pointer'
     : 'bg-white/5 text-white/30 cursor-not-allowed';
   const loadingClass = loading ? 'opacity-50' : '';
 
@@ -237,7 +240,7 @@ export function ReserveButton({
             {state.enabled && <ArrowRight className="h-4 w-4" aria-hidden="true" />}
           </span>
           {state.subtitle && (
-            <span className="font-light text-xs text-black mt-0.5">
+            <span className="font-light text-xs text-white/90 mt-0.5">
               {state.subtitle}
             </span>
           )}

@@ -31,7 +31,7 @@ function SLogo({ className = "h-7 w-7" }: { className?: string }) {
 }
 
 export default function Header() {
-  const { t, setLanguage } = useLanguage();
+  const { t, setLanguage, language } = useLanguage();
   const { isLoggedIn, loading, logout, user, userProfile } = useAuth();
   // Phase 9.5 c21 — utilise discoveryMode 3-state (vs ancien boolean discoveryEnabled).
   // L'item nav 'Rencontres' apparaît si mode !== 'disabled' (préserve comportement c8).
@@ -77,6 +77,41 @@ export default function Header() {
   };
 
   return (
+    <>
+      {/* BUG #115 — Mini-header mobile (md:hidden) car le header desktop est
+          hidden md:block → totalement invisible sur mobile. Bassi ne voyait
+          donc PAS la cloche notifications sur PWA mobile. Ce mini-header
+          affiche les 3 essentials : crédits, cloche, langue + petit logo. */}
+      {!loading && isLoggedIn && (
+        <header
+          className="md:hidden sticky top-0 z-40 w-full border-b border-white/5 bg-black/95 backdrop-blur"
+          style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
+        >
+          <div className="flex items-center justify-between h-12 px-3">
+            <Link href="/" className="flex items-center gap-1.5">
+              <SLogo className="h-6 w-6" />
+              <span className="text-sm font-medium text-white">Spordateur</span>
+            </Link>
+            <div className="flex items-center gap-1">
+              <CreditsBadge />
+              <NotificationBadge />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-9 w-9">
+                    <Languages className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setLanguage('fr')}>Français</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLanguage('en')}>English</DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setLanguage('de')}>Deutsch</DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </div>
+        </header>
+      )}
+
     <header className="hidden md:block sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
         <div className="flex items-center md:flex-1">
@@ -106,6 +141,16 @@ export default function Header() {
             ))}
           </nav>
         </div>
+        {/* BUG #76 — Badges crédits + notifications visibles TOUS breakpoints
+            (mobile + desktop). Avant : enfermés dans la div hidden md:flex donc
+            absents sur smartphone, le client ne voyait pas les notifications. */}
+        {!loading && isLoggedIn && (
+          <div className="flex items-center gap-2 md:hidden">
+            <CreditsBadge />
+            <NotificationBadge />
+          </div>
+        )}
+
         <div className="hidden items-center space-x-2 md:flex">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
@@ -196,6 +241,44 @@ export default function Header() {
                   <AdminMenuLink variant="mobile" />
                 )}
               </nav>
+
+              {/* BUG #76 — Sélecteur de langue (FR/EN/DE) dans le menu mobile.
+                  Avant : présent uniquement dans la nav desktop (hidden md:flex)
+                  donc inaccessible sur smartphone. Pattern radio pills à plat,
+                  cohérent avec l'UX globale du Sheet. */}
+              <div className="mt-6 px-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <Languages className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
+                  <span className="text-xs uppercase tracking-wider text-muted-foreground font-light">
+                    Langue
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      { code: 'fr', label: 'Français' },
+                      { code: 'en', label: 'English' },
+                      { code: 'de', label: 'Deutsch' },
+                    ] as const
+                  ).map((opt) => (
+                    <Button
+                      key={opt.code}
+                      type="button"
+                      variant={language === opt.code ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setLanguage(opt.code)}
+                      className={
+                        language === opt.code
+                          ? 'bg-accent text-white hover:bg-accent/90'
+                          : 'border-border/30'
+                      }
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
               <div className="absolute bottom-8 left-4 right-4 flex flex-col space-y-2">
                  {!loading && isLoggedIn ? (
                      <Button variant="outline" onClick={handleLogout} className="w-full flex items-center gap-2">
@@ -218,5 +301,6 @@ export default function Header() {
         </div>
       </div>
     </header>
+    </>
   );
 }

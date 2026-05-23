@@ -13,6 +13,7 @@ import type { Session, PricingTierKind, SessionStatus } from '@/types/firestore'
 // Phase B — processCommission extracté pour testabilité (commission paramétrable
 // par user.commission.{creator|invite}.{mode,value}). Voir src/lib/referral/.
 import { processCommission } from '@/lib/referral/processCommission';
+import { parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 
 // Lazy init — partagé entre tous les handlers
 let _db: FirebaseFirestore.Firestore | null = null;
@@ -26,7 +27,7 @@ export async function initAdmin() {
 
   if (!getApps().length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+      initializeApp({ credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]) });
     } else {
       initializeApp({ projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'spordateur-claude' });
     }
@@ -158,12 +159,30 @@ export async function handlePaymentSuccess(session: Record<string, unknown>, str
   const isPremium = meta.isPremium === 'true';
   if (isPremium) {
     const userRef = db.collection('users').doc(userId);
-    batch.update(userRef, {
+    // BUG #93 — Premium one_time (24h, 1 semaine) : on calcule un
+    // `premiumExpiresAt` Timestamp = now + durationHours. Le client lit ce
+    // champ pour décider si isPremium est encore valide (au-delà, on traite
+    // l'utilisateur comme free même si `isPremium===true` dans la DB ; un
+    // cron nightly peut purger les flags expirés mais ce n'est pas critique
+    // tant que la lecture côté UI vérifie expiresAt).
+    // Pour les subscriptions (mois/an) : pas de durationHours → pas
+    // d'expiresAt explicite, Stripe push customer.subscription.deleted quand
+    // l'abonnement est résilié.
+    const durationHours = parseInt(meta.premiumDurationHours || '0', 10);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const premiumPayload: Record<string, any> = {
       isPremium: true,
       premiumPackage: packageId,
       premiumStartedAt: FV.serverTimestamp(),
       updatedAt: FV.serverTimestamp(),
-    });
+    };
+    if (Number.isFinite(durationHours) && durationHours > 0) {
+      const { Timestamp } = await import('firebase-admin/firestore');
+      premiumPayload.premiumExpiresAt = Timestamp.fromMillis(
+        Date.now() + durationHours * 60 * 60 * 1000,
+      );
+    }
+    batch.update(userRef, premiumPayload);
   }
 
   // 5b. Activate Partner subscription if applicable
@@ -1116,6 +1135,10 @@ async function handleBoostPayment(session: Record<string, unknown>) {
   const duration = meta.duration || '';
   const city = meta.city || '';
   const country = meta.country || '';
+  // BUG #69 — activityId lue depuis metadata (passée par /api/boost-checkout).
+  // Persistée sur le doc boosts/ pour permettre au filtre Discovery de cibler
+  // uniquement cette activité (et non toutes les activités du partenaire).
+  const activityId = meta.activityId || '';
 
   if (!partnerId || !BOOST_DURATION_HOURS[duration]) {
     await logErr(
@@ -1141,7 +1164,7 @@ async function handleBoostPayment(session: Record<string, unknown>) {
   const hours = BOOST_DURATION_HOURS[duration];
   const expiresAt = new Date(Date.now() + hours * 60 * 60 * 1000);
 
-  const ref = await db.collection('boosts').add({
+  const boostDoc: Record<string, unknown> = {
     partnerId,
     city,
     country,
@@ -1151,7 +1174,13 @@ async function handleBoostPayment(session: Record<string, unknown>) {
     amountChf: amountTotal / 100,
     expiresAt,
     createdAt: FV.serverTimestamp(),
-  });
+  };
+  // BUG #69 — n'écrit activityId que si présent (backward-compat avec d'anciens
+  // boosts payés via flow Stripe pre-fix qui n'ont pas activityId en metadata).
+  if (activityId) {
+    boostDoc.activityId = activityId;
+  }
+  const ref = await db.collection('boosts').add(boostDoc);
 
-  console.log(`[Boost] Activé doc=${ref.id} partnerId=${partnerId} duration=${duration} city=${city}`);
+  console.log(`[Boost] Activé doc=${ref.id} partnerId=${partnerId} activityId=${activityId || '(legacy)'} duration=${duration} city=${city}`);
 }

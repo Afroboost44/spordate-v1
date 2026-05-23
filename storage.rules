@@ -9,10 +9,12 @@ service firebase.storage {
     // ========================================
     match /users/{userId}/{allPaths=**} {
       allow read: if request.auth != null;
+      // BUG #107 — élargi à audio/* pour permettre l'accroche vocale
+      // (users/{uid}/voice-prompt.webm). Anti-spoof : auth.uid == userId.
       allow write: if request.auth != null
         && request.auth.uid == userId
         && request.resource.size < 10 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+        && request.resource.contentType.matches('image/.*|audio/.*');
     }
 
     // ========================================
@@ -38,17 +40,20 @@ service firebase.storage {
     }
 
     // ========================================
-    // Phase 9.5 c4 — Media activités partner uploads (MediaManager)
+    // BUG #106 — Media activités partner uploads (MediaManager).
     // Path: partners/{partnerId}/activities/{timestamp}-{filename}
     // Anti-spoof : write requires request.auth.uid == partnerId.
-    // Q2=A 5MB max + Q4=A images only Phase 9.5 (video via URL embed).
+    // Phase 9.5 c4 originally images only (5MB) ; étendu aux vidéos depuis #51
+    // car les coachs uploadent maintenant des clips démo. Limite 50MB pour
+    // permettre des clips ~30s en HD raisonnable. La taille MAX côté client
+    // est plus restrictive (cf. uploadActivityMedia.ts STORAGE_UPLOAD_MAX_BYTES_VIDEO).
     // ========================================
     match /partners/{partnerId}/activities/{allPaths=**} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
         && request.auth.uid == partnerId
-        && request.resource.size < 5 * 1024 * 1024
-        && request.resource.contentType.matches('image/.*');
+        && request.resource.size < 50 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*|video/.*');
     }
 
     // ========================================
@@ -74,6 +79,20 @@ service firebase.storage {
     }
 
     match /profile-photos/{userId}/{allPaths=**} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null
+        && request.auth.uid == userId
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ========================================
+    // BUG #103 — Selfies de vérification d'identité.
+    // L'utilisateur écrit son propre selfie dans selfies/{uid}/{timestamp}.jpg.
+    // Lu par les admins via console pour valider (voir AdminSelfieReviewSection).
+    // Anti-spoof : auth.uid == userId pour l'écriture.
+    // ========================================
+    match /selfies/{userId}/{allPaths=**} {
       allow read: if request.auth != null;
       allow write: if request.auth != null
         && request.auth.uid == userId

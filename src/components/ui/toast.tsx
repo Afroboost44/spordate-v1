@@ -13,12 +13,22 @@ const ToastViewport = React.forwardRef<
   React.ElementRef<typeof ToastPrimitives.Viewport>,
   React.ComponentPropsWithoutRef<typeof ToastPrimitives.Viewport>
 >(({ className, ...props }, ref) => (
+  // BUG #111 — Z-index élevé (z-[200]) pour passer au-dessus des modals, du
+  // status bar PWA, et du clavier mobile. Safe-area-inset top + bottom pour
+  // ne pas être caché sous le notch iOS ou le menu mobile bottom-bar.
   <ToastPrimitives.Viewport
     ref={ref}
     className={cn(
-      "fixed top-0 z-[100] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
+      "fixed top-0 z-[200] flex max-h-screen w-full flex-col-reverse p-4 sm:bottom-0 sm:right-0 sm:top-auto sm:flex-col md:max-w-[420px]",
       className
     )}
+    style={{
+      // Top sur mobile (col-reverse → 1er toast tout en haut). Padding intègre
+      // env(safe-area-inset-top) pour passer sous le notch / Dynamic Island.
+      // Sur desktop, sm:bottom-0 override : on injecte aussi bottom safe-area.
+      paddingTop: 'calc(1rem + env(safe-area-inset-top, 0px))',
+      paddingBottom: 'calc(1rem + env(safe-area-inset-bottom, 0px))',
+    }}
     {...props}
   />
 ))

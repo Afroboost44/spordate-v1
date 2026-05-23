@@ -101,6 +101,15 @@ export function CountdownHero({
 
   return (
     <div className={`text-center ${className}`}>
+      {/* BUG #85 — Sous-titre AU-DESSUS du compte à rebours (était en dessous,
+          ce qui était illisible visuellement). Pattern Hinge/WhatsApp : le
+          label de contexte précède toujours les chiffres pour donner le sens. */}
+      {subtitle && (
+        <p className="mb-3 text-xs sm:text-sm uppercase tracking-[0.2em] text-white/60 font-light">
+          {subtitle}
+        </p>
+      )}
+
       {/* Chiffres principaux — tabular-nums pour alignement colonne stable */}
       <div
         className="flex items-end justify-center gap-3 sm:gap-6 tabular-nums"
@@ -118,13 +127,6 @@ export function CountdownHero({
           </div>
         ))}
       </div>
-
-      {/* Sous-titre contextuel — informationnel, statique, lisible par SR */}
-      {subtitle && (
-        <p className="mt-6 text-sm sm:text-base text-white/70 font-light">
-          {subtitle}
-        </p>
-      )}
     </div>
   );
 }

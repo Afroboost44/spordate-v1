@@ -40,14 +40,21 @@ export interface GroupOptions {
 /**
  * Filtre les activités au partenaire boosté + active, group par ville
  * (case+trim insensible), trie villes alpha, cap au total `max`.
+ *
+ * BUG #69 — Si `boostedActivityIds` est fourni (Set d'IDs d'activités), une
+ * activité est aussi considérée boostée si SON id y figure (modèle per-activity).
+ * Sans ce param : fallback comportement historique (partner-level seul).
  */
-export function groupBoostedActivitiesByCity<T extends ActivityLike>(
+export function groupBoostedActivitiesByCity<T extends ActivityLike & { id?: string }>(
   activities: readonly T[],
   boostedPartnerIds: ReadonlySet<string>,
-  opts: GroupOptions = {},
+  opts: GroupOptions & { boostedActivityIds?: ReadonlySet<string> } = {},
 ): Array<CityGroup<T>> {
   const max = opts.max ?? 50;
-  if (max <= 0 || activities.length === 0 || boostedPartnerIds.size === 0) {
+  const boostedActivityIds = opts.boostedActivityIds;
+  const hasAnyBoost =
+    boostedPartnerIds.size > 0 || (boostedActivityIds?.size ?? 0) > 0;
+  if (max <= 0 || activities.length === 0 || !hasAnyBoost) {
     return [];
   }
 
@@ -58,7 +65,11 @@ export function groupBoostedActivitiesByCity<T extends ActivityLike>(
   for (const activity of activities) {
     if (totalKept >= max) break;
     if (!activity.isActive) continue;
-    if (!boostedPartnerIds.has(activity.partnerId)) continue;
+    // BUG #69 — accepte aussi si l'activity est explicitement boostée par son id
+    const isActBoosted =
+      (activity.id && boostedActivityIds?.has(activity.id)) ||
+      boostedPartnerIds.has(activity.partnerId);
+    if (!isActBoosted) continue;
     const rawCity = (activity.city ?? '').trim();
     if (!rawCity) continue;
     // Normalize: lowercase + strip diacritics → "Genève" / "geneve" / " GENÈVE " match

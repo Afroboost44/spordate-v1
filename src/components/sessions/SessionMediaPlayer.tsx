@@ -31,6 +31,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
+import { Play } from 'lucide-react';
 import {
   SPORDATEUR_LOGO_FALLBACK,
   resolveMediaImageSrc,
@@ -135,22 +136,23 @@ export function SessionMediaPlayer({
   const isIframeEmbed = media?.type === 'video' && !!media.embedUrl;
   const isVideo = media?.type === 'video' && !videoFailed && !isIframeEmbed;
 
-  // Phase 9.5 c16 BUG G + BUG #2 — chaîne d'URLs image (primary → fallbacks → logo
-  // Spordateur). Walk via state imgFallbackIdx ; le DERNIER élément est toujours le
-  // logo Spordateur — fini la photo random Picsum ("tasse de café").
+  // BUG #65 — chaîne d'URLs image (primary → fallbacks). On NE PUSH PLUS le logo
+  // Spordateur à la fin (cf resolveSessionImageChain), donc le chain peut être vide.
+  // Si vide : on rend un placeholder neutre (icône Play subtle) au lieu du logo
+  // cœur-flèche pas-le-bon-logo qui s'affichait avant.
   const primaryImg = media?.type === 'image' ? media.url : (media?.posterUrl ?? null);
   const imgChain = resolveSessionImageChain(primaryImg, imageUrlFallbacks);
   const lastIdx = imgChain.length - 1;
-  const imageUrl = imgChain[Math.min(imgFallbackIdx, lastIdx)];
-  // "Exhausted" = on a atteint le logo Spordateur en bout de chaîne → stop walk.
-  const exhaustedChain = imgFallbackIdx >= lastIdx;
+  const chainEmpty = imgChain.length === 0;
+  const imageUrl = chainEmpty ? null : imgChain[Math.min(imgFallbackIdx, lastIdx)];
+  // "Exhausted" = on a atteint le dernier élément du chain → stop walk.
+  const exhaustedChain = chainEmpty || imgFallbackIdx >= lastIdx;
 
   // Si vidéo demandée mais reduced-motion → on affiche juste le poster (image)
   const showImageInsteadOfVideo = isVideo && reducedMotion;
-  // src final de la branche <Image> + détection du fallback logo (→ object-contain
-  // pour afficher le logo entier centré sur fond noir, pas un crop object-cover).
+  // src final de la branche <Image>. Peut être null si chain vide.
   const imageSrc = showImageInsteadOfVideo
-    ? resolveMediaImageSrc(media?.posterUrl)
+    ? (media?.posterUrl ? resolveMediaImageSrc(media.posterUrl) : null)
     : imageUrl;
   const isLogoFallback = imageSrc === SPORDATEUR_LOGO_FALLBACK;
 
@@ -185,7 +187,7 @@ export function SessionMediaPlayer({
           aria-label={alt}
           onError={() => setVideoFailed(true)}
         />
-      ) : (
+      ) : imageSrc ? (
         <Image
           src={imageSrc}
           alt={alt}
@@ -195,13 +197,20 @@ export function SessionMediaPlayer({
           loading={priority ? undefined : 'lazy'}
           className={isLogoFallback ? 'object-contain p-8' : 'object-cover'}
           // Phase 9.5 c16 BUG G + BUG #2 — walker la chaîne fallback si l'image
-          // courante 404 ; s'arrête sur le logo Spordateur (dernier élément).
+          // courante 404. Plus de stop sur le logo (retiré du chain, BUG #65).
           onError={() => {
             if (!exhaustedChain) {
               setImgFallbackIdx((i) => i + 1);
             }
           }}
         />
+      ) : (
+        /* BUG #65 — Aucun média dispo (chain vide, ni image ni vidéo) :
+            placeholder neutre = icône Play subtile au centre sur fond noir
+            (héritée du div parent). Plus aucune trace du logo cœur-flèche. */
+        <div className="absolute inset-0 flex items-center justify-center">
+          <Play className="h-12 w-12 text-white/20" aria-hidden="true" />
+        </div>
       )}
     </div>
   );

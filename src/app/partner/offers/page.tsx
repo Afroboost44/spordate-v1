@@ -4,7 +4,7 @@ import { useState, useEffect, FormEvent } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PlusCircle, Edit, Trash2, Loader2, Clock, MapPin, Users, ImagePlus, X, Video, Play, Calendar, Gift, Lock, Edit3 } from 'lucide-react';
+import { PlusCircle, Edit, Trash2, Loader2, Clock, MapPin, Users, ImagePlus, X, Video, Play, Calendar, Gift, Lock, Edit3, ChevronLeft, ChevronRight, Check, Copy } from 'lucide-react';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle,
   DialogDescription, DialogFooter, DialogClose,
@@ -16,7 +16,17 @@ import { Switch } from "@/components/ui/switch";
 import { AudienceTypeSelector } from "@/components/partner/AudienceTypeSelector";
 import type { AudienceType } from "@/lib/audience";
 import { MediaManager } from "@/components/partner/MediaManager";
-import type { MediaItem, PricingTier, Session } from "@/types/firestore";
+import { AddressAutocomplete } from "@/components/partner/AddressAutocomplete";
+import {
+  VenueDetailsSection,
+  type VenueDetailsValue,
+} from "@/components/partner/VenueDetailsSection";
+import {
+  StoreOfferSection,
+  type StoreOfferValue,
+} from "@/components/partner/StoreOfferSection";
+import type { MediaItem, PricingTier, Session, Partner, PartnerType } from "@/types/firestore";
+import { isVenuePartner, isSportsStorePartner } from "@/types/firestore";
 import { getBookingPriceCHF } from "@/lib/booking/price";
 import { SessionEditModal } from "@/components/partner/SessionEditModal";
 import { CreateSessionModal } from "@/components/partner/CreateSessionModal";
@@ -29,12 +39,13 @@ import {
 } from "@/lib/billing/pricingTiersBuilder";
 import { useLanguage } from "@/context/LanguageContext";
 import { getVideoThumbnailChain } from "@/lib/activities/mediaParser";
+import { isStorageVideoUrl } from "@/lib/media/driveMigration";
 import { shouldCancelSessionOnActivityRemoval } from "@/lib/activities/lifecycle";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import {
-  collection, query, where, getDocs, doc, setDoc, updateDoc, deleteDoc,
+  collection, query, where, getDocs, getDoc, doc, setDoc, updateDoc, deleteDoc,
   serverTimestamp, orderBy, Timestamp, writeBatch
 } from 'firebase/firestore';
 import { computeFallbackTiers } from '@/services/firestore';
@@ -96,12 +107,21 @@ interface Activity {
   scheduledAt?: any;
   /** Phase 9.5 c31 BUG HH — 3 paliers de prix progressifs (optionnel — fallback c29a si absent). */
   defaultPricingTiers?: PricingTier[];
+  /** BUG #57 — Détails cadre/ambiance (bar/club/restaurant uniquement). */
+  venueDetails?: VenueDetailsValue;
+  /** BUG #58 — Avantage magasin + matériel (sports-store uniquement). */
+  storeOffer?: StoreOfferValue;
+  /** BUG #57 — Type partner denormalisé sur l'activity (gate conditionnel UI public). */
+  partnerType?: PartnerType;
 }
 
 const SPORTS = [
   'Danse / Zumba', 'Afroboost', 'Salsa', 'Bachata', 'Hip-Hop',
   'Fitness', 'Yoga', 'Running', 'Tennis', 'Crossfit', 'Padel',
 ];
+// BUG #53 — option "Autre" en bas du select sport. Si sélectionnée, un champ
+// texte libre apparaît pour permettre au partenaire d'entrer son propre sport.
+const SPORT_OTHER_VALUE = '__other__';
 
 const CITIES = [
   'Genève', 'Lausanne', 'Zurich', 'Berne', 'Bâle', 'Lucerne', 'Fribourg', 'Neuchâtel',
@@ -130,6 +150,48 @@ function PartnerCardMedia({ act }: { act: Activity }) {
 
   // Cas 1 : video → thumbnail chain
   if (first?.type === 'video') {
+    // BUG #63 — Régression "play icon sans aperçu" sur la liste /partner/offers.
+    // Cause identique à BUG #60 (cards /activities) + #62 (modal media row) :
+    // pour les vidéos uploadées vers Firebase Storage, getVideoThumbnailChain
+    // retourne un tableau vide (chain provider-specific YouTube/Drive only) →
+    // exhausted=true direct → fallback icône Video et l'aperçu vidéo manque.
+    // Fix : court-circuit avec <video preload="metadata"> qui affiche la
+    // première frame sans télécharger toute la vidéo. Pas d'autoplay (le
+    // commentaire historique au-dessus de PartnerCardMedia note qu'on évite
+    // les requests réseau N×N sur la liste, preload="metadata" respecte ça).
+    const isUploadedVideo =
+      first.source === 'upload' || isStorageVideoUrl(first.url);
+    if (isUploadedVideo && first.url) {
+      // BUG #102 — Régression aperçu vidéo : Firebase Storage + preload metadata
+      // ne charge plus la 1ère frame sur certains navigateurs (Safari, iOS PWA).
+      // Fix : Media Fragments #t=0.1 force le seek + preload="auto" pour avoir
+      // assez d'octets pour décoder.
+      const srcWithFragment = first.url.includes('#') ? first.url : `${first.url}#t=0.1`;
+      return (
+        <div className="relative h-36 w-full bg-zinc-900 overflow-hidden">
+          {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          <video
+            src={srcWithFragment}
+            muted
+            playsInline
+            preload="auto"
+            className="w-full h-full object-cover pointer-events-none"
+          />
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="bg-black/50 rounded-full p-2 backdrop-blur-sm">
+              <Play className="h-5 w-5 text-accent fill-accent" aria-hidden="true" />
+            </div>
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent pointer-events-none" />
+          {items.length > 1 && (
+            <span className="absolute top-2 right-2 bg-black/60 text-white/70 text-[10px] px-2 py-0.5 rounded-full">
+              {items.length} médias
+            </span>
+          )}
+        </div>
+      );
+    }
+
     const chain = getVideoThumbnailChain(first);
     const exhausted = imgIdx >= chain.length;
     return (
@@ -215,9 +277,19 @@ export default function PartnerOffersPage() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<Activity | null>(null);
 
+  // BUG #53 — multi-step form (3 étapes). Reset à 1 quand le modal ouvre/ferme.
+  // Étape 1 : Bases (Nom, Sport, Description)
+  // Étape 2 : Logistique & Prix (Prix + progressif, Durée, Places, Ville, Adresse, Date)
+  // Étape 3 : Médias & Ciblage (MediaManager, AudienceType)
+  const [formStep, setFormStep] = useState<1 | 2 | 3>(1);
+
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
   const [formSport, setFormSport] = useState('');
+  // BUG #53 — flag "sport personnalisé" : true si user a choisi "Autre" dans
+  // le select. Permet d'afficher l'input texte libre + de re-sélectionner
+  // "Autre" dans la dropdown même quand formSport est vide ou custom.
+  const [useCustomSport, setUseCustomSport] = useState(false);
   const [formPrice, setFormPrice] = useState('');
   const [formDuration, setFormDuration] = useState('60');
   const [formCity, setFormCity] = useState('');
@@ -227,6 +299,13 @@ export default function PartnerOffersPage() {
   const [formImages, setFormImages] = useState<string[]>(['', '', '']);
   const [formMediaItems, setFormMediaItems] = useState<MediaItem[]>([]);
   const [formAudienceType, setFormAudienceType] = useState<AudienceType>('all');
+  // BUG #57 — Détails Cadre & Ambiance (rendu conditionnel partnerType bar/club/restaurant).
+  const [formVenueDetails, setFormVenueDetails] = useState<VenueDetailsValue>({});
+  // BUG #58 — Avantage magasin + test/prêt matériel (rendu conditionnel partnerType sports-store).
+  const [formStoreOffer, setFormStoreOffer] = useState<StoreOfferValue>({});
+  // BUG #57 — Doc partner fetché une fois au mount pour détecter le type
+  // (bar/club/restaurant → affiche VenueDetailsSection en étape 3).
+  const [partnerData, setPartnerData] = useState<Partner | null>(null);
   // Phase 9.5 c11 — date prochaine séance (optionnel, datetime-local format)
   const [formScheduledAt, setFormScheduledAt] = useState('');
   // Phase 9.5 c31 BUG HH — édition pricing tiers
@@ -250,6 +329,38 @@ export default function PartnerOffersPage() {
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
     loadActivities();
+  }, [user]);
+
+  // BUG #57 — Fetch du Partner doc une fois au mount pour récupérer
+  // partner.type (gate conditionnel "Cadre & Ambiance" en étape 3).
+  //
+  // ATTENTION convention double : selon la flow de création, le partner doc
+  // est stocké soit à `partners/{uid}` (legacy), soit à `partners/partner-{uid}`
+  // (auto-create via /partner/login, ref. connectHelpers.ts ligne 83). On essaie
+  // d'abord la version préfixée (plus récente, convention canonique), puis
+  // fallback sur uid brut. Identique au pattern getPartnerStripeAccount.
+  useEffect(() => {
+    if (!user || !db || !isFirebaseConfigured) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const prefixedSnap = await getDoc(doc(db!, 'partners', `partner-${user.uid}`));
+        if (cancelled) return;
+        if (prefixedSnap.exists()) {
+          setPartnerData(prefixedSnap.data() as Partner);
+          return;
+        }
+        const rawSnap = await getDoc(doc(db!, 'partners', user.uid));
+        if (!cancelled && rawSnap.exists()) {
+          setPartnerData(rawSnap.data() as Partner);
+        }
+      } catch (e) {
+        console.warn('[Offers] Could not fetch partner doc', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [user]);
 
   // Fix B B1 — Fetch sessions futures de l'activité éditée pour les afficher
@@ -334,10 +445,14 @@ export default function PartnerOffersPage() {
   };
 
   const resetForm = () => {
+    setFormStep(1); // BUG #53 — toujours revenir à l'étape 1 au reset
+    setUseCustomSport(false); // BUG #53 — reset flag custom sport
     setFormName(''); setFormDesc(''); setFormSport(''); setFormPrice(''); setFormDuration('60');
     setFormCity(''); setFormAddress(''); setFormSchedule(''); setFormMax('10'); setFormImages(['', '', '']);
     setFormMediaItems([]);
     setFormAudienceType('all');
+    setFormVenueDetails({}); // BUG #57 — reset Cadre & Ambiance
+    setFormStoreOffer({}); // BUG #58 — reset Avantages partenaire
     setFormScheduledAt('');
     // Phase 9.5 c31 — reset pricing tiers
     setFormPricingEnabled(false);
@@ -346,10 +461,54 @@ export default function PartnerOffersPage() {
     setFormLastPrice('');
   };
 
+  // BUG #53 — validation par étape avant de passer à la suivante.
+  // Toast d'erreur si champ obligatoire manquant.
+  const validateStep = (step: 1 | 2 | 3): { ok: boolean; reason?: string } => {
+    if (step === 1) {
+      if (!formName.trim()) return { ok: false, reason: 'Le nom est obligatoire' };
+      if (!formSport) return { ok: false, reason: 'Choisis un sport' };
+      return { ok: true };
+    }
+    if (step === 2) {
+      if (!formPrice || Number(formPrice) < 0) return { ok: false, reason: 'Prix invalide' };
+      if (!formCity) return { ok: false, reason: 'Choisis une ville' };
+      if (!formScheduledAt) return { ok: false, reason: 'Date de la prochaine séance obligatoire' };
+      return { ok: true };
+    }
+    return { ok: true };
+  };
+
+  // BUG #53 fix phantom click — quand user passe step 2 → step 3, le bouton
+  // "Suivant" est remplacé par "Publier" à la même position du DOM. Le mouseup
+  // de l'user atterit alors sur Publier → submit accidentel. Solution : un
+  // flag "stepTransitioning" qui désactive le Publier pendant 300ms après
+  // chaque transition de step.
+  const [stepTransitioning, setStepTransitioning] = useState(false);
+
+  const handleStepNext = () => {
+    const v = validateStep(formStep);
+    if (!v.ok) {
+      toast({ title: 'Champ obligatoire', description: v.reason, variant: 'destructive' });
+      return;
+    }
+    if (formStep < 3) {
+      setStepTransitioning(true);
+      setFormStep((s) => (s + 1) as 1 | 2 | 3);
+      // 300ms suffit largement à laisser le mouseup tomber sur l'ancien Suivant
+      // (qui a été unmount mais le click handler navigateur consomme l'event).
+      setTimeout(() => setStepTransitioning(false), 300);
+    }
+  };
+  const handleStepPrev = () => {
+    if (formStep > 1) setFormStep((s) => (s - 1) as 1 | 2 | 3);
+  };
+
   const openCreate = () => { setEditing(null); resetForm(); setOpen(true); };
 
   const openEdit = (act: Activity) => {
     setEditing(act); setFormName(act.name); setFormDesc(act.description || ''); setFormSport(act.sport);
+    setFormStep(1); // BUG #53 — toujours ouvrir édition à l'étape 1
+    setUseCustomSport(act.sport !== '' && !SPORTS.includes(act.sport)); // BUG #53 — custom sport si sport pas dans liste
     setFormPrice(String(act.price)); setFormDuration(String(act.duration || 60)); setFormCity(act.city);
     setFormAddress(act.address || ''); setFormSchedule(act.schedule); setFormMax(String(act.maxParticipants));
     // Load images: use images array if available, fallback to single imageUrl
@@ -360,6 +519,10 @@ export default function PartnerOffersPage() {
     // Phase 9.5 c4 — load mediaUrls (rich) avec fallback images (string[]) via getMediaItems
     setFormMediaItems(getMediaItems(act));
     setFormAudienceType(act.audienceType ?? 'all');
+    // BUG #57 — load venueDetails persisted (objet vide si jamais saved)
+    setFormVenueDetails(act.venueDetails ?? {});
+    // BUG #58 — load storeOffer persisted (objet vide si jamais saved)
+    setFormStoreOffer(act.storeOffer ?? {});
     // Phase 9.5 c11 — load scheduledAt (Timestamp → input datetime-local format YYYY-MM-DDTHH:mm)
     if (act.scheduledAt) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -408,6 +571,11 @@ export default function PartnerOffersPage() {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    // BUG #53 — guard : submit ne peut s'exécuter QUE depuis l'étape 3 (la
+    // seule où le bouton "Publier" est rendu). Si un autre événement déclenche
+    // submit (touche Enter, bouton sans type=button, etc.) sur les étapes 1-2,
+    // on ignore complètement → empêche la disparition prématurée du modal.
+    if (formStep !== 3) return;
     if (!db || !user) return;
 
     // Phase 9.5 c31 — Validation pricing tiers AVANT submit (bloquant si invalide)
@@ -450,7 +618,27 @@ export default function PartnerOffersPage() {
       const scheduledAtValue = formScheduledAt
         ? new Date(formScheduledAt)
         : null;
-      const data = {
+      // BUG #57 — venueDetails : on persiste UNIQUEMENT si le partner est venue
+      // (bar/club/restaurant) ET qu'au moins un sous-champ est renseigné.
+      // Sinon on omet la clé pour ne pas pollluer Firestore (Activity reste lean).
+      const venueDetailsToSave =
+        isVenuePartner(partnerData?.type) &&
+        (formVenueDetails.bonus ||
+          (formVenueDetails.spaceTypes && formVenueDetails.spaceTypes.length > 0) ||
+          formVenueDetails.musicStyle)
+          ? formVenueDetails
+          : undefined;
+      // BUG #58 — storeOffer : même principe que venueDetails, mais pour sports-store.
+      // On persiste si au moins un avantage est défini OU si equipmentAvailable a été
+      // explicitement répondu (true/false), pour ne pas perdre une réponse "Non" du partner.
+      const storeOfferToSave =
+        isSportsStorePartner(partnerData?.type) &&
+        ((formStoreOffer.exclusiveDiscount &&
+          formStoreOffer.exclusiveDiscount.trim().length > 0) ||
+          formStoreOffer.equipmentAvailable !== undefined)
+          ? formStoreOffer
+          : undefined;
+      const data: Record<string, unknown> = {
         name: formName, description: formDesc, sport: formSport,
         price: parseInt(formPrice) || 0, duration: parseInt(formDuration) || 60,
         city: formCity, address: formAddress, schedule: formSchedule,
@@ -463,10 +651,19 @@ export default function PartnerOffersPage() {
         scheduledAt: scheduledAtValue,
         // Phase 9.5 c31 BUG HH — défaut tiers (vide = fallback c29a auto)
         defaultPricingTiers: pricingTiersPayload,
+        // BUG #57 — denorm partnerType + venueDetails (si applicable)
+        partnerType: partnerData?.type ?? null,
         partnerId: user.uid, isActive: true, updatedAt: serverTimestamp(),
       };
+      if (venueDetailsToSave) {
+        data.venueDetails = venueDetailsToSave;
+      }
+      if (storeOfferToSave) {
+        data.storeOffer = storeOfferToSave;
+      }
       if (editing) {
-        await updateDoc(doc(db, 'activities', editing.activityId), data);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await updateDoc(doc(db, 'activities', editing.activityId), data as any);
 
         // Phase 9.5 c33 BUG#2 — Propagation aux sessions futures SANS réservations.
         // Bassi voyait /sessions/{X} avec anciens prix 8/10/12 alors qu'il avait
@@ -488,7 +685,7 @@ export default function PartnerOffersPage() {
           const newTiers =
             pricingTiersPayload.length > 0
               ? pricingTiersPayload
-              : computeFallbackTiers(data.price);
+              : computeFallbackTiers(data.price as number);
           const earlyTier = newTiers.find((t) => t.kind === 'early');
           for (const sdoc of sessionsSnap.docs) {
             const sdata = sdoc.data();
@@ -522,6 +719,44 @@ export default function PartnerOffersPage() {
       setOpen(false); resetForm(); setEditing(null); await loadActivities();
     } catch (err) { toast({ variant: 'destructive', title: 'Erreur', description: String(err) }); }
     finally { setSaving(false); }
+  };
+
+  // Fix #121 — Duplique une activité existante (utile pour créer rapidement
+  // une variante : même cours sur un autre créneau, ou même format à un autre
+  // lieu). La copie est créée INACTIVE par défaut pour éviter une publication
+  // accidentelle avant que le partenaire vérifie les champs (créneau, prix, etc.).
+  // currentParticipants, rating, reviewCount sont RESET à 0 (nouvelle activité,
+  // pas de réservations héritées). createdAt = maintenant.
+  const handleDuplicate = async (act: Activity) => {
+    if (!db) return;
+    try {
+      const ref = doc(collection(db, 'activities'));
+      // Clone safe : on EXCLUT les champs qui doivent être unique/reset.
+      // Cast en Record pour pouvoir destructurer librement (Activity type peut
+      // ne pas inclure tous les champs Firestore — createdAt notamment).
+      const actData = act as unknown as Record<string, unknown>;
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { activityId: _id, createdAt: _ca, currentParticipants: _cp, rating: _r, reviewCount: _rc, ...rest } = actData;
+      await setDoc(ref, {
+        ...rest,
+        activityId: ref.id,
+        name: `${act.name} (copie)`,
+        isActive: false, // Force inactive — partner doit éditer avant publication
+        currentParticipants: 0,
+        rating: 0,
+        reviewCount: 0,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+      toast({
+        title: 'Activité dupliquée',
+        description: `"${act.name} (copie)" créée. Édite-la avant de la publier.`,
+      });
+      await loadActivities();
+    } catch (err) {
+      console.error('[Offers] duplicate failed', err);
+      toast({ variant: 'destructive', title: 'Erreur duplication', description: String(err) });
+    }
   };
 
   const handleDelete = async (act: Activity) => {
@@ -618,6 +853,8 @@ export default function PartnerOffersPage() {
                 </div>
                 <div className="flex gap-2">
                   <Button onClick={() => openEdit(act)} variant="outline" size="sm" className="flex-1 border-white/10 text-white/50 hover:text-white"><Edit className="h-3.5 w-3.5 mr-1.5" /> Modifier</Button>
+                  {/* Fix #121 — bouton Dupliquer : crée copie inactive éditable */}
+                  <Button onClick={() => handleDuplicate(act)} variant="outline" size="sm" className="border-white/10 text-white/50 hover:text-accent" title="Dupliquer cette activité"><Copy className="h-3.5 w-3.5" /></Button>
                   <Button onClick={() => handleDelete(act)} variant="outline" size="sm" className="border-red-500/20 text-red-400/50 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               </CardContent>
@@ -626,13 +863,30 @@ export default function PartnerOffersPage() {
         </div>
       )}
 
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditing(null); resetForm(); } }}>
+      <Dialog open={open} onOpenChange={(v) => {
+        // BUG #53 DEBUG — log toutes les fermetures pour diagnostiquer
+        // pourquoi step 3 disparait. À retirer une fois bug compris.
+        if (!v) {
+          // eslint-disable-next-line no-console
+          console.warn('[ActivityForm] Modal closing — formStep was:', formStep);
+        }
+        setOpen(v);
+        if (!v) { setEditing(null); resetForm(); }
+      }}>
         {/* Phase 9.5 c35 BUG2 — override DialogContent shadcn p-6 → p-4 (Option B).
             Réduit le padding interne 24px → 16px sur cette modal uniquement, sans
             impacter les autres modals du site. Résout la "zone vide à droite" qui
             persistait malgré c31.1/c32.1/c34 (cause = DialogContent.p-6, jamais
             touché précédemment, pas la grid pricing). */}
-        <DialogContent className="sm:max-w-[500px] bg-black border-white/10 p-4">
+        <DialogContent
+          className="sm:max-w-[500px] bg-black border-white/10 p-4"
+          // BUG #53 — empêche la fermeture du modal sur clic en dehors ou touche
+          // Escape, qui pouvait être déclenchée par accident en step 2→3 transition
+          // (focus shift quand MediaManager mount). Seul le bouton Annuler/X ferme.
+          onPointerDownOutside={(e) => e.preventDefault()}
+          onInteractOutside={(e) => e.preventDefault()}
+          onEscapeKeyDown={(e) => e.preventDefault()}
+        >
           <form onSubmit={handleSubmit}>
             <DialogHeader>
               <DialogTitle className="text-white text-xl font-light">{editing ? "Modifier l'activité" : "Nouvelle activité"}</DialogTitle>
@@ -647,34 +901,89 @@ export default function PartnerOffersPage() {
                 min-content blow-out → débordait à droite par rapport au header /
                 aux inputs. Avec minmax(0,1fr) toutes les sections partagent la
                 même largeur exacte (bord droit Description = bord droit cards). */}
-            <div className="grid grid-cols-1 min-w-0 gap-4 py-6 max-h-[60vh] overflow-y-auto">
-              <div className="grid gap-2">
-                <Label className="text-white/50">Nom de l&apos;activité *</Label>
-                <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Cours de Zumba" className="bg-[#1A1A1A] border-white/10 h-12" required />
+            <div className="grid grid-cols-1 min-w-0 gap-4 py-4 max-h-[60vh] overflow-y-auto">
+              {/* BUG #53 — Progress bar 3 étapes en haut du modal */}
+              <div className="flex items-center justify-between gap-2 px-2 py-1">
+                {[1, 2, 3].map((s, i) => (
+                  <div key={s} className="flex items-center gap-2 flex-1">
+                    <div
+                      className={`flex items-center justify-center h-7 w-7 rounded-full text-xs font-semibold transition-colors ${
+                        formStep === s
+                          ? 'bg-accent text-white'
+                          : formStep > s
+                            ? 'bg-accent/40 text-white'
+                            : 'bg-white/10 text-white/40'
+                      }`}
+                    >
+                      {formStep > s ? <Check className="h-3.5 w-3.5" /> : s}
+                    </div>
+                    <span className={`text-xs font-medium whitespace-nowrap ${formStep === s ? 'text-white' : 'text-white/40'}`}>
+                      {s === 1 ? 'Bases' : s === 2 ? 'Logistique' : 'Médias'}
+                    </span>
+                    {i < 2 && <div className={`h-px flex-1 ${formStep > s ? 'bg-accent/40' : 'bg-white/10'}`} />}
+                  </div>
+                ))}
               </div>
-              <div className="grid gap-2">
-                <Label className="text-white/50">Description</Label>
-                <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Décrivez votre activité, l'ambiance, ce que les participants vont vivre..." className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[80px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
-              </div>
-              {/* Phase 9.5 c4 — MediaManager (drag&drop reorder + image upload + URL embed) */}
-              {user && (
-                <MediaManager
-                  value={formMediaItems}
-                  onChange={setFormMediaItems}
-                  partnerId={user.uid}
-                  maxItems={5}
-                  disabled={saving}
-                />
+
+              {/* === ÉTAPE 1 : Bases (Nom, Sport, Description) === */}
+              {formStep === 1 && (
+                <>
+                  <div className="grid gap-2">
+                    <Label className="text-white/50">Nom de l&apos;activité *</Label>
+                    <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Cours de Zumba" className="bg-[#1A1A1A] border-white/10 h-12" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className="text-white/50">Sport *</Label>
+                    {/* BUG #53 — Select avec option "Autre" en bas. Si user choisit
+                        "Autre", un input texte libre apparaît pour custom sport.
+                        Édition activité legacy avec sport custom : input visible direct. */}
+                    <Select
+                      value={
+                        useCustomSport
+                          ? SPORT_OTHER_VALUE
+                          : (SPORTS.includes(formSport) ? formSport : '')
+                      }
+                      onValueChange={(v) => {
+                        if (v === SPORT_OTHER_VALUE) {
+                          setUseCustomSport(true);
+                          setFormSport('');
+                        } else {
+                          setUseCustomSport(false);
+                          setFormSport(v);
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12">
+                        <SelectValue placeholder="Choisir" />
+                      </SelectTrigger>
+                      <SelectContent className="max-h-[250px]">
+                        {SPORTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                        <SelectItem value={SPORT_OTHER_VALUE}>Autre (précise ci-dessous)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {(useCustomSport || (formSport && !SPORTS.includes(formSport))) && (
+                      <Input
+                        value={formSport}
+                        onChange={e => setFormSport(e.target.value)}
+                        placeholder="Précise ton sport (ex: Surf, Escalade...)"
+                        className="bg-[#1A1A1A] border-white/10 h-10 text-sm"
+                        autoFocus={useCustomSport && !formSport}
+                      />
+                    )}
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className="text-white/50">Description</Label>
+                    <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Décrivez votre activité, l'ambiance, ce que les participants vont vivre..." className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
+                  </div>
+                </>
               )}
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label className="text-white/50">Sport *</Label>
-                  <Select value={formSport} onValueChange={setFormSport}><SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12"><SelectValue placeholder="Choisir" /></SelectTrigger><SelectContent>{SPORTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label className="text-white/50">Prix (CHF) *</Label>
-                  <Input value={formPrice} onChange={e => setFormPrice(e.target.value)} type="number" placeholder="25" className="bg-[#1A1A1A] border-white/10 h-12" required />
-                </div>
+
+              {/* === ÉTAPE 2 : Logistique & Prix === */}
+              {formStep === 2 && (
+                <>
+              <div className="grid gap-2">
+                <Label className="text-white/50">Prix (CHF) *</Label>
+                <Input value={formPrice} onChange={e => setFormPrice(e.target.value)} type="number" placeholder="25" className="bg-[#1A1A1A] border-white/10 h-12" />
               </div>
 
               {/* Phase 9.5 c31 BUG HH — Section Prix progressif (optionnel) */}
@@ -874,22 +1183,40 @@ export default function PartnerOffersPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
                   <Label className="text-white/50">Durée (min) *</Label>
-                  <Input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" placeholder="60" className="bg-[#1A1A1A] border-white/10 h-12" required />
+                  <Input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" placeholder="60" className="bg-[#1A1A1A] border-white/10 h-12" />
                 </div>
                 <div className="grid gap-2">
                   <Label className="text-white/50">Places max</Label>
                   <Input value={formMax} onChange={e => setFormMax(e.target.value)} type="number" placeholder="10" className="bg-[#1A1A1A] border-white/10 h-12" />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div className="grid gap-2">
-                  <Label className="text-white/50">Ville *</Label>
-                  <Select value={formCity} onValueChange={setFormCity}><SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12"><SelectValue placeholder="Choisir" /></SelectTrigger><SelectContent>{CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent></Select>
-                </div>
-                <div className="grid gap-2">
-                  <Label className="text-white/50">Adresse</Label>
-                  <Input value={formAddress} onChange={e => setFormAddress(e.target.value)} placeholder="Rue du Sport 12" className="bg-[#1A1A1A] border-white/10 h-12" />
-                </div>
+              {/* BUG #55 — Adresse avec autocomplete OpenStreetMap Nominatim.
+                  Sélection auto-remplit la Ville. Si pas de match, Ville reste
+                  modifiable via le select classique en dessous. */}
+              <AddressAutocomplete
+                value={formAddress}
+                onChange={setFormAddress}
+                onCitySelected={(city) => {
+                  // Match exact case-insensitive sur les villes prédéfinies, sinon
+                  // on garde le nom retourné par Nominatim (cas ville hors liste).
+                  const matched = CITIES.find(c => c.toLowerCase() === city.toLowerCase());
+                  setFormCity(matched ?? city);
+                }}
+              />
+              <div className="grid gap-2">
+                <Label className="text-white/50">Ville *</Label>
+                <Select value={formCity} onValueChange={setFormCity}>
+                  <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12">
+                    <SelectValue placeholder="Choisir" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[250px]">
+                    {CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+                    {/* Si formCity est custom (via autocomplete), on l'ajoute comme option pour qu'il soit affiché */}
+                    {formCity && !CITIES.includes(formCity) && (
+                      <SelectItem value={formCity}>{formCity}</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
               </div>
               {/* Phase 9.5 c33 BUG#1 — Champ "Horaires *" texte libre retiré pour
                   simplification (confusion 2 champs horaires côté Bassi). Le seul
@@ -906,21 +1233,72 @@ export default function PartnerOffersPage() {
                   value={formScheduledAt}
                   onChange={e => setFormScheduledAt(e.target.value)}
                   className="bg-[#1A1A1A] border-white/10 h-12 text-white"
-                  required
                 />
                 <p className="text-[11px] text-white/40">
                   Date et heure de la prochaine séance disponible à la réservation.
                   Un compte à rebours s&apos;affiche aux participants sur leur page de réservation.
                 </p>
               </div>
-              {/* Phase 9 SC6 c1/4 — Audience type selector (Q1=A enum) */}
-              <AudienceTypeSelector value={formAudienceType} onChange={setFormAudienceType} disabled={saving} />
+                </>
+              )}
+
+              {/* === ÉTAPE 3 : Médias & Ciblage === */}
+              {formStep === 3 && (
+                <>
+                  {/* Phase 9.5 c4 — MediaManager (drag&drop reorder + image upload + URL embed) */}
+                  {user && (
+                    <MediaManager
+                      value={formMediaItems}
+                      onChange={setFormMediaItems}
+                      partnerId={user.uid}
+                      maxItems={5}
+                      disabled={saving}
+                    />
+                  )}
+                  {/* Phase 9 SC6 c1/4 — Audience type selector (Q1=A enum) */}
+                  <AudienceTypeSelector value={formAudienceType} onChange={setFormAudienceType} disabled={saving} />
+                  {/* BUG #57 — Cadre & Ambiance (bar/club/restaurant uniquement).
+                      Auto-détection via Partner.type fetché au mount. Si le partner
+                      n'est pas un venue, la section est simplement non rendue. */}
+                  {isVenuePartner(partnerData?.type) && (
+                    <VenueDetailsSection
+                      value={formVenueDetails}
+                      onChange={setFormVenueDetails}
+                      disabled={saving}
+                    />
+                  )}
+                  {/* BUG #58 — Avantages partenaire (sports-store uniquement).
+                      Auto-détection via Partner.type === 'sports-store'. */}
+                  {isSportsStorePartner(partnerData?.type) && (
+                    <StoreOfferSection
+                      value={formStoreOffer}
+                      onChange={setFormStoreOffer}
+                      disabled={saving}
+                    />
+                  )}
+                </>
+              )}
             </div>
-            <DialogFooter className="gap-2">
-              <DialogClose asChild><Button type="button" variant="outline" className="border-white/10">Annuler</Button></DialogClose>
-              <Button type="submit" disabled={saving} className="bg-accent hover:bg-accent/80 text-white">
-                {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{editing ? "Mettre à jour" : "Publier"}
-              </Button>
+            {/* BUG #53 — Footer avec navigation multi-step */}
+            <DialogFooter className="gap-2 flex-wrap">
+              {formStep > 1 ? (
+                <Button type="button" variant="outline" onClick={handleStepPrev} className="border-white/10">
+                  <ChevronLeft className="h-4 w-4 mr-1" />
+                  Précédent
+                </Button>
+              ) : (
+                <DialogClose asChild><Button type="button" variant="outline" className="border-white/10">Annuler</Button></DialogClose>
+              )}
+              {formStep < 3 ? (
+                <Button type="button" onClick={handleStepNext} className="bg-accent hover:bg-accent/80 text-white">
+                  Suivant
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              ) : (
+                <Button type="submit" disabled={saving || stepTransitioning} className="bg-accent hover:bg-accent/80 text-white">
+                  {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{editing ? "Mettre à jour" : "Publier"}
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </DialogContent>

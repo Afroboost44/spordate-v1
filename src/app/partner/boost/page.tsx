@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Button } from "@/components/ui/button";
-import { Rocket, Zap, MapPin, Clock, TrendingUp, Eye, Users, Loader2, Globe, ChevronLeft, CheckCircle, XCircle, CreditCard, Coins } from 'lucide-react';
+import { Rocket, Zap, MapPin, Clock, TrendingUp, Eye, Users, Loader2, Globe, ChevronLeft, CheckCircle, XCircle, CreditCard, Coins, ListChecks } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/context/AuthContext';
 import { useCredits } from '@/hooks/useCredits';
@@ -31,10 +31,14 @@ const INTERNATIONAL_COUNTRIES: Record<string, string[]> = {
   'Autre pays': ['Autre ville'],
 };
 
-const DURATIONS = [
+// BUG #95 — Defaults Boost partenaire alignés sur AdminPricingSection.
+// Les VRAIS prix sont lus depuis settings/pricing.boostPartner{24h,3d,7d}PriceCHF
+// dans le composant (useEffect). Si Firestore down ou champs absents, fallback
+// sur ces defaults — qui correspondent aussi aux prix actuellement en prod.
+const DEFAULT_DURATIONS: Array<{ value: string; label: string; price: number }> = [
   { value: '24h', label: '24 heures', price: 15 },
-  { value: '3d', label: '3 jours', price: 35 },
-  { value: '7d', label: '1 semaine', price: 50 },
+  { value: '3d',  label: '3 jours',   price: 35 },
+  { value: '7d',  label: '1 semaine', price: 50 },
 ];
 
 type LocationMode = 'choose' | 'swiss' | 'international-country' | 'international-city';
@@ -55,8 +59,49 @@ export default function PartnerBoostPage() {
   const [paymentStatus, setPaymentStatus] = useState<'success' | 'cancel' | null>(null);
   // Phase 9.5 c29b — méthode de paiement choisie (Stripe par défaut, switch vers Credits)
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('stripe');
+  // BUG #69 — Liste des activités actives du partenaire + ID sélectionné.
+  // Le boost cible désormais 1 activité précise (pas tout le compte).
+  const [partnerActivities, setPartnerActivities] = useState<Array<{ id: string; name: string; sport?: string; city?: string }>>([]);
+  const [selectedActivityId, setSelectedActivityId] = useState('');
+  // BUG #95 — Prix Boost partenaire chargés depuis settings/pricing (admin-éditable).
+  // Fallback sur DEFAULT_DURATIONS si Firestore down ou champs absents. Charge au mount.
+  const [durations, setDurations] = useState(DEFAULT_DURATIONS);
 
-  const currentPrice = DURATIONS.find(d => d.value === selectedDuration)?.price || 0;
+  useEffect(() => {
+    if (!db) return;
+    const fbDb = db;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(fbDb, 'settings', 'pricing'));
+        if (!snap.exists()) return;
+        const data = snap.data() || {};
+        setDurations([
+          {
+            value: '24h',
+            label: '24 heures',
+            price: typeof data.boostPartner24hPriceCHF === 'number' && data.boostPartner24hPriceCHF >= 0
+              ? data.boostPartner24hPriceCHF : 15,
+          },
+          {
+            value: '3d',
+            label: '3 jours',
+            price: typeof data.boostPartner3dPriceCHF === 'number' && data.boostPartner3dPriceCHF >= 0
+              ? data.boostPartner3dPriceCHF : 35,
+          },
+          {
+            value: '7d',
+            label: '1 semaine',
+            price: typeof data.boostPartner7dPriceCHF === 'number' && data.boostPartner7dPriceCHF >= 0
+              ? data.boostPartner7dPriceCHF : 50,
+          },
+        ]);
+      } catch (err) {
+        console.warn('[/partner/boost] settings/pricing read failed, fallback defaults', err);
+      }
+    })();
+  }, []);
+
+  const currentPrice = durations.find(d => d.value === selectedDuration)?.price || 0;
   const currentCreditCost = selectedDuration ? BOOST_CREDITS_COST[selectedDuration] || 0 : 0;
   const hasEnoughCredits = credits >= currentCreditCost;
 
@@ -66,6 +111,7 @@ export default function PartnerBoostPage() {
   // Branche `credits` saute le check hasEnoughCredits (déjà géré par le bouton
   // alternatif "Solde insuffisant — Recharger" qui remplace le bouton normal).
   const getDisabledReason = (): string | null => {
+    if (!selectedActivityId) return "Choisissez d'abord l'activité à booster";
     if (!selectedCity) return "Sélectionnez d'abord une ville ciblée";
     if (!selectedDuration) return 'Choisissez la durée du boost';
     if (isLoading) return 'Traitement en cours...';
@@ -100,6 +146,31 @@ export default function PartnerBoostPage() {
         const boostSnap = await getDocs(boostQ);
         const boosts = boostSnap.docs.map(d => ({ id: d.id, ...d.data() }));
         setActiveBoosts(boosts);
+
+        // BUG #69 — Load partner's active activities pour le dropdown sélecteur.
+        // On filtre isActive==true pour ne pas proposer des activités désactivées.
+        const actQ = query(
+          collection(fbDb, 'activities'),
+          where('partnerId', '==', user.uid),
+          where('isActive', '==', true),
+          limit(50)
+        );
+        const actSnap = await getDocs(actQ);
+        const acts = actSnap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            name: (data as any).name || (data as any).title || '(sans nom)',
+            sport: data.sport,
+            city: data.city,
+          };
+        });
+        setPartnerActivities(acts);
+        // Auto-sélection si une seule activité (cas le plus simple côté UX)
+        if (acts.length === 1) {
+          setSelectedActivityId(acts[0].id);
+        }
       } catch (err) {
         console.error('[Boost] Load error:', err);
       }
@@ -126,7 +197,7 @@ export default function PartnerBoostPage() {
       // refresh activeBoosts au prochain useEffect mount (load() relit boosts/).
       toast({
         title: "Boost activé",
-        description: `Activation en cours (quelques secondes)… Le boost ${DURATIONS.find(d => d.value === duration)?.label || duration} sera visible dans /partner/dashboard.`,
+        description: `Activation en cours (quelques secondes)… Le boost ${durations.find(d => d.value === duration)?.label || duration} sera visible dans /partner/dashboard.`,
       });
 
       // Clean URL
@@ -154,6 +225,10 @@ export default function PartnerBoostPage() {
           duration: selectedDuration,
           city: selectedCity,
           country: selectedCountry || undefined,
+          // BUG #69 — activityId envoyée au /api/boost-checkout qui la passe en
+          // Stripe metadata. Le webhook handleBoostPayment lit metadata.activityId
+          // et persiste sur le doc boosts/ → Discovery filter (partnerId, activityId).
+          activityId: selectedActivityId,
         }),
       });
 
@@ -192,6 +267,9 @@ export default function PartnerBoostPage() {
           duration: selectedDuration,
           city: selectedCity,
           country: selectedCountry || undefined,
+          // BUG #69 — activityId persistée directement dans boosts/ par l'API
+          // (mode credits = pas de Stripe, pas de webhook, écriture inline).
+          activityId: selectedActivityId,
         }),
       });
       const data = await res.json();
@@ -296,6 +374,44 @@ export default function PartnerBoostPage() {
             <h3 className="text-sm text-accent uppercase tracking-[0.2em] font-light">
               Configurer votre Boost
             </h3>
+
+            {/* BUG #69 — Activity selector. Le partenaire DOIT choisir QUELLE
+                activité booster (avant : boost s'appliquait à tout le compte). */}
+            <div className="space-y-3">
+              <label
+                htmlFor="boost-activity-select"
+                className="text-xs text-white/30 uppercase tracking-wider font-light flex items-center gap-1.5"
+              >
+                <ListChecks className="h-3 w-3" /> Activité à booster
+              </label>
+              {partnerActivities.length === 0 ? (
+                <div className="rounded-xl border border-amber-400/30 bg-amber-500/[0.05] p-4">
+                  <p className="text-sm text-amber-300/90 font-light">
+                    Aucune activité active. Crée d&apos;abord une activité dans{' '}
+                    <a href="/partner/offers" className="text-accent underline">
+                      Mes Offres
+                    </a>
+                    {' '}avant de pouvoir la booster.
+                  </p>
+                </div>
+              ) : (
+                <select
+                  id="boost-activity-select"
+                  value={selectedActivityId}
+                  onChange={(e) => setSelectedActivityId(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-3 text-sm font-light focus:outline-none focus:border-accent/40"
+                >
+                  <option value="">— Choisis l&apos;activité —</option>
+                  {partnerActivities.map((a) => (
+                    <option key={a.id} value={a.id}>
+                      {a.name}
+                      {a.sport ? ` · ${a.sport}` : ''}
+                      {a.city ? ` · ${a.city}` : ''}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
 
             {/* Location selection */}
             <div className="space-y-3">
@@ -413,7 +529,7 @@ export default function PartnerBoostPage() {
                 <Clock className="h-3 w-3" /> Durée du boost
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {DURATIONS.map(d => (
+                {durations.map(d => (
                   <button
                     key={d.value}
                     onClick={() => setSelectedDuration(d.value)}
@@ -488,9 +604,9 @@ export default function PartnerBoostPage() {
                   </div>
                   <Button
                     onClick={handleBoost}
-                    disabled={!selectedCity || !selectedDuration || isLoading}
+                    disabled={!selectedActivityId || !selectedCity || !selectedDuration || isLoading}
                     className={`w-full rounded-full h-14 text-base font-semibold ${
-                      selectedCity && selectedDuration
+                      selectedActivityId && selectedCity && selectedDuration
                         ? 'bg-accent hover:bg-accent/80 text-white'
                         : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
                     }`}
@@ -534,9 +650,9 @@ export default function PartnerBoostPage() {
                   ) : (
                     <Button
                       onClick={handleBoostWithCredits}
-                      disabled={!selectedCity || !selectedDuration || isLoading || !hasEnoughCredits}
+                      disabled={!selectedActivityId || !selectedCity || !selectedDuration || isLoading || !hasEnoughCredits}
                       className={`w-full rounded-full h-14 text-base font-semibold ${
-                        selectedCity && selectedDuration && hasEnoughCredits
+                        selectedActivityId && selectedCity && selectedDuration && hasEnoughCredits
                           ? 'bg-accent hover:bg-accent/80 text-white'
                           : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
                       }`}
@@ -625,19 +741,30 @@ export default function PartnerBoostPage() {
             <h3 className="text-sm text-white/30 uppercase tracking-wider font-light mb-4">Boosts actifs</h3>
             {activeBoosts.length > 0 ? (
               <div className="space-y-3">
-                {activeBoosts.map(b => (
-                  <div key={b.id} className="flex items-center gap-3 p-3 bg-accent/5 border border-accent/10 rounded-xl">
-                    <Zap className="h-4 w-4 text-accent flex-shrink-0" />
-                    <div className="flex-1">
-                      <p className="text-sm text-white/70 font-light">{b.city}</p>
-                      <p className="text-xs text-white/30 font-light">
-                        {DURATIONS.find(d => d.value === b.duration)?.label || b.duration}
-                        {b.expiresAt && ` — expire ${new Date(b.expiresAt.seconds ? b.expiresAt.seconds * 1000 : b.expiresAt).toLocaleDateString('fr-CH')}`}
-                      </p>
+                {activeBoosts.map(b => {
+                  // BUG #69 — Map activityId → nom (résolu via partnerActivities chargées au mount).
+                  // Si activityId absent (boost legacy avant fix #69) → label spécifique.
+                  const actName = b.activityId
+                    ? partnerActivities.find(a => a.id === b.activityId)?.name || 'Activité supprimée'
+                    : 'Toutes les activités (legacy)';
+                  return (
+                    <div key={b.id} className="flex items-center gap-3 p-3 bg-accent/5 border border-accent/10 rounded-xl">
+                      <Zap className="h-4 w-4 text-accent flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-white/80 font-light truncate" title={actName}>{actName}</p>
+                        <p className="text-xs text-white/50 font-light">
+                          {b.city} · {durations.find(d => d.value === b.duration)?.label || b.duration}
+                        </p>
+                        {b.expiresAt && (
+                          <p className="text-[10px] text-white/30 font-light">
+                            Expire {new Date(b.expiresAt.seconds ? b.expiresAt.seconds * 1000 : b.expiresAt).toLocaleDateString('fr-CH')}
+                          </p>
+                        )}
+                      </div>
+                      <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
                     </div>
-                    <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="flex flex-col items-center py-6 text-center">

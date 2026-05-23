@@ -22,7 +22,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyAuth } from '@/lib/auth/verifyAuth';
+import { verifyAuth, parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 import { getSharedStripe } from '@/lib/stripe/sharedStripe';
 import { computePricingTier, isSessionBookable } from '@/services/firestore';
 import { resolvePaymentMethodTypes } from '@/lib/payment/methodResolver';
@@ -39,7 +39,7 @@ async function getAdminDb() {
   const { getFirestore } = await import('firebase-admin/firestore');
   if (!getApps().length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+      initializeApp({ credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]) });
     } else {
       initializeApp({
         projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || process.env.GCLOUD_PROJECT || 'spordateur-claude',

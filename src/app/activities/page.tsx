@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, MapPin, ChevronLeft, ChevronRight, Play, Video, Volume2, VolumeX } from "lucide-react";
+import { Loader2, MapPin, ChevronLeft, ChevronRight, Play, Video, Volume2, VolumeX, Info, Maximize2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
@@ -17,12 +17,7 @@ import { getVideoThumbnailChain, getVideoEmbedUrl } from '@/lib/activities/media
 import type { MediaItem, Session } from '@/types/firestore';
 import { getBookingPriceCHF } from '@/lib/booking/price';
 import { ReserveButtonListing } from '@/components/activities/ReserveButtonListing';
-import {
-  Carousel,
-  CarouselContent,
-  CarouselItem,
-  type CarouselApi,
-} from '@/components/ui/carousel';
+// BUG #49 v4 — embla carousel remplacé par CSS scroll-snap natif (cf. plus bas).
 import { ShareButton } from '@/components/activities/ShareButton';
 import { formatScheduledLabel } from '@/lib/activities/scheduled';
 import { formatImageCounter } from '@/lib/activities/imageCounter';
@@ -213,13 +208,170 @@ function CardVideoEmbed({ item }: { item: MediaItem }) {
   );
 }
 
+/**
+ * BUG #52 v3 — Lightbox plein écran SWIPABLE (Browser Fullscreen API + scroll-snap).
+ *
+ * Affiche TOUS les items du carousel en horizontal scroll-snap → l'user peut
+ * swiper droite/gauche en plein écran sans devoir fermer + ré-ouvrir.
+ *
+ * - mount : requestFullscreen() + scroll instant vers initialIndex.
+ * - landscape lock si vidéo (UX YouTube/TikTok).
+ * - Escape OU tap croix → ferme.
+ */
+function FullscreenLightbox({
+  items,
+  initialIndex,
+  onClose,
+}: {
+  items: MediaItem[];
+  initialIndex: number;
+  onClose: () => void;
+}) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [currentIndex, setCurrentIndex] = useState(initialIndex);
+
+  useEffect(() => {
+    const el = containerRef.current;
+    if (el && el.requestFullscreen) {
+      el.requestFullscreen().catch(() => undefined);
+    }
+    // Scroll instant vers l'item initial (sans animation) APRÈS mount.
+    requestAnimationFrame(() => {
+      const sc = scrollRef.current;
+      if (sc) {
+        sc.scrollTo({ left: initialIndex * sc.clientWidth, behavior: 'instant' as ScrollBehavior });
+      }
+    });
+    // Landscape lock si l'item courant est vidéo. Reset à chaque scroll.
+    const lockOrientationForCurrent = (idx: number) => {
+      const it = items[idx];
+      if (!it) return;
+      if (it.type === 'video' && screen.orientation && 'lock' in screen.orientation) {
+        // @ts-expect-error — lock() existe Android Chrome
+        screen.orientation.lock('landscape').catch(() => undefined);
+      } else if (screen.orientation && 'unlock' in screen.orientation) {
+        try { screen.orientation.unlock(); } catch { /* silent */ }
+      }
+    };
+    lockOrientationForCurrent(initialIndex);
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    const onFsChange = () => {
+      if (!document.fullscreenElement) onClose();
+    };
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('fullscreenchange', onFsChange);
+      if (screen.orientation && 'unlock' in screen.orientation) {
+        try { screen.orientation.unlock(); } catch { /* silent */ }
+      }
+      if (document.fullscreenElement) {
+        document.exitFullscreen().catch(() => undefined);
+      }
+    };
+  }, [onClose, items, initialIndex]);
+
+  // Sync currentIndex depuis scrollLeft uniquement (PAS de relock orientation
+  // par slide — sinon swipe video→image fait tourner l'écran de force et
+  // l'expérience est désagréable). L'orientation est fixée UNE seule fois
+  // au mount selon l'item initial, l'user peut tourner le tel manuellement.
+  const handleScroll = () => {
+    const el = scrollRef.current;
+    if (!el || el.clientWidth === 0) return;
+    const idx = Math.round(el.scrollLeft / el.clientWidth);
+    if (idx === currentIndex) return;
+    setCurrentIndex(idx);
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      className="fixed inset-0 z-[100] bg-black overflow-hidden"
+      role="dialog"
+      aria-label="Aperçu plein écran"
+    >
+      {/* X fermer déplacé top-LEFT pour ne pas cacher le bouton volume du
+          CardVideoEmbed (qui est top-right). */}
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 left-4 z-20 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors backdrop-blur-sm"
+        aria-label="Fermer"
+      >
+        <X className="h-6 w-6" />
+      </button>
+      {/* Counter X/N en haut */}
+      {items.length > 1 && (
+        <div className="absolute top-6 left-1/2 -translate-x-1/2 z-20 bg-white/10 backdrop-blur-sm text-white text-sm px-3 py-1 rounded-full pointer-events-none">
+          {currentIndex + 1} / {items.length}
+        </div>
+      )}
+      {/* Scroll-snap horizontal — un slide = un viewport */}
+      <div
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="w-full h-full flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory"
+        style={{
+          scrollbarWidth: 'none',
+          msOverflowStyle: 'none',
+          WebkitOverflowScrolling: 'touch',
+        }}
+      >
+        {items.map((item, i) => (
+          <div
+            key={i}
+            className="w-full h-full flex-shrink-0 snap-center flex items-center justify-center"
+            style={{ scrollSnapStop: 'always' }}
+          >
+            {item.type === 'video' ? (
+              // BUG #60 — Idem CardMediaSlide : upload partner sans extension
+              // dans le path → fallback iframe inutile. <video> direct si upload.
+              item.source === 'upload' || isStorageVideoUrl(item.url) ? (
+                <video
+                  src={item.url}
+                  controls
+                  autoPlay={i === currentIndex}
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full relative">
+                  <CardVideoEmbed item={item} />
+                </div>
+              )
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={item.url}
+                alt=""
+                draggable={false}
+                className="w-full h-full object-cover pointer-events-none select-none"
+              />
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /** Phase 9.5 c5 + c6 — render media item card preview (image OR video autoplay loop muted toggle) */
 function CardMediaSlide({ item, fallbackSeed }: { item: MediaItem; fallbackSeed: string }) {
   if (item.type === 'video') {
     // BUG #30 étape 3 — Vidéo migrée Drive→Storage : HTML5 <video> natif sans
     // controls (preview muted loop comme YouTube/Vimeo CardVideoEmbed) pour
     // garder le pattern "hover preview" sur les cards LISTE.
-    if (isStorageVideoUrl(item.url)) {
+    //
+    // BUG #60 — Régression "play icon sans preview" sur card listing après
+    // upload partner. Avant : on s'appuyait uniquement sur isStorageVideoUrl
+    // (extension `.mp4`/.webm/.mov dans le path). Si le fichier original n'a
+    // pas d'extension (ou qu'elle disparaît au slugify), `<video>` n'était
+    // jamais rendu et on fallback sur CardVideoFallbackThumb (icône play seule).
+    // Fix : tout MediaItem `source==='upload'` ou URL Storage → <video> HTML5
+    // direct. Le navigateur sniffe le content-type retourné par Storage.
+    if (item.source === 'upload' || isStorageVideoUrl(item.url)) {
       return (
         <video
           src={item.url}
@@ -235,11 +387,15 @@ function CardMediaSlide({ item, fallbackSeed }: { item: MediaItem; fallbackSeed:
     return <CardVideoEmbed item={item} />;
   }
   // type='image' OR fallback
+  // BUG #49 fix — pointer-events-none + draggable=false : sans ça, l'<img>
+  // capture le touch sur mobile (browser image-drag/save gesture) et BLOQUE
+  // la détection swipe embla. Cohérent avec <video pointer-events-none>.
   return (
     <img
       src={item.url || `https://picsum.photos/seed/${fallbackSeed}/800/600`}
       alt=""
-      className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
+      draggable={false}
+      className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300 pointer-events-none select-none"
     />
   );
 }
@@ -266,10 +422,34 @@ function ActivityCardComponent({
   // BUG #23 — mini-carousel via shadcn Carousel (embla). setApi pour sync dots +
   // arrows custom. Embla gère le swipe touch natif sans handler manuel + il
   // distingue tap (=click bubble → Link nav) vs drag (=scroll, pas de click).
-  const [api, setApi] = useState<CarouselApi>();
+  // BUG #49 v4 — abandon de embla pour CSS scroll-snap natif. Embla refusait
+  // de capturer les touch events sur Samsung Chrome mobile (PC OK). CSS scroll-snap
+  // est universel mobile, zéro JS pour le swipe (navigateur natif).
+  const carouselScrollRef = useRef<HTMLDivElement>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
+  // BUG #52 — fullscreen lightbox état : null = fermé, sinon le MediaItem affiché.
+  // BUG #52 v3 — fullscreen ouvre maintenant un carousel swipable. État = index
+  // de l'item à afficher au départ (ou null = fermé). Le user peut swiper entre
+  // les items DANS le plein écran (cohérent UX Facebook/Instagram).
+  const [fullscreenStartIndex, setFullscreenStartIndex] = useState<number | null>(null);
   const detailHref = `/activities/${activity.activityId}`;
-  const goToDetail = () => router.push(detailHref);
+
+  // Sync currentSlide depuis scrollLeft natif (debounce via rAF pour perf).
+  const handleCarouselScroll = () => {
+    const el = carouselScrollRef.current;
+    if (!el) return;
+    const slideWidth = el.clientWidth;
+    if (slideWidth === 0) return;
+    const idx = Math.round(el.scrollLeft / slideWidth);
+    setCurrentSlide(idx);
+  };
+
+  // Programmatic scroll vers slide N (utilisé par arrows + dots).
+  const scrollToSlide = (i: number) => {
+    const el = carouselScrollRef.current;
+    if (!el) return;
+    el.scrollTo({ left: i * el.clientWidth, behavior: 'smooth' });
+  };
   // Phase 9.5 c5 — unified media items via getMediaItems (rich type — image+video).
   // Fallback : seed picsum si zéro media.
   const mediaItems = getMediaItems({
@@ -285,16 +465,7 @@ function ActivityCardComponent({
       }];
   const hasMultiple = items.length > 1;
 
-  // Sync currentSlide with embla API (pour highlight le dot actif).
-  useEffect(() => {
-    if (!api) return;
-    setCurrentSlide(api.selectedScrollSnap());
-    const onSelect = () => setCurrentSlide(api.selectedScrollSnap());
-    api.on('select', onSelect);
-    return () => {
-      api.off('select', onSelect);
-    };
-  }, [api]);
+  // CSS scroll-snap : currentSlide synchronisé via onScroll (cf. handleCarouselScroll).
 
   return (
     <Card
@@ -307,50 +478,79 @@ function ActivityCardComponent({
           : 'border-border/20 shadow-lg shadow-accent/10 hover:shadow-accent/20'
       }`}
     >
-      {/* BUG #21 — image cliquable vers /activities/[id]
-          BUG #26 — onClick div role=link au lieu de <Link> (<a> tag) :
-          le tag <a> a un comportement natif touch sur mobile (iOS long-press
-          preview, Chrome link drag) qui interfère avec embla swipe. Un div
-          n'a aucun comportement natif sur touch → embla peut capturer
-          librement les pointer events. Tap court (sans drag) → onClick →
-          router.push. Drag (embla intercepte) → no click → swipe slide.
-          Accessibilité : role=link + tabIndex=0 + onKeyDown Enter/Space. */}
-      <div
-        role="link"
-        tabIndex={0}
-        aria-label={`Voir le détail de ${activity.title}`}
-        onClick={goToDetail}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            goToDetail();
-          }
-        }}
-        className="block hover:opacity-95 transition cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/40"
-      >
-        <div className="relative h-56 w-full group" style={{ touchAction: 'pan-y' }}>
+      {/* BUG #49 v3 — l'image n'est PLUS le déclencheur de navigation : conflit
+          insoluble onClick vs embla swipe sur mobile. La navigation se fait via :
+          (1) le titre cliquable plus bas (Link), (2) le badge "Voir détail"
+          overlay bottom-left de l'image (Link aussi, stopPropagation). Le wrapper
+          du carousel est juste un div neutre → embla capture sans entrave. */}
+      <div className="block">
+        <div
+          className="relative h-56 w-full group"
+          style={{ touchAction: 'pan-y pinch-zoom' }}
+        >
           <BackButton fallbackUrl="/" />
           {/* BUG #23 — shadcn Carousel (embla) : swipe touch natif mobile + drag
               desktop. Embla distingue tap (click bubble vers Link parent → nav
               vers /activities/[id], fix #21) vs drag (scroll horizontal, no
-              click) → préserve les deux comportements naturellement. */}
-          <Carousel
-            setApi={setApi}
-            opts={{ align: 'start', loop: false, watchDrag: hasMultiple }}
-            className="absolute inset-0"
+              click) → préserve les deux comportements naturellement.
+              BUG #49 fix mobile swipe — touchAction: 'pan-y pinch-zoom' +
+              dragThreshold abaissé à 5 (default 10). pan-y solo bloquait
+              embla de capturer un swipe pas parfaitement horizontal au début,
+              forçant l'user à essayer plusieurs fois. Avec pinch-zoom permis
+              ET threshold bas, embla intercepte plus vite et plus permissif. */}
+          {/* BUG #49 v4 — CSS scroll-snap natif au lieu d'embla. Marche sur
+              100% des mobiles (Samsung Chrome, iOS Safari, etc.) sans JS pour
+              le swipe. overflow-x-auto + snap-x mandatory = scroll horizontal
+              snappable. Hide scrollbar via inline styles cross-browser. */}
+          <div
+            ref={carouselScrollRef}
+            onScroll={handleCarouselScroll}
+            className="absolute inset-0 flex overflow-x-auto overflow-y-hidden snap-x snap-mandatory"
+            style={{
+              scrollbarWidth: 'none',
+              msOverflowStyle: 'none',
+              WebkitOverflowScrolling: 'touch',
+            }}
           >
-            <CarouselContent className="ml-0 h-full">
-              {items.map((item, i) => (
-                <CarouselItem key={i} className="pl-0 basis-full h-56">
-                  <CardMediaSlide item={item} fallbackSeed={activity.sport} />
-                </CarouselItem>
-              ))}
-            </CarouselContent>
-          </Carousel>
+            <style>{`.spordateur-carousel-scroll::-webkit-scrollbar { display: none; }`}</style>
+            {items.map((item, i) => (
+              <div
+                key={i}
+                className="relative h-full flex-shrink-0 basis-full snap-center spordateur-carousel-scroll"
+                style={{ scrollSnapStop: 'always' }}
+              >
+                <CardMediaSlide item={item} fallbackSeed={activity.sport} />
+              </div>
+            ))}
+          </div>
           <div className="absolute inset-0 bg-black/40 pointer-events-none" />
           <div className="absolute top-3 left-3 bg-black/60 backdrop-blur-sm text-white text-xs px-3 py-1 rounded-full">
             {activity.duration || 60} min
           </div>
+          {/* BUG #49 v3 — "Voir détail" en bas-gauche (Link → navigation). */}
+          <Link
+            href={detailHref}
+            onClick={(e) => e.stopPropagation()}
+            className="absolute bottom-2 left-2 z-10 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-white text-[11px] font-medium px-2 py-0.5 rounded-full select-none hover:bg-black/80 transition-colors"
+          >
+            <Info className="h-3 w-3 opacity-80" />
+            <span>Voir détail</span>
+          </Link>
+          {/* BUG #52 — bouton "Plein écran" en haut-droite, à GAUCHE du
+              volume toggle (right-12 = 48px laisse la place au volume du
+              CardVideoEmbed à right-2). Quand existingBookingId, le badge
+              "Déjà réservée" prend right-3 → on décale Plein écran à
+              right-[6.5rem] pour pas chevaucher. */}
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); e.preventDefault(); setFullscreenStartIndex(currentSlide); }}
+            className="absolute top-3 z-10 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-white text-[11px] font-medium px-2 py-1 rounded-full hover:bg-black/80 transition-colors"
+            aria-label="Afficher en plein écran"
+            style={{ right: existingBookingId ? '7rem' : '3rem' }}
+          >
+            <Maximize2 className="h-3 w-3" />
+            <span>Plein écran</span>
+          </button>
           {/* Phase 9.5 c16 BUG F — badge "Déjà réservée" si user a un booking actif */}
           {existingBookingId && (
             <div className="absolute top-3 right-3 inline-flex items-center gap-1.5 bg-accent text-white text-xs px-3 py-1 rounded-full font-medium shadow-lg">
@@ -375,7 +575,7 @@ function ActivityCardComponent({
                   opacity-0 group-hover existant + position. stopPropagation
                   empêche le click du Link parent (fix #21). */}
               <button
-                onClick={(e) => { e.stopPropagation(); e.preventDefault(); api?.scrollPrev(); }}
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); scrollToSlide(Math.max(0, currentSlide - 1)); }}
                 className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                 aria-label="Image précédente"
                 type="button"
@@ -383,7 +583,7 @@ function ActivityCardComponent({
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
-                onClick={(e) => { e.stopPropagation(); e.preventDefault(); api?.scrollNext(); }}
+                onClick={(e) => { e.stopPropagation(); e.preventDefault(); scrollToSlide(Math.min(items.length - 1, currentSlide + 1)); }}
                 className="absolute right-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
                 aria-label="Image suivante"
                 type="button"
@@ -396,7 +596,7 @@ function ActivityCardComponent({
                 {items.map((_, i) => (
                   <button
                     key={i}
-                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); api?.scrollTo(i); }}
+                    onClick={(e) => { e.stopPropagation(); e.preventDefault(); scrollToSlide(i); }}
                     aria-label={`Aller à l'image ${i + 1}`}
                     type="button"
                     className={`w-2 h-2 rounded-full transition-all shadow-sm ${i === currentSlide ? 'bg-white w-5' : 'bg-white/70 hover:bg-white/90'}`}
@@ -488,6 +688,18 @@ function ActivityCardComponent({
           </div>
         </div>
       </CardContent>
+      {/* BUG #52 v2 — VRAI plein écran via Browser Fullscreen API.
+          Quand fullscreenItem est set : on appelle requestFullscreen() sur le
+          modal au mount → ça hide la URL bar Chrome, le bottom nav Spordateur,
+          et même la system status bar Android. Sortie via Escape ou tap croix
+          → exitFullscreen() puis state cleanup. */}
+      {fullscreenStartIndex !== null && (
+        <FullscreenLightbox
+          items={items}
+          initialIndex={fullscreenStartIndex}
+          onClose={() => setFullscreenStartIndex(null)}
+        />
+      )}
     </Card>
   );
 }
@@ -500,6 +712,9 @@ export default function ActivitiesPage() {
   // (respecte les overrides per-session du partner).
   const [nextSessionByActivity, setNextSessionByActivity] = useState<Record<string, Session>>({});
   const [loading, setLoading] = useState(true);
+  // BUG #83 — Recherche par ville/pays sur la page activités.
+  // Pour le MVP : un input texte qui filtre sur city+address de chaque activity.
+  const [citySearch, setCitySearch] = useState('');
   // Phase 9.5 c16 BUG F — map activityId → bookingId pour les bookings actifs (< 24h) du user.
   // Single-query batch au mount (limit 50, ordered DESC) pour éviter N×M queries.
   const { user } = useAuth();
@@ -626,7 +841,20 @@ export default function ActivitiesPage() {
   }, []);
 
   // Group activities by partner
-  const partnerGroups = activities.reduce((acc, act) => {
+  // BUG #83 — Filtre par ville pour la barre de recherche en haut de page.
+  // L'utilisateur tape une ville → on filtre les activités sur city
+  // (case+trim insensible). Si vide → toutes les activités.
+  const filteredActivities = activities.filter((act) => {
+    if (!citySearch.trim()) return true;
+    const q = citySearch.trim().toLowerCase();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const address = (act as any).address as string | undefined;
+    return (
+      (act.city || '').toLowerCase().includes(q) ||
+      (address || '').toLowerCase().includes(q)
+    );
+  });
+  const partnerGroups = filteredActivities.reduce((acc, act) => {
     const key = act.partnerName || 'Autre';
     if (!acc[key]) acc[key] = [];
     acc[key].push(act);
@@ -638,13 +866,41 @@ export default function ActivitiesPage() {
   return (
     <div className="container mx-auto px-4 py-8">
       {/* Generic page header */}
-      <div className="text-center mb-12">
+      <div className="text-center mb-8">
         <h1 className="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl font-headline">
           Activités
         </h1>
         <p className="mt-4 text-gray-400 md:text-xl">
           Découvre les cours proposés par nos partenaires — Réserve ta session et vis l&apos;expérience.
         </p>
+      </div>
+
+      {/* BUG #83 — Recherche par ville/pays. Input texte qui filtre les
+          activités sur city+address en live. Si une seule ville présente
+          dans la base, l'utilisateur voit déjà toutes les activités de
+          cette ville par défaut (filtre vide). */}
+      <div className="max-w-md mx-auto mb-10">
+        <div className="relative">
+          <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-accent" aria-hidden="true" />
+          <input
+            type="search"
+            value={citySearch}
+            onChange={(e) => setCitySearch(e.target.value)}
+            placeholder="Rechercher par ville ou pays…"
+            className="w-full pl-10 pr-4 py-3 rounded-full bg-zinc-900 border border-white/10 text-white placeholder:text-white/40 focus:outline-none focus:border-accent/40 focus:bg-zinc-900/80 transition-colors"
+            aria-label="Filtrer les activités par ville ou pays"
+          />
+          {citySearch && (
+            <button
+              type="button"
+              onClick={() => setCitySearch('')}
+              aria-label="Effacer la recherche"
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-white/40 hover:text-white"
+            >
+              ×
+            </button>
+          )}
+        </div>
       </div>
 
       {loading ? (

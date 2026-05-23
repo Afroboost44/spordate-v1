@@ -25,7 +25,8 @@ export default function PartnerRegisterPage() {
   const [formData, setFormData] = useState({
     name: '', email: '', password: '', confirm: '', ide: '',
     phone: '', address: '', city: '', canton: '',
-    type: 'studio' as 'gym' | 'studio' | 'outdoor' | 'pool',
+    // BUG #57 — étendu : bar/club/restaurant (Cadre & Ambiance) + sports-store (BUG #58 à venir)
+    type: 'studio' as 'gym' | 'studio' | 'outdoor' | 'pool' | 'bar' | 'club' | 'restaurant' | 'sports-store',
     description: '', promoCode: '',
   });
   const [error, setError] = useState('');
@@ -275,6 +276,12 @@ export default function PartnerRegisterPage() {
                     <option value="gym">Salle de sport</option>
                     <option value="outdoor">Plein air</option>
                     <option value="pool">Piscine</option>
+                    {/* BUG #57 — nouveaux types venue (Cadre & Ambiance dans le form activité) */}
+                    <option value="bar">Bar</option>
+                    <option value="club">Club / Boîte de nuit</option>
+                    <option value="restaurant">Restaurant</option>
+                    {/* BUG #58 — placeholder (champs spécifiques à venir) */}
+                    <option value="sports-store">Magasin de sport</option>
                   </select>
                 </div>
               </div>

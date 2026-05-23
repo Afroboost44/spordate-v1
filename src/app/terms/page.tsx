@@ -26,10 +26,10 @@ export default function TermsPage() {
             <p>
               Les présentes Conditions Générales d&apos;Utilisation (« CGU ») régissent l&apos;accès et l&apos;utilisation
               de la plateforme Spordateur (ci-après « la Plateforme »), accessible à l&apos;adresse spordateur.com
-              et via ses applications mobiles. La Plateforme est éditée et exploitée par
-              l&apos;<span className="text-white">Association Afroboosteur</span>, association à but non
-              lucratif au sens des art. 60 ss du Code civil suisse, dont le siège est à Rue des Maillefer 39,
-              2000 Neuchâtel, Suisse (Numéro IDE : CHE-407.097.646).
+              et via ses applications mobiles. La Plateforme est éditée et exploitée par une entité
+              dont le siège est à Rue des Maillefer 39, 2000 Neuchâtel, Suisse (Numéro IDE : CHE-407.097.646).
+              Pour toute question, contactez{' '}
+              <a href="mailto:contact@spordateur.com" className="text-accent hover:underline">contact@spordateur.com</a>.
             </p>
             <p className="mt-3">
               Spordateur est un service de mise en relation entre particuliers (« Utilisateurs ») souhaitant
@@ -50,7 +50,7 @@ export default function TermsPage() {
               L&apos;Utilisateur est responsable de la confidentialité de ses identifiants de connexion. Toute
               utilisation du compte est réputée effectuée par l&apos;Utilisateur lui-même. En cas de soupçon
               d&apos;utilisation non autorisée, l&apos;Utilisateur doit en informer Spordateur sans délai à
-              l&apos;adresse contact@afroboosteur.com.
+              l&apos;adresse contact@spordateur.com.
             </p>
           </section>
 
@@ -100,7 +100,7 @@ export default function TermsPage() {
             <p>
               Conformément à l&apos;art. 40a ss du Code des obligations suisse (CO), l&apos;Utilisateur dispose d&apos;un
               délai de révocation de 14 jours à compter de la conclusion du contrat pour les services
-              non encore utilisés. La révocation doit être communiquée par écrit à contact@afroboosteur.com.
+              non encore utilisés. La révocation doit être communiquée par écrit à contact@spordateur.com.
               Si l&apos;Utilisateur a commencé à utiliser le service avant l&apos;expiration du délai de révocation,
               le droit de révocation est éteint.
             </p>
@@ -172,7 +172,7 @@ export default function TermsPage() {
             <p className="mt-3">
               <span className="text-white">Droit d&apos;appel (1× par niveau de sanction).</span>{' '}
               L&apos;Utilisateur sanctionné dispose d&apos;un droit d&apos;appel exerçable une seule fois par
-              niveau de sanction. L&apos;appel se formule par écrit à <span className="text-accent">contact@afroboosteur.com</span>{' '}
+              niveau de sanction. L&apos;appel se formule par écrit à <span className="text-accent">contact@spordateur.com</span>{' '}
               en répondant à l&apos;e-mail de notification, en exposant les motifs détaillés et les
               éléments contradictoires. Délai de réponse de notre équipe modération : 7 jours
               calendaires (SLA Phase 7 ; 48 heures à terme avec équipe modération étendue).
@@ -335,7 +335,7 @@ export default function TermsPage() {
               recourt à des sous-traitants pour assurer le fonctionnement de la Plateforme : Stripe
               (paiements, États-Unis), Vercel (hébergement web, États-Unis), Firebase / Google Cloud
               (base de données, stockage, authentification, eur3 Frankfurt), Hostinger (mailbox
-              contact@afroboosteur.com, Lituanie UE), Resend (e-mails transactionnels, États-Unis).
+              contact@spordateur.com, Lituanie UE), Resend (e-mails transactionnels, États-Unis).
               La liste détaillée et les finalités de chaque sous-traitant figurent dans la Politique
               de Confidentialité, section 5.
             </p>
@@ -367,9 +367,11 @@ export default function TermsPage() {
               Pour toute question relative aux présentes CGU, veuillez contacter :
             </p>
             <p className="mt-2 text-white">
-              Association Afroboosteur — contact@afroboosteur.com
+              <a href="mailto:contact@spordateur.com" className="text-accent hover:underline">contact@spordateur.com</a>
               <br />
               Rue des Maillefer 39, 2000 Neuchâtel, Suisse
+              <br />
+              Numéro IDE : CHE-407.097.646
             </p>
           </section>
 

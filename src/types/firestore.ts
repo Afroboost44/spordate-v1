@@ -122,6 +122,139 @@ export interface UserProfile {
   softDeleteScheduledPurgeAt?: Timestamp;
   /** Phase 9 SC6 c3/4 (additif). Raison libre user (max 500 chars, optionnelle, audit). */
   softDeleteReason?: string;
+
+  // ----- BUG #70 — Prompts profil style Hinge (additif) -----
+  /** BUG #70 (additif). Réponses de l'utilisateur à 3 questions du catalogue
+   *  PROFILE_PROMPTS (src/lib/profile/prompts.ts). Obligatoires à l'inscription
+   *  via /onboard/prompts, éditables ensuite dans /profile.
+   *  - questionId : clé stable du prompt (immutable, source de vérité)
+   *  - question : copie du texte de la question au moment de la réponse
+   *    (snapshot pour ne pas dépendre du catalogue runtime si renommage)
+   *  - answer : réponse libre de l'utilisateur (max 200 chars cf. constant)
+   *  Affichées sur la page profil publique /profile/[uid] dans des cards
+   *  type Hinge (question grande + réponse en gras). */
+  profilePrompts?: Array<{
+    questionId: string;
+    question: string;
+    answer: string;
+  }>;
+
+  // ----- BUG #80 — Paramètres + préférences matching style Hinge (additif) -----
+  /** BUG #80 (additif). Pause profil — true = caché des nouveaux matchs/Discovery.
+   *  L'utilisateur peut continuer à discuter avec ses matchs existants. Toggle
+   *  dans /settings. Affiché sur /profile/[uid] avec un badge "En pause". */
+  isPaused?: boolean;
+  /** BUG #80 (additif). Affichage du dernier statut actif aux autres utilisateurs.
+   *  true = autres voient "Actif il y a X min" sur ton profil. false = caché.
+   *  Default-on cohérent pattern aiSuggestionsOptIn. */
+  showLastActive?: boolean;
+  /** BUG #80 (additif). Opt-in pour recevoir des emails de notifications
+   *  (résumé matchs, messages, invitations). Default-on. */
+  emailNotificationsEnabled?: boolean;
+
+  /** BUG #80 (additif). Préférences de matching (filtre Discovery) style Hinge.
+   *  Affichage public : non — utilisé uniquement par le moteur de matching pour
+   *  filtrer les profils proposés à l'utilisateur. */
+  matchingPreferences?: {
+    /** Genre(s) recherché(s). */
+    interestedIn?: 'male' | 'female' | 'both';
+    /** Quartier / ville préférée (texte libre). */
+    neighborhood?: string;
+    /** Distance maximale en km (slider 1-200, default 50). */
+    maxDistanceKm?: number;
+    /** Tranche d'âge [min, max] (range 18-99). */
+    ageRange?: { min: number; max: number };
+    /** Origines acceptées (multi). Default 'all' = accept tout. */
+    ethnicities?: string[];
+    /** Religion acceptée (multi). */
+    religions?: string[];
+    /** Type de relation cherché côté autre. */
+    relationshipGoals?: 'long_term' | 'short_term' | 'casual' | 'open' | 'any';
+    // ----- Préférences avancées (gated Premium) -----
+    /** Taille min en cm (Premium). */
+    heightMinCm?: number;
+    /** A ou veut des enfants (Premium). */
+    childrenPreference?: 'has' | 'wants' | 'doesnt_want' | 'any';
+    /** Fumeur·euse accepté·e (Premium). */
+    smoking?: 'never' | 'sometimes' | 'often' | 'any';
+    /** Alcool accepté (Premium). */
+    alcohol?: 'never' | 'sometimes' | 'often' | 'any';
+    /** Cannabis accepté (Premium). */
+    cannabis?: 'never' | 'sometimes' | 'often' | 'any';
+    /** Formation min (Premium). */
+    studies?: 'high_school' | 'apprenticeship' | 'bachelor' | 'master' | 'phd' | 'any';
+  };
+
+  /** BUG #80 (additif). État de la vérification selfie (anti-fake profile).
+   *  - 'not_started' (default) : pas encore tenté
+   *  - 'pending' : selfie soumis, en cours de vérification
+   *  - 'verified' : approuvé (badge ✓ sur profil public)
+   *  - 'rejected' : rejeté (peut re-essayer)
+   *  Affiché dans /settings + badge sur /profile/[uid] si verified. */
+  selfieVerificationStatus?: 'not_started' | 'pending' | 'verified' | 'rejected';
+  /** BUG #80 (additif). Liste Rouge — uids des personnes que l'utilisateur ne
+   *  veut PAS croiser sur Spordateur (ex: collègues, ex, famille).
+   *  Bloque dans les deux sens : ces uids ne voient pas non plus l'utilisateur. */
+  hiddenFromUids?: string[];
+
+  // ----- BUG #107 — Accroche vocale style Hinge (additif) -----
+  /** URL Firebase Storage du fichier audio webm. Path : users/{uid}/voice-prompt.webm */
+  voicePromptUrl?: string;
+  /** Question / prompt choisi(e) par l'utilisateur parmi VOICE_PROMPT_OPTIONS
+   *  (ou texte custom si "Autre"). Affiché au-dessus du lecteur audio. */
+  voicePromptQuestion?: string;
+  /** Durée mesurée pendant l'enregistrement (secondes). Source de vérité — la
+   *  durée d'un Blob webm n'est pas fiable côté Safari iOS. */
+  voicePromptDuration?: number;
+
+  // ----- BUG #71 — Stats lifestyle + infos perso style Hinge (additif) -----
+  /** BUG #71 (additif). Champs étendus pour profil riche style Hinge.
+   *  Tous optionnels — l'utilisateur remplit ce qu'il veut dans /profile.
+   *  Affichés sur /profile/[uid] :
+   *    - Stats horizontales scrollables : height, hometown, openToChildren,
+   *      alcohol, smoking, cannabis, drugs
+   *    - Infos perso verticales icône+texte : profession, religion, ethnicity,
+   *      studies, relationshipGoals, relationshipStyle
+   *  Cf. CGU section X.bis (à ajouter si nécessaire pour catégories spéciales
+   *  nLPD Art. 5 : religion/ethnicity/drug-use = données sensibles, opt-in
+   *  explicite via remplissage volontaire du champ). */
+  profileExtras?: {
+    /** Taille en cm (130-220). Optionnel. */
+    height?: number;
+    /** Ville d'origine (texte libre, max 60 chars). */
+    hometown?: string;
+    /** Profession (texte libre, max 80 chars). */
+    profession?: string;
+    /** Niveau d'études. */
+    studies?: 'high_school' | 'apprenticeship' | 'bachelor' | 'master' | 'phd' | 'other';
+    /** Religion / spiritualité. */
+    religion?:
+      | 'spiritual'
+      | 'atheist'
+      | 'agnostic'
+      | 'christian'
+      | 'muslim'
+      | 'jewish'
+      | 'buddhist'
+      | 'hindu'
+      | 'other';
+    /** Origine / ethnicité (texte libre court, multi-tag — max 80 chars). */
+    ethnicity?: string;
+    /** Ouverture aux enfants (souhait personnel, pas un statut). */
+    openToChildren?: 'yes' | 'no' | 'maybe';
+    /** Consommation d'alcool. */
+    alcohol?: 'never' | 'sometimes' | 'often';
+    /** Tabac. */
+    smoking?: 'never' | 'sometimes' | 'often';
+    /** Cannabis. */
+    cannabis?: 'never' | 'sometimes' | 'often';
+    /** Autres drogues. */
+    drugs?: 'never' | 'sometimes' | 'often';
+    /** Type de relation recherchée. */
+    relationshipGoals?: 'long_term' | 'short_term' | 'casual' | 'open';
+    /** Style de relation (mono/poly). */
+    relationshipStyle?: 'monogamy' | 'polyamory' | 'open' | 'undecided';
+  };
 }
 
 export interface SportEntry {
@@ -222,6 +355,11 @@ export interface MediaItem {
   provider?: MediaItemProvider;
   /** Embed URL pré-calculée (iframe src). Set par mediaParser pour video URLs. */
   embedUrl?: string;
+  /** Fix #122 — Miniature personnalisée pour une vidéo : URL d'une image capturée
+   *  par le partenaire (frame de la vidéo extraite via canvas). Utilisée pour les
+   *  cards d'aperçu (recherche, listing). Optionnel — fallback sur la chain de
+   *  thumbnails auto-générée (YouTube/Vimeo/Drive) ou première frame si absent. */
+  thumbnailUrl?: string;
 }
 
 export interface Activity {
@@ -285,6 +423,40 @@ export interface Activity {
    *  → Permet d'afficher le countdown sur /sessions/{bookingId} au lieu de
    *    BookingPendingHero "en attente planification". */
   scheduledAt?: Timestamp | null;
+  // ----- BUG #57 — Détails cadre/ambiance pour partners bar/club/restaurant -----
+  /** Détails du cadre et de l'ambiance — affichés conditionnellement sur la page
+   *  publique dans un bloc "Cadre & Ambiance". Form partner étape 3 (Médias & Ciblage)
+   *  rend les champs uniquement si Partner.type ∈ {bar, club, restaurant}.
+   *  Tous les sous-champs sont optionnels : un partner peut ne renseigner que la musique.
+   */
+  venueDetails?: {
+    /** Bonus inclus avec l'activité (post-effort). 'none' ou undefined = pas de bonus. */
+    bonus?: 'none' | 'drink' | 'snack' | 'vip';
+    /** Type(s) d'espace mis à disposition — multi-sélection. */
+    spaceTypes?: Array<'outdoor_terrace' | 'indoor_private' | 'beach_lakeside' | 'rooftop'>;
+    /** Style musical (Silent Party context). Undefined = pas de précision. */
+    musicStyle?: 'afrobeat_amapiano' | 'latin' | 'general_clubbing' | 'chill_lounge';
+  };
+  // ----- BUG #58 — Avantage magasin + test/prêt matériel (sports-store partners) -----
+  /** Détails partenariats Magasins de sport — affichés publiquement dans un bloc
+   *  "Avantages partenaire" sur la page activity. Form partner étape 3 rend ces
+   *  champs uniquement si Partner.type === 'sports-store'.
+   *  Tous les sous-champs sont optionnels. */
+  storeOffer?: {
+    /** Texte libre court — exclusivité offerte aux participants de l'activité.
+     *  Ex: "-15% sur tout le magasin le jour de l'événement". */
+    exclusiveDiscount?: string;
+    /** Test ou prêt de matériel inclus dans l'activité (true/false). */
+    equipmentAvailable?: boolean;
+    /** Description libre du matériel dispo si equipmentAvailable=true.
+     *  Ex: "Chaussures de running, montres connectées, tapis de fitness". */
+    equipmentDescription?: string;
+  };
+  // ----- BUG #57 (denorm) — Type du partner copié sur l'activity au save -----
+  /** Type partner denormalisé sur l'activity pour conditionnel UI public (Cadre & Ambiance,
+   *  badges magasin de sport, etc.) sans avoir à fetch /partners/{partnerId} sur chaque
+   *  page detail. Mis à jour à chaque save activity côté form partner. */
+  partnerType?: PartnerType;
 }
 
 export interface ActivitySchedule {
@@ -535,7 +707,34 @@ export interface Creator {
 }
 
 // ===================== PARTNERS =====================
-export type PartnerType = 'gym' | 'studio' | 'outdoor' | 'pool';
+/**
+ * BUG #57 — Extension PartnerType pour couvrir les nouveaux types de partenaires
+ *  - 'bar' / 'club' / 'restaurant' : Événements & Afterworks (champs venueDetails)
+ *  - 'sports-store' : Magasins de sport (champs storeOffer — BUG #58)
+ * Les 4 valeurs originales (gym/studio/outdoor/pool) restent valides pour la
+ * rétro-compat des partners existants.
+ */
+export type PartnerType =
+  | 'gym'
+  | 'studio'
+  | 'outdoor'
+  | 'pool'
+  | 'bar'
+  | 'club'
+  | 'restaurant'
+  | 'sports-store';
+
+/** BUG #57 — Sous-ensemble venue-style (bar/club/restaurant). Helper pour gates UI. */
+export const VENUE_PARTNER_TYPES: PartnerType[] = ['bar', 'club', 'restaurant'];
+export function isVenuePartner(type: PartnerType | undefined | null): boolean {
+  if (!type) return false;
+  return (VENUE_PARTNER_TYPES as string[]).includes(type);
+}
+
+/** BUG #58 — Helper pour gate UI partner sports-store (avantage + test/prêt matériel). */
+export function isSportsStorePartner(type: PartnerType | undefined | null): boolean {
+  return type === 'sports-store';
+}
 export type PartnerStatus = 'pending_payment' | 'paid' | 'pending_validation' | 'active' | 'refused' | 'suspended' | 'cancelled';
 export type SubscriptionStatus = 'active' | 'trial' | 'expired' | 'cancelled';
 
@@ -668,8 +867,9 @@ export interface ChatMessage {
   text: string;
   /** Phase 8 SC3 (additif) : `'ai_suggestion'` pour bot messages avec suggestions structurées.
    *  BUG #36 (additif) : `'activity_invite'` pour invitations dans le chat (card cliquable).
+   *  BUG #74 (additif) : `'audio'` pour messages vocaux uploadés vers Firebase Storage.
    *  `'text'`/`'image'`/`'system'` = SC1 messages users. */
-  type: 'text' | 'image' | 'system' | 'ai_suggestion' | 'activity_invite';
+  type: 'text' | 'image' | 'system' | 'ai_suggestion' | 'activity_invite' | 'audio';
   readBy: string[];
   createdAt: Timestamp;
   /** Phase 8 SC3 (additif). Présent uniquement si type === 'ai_suggestion' — 1-3 cards
@@ -688,6 +888,16 @@ export interface ChatMessage {
   inviteDeclinedAt?: Timestamp;
   /** Mode Duo uniquement — timestamp confirmation paiement Stripe sender (set par webhook). */
   sponsorPaidAt?: Timestamp;
+
+  // ────────── BUG #74 — Audio messages (présent ssi type='audio') ──────────
+  /** Firebase Storage URL du fichier audio uploadé (.webm / .mp4 / .ogg). */
+  audioUrl?: string;
+  /** Durée en secondes (entier arrondi, mesurée côté client à l'enregistrement). */
+  audioDurationSec?: number;
+  /** Content-Type MIME (audio/webm;codecs=opus, audio/mp4, etc.). */
+  audioContentType?: string | null;
+  /** Coût débité au sender lors de l'envoi (audit / explainability). */
+  creditsCost?: number;
 }
 
 /** BUG #36 — Mode d'invitation choisi par le sender au moment d'inviter.

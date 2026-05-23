@@ -38,10 +38,14 @@ import {
   ImageIcon,
   Link as LinkIcon,
   Loader2,
+  RefreshCcw,
   Trash2,
   Video,
   Upload,
+  UploadCloud,
+  Camera,
 } from 'lucide-react';
+import { VideoThumbnailPicker } from './VideoThumbnailPicker';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -79,6 +83,12 @@ interface SortableItemProps {
   item: MediaItem;
   index: number;
   onRemove: () => void;
+  /** BUG #102 — Callback "Remplacer" : ouvre file picker + re-upload + remplace
+   *  l'URL dans le slot existant (préserve l'ordre + le rôle "Principale"). */
+  onReplace: () => void;
+  /** Fix #122 — Callback "Choisir miniature" : ouvre VideoThumbnailPicker modal.
+   *  Seulement visible si item.type === 'video' && source === 'upload'. */
+  onPickThumbnail: () => void;
 }
 
 /**
@@ -88,9 +98,95 @@ interface SortableItemProps {
  * de hqdefault → 404 → onError walk la chaîne avant fallback Video icon).
  * Vimeo/Drive : chain vide → directement Video icon (pas de thumbnail public).
  */
+/**
+ * BUG #61 — Barre de progression upload réutilisée dans MediaManager.
+ *
+ * - Track : bg-white/10 (sur fond zinc accord avec charte stricte)
+ * - Fill : bg-accent (#D91CD2) avec transition douce
+ * - Label : pourcentage à droite, monospace pour stabilité visuelle
+ * - Pour 0% on n'affiche pas encore 0% explicite (le spinner Loader2 suffit)
+ *
+ * Pas de dépendance shadcn Progress car ce composant n'est pas encore importé
+ * dans le bundle MediaManager — un simple div bar suffit (charte stricte
+ * black / #D91CD2 / white).
+ */
+function UploadProgressBar({ value }: { value: number }) {
+  const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 h-1.5 rounded-full bg-white/10 overflow-hidden">
+        <div
+          className="h-full bg-accent transition-[width] duration-150 ease-out"
+          style={{ width: `${pct}%` }}
+          role="progressbar"
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={pct}
+          aria-label="Progression de l'upload"
+        />
+      </div>
+      <span className="text-[10px] font-mono tabular-nums text-white/70 w-9 text-right">
+        {pct}%
+      </span>
+    </div>
+  );
+}
+
 function SortableVideoThumb({ item }: { item: MediaItem }) {
+  // Hooks first (rules of hooks). useState DOIT être appelé avant tout early-return.
   const chain = getVideoThumbnailChain(item);
   const [idx, setIdx] = useState(0);
+
+  // Fix #122 — Si une miniature custom existe (frame capturée par le partner),
+  // on la prend en priorité. getVideoThumbnailChain renvoie déjà [thumbnailUrl]
+  // en premier mais cet override court-circuite aussi le code "uploaded video"
+  // qui affiche la 1ère frame du <video> via preload="metadata".
+  if (item.thumbnailUrl) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={item.thumbnailUrl}
+        alt=""
+        className="h-full w-full object-cover"
+      />
+    );
+  }
+
+  // BUG #62 — Régression "icône caméra sans aperçu" sur la row UPLOAD du modal
+  // partner. Cause : `getVideoThumbnailChain` ne renvoie de thumbnails que pour
+  // YouTube/Drive (provider-specific). Pour une vidéo uploadée vers Firebase
+  // Storage, la chain est vide → exhausted=true immédiatement → fallback icône
+  // Video. Fix : si `source === 'upload'` (ou URL Storage), on rend un
+  // <video preload="metadata"> à mute/playsInline, qui affiche la première
+  // frame comme thumbnail sans charger toute la vidéo. Pattern aligné
+  // CardMediaSlide / MediaCarousel (BUG #60).
+  const isUploadedVideo =
+    item.source === 'upload' || /firebasestorage\.(googleapis\.com|app)/i.test(item.url || '');
+  if (isUploadedVideo && item.url) {
+    // BUG #102 — Régression aperçu vidéo après fix #62. Cause racine : Firebase
+    // Storage signe les URLs avec un token + headers spécifiques. `preload="metadata"`
+    // récupérait moins d'octets que nécessaire pour décoder la 1ère frame sur
+    // certains navigateurs (Safari iOS notamment). Fix : ajouter `#t=0.1` (Media
+    // Fragments W3C) qui force le seek à 0.1s à l'init → la 1ère frame
+    // s'affiche garantie. `preload="auto"` complète au cas où.
+    const srcWithFragment = item.url.includes('#') ? item.url : `${item.url}#t=0.1`;
+    return (
+      <>
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <video
+          src={srcWithFragment}
+          muted
+          playsInline
+          preload="auto"
+          className="h-full w-full object-cover pointer-events-none"
+        />
+        <span className="absolute inset-0 flex items-center justify-center bg-black/30 pointer-events-none">
+          <Video className="h-4 w-4 text-white" />
+        </span>
+      </>
+    );
+  }
+
   const exhausted = idx >= chain.length;
 
   if (exhausted) {
@@ -113,7 +209,7 @@ function SortableVideoThumb({ item }: { item: MediaItem }) {
   );
 }
 
-function SortableItem({ id, item, index, onRemove }: SortableItemProps) {
+function SortableItem({ id, item, index, onRemove, onReplace, onPickThumbnail }: SortableItemProps) {
   const {
     attributes,
     listeners,
@@ -193,6 +289,42 @@ function SortableItem({ id, item, index, onRemove }: SortableItemProps) {
         </span>
       </div>
 
+      {/* Fix #122 — Bouton "Choisir miniature" (vidéos uploadées uniquement).
+          Ouvre VideoThumbnailPicker — scrub la vidéo et capture une frame
+          comme thumbnailUrl. Indicateur visuel (point accent) si une miniature
+          custom est déjà définie. */}
+      {item.source === 'upload' && item.type === 'video' && (
+        <button
+          type="button"
+          onClick={onPickThumbnail}
+          className="relative p-1.5 text-white/40 hover:text-accent transition-colors"
+          aria-label="Choisir une miniature pour cette vidéo"
+          title="Choisir une miniature"
+        >
+          <Camera className="h-4 w-4" />
+          {item.thumbnailUrl && (
+            <span className="absolute top-0 right-0 h-1.5 w-1.5 rounded-full bg-accent" />
+          )}
+        </button>
+      )}
+
+      {/* BUG #102 — Bouton Remplacer (uploads uniquement). Pour les médias
+          ajoutés via URL (YouTube, Drive, etc.), pas de bouton — l'utilisateur
+          supprime puis re-colle l'URL. Pour les uploads Firebase Storage, le
+          bouton ouvre un file picker et remplace l'item à index in-place
+          (préserve l'ordre + le badge Principale si index === 0). */}
+      {item.source === 'upload' && (
+        <button
+          type="button"
+          onClick={onReplace}
+          className="p-1.5 text-white/40 hover:text-accent transition-colors"
+          aria-label="Remplacer ce fichier"
+          title="Remplacer ce fichier"
+        >
+          <RefreshCcw className="h-4 w-4" />
+        </button>
+      )}
+
       {/* Remove */}
       <button
         type="button"
@@ -228,10 +360,18 @@ export function MediaManager({
 }: MediaManagerProps) {
   const { toast } = useToast();
   const [uploading, setUploading] = useState(false);
+  // BUG #61 — Progress upload exposé par uploadBytesResumable (0..1). Affiché
+  // dans la zone d'upload (empty state) OU au-dessus des boutons (liste non vide).
+  const [uploadProgress, setUploadProgress] = useState(0);
+  // BUG #61 — Nom du fichier en cours d'upload, affiché à côté de la barre
+  // pour donner du contexte (ex. "ma-video.mp4 — 42%").
+  const [uploadingName, setUploadingName] = useState<string | null>(null);
   const [urlDialog, setUrlDialog] = useState<
     | { open: false }
     | { open: true; type: 'image' | 'video'; value: string }
   >({ open: false });
+  // Fix #122 — Index de l'item vidéo en cours de sélection thumbnail (-1 si fermé)
+  const [thumbnailPickerIndex, setThumbnailPickerIndex] = useState<number>(-1);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
@@ -266,21 +406,110 @@ export function MediaManager({
     onChange(value.filter((_, i) => i !== index));
   };
 
+  /**
+   * BUG #102 — Remplacer le fichier d'un item uploadé existant.
+   *
+   * Pipeline : ouvre un <input type="file"> programmatique → user pick →
+   * upload via uploadActivityMedia → remplace l'URL + type + source dans le
+   * slot `index` sans toucher l'ordre. Le badge Principale (index === 0)
+   * reste donc en place. Si l'upload échoue, on conserve l'ancien item
+   * (no-op) + toast d'erreur.
+   *
+   * Pourquoi pas un Dialog ? Le file picker natif est plus rapide + ne
+   * nécessite pas de nouveau composant. Le UX reste cohérent avec
+   * "Uploader image ou vidéo" du bas de la liste.
+   */
+  const handleReplace = (index: number) => {
+    if (disabled || uploading) return;
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*,video/*';
+    input.onchange = async (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (!file) return;
+      setUploading(true);
+      setUploadProgress(0);
+      setUploadingName(file.name);
+      try {
+        const result = await uploadActivityMedia(file, partnerId, {
+          onProgress: (ratio) => setUploadProgress(ratio),
+        });
+        // Remplace in-place sans muter l'array d'origine
+        onChange(
+          value.map((it, i) =>
+            i === index
+              ? { url: result.url, type: result.kind, source: 'upload' as const }
+              : it,
+          ),
+        );
+        toast({
+          title: 'Média remplacé',
+          description: result.kind === 'video' ? 'Vidéo mise à jour.' : 'Image mise à jour.',
+          className: 'bg-zinc-900 border-accent/40 text-white',
+        });
+      } catch (err) {
+        // BUG #106 — Log enrichi avec le code Firebase + message contextuel
+        // pour l'utilisateur (vs ancien "Erreur upload" générique). Code
+        // 'invalid-content-type' : la rule storage ne permet pas ce contentType
+        // (ex: vidéo sur un path images-only). 'file-too-large' : > maxBytes.
+        // 'upload-failed' : autre raison (rules deny, réseau, etc.).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const code = (err as any)?.code || 'unknown';
+        console.error('[MediaManager] replace failed', { code, err });
+        let description = 'Erreur upload — réessaie dans un instant.';
+        if (err instanceof StorageUploadError) {
+          if (err.code === 'file-too-large') {
+            const max = (err.details as { max?: number; mb?: string })?.max;
+            const mb = max ? Math.round(max / 1024 / 1024) : 50;
+            description = `Fichier trop lourd. Max ${mb} MB par fichier.`;
+          } else if (err.code === 'invalid-content-type') {
+            description = 'Format non supporté. Utilise une image (JPG, PNG, WEBP) ou une vidéo (MP4, WEBM).';
+          } else if (err.code === 'upload-failed') {
+            description = 'Échec de l\'upload. Les permissions Storage peuvent bloquer ce type de fichier — contacte le support.';
+          }
+        } else if (err instanceof Error) {
+          description = err.message;
+        }
+        toast({
+          variant: 'destructive',
+          title: 'Remplacement impossible',
+          description,
+        });
+      } finally {
+        setUploading(false);
+        setUploadProgress(0);
+        setUploadingName(null);
+      }
+    };
+    input.click();
+  };
+
   const canAddMore = value.length < maxItems;
 
-  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  // BUG #54 — refactor : handler core qui prend un File direct, réutilisé
+  // par <input type=file> ET le drag-drop natif sur la zone empty state.
+  const processFile = async (file: File) => {
     setUploading(true);
+    setUploadProgress(0);
+    setUploadingName(file.name);
     try {
-      const result = await uploadActivityMedia(file, partnerId);
+      const result = await uploadActivityMedia(file, partnerId, {
+        // BUG #61 — ratio 0..1 surfacé par uploadBytesResumable. setState
+        // chaque fois → barre de progression UI temps réel pendant l'upload.
+        onProgress: (ratio) => setUploadProgress(ratio),
+      });
+      // BUG #51 — kind ('image' ou 'video') auto-détecté par uploadActivityMedia
+      // depuis file.type. type MediaItem suit, donc card carousel choisit
+      // automatiquement <img> ou <video> selon le rendu.
       onChange([
         ...value,
-        { url: result.url, type: 'image', source: 'upload' },
+        { url: result.url, type: result.kind, source: 'upload' },
       ]);
       toast({
-        title: 'Image uploadée',
-        description: 'Image ajoutée à l\'activité.',
+        title: result.kind === 'video' ? 'Vidéo uploadée' : 'Image uploadée',
+        description: result.kind === 'video'
+          ? 'Vidéo ajoutée à l\'activité.'
+          : 'Image ajoutée à l\'activité.',
         className: 'bg-zinc-900 border-accent/40 text-white',
       });
     } catch (err) {
@@ -290,11 +519,15 @@ export function MediaManager({
           : err instanceof Error
             ? err.message
             : 'unknown';
+      const details = err instanceof StorageUploadError ? err.details : null;
+      const maxMb = details && typeof details.max === 'number'
+        ? Math.round((details.max as number) / 1024 / 1024)
+        : MAX_SIZE_MB;
       const description =
         code === 'file-too-large'
-          ? `Fichier trop gros (max ${MAX_SIZE_MB} MB).`
+          ? `Fichier trop gros (max ${maxMb} MB).`
           : code === 'invalid-content-type'
-            ? 'Format non supporté (images uniquement).'
+            ? 'Format non supporté (images ou vidéos mp4 uniquement).'
             : `Upload échoué — ${code}`;
       toast({
         title: 'Erreur upload',
@@ -303,9 +536,29 @@ export function MediaManager({
       });
     } finally {
       setUploading(false);
-      // Reset input pour permettre re-upload du même fichier
-      e.target.value = '';
+      setUploadProgress(0);
+      setUploadingName(null);
     }
+  };
+
+  // Wrapper pour le <input type="file"> — extrait File puis appelle processFile.
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
+    // Reset input pour permettre re-upload du même fichier
+    e.target.value = '';
+  };
+
+  // BUG #54 — handler drag&drop natif sur la zone empty state.
+  const [isDragOver, setIsDragOver] = useState(false);
+  const handleDrop = async (e: React.DragEvent<HTMLElement>) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    if (!canAddMore || disabled || uploading) return;
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+    await processFile(file);
   };
 
   const handleAddImageUrl = () => {
@@ -385,62 +638,135 @@ export function MediaManager({
                   item={item}
                   index={i}
                   onRemove={() => handleRemove(i)}
+                  onReplace={() => handleReplace(i)}
+                  onPickThumbnail={() => setThumbnailPickerIndex(i)}
                 />
               ))}
             </div>
           </SortableContext>
         </DndContext>
       ) : (
-        <div className="rounded-md border border-dashed border-white/10 bg-zinc-900/30 p-6 text-center text-sm text-white/40">
-          Aucune photo/vidéo ajoutée. Ajoute-en au moins une pour rendre ton activité attractive.
+        // BUG #54 — Zone Drag & Drop avec icône cloud + texte explicite.
+        // Clic sur la zone → ouvre file picker (label autour input hidden).
+        <label
+          onDragOver={(e) => {
+            e.preventDefault();
+            if (canAddMore && !disabled && !uploading) setIsDragOver(true);
+          }}
+          onDragLeave={() => setIsDragOver(false)}
+          onDrop={handleDrop}
+          className={`rounded-lg border-2 border-dashed flex flex-col items-center justify-center gap-3 p-8 text-center cursor-pointer transition-all ${
+            isDragOver
+              ? 'border-accent bg-accent/10'
+              : canAddMore && !disabled && !uploading
+                ? 'border-white/20 bg-zinc-900/30 hover:border-accent/40 hover:bg-accent/5'
+                : 'border-white/10 bg-zinc-900/20 cursor-not-allowed'
+          }`}
+        >
+          {uploading ? (
+            <Loader2 className="h-10 w-10 text-accent animate-spin" />
+          ) : (
+            <UploadCloud className="h-10 w-10 text-accent/70" />
+          )}
+          <div className="flex flex-col gap-1 w-full max-w-[260px]">
+            {uploading ? (
+              // BUG #61 — État upload : remplace le placeholder par la barre
+              // de progression + nom fichier + % en cours.
+              <>
+                <p
+                  className="text-sm font-medium text-white truncate"
+                  title={uploadingName ?? undefined}
+                >
+                  {uploadingName ?? 'Upload en cours…'}
+                </p>
+                <UploadProgressBar value={uploadProgress} />
+              </>
+            ) : (
+              <>
+                <p className="text-sm font-medium text-white">
+                  Glissez vos fichiers ici ou parcourez votre ordinateur
+                </p>
+                <p className="text-[11px] text-white/40">
+                  Image (jusqu&apos;à 5 MB) ou vidéo mp4 (jusqu&apos;à 50 MB)
+                </p>
+              </>
+            )}
+          </div>
+          <input
+            type="file"
+            accept="image/*,video/mp4,video/webm,video/quicktime"
+            onChange={handleFileUpload}
+            disabled={!canAddMore || disabled || uploading}
+            className="hidden"
+          />
+        </label>
+      )}
+
+      {/* BUG #61 — Quand la liste a déjà des items, l'empty state n'est plus
+          rendu → on affiche la progress bar ici, au-dessus des boutons d'action. */}
+      {uploading && value.length > 0 && (
+        <div className="rounded-md border border-accent/30 bg-accent/5 p-3 flex items-center gap-3">
+          <Loader2 className="h-5 w-5 text-accent animate-spin shrink-0" />
+          <div className="flex flex-col gap-1 flex-1 min-w-0">
+            <p
+              className="text-xs font-medium text-white truncate"
+              title={uploadingName ?? undefined}
+            >
+              {uploadingName ?? 'Upload en cours…'}
+            </p>
+            <UploadProgressBar value={uploadProgress} />
+          </div>
         </div>
       )}
 
-      {/* Action buttons */}
+      {/* Action buttons — BUG #54 : un seul bouton principal "Uploader" qui accepte
+          image OU vidéo (handleFileUpload détecte le type via file.type). Un petit
+          lien discret en dessous pour ajouter via URL externe. */}
       <div className="flex flex-wrap gap-2">
+        {/* Bouton principal unique : upload image OU vidéo (handleFileUpload détecte). */}
         <label
-          className={`inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-pointer transition-colors ${
+          className={`inline-flex items-center gap-2 rounded-md border px-4 py-2.5 text-sm cursor-pointer transition-colors flex-1 justify-center min-w-[140px] ${
             canAddMore && !disabled && !uploading
-              ? 'border-accent/40 text-accent hover:bg-accent/10'
+              ? 'border-accent/60 bg-accent/10 text-accent hover:bg-accent/20'
               : 'border-white/10 text-white/30 cursor-not-allowed'
           }`}
         >
           {uploading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
-            <Upload className="h-4 w-4" />
+            <UploadCloud className="h-5 w-5" />
           )}
-          Image (upload)
+          Uploader image ou vidéo
           <input
             type="file"
-            accept="image/*"
+            accept="image/*,video/mp4,video/webm,video/quicktime"
             onChange={handleFileUpload}
             disabled={!canAddMore || disabled || uploading}
             className="hidden"
           />
         </label>
-
-        <Button
+      </div>
+      {/* Liens URL discrets en dessous (image / vidéo via URL externe) */}
+      <div className="flex items-center justify-center gap-3 text-[11px] text-white/40 pt-1">
+        <button
           type="button"
-          variant="outline"
           onClick={handleAddImageUrl}
           disabled={!canAddMore || disabled || uploading}
-          className="border-white/10 text-white/70 hover:text-white hover:bg-white/5"
+          className="hover:text-accent transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <LinkIcon className="h-4 w-4 mr-2" />
-          Image (URL)
-        </Button>
-
-        <Button
+          <LinkIcon className="h-3 w-3" />
+          Ajouter image via URL
+        </button>
+        <span className="text-white/20">·</span>
+        <button
           type="button"
-          variant="outline"
           onClick={handleAddVideoUrl}
           disabled={!canAddMore || disabled || uploading}
-          className="border-white/10 text-white/70 hover:text-white hover:bg-white/5"
+          className="hover:text-accent transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          <Video className="h-4 w-4 mr-2" />
-          Vidéo (URL)
-        </Button>
+          <Video className="h-3 w-3" />
+          Ajouter vidéo via URL
+        </button>
       </div>
 
       {!canAddMore && (
@@ -516,6 +842,27 @@ export function MediaManager({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Fix #122 — Modal de sélection miniature vidéo (frame picker). */}
+      {thumbnailPickerIndex >= 0 && value[thumbnailPickerIndex] && (
+        <VideoThumbnailPicker
+          open={thumbnailPickerIndex >= 0}
+          onOpenChange={(open) => {
+            if (!open) setThumbnailPickerIndex(-1);
+          }}
+          videoUrl={value[thumbnailPickerIndex].url}
+          partnerId={partnerId}
+          onThumbnailSaved={(thumbnailUrl) => {
+            // Met à jour l'item à l'index courant avec la nouvelle thumbnailUrl
+            const next = [...value];
+            next[thumbnailPickerIndex] = {
+              ...next[thumbnailPickerIndex],
+              thumbnailUrl,
+            };
+            onChange(next);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -5,7 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  ArrowLeft, MapPin, Calendar, Dumbbell, Loader2, MessageCircle
+  ArrowLeft, MapPin, Calendar, Dumbbell, Loader2, MessageCircle, BadgeCheck
 } from "lucide-react";
 import { useRouter, useParams } from "next/navigation";
 import { AuthGuard } from '@/components/auth/AuthGuard';
@@ -16,6 +16,10 @@ import { isBlocked } from "@/lib/blocks";
 import { BlockButton } from "@/components/blocks/BlockButton";
 import { ReportButton } from "@/components/reports/ReportButton";
 import { ReviewsList } from "@/components/reviews/ReviewsList";
+import { ProfilePromptsDisplay } from "@/components/profile/ProfilePromptsDisplay";
+import { ProfileStatsRow } from "@/components/profile/ProfileStatsRow";
+import { VoicePromptPlayer } from "@/components/profile/VoicePromptPlayer";
+import { ProfileInfoList } from "@/components/profile/ProfileInfoList";
 import type { Review, UserProfile } from "@/types/firestore";
 import { Timestamp } from 'firebase/firestore';
 
@@ -169,8 +173,17 @@ function PublicProfileContent() {
               {getInitials(profile.displayName)}
             </AvatarFallback>
           </Avatar>
-          <h2 className="text-2xl text-white font-light">
-            {profile.displayName}{age ? `, ${age}` : ''}
+          <h2 className="text-2xl text-white font-light flex items-center gap-2">
+            <span>{profile.displayName}{age ? `, ${age}` : ''}</span>
+            {/* BUG #82 — Badge ✓ Vérifié à côté du nom si le profil a passé la
+                vérification du selfie (selfieVerificationStatus === 'verified').
+                Renforce la confiance entre utilisateurs. */}
+            {profile.selfieVerificationStatus === 'verified' && (
+              <BadgeCheck
+                className="h-5 w-5 text-accent"
+                aria-label="Profil vérifié"
+              />
+            )}
           </h2>
           {(profile.city || profile.canton) && (
             <div className="flex items-center gap-1.5 mt-2 text-gray-400">
@@ -182,6 +195,24 @@ function PublicProfileContent() {
           )}
         </div>
 
+        {/* BUG #107 — Accroche vocale en 2e position après la photo principale.
+            Affichée si voicePromptUrl présent. Lecteur custom avec icône AudioLines. */}
+        {profile.voicePromptUrl && (
+          <div className="mb-6">
+            <VoicePromptPlayer
+              url={profile.voicePromptUrl}
+              question={profile.voicePromptQuestion}
+              duration={profile.voicePromptDuration}
+            />
+          </div>
+        )}
+
+        {/* BUG #71 — Stats horizontales scrollables (âge/genre/taille/ville/lifestyle).
+            Tout est null-safe : le composant renvoie null si rien à afficher. */}
+        <div className="mb-6">
+          <ProfileStatsRow profile={profile} />
+        </div>
+
         {/* Bio */}
         {profile.bio && (
           <div className="mb-8">
@@ -191,6 +222,60 @@ function PublicProfileContent() {
             </p>
           </div>
         )}
+
+        {/* BUG #71 — Photos additionnelles INTERCALÉES entre les prompts (pattern
+            Hinge feed). Layout : P1 + Q1 + P2 + Q2 + P3 + Q3 + photos restantes.
+            Si moins de photos que de prompts, on affiche ce qu'on a et le reste
+            des prompts s'enchaîne. */}
+        {(() => {
+          const photos = (profile.photos && profile.photos.length > 1)
+            ? profile.photos.slice(1)
+            : [];
+          const prompts = profile.profilePrompts ?? [];
+          // Construit l'ordre alterné : photo / prompt / photo / prompt / ...
+          // Si plus de prompts que de photos, les prompts restants suivent.
+          // Si plus de photos que de prompts, les photos restantes suivent.
+          const sequence: Array<{ kind: 'photo'; url: string; idx: number } | { kind: 'prompt'; data: typeof prompts[number]; idx: number }> = [];
+          const maxLen = Math.max(photos.length, prompts.length);
+          for (let i = 0; i < maxLen; i++) {
+            if (i < photos.length) sequence.push({ kind: 'photo', url: photos[i], idx: i });
+            if (i < prompts.length) sequence.push({ kind: 'prompt', data: prompts[i], idx: i });
+          }
+          if (sequence.length === 0) return null;
+          return (
+            <div className="mb-8 flex flex-col gap-4">
+              {sequence.map((item) => {
+                if (item.kind === 'photo') {
+                  return (
+                    <div
+                      key={`photo-${item.idx}-${item.url}`}
+                      className="relative w-full aspect-[4/5] rounded-2xl overflow-hidden border border-white/10 bg-zinc-900"
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={item.url}
+                        alt={`${profile.displayName} — photo ${item.idx + 2}`}
+                        className="absolute inset-0 w-full h-full object-cover"
+                        loading={item.idx === 0 ? 'eager' : 'lazy'}
+                      />
+                    </div>
+                  );
+                }
+                return (
+                  <ProfilePromptsDisplay
+                    key={`prompt-${item.idx}-${item.data.questionId}`}
+                    prompts={[item.data]}
+                  />
+                );
+              })}
+            </div>
+          );
+        })()}
+
+        {/* BUG #71 — Infos perso verticales (profession, religion, origine, etc.) */}
+        <div className="mb-8">
+          <ProfileInfoList profile={profile} />
+        </div>
 
         {/* Sports */}
         {profile.sports && profile.sports.length > 0 && (

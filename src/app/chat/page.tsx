@@ -36,9 +36,15 @@ import {
 } from "@/components/ui/alert-dialog";
 import { ToastAction } from "@/components/ui/toast";
 import { SuggestionMessage } from "@/components/chat/SuggestionMessage";
+import { ChatProfileHint } from "@/components/chat/ChatProfileHint";
+import { ChatAudioRecorder } from "@/components/chat/ChatAudioRecorder";
+import { ChatAudioMessage } from "@/components/chat/ChatAudioMessage";
+import { uploadChatAudio } from "@/lib/storage/uploadChatAudio";
+import { DEFAULT_CHAT_PRICING } from "@/lib/pricing/chatPricing";
 import {
   getUserMatches,
   sendMessage,
+  sendAudioMessage,
   subscribeToMessages,
   markMessagesRead,
   getUser,
@@ -57,7 +63,8 @@ import { getBookingPriceCHF } from '@/lib/booking/price';
 import type { ActivityInviteMode } from '@/types/firestore';
 import { ReportButton } from '@/components/reports/ReportButton';
 import type { Match, ChatMessage, UserProfile } from '@/types/firestore';
-import { Timestamp } from 'firebase/firestore';
+import { Timestamp, doc, getDoc } from 'firebase/firestore';
+import { db } from '@/lib/firebase';
 
 // ——— Types ———
 interface ConversationItem {
@@ -154,6 +161,10 @@ function ConversationList({
       {conversations.map((conv) => {
         const isSelected = selectedId === conv.match.matchId;
         const isLocked = !conv.match.chatUnlocked;
+        // Fix #120 — Mise en avant visuelle des conversations avec messages
+        // non lus : fond légèrement accent + nom et dernier message en blanc bold
+        // (cohérent UX Tinder/Bumble/Hinge).
+        const hasUnread = conv.unreadCount > 0;
 
         return (
           <button
@@ -163,7 +174,9 @@ function ConversationList({
               "w-full flex items-center gap-3 px-4 py-3.5 transition-colors text-left",
               isSelected
                 ? "bg-zinc-800/80 border-l-2 border-accent"
-                : "hover:bg-zinc-900/50 border-l-2 border-transparent"
+                : hasUnread
+                  ? "bg-accent/10 hover:bg-accent/15 border-l-2 border-accent"
+                  : "hover:bg-zinc-900/50 border-l-2 border-transparent"
             )}
           >
             <div className="relative">
@@ -178,21 +191,35 @@ function ConversationList({
                   <Lock className="h-3 w-3 text-gray-400" />
                 </div>
               )}
+              {/* Fix #120 — Petit point accent en haut à droite de l'avatar pour
+                  signaler les non-lus de manière encore plus visible (style Instagram). */}
+              {hasUnread && (
+                <div className="absolute -top-0.5 -right-0.5 h-3 w-3 rounded-full bg-accent border-2 border-black" />
+              )}
             </div>
 
             <div className="flex-1 min-w-0">
               <div className="flex items-center justify-between">
-                <span className="text-sm text-white font-normal truncate">
+                <span className={cn(
+                  "text-sm truncate",
+                  hasUnread ? "text-white font-semibold" : "text-white font-normal"
+                )}>
                   {conv.otherUser.displayName}
                 </span>
                 {conv.lastMessageAt && (
-                  <span className="text-xs text-gray-600 font-light ml-2 flex-shrink-0">
+                  <span className={cn(
+                    "text-xs font-light ml-2 flex-shrink-0",
+                    hasUnread ? "text-accent" : "text-gray-600"
+                  )}>
                     {formatTime(conv.lastMessageAt)}
                   </span>
                 )}
               </div>
               <div className="flex items-center justify-between mt-0.5">
-                <span className="text-xs text-gray-500 font-light truncate">
+                <span className={cn(
+                  "text-xs font-light truncate",
+                  hasUnread ? "text-white font-medium" : "text-gray-500"
+                )}>
                   {isLocked
                     ? "Chat verrouillé"
                     : conv.lastMessage || `Match : ${conv.match.sport || 'Sport'}`}
@@ -235,7 +262,7 @@ function generateFalseFlagMailto(args: {
     '',
     'Merci',
   ].join('\n');
-  return `mailto:contact@afroboosteur.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  return `mailto:contact@spordateur.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
 }
 
 // ——— Chat Window ———
@@ -284,6 +311,10 @@ function ChatWindow({
   const isLocked = !match.chatUnlocked;
   // Phase 8 SC1 — defense UX : input désactivé si crédits insuffisants (rule re-rejette aussi)
   const insufficientCredits = credits < 1;
+  // BUG #74 — Coût d'un audio (par défaut 2 crédits, configurable admin via
+  // settings/pricing.chatAudioCost). Le composant ChatAudioRecorder bloque déjà
+  // le clic si solde < coût, et l'API server (sendAudioMessage) re-vérifie.
+  const audioCost = DEFAULT_CHAT_PRICING.chatAudioCost;
   const lowCredits = credits < 5 && credits >= 1;
 
   // Phase 8 SC1 commit 4/5 — show onboarding 1 fois (localStorage flag)
@@ -535,6 +566,48 @@ function ChatWindow({
     }
   };
 
+  // BUG #74 — Handler pour les messages audio. Étapes :
+  //  1. Upload du Blob audio vers Firebase Storage via uploadChatAudio
+  //  2. Appel sendAudioMessage qui debit les crédits et écrit le message
+  // Toute erreur affiche un toast et est remontée au composant Recorder.
+  const handleSendAudio = async (blob: Blob, durationSec: number) => {
+    if (insufficientCredits || credits < audioCost) {
+      toast({
+        title: 'Crédits insuffisants',
+        description: `Il te faut ${audioCost} crédits pour envoyer un audio.`,
+        variant: 'destructive',
+      });
+      throw new Error('insufficient-credits');
+    }
+    try {
+      const { url, contentType } = await uploadChatAudio(blob, match.matchId, currentUserId);
+      await sendAudioMessage(match.matchId, currentUserId, url, durationSec, contentType);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error('[Chat audio] échec', err);
+      if (msg.includes('insufficient-credits')) {
+        toast({
+          title: 'Crédits insuffisants',
+          description: `Il te faut ${audioCost} crédits pour envoyer un audio.`,
+          variant: 'destructive',
+        });
+      } else if (msg.includes('file-too-large')) {
+        toast({
+          title: 'Audio trop volumineux',
+          description: 'Le fichier dépasse la taille max (5 MB).',
+          variant: 'destructive',
+        });
+      } else {
+        toast({
+          title: 'Envoi impossible',
+          description: 'Réessaie dans un instant.',
+          variant: 'destructive',
+        });
+      }
+      throw err;
+    }
+  };
+
   // Phase 8 SC2 commit 4/6 — handler escalation post-send (doctrine §B L1-L4) :
   //   L0 silent / L2 toast soft (Q11=A doctrine literal) /
   //   L3 modal rétroactif (Q2=B post-send laisse-faire) /
@@ -639,6 +712,11 @@ function ChatWindow({
           currentUserId={currentUserId}
         />
       </div>
+
+      {/* BUG #73 — Hint onboarding "clique sur nom/photo pour voir le profil".
+          S'affiche une fois (localStorage flag), dismissible. Place juste sous le
+          header pour pointer visuellement vers la zone cliquable. */}
+      <ChatProfileHint />
 
       {/* Phase 8 SC1 commit 4/5 — onboarding-bubble 1ère entrée chat post-session
           (doctrine §B.Q1 obligatoire : transparence modération chat) */}
@@ -815,16 +893,27 @@ function ChatWindow({
                           </button>
                         )}
                         <div className={cn("max-w-[75%]")}>
-                          <div
-                            className={cn(
-                              "rounded-2xl px-3.5 py-2.5",
-                              isMe
-                                ? "bg-accent text-white rounded-br-md"
-                                : "bg-zinc-800 text-gray-200 rounded-bl-md"
-                            )}
-                          >
-                            <p className="text-sm font-light leading-relaxed">{msg.text}</p>
-                          </div>
+                          {/* BUG #74 + #75 — Message audio = composant custom
+                              ChatAudioMessage (bulle accent + waveform + speed).
+                              Pour le texte on garde la bulle simple existante. */}
+                          {msg.type === 'audio' && msg.audioUrl ? (
+                            <ChatAudioMessage
+                              audioUrl={msg.audioUrl}
+                              durationSec={msg.audioDurationSec}
+                              isMe={isMe}
+                            />
+                          ) : (
+                            <div
+                              className={cn(
+                                "rounded-2xl px-3.5 py-2.5",
+                                isMe
+                                  ? "bg-accent text-white rounded-br-md"
+                                  : "bg-zinc-800 text-gray-200 rounded-bl-md"
+                              )}
+                            >
+                              <p className="text-sm font-light leading-relaxed">{msg.text}</p>
+                            </div>
+                          )}
                           <div className={cn(
                             "flex items-center gap-1 mt-0.5 px-1",
                             isMe ? "justify-end" : "justify-start"
@@ -884,6 +973,15 @@ function ChatWindow({
                   <Send className="h-4 w-4" />
                 )}
               </Button>
+              {/* BUG #74 — Bouton enregistrement audio à droite du send. Icone
+                  AudioLines (waveform) cohérente maquette Bassi. Coût audioCost
+                  affiché sur le bouton send du preview. */}
+              <ChatAudioRecorder
+                costCredits={audioCost}
+                availableCredits={credits}
+                onRecorded={handleSendAudio}
+                disabled={sending || isLocked}
+              />
             </div>
             {/* Phase 8 SC1 commit 4/5 — visual hint subtle 1 crédit/message + CTA top-up */}
             <div className="flex items-center justify-between mt-2 px-1">
@@ -1042,7 +1140,11 @@ function ChatPageContent() {
         return true;
       });
 
-      // Fetch other user profiles
+      // Fetch other user profiles + chat docs (pour unreadCount + lastMessage)
+      // Fix #120 — Avant : unreadCount: 0 hardcodé, badge jamais affiché.
+      // Maintenant : lit chats/{matchId}.unreadCount[currentUserId] +
+      // lastMessage + lastMessageAt pour cohérent avec ce qu'écrit sendMessage
+      // dans firestore.ts (post-batch updateDoc chat.lastMessage/unreadCount).
       const convos: ConversationItem[] = [];
       for (const match of relevantMatches) {
         const otherUid = match.userIds.find((id) => id !== currentUserId) || '';
@@ -1060,12 +1162,37 @@ function ChatPageContent() {
         // crédits débités. Le helper utilise ?. partout pour ne plus throw.
         const otherUser = buildOtherUser(profile, match, otherUid);
 
+        // Fix #120 — Lecture chat doc pour unreadCount + lastMessage.
+        // Best-effort : si le doc chat n'existe pas (legacy avant Phase 9.5),
+        // fallback sur unreadCount:0 + lastMessage:''.
+        let unreadCount = 0;
+        let lastMessage = '';
+        let lastMessageAt: Date | null = match.createdAt
+          ? match.createdAt instanceof Timestamp ? match.createdAt.toDate() : null
+          : null;
+        try {
+          if (!db) throw new Error('db not initialized');
+          const chatSnap = await getDoc(doc(db, 'chats', match.matchId));
+          if (chatSnap.exists()) {
+            const chatData = chatSnap.data();
+            const unreadMap = chatData.unreadCount as Record<string, number> | undefined;
+            unreadCount = unreadMap?.[currentUserId] ?? 0;
+            lastMessage = (chatData.lastMessage as string | undefined) ?? '';
+            const lastTs = chatData.lastMessageAt;
+            if (lastTs instanceof Timestamp) {
+              lastMessageAt = lastTs.toDate();
+            }
+          }
+        } catch (err) {
+          console.warn('[Chat] read chat doc failed (non-bloquant)', { matchId: match.matchId, err });
+        }
+
         convos.push({
           match,
           otherUser,
-          lastMessage: '',
-          lastMessageAt: match.createdAt ? (match.createdAt instanceof Timestamp ? match.createdAt.toDate() : null) : null,
-          unreadCount: 0,
+          lastMessage,
+          lastMessageAt,
+          unreadCount,
         });
       }
 

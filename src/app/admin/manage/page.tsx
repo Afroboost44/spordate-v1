@@ -9,15 +9,20 @@ import { Input } from "@/components/ui/input";
 import {
   Users, Building2, MapPin, Loader2, Search, Eye, EyeOff, Trash2, Shield,
   Wallet, TrendingUp, CalendarDays, CreditCard, Gift, Bell, Settings, Bug,
-  Plus, Minus, Send, BarChart3, Zap, Crown, Percent
+  Plus, Minus, Send, BarChart3, Zap, Crown, Percent,
 } from 'lucide-react';
 import { useAuth } from "@/context/AuthContext";
-import { db, isFirebaseConfigured } from "@/lib/firebase";
+import { db, auth, isFirebaseConfigured } from "@/lib/firebase";
 import {
   collection, query, getDocs, doc, updateDoc, deleteDoc, setDoc, addDoc,
   serverTimestamp, orderBy, limit, where, increment
 } from 'firebase/firestore';
 import { useToast } from "@/hooks/use-toast";
+import { AdminPricingSection } from "@/components/admin/AdminPricingSection";
+import { AdminSelfieReviewSection } from "@/components/admin/AdminSelfieReviewSection";
+import { PreviewEyeButton } from "@/components/admin/PreviewEyeButton";
+import { BrandLogoManager } from "@/components/admin/BrandLogoManager";
+import type { BrandLogos } from "@/lib/brand/generateLogos";
 import Link from 'next/link';
 import { useFeatureFlags } from '@/lib/site/useFeatureFlags';
 import {
@@ -94,6 +99,9 @@ export default function AdminManagePage() {
   const [pricingSaving, setPricingSaving] = useState(false);
   const [siteConfig, setSiteConfig] = useState<SiteConfig>(DEFAULT_SITE);
   const [siteSaving, setSiteSaving] = useState(false);
+  // Fix #128 — Brand logos (auto-gen Canvas). Stocké séparément du siteConfig
+  // (typage différent : BrandLogos vs Record<string,string>).
+  const [brand, setBrand] = useState<BrandLogos>({});
   const [openSection, setOpenSection] = useState<string | null>(null);
   const toggleSection = (id: string) => setOpenSection(openSection === id ? null : id);
   // Promo form
@@ -117,23 +125,95 @@ export default function AdminManagePage() {
     invite: { ...DEFAULT_INVITE_COMMISSION },
   });
   const [commissionUserSaving, setCommissionUserSaving] = useState(false);
+  // BUG #98 — État des mini-cards d'aperçu visibles (toggle par carte éditeur
+  // via PreviewEyeButton). Vide par défaut → panneau aperçu épuré avec juste
+  // un message "Clique sur 👁 d'une carte pour la prévisualiser ici".
+  const [visiblePreviewIds, setVisiblePreviewIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    // Listener pour les événements émis par PreviewEyeButton.
+    // Toggle l'ID dans le Set + scroll vers l'aperçu droit après toggle ON.
+    const handler = (e: Event) => {
+      const id = (e as CustomEvent<{ targetId: string }>).detail?.targetId;
+      if (!id) return;
+      setVisiblePreviewIds(prev => {
+        const next = new Set(prev);
+        if (next.has(id)) {
+          next.delete(id);
+        } else {
+          next.add(id);
+          // Scroll vers la mini-card après render (toggle ON uniquement)
+          requestAnimationFrame(() => {
+            const el = document.getElementById(id);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              // Flash effect cohérent BUG #97
+              el.classList.remove('preview-flash');
+              void el.offsetWidth;
+              el.classList.add('preview-flash');
+              window.setTimeout(() => el.classList.remove('preview-flash'), 1600);
+            }
+          });
+        }
+        return next;
+      });
+    };
+    window.addEventListener('admin-preview-toggle', handler);
+    return () => window.removeEventListener('admin-preview-toggle', handler);
+  }, []);
+
+  // BUG #94/#99 — Tarifs intra-app affichés dans l'aperçu live droite.
+  // Chargés depuis settings/pricing (champs racine, écrits par AdminPricingSection).
+  // Defaults alignés sur les valeurs hardcodées (chatPricing.ts + sitePricing.ts).
+  const [sitePricingPreview, setSitePricingPreview] = useState({
+    chatMessage: 1, chatAudio: 2,
+    likeCost: 1, freeLikes: 10,
+    boostUser30min: 50, boostUser1h: 90, boostUser6h: 300,
+    boostPartner24h: 15, boostPartner3d: 35, boostPartner7d: 50,
+  });
+
+  // BUG #91 — Pagination liste utilisateurs.
+  // Avant : tous les profils étaient rendus d'un coup → page interminable + ralentissements
+  // sur DOM volumineux. Maintenant : 25/page par défaut, navigable, max-height + scroll
+  // contraint sur le conteneur de la liste. Reset auto à la page 1 quand la recherche
+  // change pour éviter de tomber sur une page vide après filtrage.
+  const [usersPage, setUsersPage] = useState(1);
+  const [usersPerPage, setUsersPerPage] = useState<25 | 50 | 100>(25);
 
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
     loadAll();
   }, [user]);
 
+  // BUG #91 — Reset pagination quand la recherche change (sinon l'utilisateur
+  // peut se retrouver sur la page 3 d'un résultat qui n'en a qu'une).
+  useEffect(() => {
+    setUsersPage(1);
+  }, [searchTerm, usersPerPage]);
+
   const loadAll = async () => {
     if (!db) return;
     try {
-      // Always set default pricing first
+      // BUG #94 — Defaults remplacés par les 8 nouveaux packs (PRICING-PROPOSAL.md
+      // §3 packs crédits + §5 plans Premium) + partner_monthly conservé. Si
+      // settings/pricing.packages contient les anciens IDs (1_date, 3_dates,
+      // 10_dates, premium_monthly, premium_yearly), ils ne seront PAS écrasés —
+      // le merge plus bas les laisse intacts pour rétro-compat. L'admin peut
+      // les désactiver en mettant isActive=false via la nouvelle UI.
       const defaults: PricingItem[] = [
-        { id: '1_date', label: 'Starter', price: 10, credits: 1, type: 'one_time', isActive: true },
-        { id: '3_dates', label: 'Populaire', price: 25, credits: 3, type: 'one_time', isActive: true },
-        { id: '10_dates', label: 'Premium', price: 60, credits: 10, type: 'one_time', isActive: true },
-        { id: 'premium_monthly', label: 'Premium Mensuel', price: 19.90, credits: 5, type: 'subscription', interval: 'month', isActive: true },
-        { id: 'premium_yearly', label: 'Premium Annuel', price: 149, credits: 60, type: 'subscription', interval: 'year', isActive: true },
-        { id: 'partner_monthly', label: 'Partenaire', price: 49, credits: 0, type: 'subscription', interval: 'month', isActive: true },
+        // Packs crédits (intra-app : likes premium, boost user, messages)
+        { id: 'pack_starter', label: 'Starter',  price: 4.90,  credits: 50,   type: 'one_time', isActive: true },
+        { id: 'pack_confort', label: 'Confort',  price: 11.90, credits: 150,  type: 'one_time', isActive: true },
+        { id: 'pack_pro',     label: 'Pro',      price: 29.90, credits: 500,  type: 'one_time', isActive: true },
+        { id: 'pack_vip',     label: 'VIP',      price: 69.90, credits: 1500, type: 'one_time', isActive: true },
+        // Plans Premium (24h + 1 sem = one_time avec premiumExpiresAt webhook ;
+        // mois + an = subscription Stripe récurrent)
+        { id: 'premium_24h',   label: 'Flash 24h',         price: 4.90,   credits: 50,  type: 'one_time', isActive: true },
+        { id: 'premium_week',  label: 'Découverte 1 sem.', price: 14.90,  credits: 100, type: 'one_time', isActive: true },
+        { id: 'premium_month', label: 'Standard 1 mois',   price: 29.90,  credits: 200, type: 'subscription', interval: 'month', isActive: true },
+        { id: 'premium_year',  label: 'Fidélité 1 an',     price: 199.90, credits: 250, type: 'subscription', interval: 'year',  isActive: true },
+        // Abonnement Partenaire Pro (inchangé)
+        { id: 'partner_monthly', label: 'Partenaire Pro', price: 49, credits: 0, type: 'subscription', interval: 'month', isActive: true },
       ];
       setPricing(defaults);
 
@@ -185,14 +265,35 @@ export default function AdminManagePage() {
             });
             setPricing(loaded);
           }
+          // BUG #94/#99 — Charge tous les tarifs intra-app pour l'aperçu live.
+          // Champs racine de settings/pricing, écrits par AdminPricingSection.
+          setSitePricingPreview({
+            chatMessage:     typeof data.chatMessageCost      === 'number' ? data.chatMessageCost      : 1,
+            chatAudio:       typeof data.chatAudioCost        === 'number' ? data.chatAudioCost        : 2,
+            likeCost:        typeof data.likeCost             === 'number' ? data.likeCost             : 1,
+            freeLikes:       typeof data.freeLikesPerDay      === 'number' ? data.freeLikesPerDay      : 10,
+            boostUser30min:  typeof data.boostUser30minCost   === 'number' ? data.boostUser30minCost   : 50,
+            boostUser1h:     typeof data.boostUser1hCost      === 'number' ? data.boostUser1hCost      : 90,
+            boostUser6h:     typeof data.boostUser6hCost      === 'number' ? data.boostUser6hCost      : 300,
+            boostPartner24h: typeof data.boostPartner24hPriceCHF === 'number' ? data.boostPartner24hPriceCHF : 15,
+            boostPartner3d:  typeof data.boostPartner3dPriceCHF  === 'number' ? data.boostPartner3dPriceCHF  : 35,
+            boostPartner7d:  typeof data.boostPartner7dPriceCHF  === 'number' ? data.boostPartner7dPriceCHF  : 50,
+          });
         }
       } catch { /* Firestore rules may block — use defaults */ }
-      // Load site config
+      // Load site config + brand logos (Fix #128)
       try {
         const { getDoc: getDocFn2 } = await import('firebase/firestore');
         const siteSnap = await getDocFn2(doc(db, 'settings', 'site'));
         if (siteSnap.exists()) {
-          setSiteConfig({ ...DEFAULT_SITE, ...siteSnap.data() as Partial<SiteConfig> } as SiteConfig);
+          const raw = siteSnap.data() as Record<string, unknown>;
+          // brand est un sous-objet (ne doit pas être splaté dans siteConfig qui
+          // attend des strings). On l'extrait à part.
+          const { brand: brandData, ...rest } = raw;
+          setSiteConfig({ ...DEFAULT_SITE, ...(rest as Partial<SiteConfig>) } as SiteConfig);
+          if (brandData && typeof brandData === 'object') {
+            setBrand(brandData as BrandLogos);
+          }
         }
       } catch { /* use defaults */ }
       // Load commission settings
@@ -235,6 +336,18 @@ export default function AdminManagePage() {
     (p.city || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // BUG #91 — Pagination calculée. `useMemo` évite de recomputer à chaque
+  // re-render quand seul un autre tab change. `usersTotalPages` ne peut être
+  // < 1 pour éviter une division par zéro côté affichage. Clamp côté page :
+  // si la liste rétrécit et que la page courante dépasse le total, on revient
+  // à la dernière page valide.
+  const usersTotalPages = Math.max(1, Math.ceil(filteredUsers.length / usersPerPage));
+  const usersSafePage = Math.min(usersPage, usersTotalPages);
+  const paginatedUsers = useMemo(
+    () => filteredUsers.slice((usersSafePage - 1) * usersPerPage, usersSafePage * usersPerPage),
+    [filteredUsers, usersSafePage, usersPerPage],
+  );
+
   // Actions
   const toggleUserVisibility = async (uid: string, v: boolean) => {
     if (!db) return;
@@ -249,10 +362,51 @@ export default function AdminManagePage() {
     toast({ title: `Rôle → ${role}` });
   };
   const deleteUser = async (uid: string, name: string) => {
-    if (!db || !confirm(`Supprimer ${name} ?`)) return;
-    await deleteDoc(doc(db, 'users', uid));
-    setUsers(users.filter(u => u.uid !== uid));
-    toast({ title: 'Supprimé' });
+    if (!db) return;
+    // Fix #124 — Cascade delete via /api/admin/delete-user (Firebase Auth +
+    // users + likes + matches + chats + notifications). Avant : deleteDoc
+    // direct sur users/{uid} laissait des comptes fantômes en Auth + des
+    // matches/likes/chats orphelins (vieux UID dans le chat sidebar avec
+    // un email bidon "shdjd@kdjfn.ch", impossible à débloquer). Maintenant :
+    // tout est wiped en une seule requête, plus de fantômes.
+    if (!confirm(
+      `Supprimer ${name} ?\n\n` +
+      `⚠️ Cette action supprime DÉFINITIVEMENT :\n` +
+      `• Le compte Firebase Auth (login impossible après)\n` +
+      `• Le profil Firestore\n` +
+      `• Tous les likes envoyés et reçus\n` +
+      `• Tous les matches associés\n` +
+      `• Tous les chats et messages\n` +
+      `• Toutes les notifications\n\n` +
+      `Action irréversible. Continuer ?`
+    )) return;
+    try {
+      if (!auth?.currentUser) throw new Error('Non authentifié');
+      const idToken = await auth.currentUser.getIdToken();
+      const res = await fetch('/api/admin/delete-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ uid }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data?.detail || data?.error || 'delete failed');
+      setUsers(users.filter(u => u.uid !== uid));
+      const counts = data.deletedCounts || {};
+      toast({
+        title: 'Supprimé (cascade)',
+        description: `${counts.likes ?? 0} likes • ${counts.matches ?? 0} matches • ${counts.chats ?? 0} chats • ${counts.notifications ?? 0} notifs`,
+      });
+    } catch (err) {
+      console.error('[admin] delete user failed', err);
+      toast({
+        variant: 'destructive',
+        title: 'Suppression échouée',
+        description: err instanceof Error ? err.message : String(err),
+      });
+    }
   };
   const openCommissionModal = (u: UserItem) => {
     setCommissionDraft({
@@ -571,8 +725,46 @@ export default function AdminManagePage() {
 
         {/* ===== USERS ===== */}
         {tab === 'users' && (
-          <div className="space-y-2">
-            {filteredUsers.map(u => (
+          <div className="space-y-4">
+            {/* BUG #89 — Section "Vérifications selfie en attente" tout en haut
+                de la tab Utilisateurs. L'admin voit ici tous les selfies à
+                approuver/rejeter avec preview selfie + photo de profil. */}
+            <AdminSelfieReviewSection />
+
+            {/* BUG #91 — Barre de contrôle pagination : compteur + sélecteur taille de page.
+                Charte stricte : fond zinc, accent #D91CD2 sur élément actif. */}
+            <div className="flex flex-wrap items-center justify-between gap-2 px-1">
+              <p className="text-[11px] text-white/40">
+                {filteredUsers.length === 0
+                  ? 'Aucun utilisateur'
+                  : `${filteredUsers.length} utilisateur${filteredUsers.length > 1 ? 's' : ''}${searchTerm ? ' (filtré)' : ''} · Page ${usersSafePage}/${usersTotalPages}`}
+              </p>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-white/30 uppercase tracking-wider">Par page</span>
+                {([25, 50, 100] as const).map(n => (
+                  <button
+                    key={n}
+                    onClick={() => setUsersPerPage(n)}
+                    className={`h-7 px-2 rounded text-[10px] border transition-colors ${
+                      usersPerPage === n
+                        ? 'border-accent/40 bg-accent/10 text-accent'
+                        : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'
+                    }`}
+                  >
+                    {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* BUG #91 — Conteneur de la liste : max-height + overflow-y-auto pour que
+                la page admin reste à hauteur fixe au lieu de s'étirer indéfiniment.
+                Hauteur calculée pour laisser visible le header, la barre pagination
+                et les contrôles bas. Sur mobile : un peu plus court pour garder la
+                barre du bas accessible. */}
+            <div className="max-h-[calc(100vh-360px)] sm:max-h-[calc(100vh-320px)] overflow-y-auto pr-1 scrollbar-thin">
+              <div className="space-y-2">
+            {paginatedUsers.map(u => (
               <Card key={u.uid} className="bg-[#1A1A1A] border-white/5">
                 <CardContent className="p-3 flex flex-col md:flex-row items-start md:items-center gap-2">
                   <div className="flex-1 min-w-0">
@@ -684,6 +876,51 @@ export default function AdminManagePage() {
                 </DialogFooter>
               </DialogContent>
             </Dialog>
+          </div>
+          </div>
+
+          {/* BUG #91 — Pagination footer : Précédent / numéros / Suivant.
+              Affiche jusqu'à 5 numéros centrés sur la page courante (fenêtre
+              glissante). Désactivé visuellement quand on est aux extrémités. */}
+          {usersTotalPages > 1 && (
+            <div className="flex items-center justify-center gap-1 pt-2">
+              <button
+                onClick={() => setUsersPage(p => Math.max(1, p - 1))}
+                disabled={usersSafePage <= 1}
+                className="h-8 px-3 rounded text-[11px] border border-white/10 text-white/60 hover:text-white hover:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                ‹ Précédent
+              </button>
+              {Array.from({ length: usersTotalPages }, (_, i) => i + 1)
+                .filter(n => Math.abs(n - usersSafePage) <= 2 || n === 1 || n === usersTotalPages)
+                .map((n, i, arr) => {
+                  const prev = arr[i - 1];
+                  const showEllipsis = prev !== undefined && n - prev > 1;
+                  return (
+                    <span key={n} className="flex items-center gap-1">
+                      {showEllipsis && <span className="text-white/20 text-[11px] px-1">…</span>}
+                      <button
+                        onClick={() => setUsersPage(n)}
+                        className={`h-8 min-w-8 px-2 rounded text-[11px] border transition-colors ${
+                          n === usersSafePage
+                            ? 'border-accent/40 bg-accent/10 text-accent'
+                            : 'border-white/10 text-white/50 hover:text-white hover:border-white/20'
+                        }`}
+                      >
+                        {n}
+                      </button>
+                    </span>
+                  );
+                })}
+              <button
+                onClick={() => setUsersPage(p => Math.min(usersTotalPages, p + 1))}
+                disabled={usersSafePage >= usersTotalPages}
+                className="h-8 px-3 rounded text-[11px] border border-white/10 text-white/60 hover:text-white hover:border-white/30 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                Suivant ›
+              </button>
+            </div>
+          )}
           </div>
         )}
 
@@ -933,102 +1170,309 @@ export default function AdminManagePage() {
           </Card>
         )}
 
-        {/* ===== TARIFS ===== */}
+        {/* ===== TARIFS (BUG #96 — refonte responsive 60/40 + sticky) ===== */}
         {tab === 'tarifs' && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* LEFT — Éditeur */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6">
+            {/* LEFT — Éditeur (60% sur desktop = 3/5 cols, full width sur mobile) */}
+            <div className="lg:col-span-3 space-y-4">
+              <div className="flex items-center justify-between gap-3 sticky top-0 z-10 bg-black/95 backdrop-blur py-2 -mx-1 px-1 rounded-md">
                 <h3 className="text-base text-white font-medium">Modifier les tarifs</h3>
-                <Button onClick={savePricing} disabled={pricingSaving} className="bg-accent hover:bg-accent/80 text-white h-10 text-xs">
-                  {pricingSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Settings className="h-4 w-4 mr-1" />}
+                <Button onClick={savePricing} disabled={pricingSaving} className="bg-accent hover:bg-accent/90 text-white h-10 px-4 text-xs rounded-full shadow-lg shadow-accent/20">
+                  {pricingSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Settings className="h-4 w-4 mr-1.5" />}
                   Sauvegarder
                 </Button>
               </div>
 
-              <p className="text-xs text-accent uppercase tracking-wider">Crédits</p>
-              {pricing.filter(p => p.type === 'one_time').map(p => (
-                <Card key={p.id} className={`bg-[#111] border-white/10 ${!p.isActive ? 'border-red-500/20' : ''}`}>
-                  <CardContent className="p-4 space-y-3">
+              {/* BUG #74 / #92 — Section "Prix Spordateur" : 4 cartes regroupées
+                  (Chat, Likes, Boost user, Boost partenaire). Lit/écrit
+                  settings/pricing (doc séparé des tarifs Stripe ci-dessous).
+                  Composant autonome avec son propre bouton "Sauvegarder tous
+                  les tarifs" en pied de section pour atomicité. */}
+              <p className="text-xs text-accent uppercase tracking-wider">Services intra-app & boost</p>
+              <AdminPricingSection />
+
+              {/* BUG #94 — Filter par PREFIX d'ID. BUG #97/#98 — œil PAR carte
+                  (à côté du switch) qui toggle la mini-card dans l'aperçu droit.
+                  Grid 2 cols sur PC, 1 col mobile. */}
+              <p className="text-xs text-accent uppercase tracking-wider mt-2">Packs crédits</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {pricing.filter(p => p.id.startsWith('pack_')).map(p => (
+                <Card key={p.id} className={`bg-[#0F0F0F] border-white/10 rounded-2xl transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/10 ${!p.isActive ? 'border-red-500/20 opacity-70' : ''}`}>
+                  <CardContent className="p-4 sm:p-5 space-y-3">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${p.isActive ? 'text-white' : 'text-red-400/60'}`}>{p.label}</span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className={`text-sm font-medium truncate ${p.isActive ? 'text-white' : 'text-red-400/60'}`}>{p.label}</span>
                         {!p.isActive && <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">OFF</Badge>}
                       </div>
-                      <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <PreviewEyeButton targetId={`preview-${p.id}`} active={visiblePreviewIds.has(`preview-${p.id}`)} label="Voir aperçu" />
+                        <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
+                      </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div><label className="text-[11px] text-white/40 block mb-1">Prix CHF</label><Input type="number" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
-                      <div><label className="text-[11px] text-white/40 block mb-1">Crédits</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
-                      <div><label className="text-[11px] text-white/40 block mb-1">Nom</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Prix CHF</label><Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Crédits</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Nom</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
 
-              <p className="text-xs text-accent uppercase tracking-wider mt-2">Abonnements</p>
-              {pricing.filter(p => p.type === 'subscription').map(p => (
-                <Card key={p.id} className={`bg-[#111] border-white/10 ${!p.isActive ? 'border-red-500/20' : ''}`}>
-                  <CardContent className="p-4 space-y-3">
+              </div>
+
+              <p className="text-xs text-accent uppercase tracking-wider mt-4">Plans Premium</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {pricing.filter(p => p.id.startsWith('premium_')).map(p => (
+                <Card key={p.id} className={`bg-[#0F0F0F] border-white/10 rounded-2xl transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/10 ${!p.isActive ? 'border-red-500/20 opacity-70' : ''}`}>
+                  <CardContent className="p-4 sm:p-5 space-y-3">
                     <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className={`text-sm font-medium ${p.isActive ? 'text-white' : 'text-red-400/60'}`}>{p.label}</span>
-                        <Badge className="text-[10px] bg-white/5 text-white/40 border-white/10">{p.interval === 'month' ? '/mois' : '/an'}</Badge>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className={`text-sm font-medium truncate ${p.isActive ? 'text-white' : 'text-red-400/60'}`}>{p.label}</span>
+                        <Badge className="text-[10px] bg-white/5 text-white/40 border-white/10 flex-shrink-0">{p.type === 'subscription' ? (p.interval === 'month' ? '/mois' : '/an') : 'one-shot'}</Badge>
                         {!p.isActive && <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">OFF</Badge>}
                       </div>
-                      <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <PreviewEyeButton targetId={`preview-${p.id}`} active={visiblePreviewIds.has(`preview-${p.id}`)} label="Voir aperçu" />
+                        <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
+                      </div>
                     </div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <div><label className="text-[11px] text-white/40 block mb-1">Prix CHF</label><Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
-                      <div><label className="text-[11px] text-white/40 block mb-1">Crédits</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 text-white text-base" /></div>
-                      <div><label className="text-[11px] text-white/40 block mb-1">Nom</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 text-white text-base" /></div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Prix CHF</label><Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Crédits / période</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Nom</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+
+              </div>
+
+              <p className="text-xs text-accent uppercase tracking-wider mt-4">Abonnement Partenaire</p>
+              {pricing.filter(p => p.id.startsWith('partner_')).map(p => (
+                <Card key={p.id} className={`bg-[#0F0F0F] border-white/10 rounded-2xl transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/10 ${!p.isActive ? 'border-red-500/20 opacity-70' : ''}`}>
+                  <CardContent className="p-4 sm:p-5 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <span className={`text-sm font-medium truncate ${p.isActive ? 'text-white' : 'text-red-400/60'}`}>{p.label}</span>
+                        <Badge className="text-[10px] bg-white/5 text-white/40 border-white/10 flex-shrink-0">{p.interval === 'month' ? '/mois' : '/an'}</Badge>
+                        {!p.isActive && <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">OFF</Badge>}
+                      </div>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        <PreviewEyeButton targetId={`preview-${p.id}`} active={visiblePreviewIds.has(`preview-${p.id}`)} label="Voir aperçu" />
+                        <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Prix CHF</label><Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Crédits</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Nom</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
                     </div>
                   </CardContent>
                 </Card>
               ))}
             </div>
 
-            {/* RIGHT — Aperçu en direct */}
-            <div className="space-y-4">
-              <h3 className="text-base text-white font-medium flex items-center gap-2"><Eye className="h-4 w-4 text-accent" /> Aperçu en direct</h3>
+            {/* RIGHT — Aperçu en direct (BUG #94/#96/#99 : 40% desktop, sticky, scroll interne) */}
+            <div className="lg:col-span-2 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto scrollbar-thin space-y-4 pr-1">
+              <h3 className="text-base text-white font-medium flex items-center gap-2 sticky top-0 bg-black/95 backdrop-blur py-1 -mx-1 px-1 z-10"><Eye className="h-4 w-4 text-accent" /> Aperçu en direct</h3>
 
-              <p className="text-xs text-white/30 uppercase tracking-wider">Page Crédits</p>
-              <div className="space-y-3">
-                {pricing.filter(p => p.type === 'one_time' && p.isActive).map(p => (
-                  <Card key={p.id} className="bg-[#111] border-white/10 overflow-hidden">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div>
-                        <p className="text-white font-medium text-sm">{p.label}</p>
-                        <p className="text-white/30 text-xs">{p.credits} crédit{p.credits > 1 ? 's' : ''}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-light text-white">{p.price} <span className="text-sm text-white/40">CHF</span></p>
-                        {p.credits > 1 && <p className="text-[10px] text-accent">{(p.price / p.credits).toFixed(2)} CHF/crédit</p>}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              {/* BUG #101 — Sections Chat/Likes/Boost user supprimées :
+                  ces tarifs intra-app n'ont pas de "carte client" à montrer.
+                  L'admin les édite via AdminPricingSection en haut. */}
 
-              <p className="text-xs text-white/30 uppercase tracking-wider mt-2">Page Premium</p>
-              <div className="space-y-3">
-                {pricing.filter(p => p.type === 'subscription' && p.isActive).map(p => (
-                  <Card key={p.id} className="bg-[#111] border-accent/20 overflow-hidden">
-                    <CardContent className="p-4 flex items-center justify-between">
-                      <div>
-                        <p className="text-white font-medium text-sm">{p.label}</p>
-                        <p className="text-white/30 text-xs">{p.credits} crédits · {p.interval === 'month' ? 'par mois' : 'par an'}</p>
-                      </div>
-                      <div className="text-right">
-                        <p className="text-2xl font-light text-accent">{p.price} <span className="text-sm text-white/40">CHF</span></p>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
+              {/* BUG #101 — Aperçu /payment FIDÈLE au rendu client.
+                  Reproduction des cards stylisées du panneau /payment : gradient
+                  color par tier, icon en cercle, badge populaire, gros prix,
+                  features list, bouton "Acheter". Le but : que l'admin voie
+                  exactement ce que verra le client. Conditionnel par carte. */}
+              {(() => {
+                const packs = pricing.filter(p => p.id.startsWith('pack_') && p.isActive);
+                const visiblePacks = packs.filter(p => visiblePreviewIds.has(`preview-${p.id}`));
+                // Baseline = pack le moins économique (moins de crédits par CHF).
+                // Filet : si aucun pack actif, baseline 0 → savings 0%.
+                const baselineRatio = packs.reduce<number>((max, p) => {
+                  if (p.credits <= 0 || p.price <= 0) return max;
+                  const r = p.price / p.credits;
+                  return r > max ? r : max;
+                }, 0);
+                if (visiblePacks.length === 0) return null;
+                return (
+                  <>
+                    <p id="preview-packs" className="text-xs text-white/30 uppercase tracking-wider mt-3 flex items-center gap-2 scroll-mt-4 rounded-md p-1">
+                      <span>📱 Aperçu /payment — Packs crédits</span>
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {visiblePacks.map(p => {
+                        const ratio = p.credits > 0 ? p.price / p.credits : 0;
+                        const savings = baselineRatio > 0 && ratio > 0 && ratio < baselineRatio
+                          ? Math.round((1 - ratio / baselineRatio) * 100)
+                          : 0;
+                        const isPopular = p.id === 'pack_pro';
+                        const isVip = p.id === 'pack_vip';
+                        const PackIcon = p.id === 'pack_starter' ? Zap
+                          : p.id === 'pack_confort' ? BarChart3
+                          : isPopular ? TrendingUp
+                          : Crown;
+                        const gradient = p.id === 'pack_starter' ? 'from-emerald-500 to-teal-500'
+                          : isPopular ? 'from-accent to-[#E91E63]'
+                          : isVip ? 'from-purple-500 to-fuchsia-500'
+                          : 'from-amber-500 to-orange-500';
+                        return (
+                          <div
+                            id={`preview-${p.id}`}
+                            key={p.id}
+                            className="relative rounded-2xl p-4 border border-white/10 bg-[#0F0F0F] scroll-mt-4 overflow-hidden"
+                          >
+                            {savings > 0 && (
+                              <div className="absolute top-2 right-2 px-2 py-0.5 rounded-full text-[10px] bg-green-500/15 text-green-400 border border-green-500/30">
+                                -{savings}%
+                              </div>
+                            )}
+                            <div className={`inline-flex p-2 rounded-xl bg-gradient-to-br ${gradient} mb-2`}>
+                              <PackIcon className="h-5 w-5 text-white" />
+                            </div>
+                            <p className="text-sm font-medium text-white">{p.label}</p>
+                            <p className="text-[10px] text-white/40">{p.credits} crédits</p>
+                            <div className="mt-2 mb-2">
+                              <span className="text-2xl font-light text-white">{p.price.toFixed(2)}</span>
+                              <span className="text-xs text-white/40 ml-1">CHF</span>
+                            </div>
+                            <p className="text-[10px] text-accent">{ratio > 0 ? ratio.toFixed(3) : '0.000'} CHF/crédit</p>
+                            <div className={`mt-3 h-8 rounded-full bg-gradient-to-r ${gradient} flex items-center justify-center text-[11px] text-white font-medium`}>
+                              Acheter
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
 
+              {/* BUG #101 — Aperçu /premium FIDÈLE au rendu client.
+                  Reproduction des cards stylisées du panneau /premium : Crown
+                  icon centrée, gros prix, features list avec icônes accent,
+                  bouton "S'abonner". Le plan annuel a l'accent feature, le mois
+                  a le badge Populaire. Conditionnel par carte. */}
+              {(() => {
+                const premiums = pricing.filter(p => p.id.startsWith('premium_') && p.isActive);
+                const visible = premiums.filter(p => visiblePreviewIds.has(`preview-${p.id}`));
+                if (visible.length === 0) return null;
+                return (
+                  <>
+                    <p id="preview-premium" className="text-xs text-white/30 uppercase tracking-wider mt-3 flex items-center gap-2 scroll-mt-4 rounded-md p-1">
+                      <span>👑 Aperçu /premium — Plans Spordateur</span>
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {visible.map(p => {
+                        const interval =
+                          p.id === 'premium_24h' ? '24h' :
+                          p.id === 'premium_week' ? '7 jours' :
+                          p.id === 'premium_month' ? 'mois' :
+                          p.id === 'premium_year' ? 'an' :
+                          p.interval || '';
+                        const isFeatured = p.id === 'premium_year';
+                        const isPopular = p.id === 'premium_month';
+                        const monthly = pricing.find(x => x.id === 'premium_month');
+                        const yearlySavings = isFeatured && monthly && monthly.price > 0
+                          ? Math.round((1 - p.price / (monthly.price * 12)) * 100)
+                          : 0;
+                        return (
+                          <div
+                            id={`preview-${p.id}`}
+                            key={p.id}
+                            className={`relative rounded-2xl p-4 border scroll-mt-4 ${
+                              isFeatured ? 'border-accent/50 bg-gradient-to-br from-zinc-900 to-black shadow-xl shadow-accent/10' :
+                              isPopular ? 'border-accent/30 bg-gradient-to-br from-zinc-900/80 to-black' :
+                              'border-zinc-800 bg-gradient-to-br from-zinc-900/80 to-black'
+                            }`}
+                          >
+                            {yearlySavings > 0 && (
+                              <div className="absolute -top-2 left-3 z-10 px-2 py-0.5 rounded-full text-[10px] bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30">
+                                -{yearlySavings}%
+                              </div>
+                            )}
+                            {isPopular && (
+                              <div className="absolute -top-2 right-3 z-10 px-2 py-0.5 rounded-full text-[10px] bg-accent text-white shadow-lg shadow-accent/30">
+                                Populaire
+                              </div>
+                            )}
+                            <div className="flex justify-center mb-3">
+                              <div className={`p-2 rounded-2xl ${isFeatured ? 'bg-accent/10' : 'bg-zinc-800'}`}>
+                                <Crown className={`h-6 w-6 ${isFeatured ? 'text-accent' : 'text-gray-400'}`} />
+                              </div>
+                            </div>
+                            <p className="text-sm text-center text-white font-light">{p.label}</p>
+                            <div className="text-center mt-2">
+                              <span className="text-3xl font-light text-white">{p.price % 1 === 0 ? p.price : p.price.toFixed(2)}</span>
+                              <span className="text-xs text-white/40 ml-1">CHF / {interval}</span>
+                            </div>
+                            {isFeatured && (
+                              <p className="text-center text-[10px] text-accent mt-1">
+                                ~{(p.price / 12).toFixed(2)} CHF / mois
+                              </p>
+                            )}
+                            <div className="mt-3 space-y-1.5">
+                              <div className="flex items-center gap-2 text-[11px] text-white/70"><Zap className="h-3 w-3 text-accent" /> Likes illimités</div>
+                              <div className="flex items-center gap-2 text-[11px] text-white/70"><Eye className="h-3 w-3 text-accent" /> Voir qui m&apos;a liké</div>
+                              <div className="flex items-center gap-2 text-[11px] text-white/70"><Crown className="h-3 w-3 text-accent" /> {p.credits} crédits inclus</div>
+                            </div>
+                            <div className={`mt-3 h-8 rounded-full flex items-center justify-center text-[11px] font-medium ${
+                              isFeatured ? 'bg-accent text-white shadow-lg shadow-accent/30' : 'bg-zinc-800 text-white border border-zinc-700'
+                            }`}>
+                              S&apos;abonner
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* BUG #101 — Aperçu Partenaire (carte fidèle au rendu /partner/login).
+                  Seule la carte partner_monthly est affichable si l'admin clique
+                  l'œil correspondant. Style identique au panneau Premium client. */}
+              {(() => {
+                const partner = pricing.find(p => p.id === 'partner_monthly' && p.isActive);
+                if (!partner || !visiblePreviewIds.has(`preview-${partner.id}`)) return null;
+                return (
+                  <>
+                    <p className="text-xs text-white/30 uppercase tracking-wider mt-3 flex items-center gap-2 rounded-md p-1">
+                      <span>💼 Aperçu Partenaire Pro</span>
+                    </p>
+                    <div
+                      id={`preview-${partner.id}`}
+                      className="rounded-2xl p-5 border border-accent/40 bg-gradient-to-br from-zinc-900 to-black shadow-xl shadow-accent/10 scroll-mt-4"
+                    >
+                      <div className="flex justify-center mb-3">
+                        <div className="p-3 rounded-2xl bg-accent/10">
+                          <Building2 className="h-8 w-8 text-accent" />
+                        </div>
+                      </div>
+                      <p className="text-center text-base font-light text-white">{partner.label}</p>
+                      <div className="text-center mt-3">
+                        <span className="text-4xl font-light text-white">{partner.price.toFixed(0)}</span>
+                        <span className="text-sm text-white/40 ml-1">CHF / mois</span>
+                      </div>
+                      <p className="text-[11px] text-white/40 text-center mt-3">Pour coachs, clubs et lieux sportifs</p>
+                    </div>
+                  </>
+                );
+              })()}
+
+              {/* BUG #101 — Empty state global si rien à afficher (aucun œil actif).
+                  Évite que le panneau reste vide sans signal pour l'admin. */}
+              {visiblePreviewIds.size === 0 && (
+                <div className="border-t border-white/5 pt-6 mt-4 text-center">
+                  <Eye className="h-8 w-8 text-white/10 mx-auto mb-2" />
+                  <p className="text-[11px] text-white/30 italic">
+                    Clique sur 👁 d&apos;une carte Pack, Premium ou Partenaire pour visualiser ici son rendu côté client.
+                  </p>
+                </div>
+              )}
               <p className="text-[11px] text-white/20 text-center mt-4 border-t border-white/5 pt-4">
-                Cet aperçu se met à jour en temps réel. Cliquez "Sauvegarder" pour appliquer les changements sur le site.
+                Aperçu fidèle des pages <span className="text-white/40">/payment</span> et <span className="text-white/40">/premium</span>. Modifie le prix dans une carte éditeur à gauche, clique « Sauvegarder » pour appliquer en prod.
               </p>
             </div>
           </div>
@@ -1060,6 +1504,22 @@ export default function AdminManagePage() {
             {/* Phase 9.5 c39 — Dedupe matches/ legacy (auto-id) → deterministic ID */}
             <DedupeMatchesCard />
 
+
+            {/* Fix #128 — Logos unifiés (PWA, favicon, Apple, splash, monochrome) */}
+            <Card className="bg-[#111] border-white/10">
+              <CardContent className="p-4 space-y-4">
+                <div>
+                  <span className="text-sm text-white font-medium">Logos du site</span>
+                  <p className="text-[11px] text-white/40 font-light mt-0.5">
+                    Une seule commande pour toutes les icônes : favicon, PWA standard, maskable
+                    Android, Apple Touch, monochrome, splash screen. Uploade un logo source (PNG
+                    transparent 1024×1024 idéalement), le système génère et applique automatiquement
+                    tous les formats sur le site.
+                  </p>
+                </div>
+                <BrandLogoManager brand={brand} onUpdated={setBrand} />
+              </CardContent>
+            </Card>
 
             {/* Couleur */}
             <Card className="bg-[#111] border-white/10">

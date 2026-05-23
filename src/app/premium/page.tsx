@@ -16,8 +16,46 @@ import { resolveActiveReferralCode } from '@/lib/referral/refStorage';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
 
-// Visual config (icons, features) — fixed, not admin-editable
+// BUG #93 — Visuals des 4 nouveaux plans Premium (PRICING-PROPOSAL.md §5).
+// Les 4 paliers partagent les mêmes avantages structurels ; seule la durée
+// + le quota de crédits mensuels change. Les visuals listent les avantages
+// communs, le rendu y injecte dynamiquement la ligne "X crédits".
 const PLAN_VISUALS: Record<string, { features: { icon: any; text: string; highlight: boolean }[] }> = {
+  'premium_24h': {
+    features: [
+      { icon: Zap, text: 'Likes illimités 24h', highlight: true },
+      { icon: Eye, text: 'Voir qui m\'a liké', highlight: false },
+      { icon: Shield, text: 'Badge bleu vérifié', highlight: false },
+    ],
+  },
+  'premium_week': {
+    features: [
+      { icon: Zap, text: 'Likes illimités 7 jours', highlight: true },
+      { icon: Eye, text: 'Voir qui m\'a liké', highlight: false },
+      { icon: MessageCircle, text: 'Filtres avancés', highlight: false },
+      { icon: Shield, text: 'Badge bleu vérifié', highlight: false },
+    ],
+  },
+  'premium_month': {
+    features: [
+      { icon: Zap, text: 'Likes illimités', highlight: true },
+      { icon: Eye, text: 'Voir qui m\'a liké', highlight: false },
+      { icon: MessageCircle, text: 'Filtres avancés', highlight: false },
+      { icon: Shield, text: 'Vérification prioritaire 12h', highlight: false },
+      { icon: Star, text: '1 boost 30 min / mois offert', highlight: true },
+    ],
+  },
+  'premium_year': {
+    features: [
+      { icon: Zap, text: 'Likes illimités', highlight: true },
+      { icon: Eye, text: 'Voir qui m\'a liké', highlight: false },
+      { icon: MessageCircle, text: 'Filtres avancés', highlight: false },
+      { icon: Shield, text: 'Vérification prioritaire 12h', highlight: false },
+      { icon: Star, text: '1 boost 30 min / mois offert', highlight: true },
+      { icon: Crown, text: 'Badge Fidélité exclusif', highlight: true },
+    ],
+  },
+  // Legacy (conservé si Firestore les affiche encore le temps de la migration)
   'premium_monthly': {
     features: [
       { icon: Zap, text: 'Matching illimité', highlight: true },
@@ -37,10 +75,14 @@ const PLAN_VISUALS: Record<string, { features: { icon: any; text: string; highli
   },
 };
 
-// Default pricing — overridden by Firestore
+// BUG #93 — Default pricing : 4 paliers Premium (PRICING-PROPOSAL.md §5).
+// `interval` est la string affichée à côté du prix ; pour les one_time (24h,
+// 1 semaine) c'est la durée, pour subscriptions c'est l'interval Stripe.
 const DEFAULT_PLANS = [
-  { id: 'premium_monthly', name: 'Premium Mensuel', price: 19.90, interval: 'mois', credits: 5, badge: null as string | null },
-  { id: 'premium_yearly', name: 'Premium Annuel', price: 149, interval: 'an', credits: 60, badge: 'Économisez 37%' as string | null },
+  { id: 'premium_24h',   name: 'Flash 24h',         price: 4.90,   interval: '24h',     credits: 50,  badge: null as string | null },
+  { id: 'premium_week',  name: 'Découverte 1 sem.', price: 14.90,  interval: '7 jours', credits: 100, badge: null as string | null },
+  { id: 'premium_month', name: 'Standard 1 mois',   price: 29.90,  interval: 'mois',    credits: 200, badge: 'Populaire' as string | null },
+  { id: 'premium_year',  name: 'Fidélité 1 an',     price: 199.90, interval: 'an',      credits: 250, badge: 'Économisez 44%' as string | null },
 ];
 
 export default function PremiumPage() {
@@ -236,12 +278,16 @@ export default function PremiumPage() {
         </div>
       )}
 
-      {/* Plans */}
-      <div className="container mx-auto max-w-5xl px-4 pb-20">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8 max-w-3xl mx-auto">
+      {/* Plans — BUG #93 : 4 paliers (24h / 1 sem / 1 mois / 1 an). Grid responsive. */}
+      <div className="container mx-auto max-w-7xl px-4 pb-20">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-6xl mx-auto">
           {plans.map((plan) => {
             const isSelected = selectedPlan === plan.id;
-            const isYearly = plan.id === 'premium_yearly';
+            // BUG #93 — `isFeatured` = plan mis en avant visuellement (border + gradient
+            // accent). On choisit le 1 an car c'est le meilleur ratio CHF/mois.
+            // L'ancien `isYearly` est gardé en alias pour les composants conditionnels.
+            const isFeatured = plan.id === 'premium_year' || plan.id === 'premium_yearly';
+            const isYearly = isFeatured;
             const visuals = PLAN_VISUALS[plan.id];
             // Build features list with dynamic credits
             const features = [
@@ -280,11 +326,17 @@ export default function PremiumPage() {
                     </CardTitle>
                     <div className="mt-4">
                       <span className="text-5xl font-light text-white">
-                        {plan.price % 1 === 0 ? plan.price : plan.price.toFixed(2)}
+                        {(() => {
+                          // BUG #101 — Défensif : si pricing Firestore a un format
+                          // inattendu (price undefined / NaN), affiche "0" plutôt
+                          // que de crasher la page sur .toFixed() / .price % 1.
+                          const safePrice = typeof plan.price === 'number' && Number.isFinite(plan.price) ? plan.price : 0;
+                          return safePrice % 1 === 0 ? safePrice : safePrice.toFixed(2);
+                        })()}
                       </span>
                       <span className="text-gray-400 font-light ml-1">CHF / {plan.interval}</span>
                     </div>
-                    {isYearly && (
+                    {isYearly && typeof plan.price === 'number' && Number.isFinite(plan.price) && (
                       <p className="text-sm text-accent font-light mt-2">
                         soit ~{(plan.price / 12).toFixed(2)} CHF / mois
                       </p>

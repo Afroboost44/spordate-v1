@@ -19,37 +19,45 @@
 
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Info } from 'lucide-react';
+import { Info, Users, Star, User } from 'lucide-react';
 import type { AudienceType } from '@/lib/audience';
+import type { LucideIcon } from 'lucide-react';
 
 interface AudienceOption {
   value: AudienceType;
   label: string;
   description: string;
   recommended?: boolean;
+  icon: LucideIcon;
 }
 
+// BUG #59 — micro-icônes visuelles à côté de chaque option audience (Users
+// pour mixte, Star pour priorité femmes, User pour single gender).
 const AUDIENCE_OPTIONS: AudienceOption[] = [
   {
     value: 'all',
     label: 'Tous publics',
     description: 'Aucune restriction — défaut.',
+    icon: Users,
   },
   {
     value: 'mixed-priority-women',
     label: 'Mixte priorité femmes',
     description: 'Mixte mais visibilité boostée pour les femmes (Phase 10).',
     recommended: true,
+    icon: Star,
   },
   {
     value: 'women-only',
     label: 'Femmes uniquement',
     description: 'Réservé aux participantes (booking strict).',
+    icon: User,
   },
   {
     value: 'men-only',
     label: 'Hommes uniquement',
     description: 'Réservé aux participants (booking strict).',
+    icon: User,
   },
 ];
 
@@ -80,6 +88,7 @@ export function AudienceTypeSelector({
       >
         {AUDIENCE_OPTIONS.map((opt) => {
           const id = `audience-${opt.value}`;
+          const Icon = opt.icon;
           return (
             <label
               key={opt.value}
@@ -91,6 +100,8 @@ export function AudienceTypeSelector({
                 id={id}
                 className="mt-1 border-white/30 text-accent"
               />
+              {/* BUG #59 — micro-icône représentative de l'audience */}
+              <Icon className="h-5 w-5 text-accent/80 mt-0.5 shrink-0" aria-hidden="true" />
               <div className="flex flex-col gap-0.5 flex-1">
                 <span className="text-sm font-medium text-white flex items-center gap-2">
                   {opt.label}

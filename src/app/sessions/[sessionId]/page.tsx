@@ -48,6 +48,7 @@ import { getMediaItems } from '@/lib/activities/media';
 import { isActivityUnavailable, isSessionUnavailable } from '@/lib/activities/lifecycle';
 import { ActivityCancelledBanner } from '@/components/sessions/ActivityCancelledBanner';
 import { getVideoThumbnailChain, getVideoEmbedUrl } from '@/lib/activities/mediaParser';
+import { isStorageVideoUrl } from '@/lib/media/driveMigration';
 import type { MediaItem } from '@/types/firestore';
 
 interface PageProps {
@@ -85,6 +86,22 @@ function deriveSessionHeroMedia(
 
   const items = getMediaItems({ mediaUrls: activity.mediaUrls, images: activity.images });
   const first = items[0];
+
+  // Priorité 0 — BUG #65 : vidéo uploadée vers Firebase Storage (source==='upload'
+  // ou URL Storage). On retourne provider='direct' sans embedUrl → SessionMediaPlayer
+  // rend <video> HTML5 natif. Pattern aligné #60/#62/#63. Sans cette branche, on
+  // tombait sur getVideoEmbedUrl (qui ne match pas Storage) puis getVideoThumbnailChain
+  // (vide pour Storage) → fallback logo générique au lieu de la vidéo.
+  if (first?.type === 'video' && (first.source === 'upload' || isStorageVideoUrl(first.url))) {
+    return {
+      media: {
+        type: 'video',
+        url: first.url,
+        provider: 'direct',
+      },
+      imageUrlFallbacks: [],
+    };
+  }
 
   // Priorité 1 — vidéo embeddable (YouTube/Vimeo) → iframe (BUG J c18)
   if (first?.type === 'video') {

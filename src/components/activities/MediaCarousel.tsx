@@ -146,7 +146,10 @@ function MediaItemRender({
     // HTML5 <video> natif (zéro redirection externe, contrôles browser standard,
     // playsinline iOS). Détecté par URL firebasestorage.googleapis.com +
     // extension video (.mp4 .webm .mov…).
-    if (isStorageVideoUrl(item.url)) {
+    // BUG #60 — Même branche pour upload partner direct (source='upload') :
+    // certains fichiers uploadés perdent leur extension dans le slug → on ne
+    // peut pas se fier à `isStorageVideoUrl` seul. `source==='upload'` suffit.
+    if (item.source === 'upload' || isStorageVideoUrl(item.url)) {
       return (
         <div className="relative aspect-video rounded-lg overflow-hidden border border-white/10 bg-zinc-950">
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}

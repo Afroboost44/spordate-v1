@@ -39,6 +39,7 @@ import type {
   SuggestionInput,
 } from '@/ai/types';
 import type { SuggestionCard } from '@/types/firestore';
+import { parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 
 export const runtime = 'nodejs'; // Genkit + firebase-admin require Node.js
 
@@ -73,7 +74,7 @@ async function getAdminDb() {
 
   if (!getApps().length) {
     if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
+      initializeApp({ credential: cert(parseServiceAccountKeyDefensive(process.env.FIREBASE_SERVICE_ACCOUNT_KEY) as Parameters<typeof cert>[0]) });
     } else {
       initializeApp({
         projectId:

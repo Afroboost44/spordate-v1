@@ -36,6 +36,7 @@ import {
   CHF_PER_CREDIT,
   computeBoostCost,
 } from '@/lib/billing/boostCredits';
+import { getAdminDb } from '@/lib/firebase/admin';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -43,29 +44,6 @@ export const dynamic = 'force-dynamic';
 // =====================================================================
 // Lazy Admin SDK init (cohérent pattern admin routes)
 // =====================================================================
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let _adminDb: any = null;
-
-async function getAdminDb() {
-  if (_adminDb) return _adminDb;
-  const { initializeApp, getApps, cert } = await import('firebase-admin/app');
-  const { getFirestore } = await import('firebase-admin/firestore');
-  if (!getApps().length) {
-    if (process.env.FIREBASE_SERVICE_ACCOUNT_KEY) {
-      initializeApp({ credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)) });
-    } else {
-      initializeApp({
-        projectId:
-          process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID ||
-          process.env.GCLOUD_PROJECT ||
-          'spordateur-claude',
-      });
-    }
-  }
-  _adminDb = getFirestore();
-  return _adminDb;
-}
-
 // =====================================================================
 // POST handler
 // =====================================================================
@@ -86,6 +64,8 @@ export async function POST(request: NextRequest) {
     const duration = body?.duration as string;
     const city = (body?.city as string) || '';
     const country = (body?.country as string) || '';
+    // BUG #69 — activityId obligatoire (1 boost = 1 activité ciblée).
+    const activityId = (body?.activityId as string) || '';
 
     if (!duration || !BOOST_CREDITS_COST[duration]) {
       return NextResponse.json(
@@ -95,6 +75,12 @@ export async function POST(request: NextRequest) {
     }
     if (!city) {
       return NextResponse.json({ error: 'invalid-input', detail: 'city required' }, { status: 400 });
+    }
+    if (!activityId) {
+      return NextResponse.json(
+        { error: 'activity-required', detail: 'Choisis l\'activité à booster.' },
+        { status: 400 },
+      );
     }
 
     const cost = computeBoostCost(duration);
@@ -126,10 +112,23 @@ export async function POST(request: NextRequest) {
         } as const;
       }
 
-      // Phase 9.5 c35 BUG5 — Idempotence : aucun boost actif simultané pour
-      // ce partnerId+city. Avant c35 le filtre n'incluait pas city, donc un
-      // partner avec boost actif à Genève était bloqué pour acheter Lausanne.
-      // Désormais : 1 boost actif par (partnerId, city), villes distinctes OK.
+      // BUG #69 — Validation : l'activity existe et appartient au partner.
+      const activityRef = db.collection('activities').doc(activityId);
+      const activitySnap = await tx.get(activityRef);
+      if (!activitySnap.exists) {
+        return { error: 'activity-not-found', status: 404 } as const;
+      }
+      if (activitySnap.data()?.partnerId !== partnerId) {
+        return {
+          error: 'activity-not-owned',
+          status: 403,
+          detail: 'Cette activité ne t\'appartient pas.',
+        } as const;
+      }
+
+      // BUG #69 — Idempotence : aucun boost actif pour (partnerId, activityId, city).
+      // Un partner peut désormais avoir plusieurs boosts simultanés pour la même ville,
+      // tant qu'ils ciblent des activités différentes.
       const now = Date.now();
       const activeBoostsSnap = await tx.get(
         boostsCol
@@ -139,8 +138,11 @@ export async function POST(request: NextRequest) {
       );
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const hasActive = activeBoostsSnap.docs.some((d: any) => {
-        const exp = d.data().expiresAt;
-        // Timestamp Admin SDK : toMillis() ; Date legacy : getTime()
+        const data = d.data();
+        // Si le boost existant cible une AUTRE activity (ou pas d'activityId =
+        // legacy boost qui boost tout le compte), on autorise le nouveau boost.
+        if (data.activityId && data.activityId !== activityId) return false;
+        const exp = data.expiresAt;
         const expMs =
           typeof exp?.toMillis === 'function'
             ? exp.toMillis()
@@ -153,7 +155,7 @@ export async function POST(request: NextRequest) {
         return {
           error: 'already-boosted',
           status: 409,
-          detail: `Un boost est déjà actif pour ${city}. Attends son expiration ou cible une autre ville.`,
+          detail: `Cette activité est déjà boostée pour ${city}. Attends son expiration ou choisis une autre activité/ville.`,
         } as const;
       }
 
@@ -165,6 +167,7 @@ export async function POST(request: NextRequest) {
       tx.set(boostRef, {
         boostId: boostRef.id,
         partnerId,
+        activityId, // BUG #69 — persisté pour filtre Discovery par activité
         city,
         country,
         duration,
