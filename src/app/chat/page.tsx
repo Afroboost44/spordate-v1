@@ -1150,7 +1150,18 @@ function ChatPageContent() {
       // dans firestore.ts (post-batch updateDoc chat.lastMessage/unreadCount).
       const convos: ConversationItem[] = [];
       for (const match of relevantMatches) {
+        // Fix #199 — Skip défensif sur matches malformés. Avant : si un match
+        // legacy avait userIds invalide (manque otherUid, doublon, undefined,
+        // etc.), `getUser('')` jetait FirebaseError 'Invalid document reference.
+        // Document references must have an even number of segments, but users
+        // has 1' → catch global → toute la liste setConversations([]) → user voit
+        // "Pas encore de conversations" alors qu'il avait peut-être 10 conv saines.
+        // Maintenant : on continue silencieusement sur les matches cassés.
         const otherUid = match.userIds.find((id) => id !== currentUserId) || '';
+        if (!otherUid || typeof otherUid !== 'string') {
+          console.warn('[Chat] match malformé, skip', { matchId: match.matchId, userIds: match.userIds });
+          continue;
+        }
         let profile = profileCache[otherUid];
 
         if (profile === undefined) {

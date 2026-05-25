@@ -92,6 +92,17 @@ export async function createUser(data: Partial<UserProfile> & { uid: string; ema
 }
 
 export async function getUser(uid: string): Promise<UserProfile | null> {
+  // Fix #199 — Guard défensif. Avant : si uid empty/undefined, getDocRef
+  // construisait `doc(db, 'users', '')` qui throw FirebaseError 'Invalid
+  // document reference. Document references must have an even number of
+  // segments, but users has 1'. Cette erreur cascadait sur loadConversations
+  // dans /chat → toute la liste de conv crashait → user voit "Pas encore de
+  // conversations" alors qu'il avait peut-être 10 conv saines. Maintenant :
+  // early-return null sur uid invalide, le caller skip et continue.
+  if (!uid || typeof uid !== 'string' || uid.length === 0) {
+    console.warn('[getUser] called with invalid uid:', uid);
+    return null;
+  }
   const snap = await getDoc(getDocRef('users', uid));
   return snap.exists() ? ({ ...snap.data(), uid: snap.id } as UserProfile) : null;
 }
