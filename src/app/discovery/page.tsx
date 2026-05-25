@@ -1722,18 +1722,18 @@ END:VCALENDAR`;
                 >
                   <X size={22} />
                 </button>
-                {/* Fix #193 — Bouton Like : SVG statique blanc transparent
-                    fourni par Bassi (public/spordateur-logo-white.svg). On
-                    abandonne le PNG admin qui avait fond noir. SVG = transparent
-                    natif, blanc pur, scalable sans perte. */}
+                {/* Fix #197 — Bouton Like : couleur cercle bordeaux #782a41
+                    spécifiée par Bassi (uploadé dans Logo - Afroboost (6).svg).
+                    Distinct visuellement du bouton chat direct (rose accent
+                    plein). Backdrop-blur conservé pour effet glass. */}
                 <button
                   onClick={handleLike}
                   aria-label="Like"
-                  className="w-12 h-12 rounded-full bg-accent backdrop-blur-md border border-accent flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
+                  className="w-12 h-12 rounded-full bg-[#782a41]/60 backdrop-blur-md border border-[#782a41]/70 flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/spordateur-logo-v4.svg"
+                    src="/spordateur-logo.png"
                     alt=""
                     className="h-8 w-8 object-contain"
                     aria-hidden="true"
