@@ -123,6 +123,11 @@ export default function DiscoveryPage() {
   // Fix #176 — Compteur de refresh : incrémenter force le re-fetch Firestore
   // dans le useEffect loadFirestoreProfiles. Utilisé par resetProfiles().
   const [refreshTick, setRefreshTick] = useState(0);
+  // Fix #179 — Flag "bypass" des filtres likes+passes. Quand Recommencer est
+  // cliqué, le prochain load Firestore ignore les profils déjà swipés (passes)
+  // pour ramener tout le monde dans le deck. Re-set à false après un load
+  // pour ne pas casser le comportement normal des swipes suivants.
+  const [bypassSwipeFilter, setBypassSwipeFilter] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   // Phase 9.5 c38b CH5 — isMatch state retiré (modal "Tu veux rencontrer X" supprimée)
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -230,21 +235,45 @@ export default function DiscoveryPage() {
         // dismiss permanent). Avant : les profils ré-apparaissaient en boucle
         // car aucune persistance des passes (handleNextProfile = state local
         // pur) ni filter sur les likes existants.
-        try {
-          const [likesSnap, passesSnap] = await Promise.all([
-            getDocs(query(collection(db, 'likes'), where('fromUid', '==', user.uid))),
-            getDocs(query(collection(db, 'passes'), where('fromUid', '==', user.uid))),
-          ]);
-          const swipedUids = extractSwipedUids(
-            likesSnap.docs.map((d) => d.data() as { toUid?: string }),
-            passesSnap.docs.map((d) => d.data() as { toUid?: string }),
-          );
-          if (swipedUids.size > 0) {
-            visibleUsers = visibleUsers.filter((u) => !swipedUids.has(u.uid));
-            console.log(`[Discovery] Excluded ${swipedUids.size} already-swiped profiles`);
+        //
+        // Fix #179 — Si bypassSwipeFilter=true (déclenché par Recommencer),
+        // on SKIP le filter des passes pour ramener TOUT le monde dans le deck.
+        // Les likes restent filtrés (les profils matchés sont déjà en chat,
+        // pas besoin de les re-swiper). Le flag est reset à false après le load
+        // pour que les swipes normaux suivants filtrent à nouveau.
+        if (!bypassSwipeFilter) {
+          try {
+            const [likesSnap, passesSnap] = await Promise.all([
+              getDocs(query(collection(db, 'likes'), where('fromUid', '==', user.uid))),
+              getDocs(query(collection(db, 'passes'), where('fromUid', '==', user.uid))),
+            ]);
+            const swipedUids = extractSwipedUids(
+              likesSnap.docs.map((d) => d.data() as { toUid?: string }),
+              passesSnap.docs.map((d) => d.data() as { toUid?: string }),
+            );
+            if (swipedUids.size > 0) {
+              visibleUsers = visibleUsers.filter((u) => !swipedUids.has(u.uid));
+              console.log(`[Discovery] Excluded ${swipedUids.size} already-swiped profiles`);
+            }
+          } catch (err) {
+            console.warn('[Discovery] swiped filter failed (non-blocking, all profiles shown):', err);
           }
-        } catch (err) {
-          console.warn('[Discovery] swiped filter failed (non-blocking, all profiles shown):', err);
+        } else {
+          // Bypass actif : exclure uniquement les likes (matchés déjà en chat).
+          try {
+            const likesSnap = await getDocs(
+              query(collection(db, 'likes'), where('fromUid', '==', user.uid)),
+            );
+            const likedUids = new Set(
+              likesSnap.docs.map((d) => (d.data() as { toUid?: string }).toUid).filter(Boolean) as string[],
+            );
+            if (likedUids.size > 0) {
+              visibleUsers = visibleUsers.filter((u) => !likedUids.has(u.uid));
+              console.log(`[Discovery] Recommencer : excluded only ${likedUids.size} liked profiles`);
+            }
+          } catch (err) {
+            console.warn('[Discovery] bypass likes filter failed:', err);
+          }
         }
 
         // Phase 9.5 c21 — filter par opt-in partners si discoveryMode='participants-only'.
@@ -343,6 +372,9 @@ export default function DiscoveryPage() {
         setProfiles([]);
       } finally {
         setLoadingProfiles(false);
+        // Fix #179 — Reset le bypass après UN load pour que les swipes suivants
+        // filtrent à nouveau les profils déjà likés/passés (comportement normal).
+        if (bypassSwipeFilter) setBypassSwipeFilter(false);
       }
     };
 
@@ -350,6 +382,7 @@ export default function DiscoveryPage() {
     // Fix #176 — Le compteur refreshTick permet à resetProfiles() de
     // re-déclencher le chargement Firestore (Recommencer = vrai reload des
     // profils, pas juste reset au tableau vide fallback).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, userProfile, refreshTick]);
 
   // Load partners function (extracted for reuse)
@@ -693,16 +726,16 @@ export default function DiscoveryPage() {
     }
   };
 
-  // Fix #176 — Recommencer = vrai reload depuis Firestore (avant : juste reset
-  // au tableau vide fallback → user bloqué sur "Plus de profils"). Maintenant on :
-  //  1. Reset l'index à 0
-  //  2. Vide les profiles pour montrer le loader
-  //  3. Set loadingProfiles=true (skeleton)
-  //  4. Bump refreshTick → useEffect loadFirestoreProfiles re-fetch tout
+  // Fix #176 + #179 — Recommencer = vrai reload depuis Firestore qui ramène
+  // aussi les profils déjà passés (bypassSwipeFilter=true). Sinon le filter
+  // BUG #25 exclurait tout le monde et l'écran "Plus de profils" reviendrait
+  // immédiatement après le reload. Le flag bypass est lu UNE FOIS au prochain
+  // load puis remis à false (dans le finally du useEffect).
   const resetProfiles = () => {
     setCurrentIndex(0);
     setProfiles([]);
     setLoadingProfiles(true);
+    setBypassSwipeFilter(true);
     setRefreshTick((t) => t + 1);
   }
 
