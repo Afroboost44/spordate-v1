@@ -48,13 +48,17 @@ export function SpordateurLogo({
   // le fond du parent qui peut déjà être coloré, ex: bouton Like rose).
   if (imageUrl) {
     if (bare) {
+      // Fix #192 — mix-blend-mode: screen rend le fond noir du PNG transparent
+      // sur la couleur du parent (rose accent, etc.). Seul le blanc du logo
+      // reste visible → effet "logo blanc directement posé sur cercle coloré".
+      // Robuste si le PNG uploadé a un background noir OU transparent.
       return (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={imageUrl}
           alt=""
           className={className}
-          style={{ objectFit: 'contain' }}
+          style={{ objectFit: 'contain', mixBlendMode: 'screen' }}
           role="img"
           aria-label={ariaLabel}
         />

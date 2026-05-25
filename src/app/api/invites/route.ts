@@ -23,7 +23,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
-import { createInvite, InviteError, makeInviteDocId, INVITE_TTL_MS, PRE_SESSION_BUFFER_MS, INVITE_MESSAGE_MAX_LEN } from '@/lib/invites/service';
+import { InviteError, makeInviteDocId, INVITE_TTL_MS, PRE_SESSION_BUFFER_MS, INVITE_MESSAGE_MAX_LEN } from '@/lib/invites/service';
 import { computeSplitAmounts, SplitMathError } from '@/lib/invites/splitMath';
 import { Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { sendEmail } from '@/lib/email/sendEmail';
