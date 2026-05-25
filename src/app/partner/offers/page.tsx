@@ -992,10 +992,10 @@ export default function PartnerOffersPage() {
                       <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder={t('partner_offers_field_name_placeholder')} className="bg-[#1A1A1A] border-white/10 h-12" />
                     )}
                     {formLangTab === 'en' && (
-                      <Input value={formNameEn} onChange={e => setFormNameEn(e.target.value)} placeholder="Ex: Silent Afroboost" className="bg-[#1A1A1A] border-white/10 h-12" />
+                      <Input value={formNameEn} onChange={e => setFormNameEn(e.target.value)} placeholder={t('partner_offers_field_name_placeholder_en')} className="bg-[#1A1A1A] border-white/10 h-12" />
                     )}
                     {formLangTab === 'de' && (
-                      <Input value={formNameDe} onChange={e => setFormNameDe(e.target.value)} placeholder="Bsp: Silent Afroboost" className="bg-[#1A1A1A] border-white/10 h-12" />
+                      <Input value={formNameDe} onChange={e => setFormNameDe(e.target.value)} placeholder={t('partner_offers_field_name_placeholder_de')} className="bg-[#1A1A1A] border-white/10 h-12" />
                     )}
                   </div>
                   <div className="grid gap-2">
@@ -1044,10 +1044,10 @@ export default function PartnerOffersPage() {
                       <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder={t('partner_offers_field_description_placeholder')} className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
                     )}
                     {formLangTab === 'en' && (
-                      <textarea value={formDescEn} onChange={e => setFormDescEn(e.target.value)} placeholder="English description (optional — fallback to French if empty)" className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
+                      <textarea value={formDescEn} onChange={e => setFormDescEn(e.target.value)} placeholder={t('partner_offers_field_description_placeholder_en')} className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
                     )}
                     {formLangTab === 'de' && (
-                      <textarea value={formDescDe} onChange={e => setFormDescDe(e.target.value)} placeholder="Deutsche Beschreibung (optional — Fallback auf Französisch wenn leer)" className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
+                      <textarea value={formDescDe} onChange={e => setFormDescDe(e.target.value)} placeholder={t('partner_offers_field_description_placeholder_de')} className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
                     )}
                   </div>
                 </>
