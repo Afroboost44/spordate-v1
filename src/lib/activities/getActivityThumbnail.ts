@@ -78,17 +78,29 @@ export function getActivityThumbnailChain(activity: AnyActivity | null | undefin
       ? activity.mediaUrls
       : [];
 
-  // Fix #183 — Cherche une image. Avant : exigeait strict `m.type === 'image'`,
-  // ce qui ratait les mediaUrls legacy qui sont des strings simples ou des
-  // objets sans `type`. Maintenant : on accepte aussi un string direct OU un
-  // objet sans type si l'URL est image-like (isImageUrl du mediaParser).
+  // Fix #183 + #186 — Cherche une image. Match généreux :
+  //  - type='image' explicite → match
+  //  - string directe (legacy mediaUrls: ['url1', 'url2']) → match si pas vidéo
+  //  - objet sans type → match si URL pas vidéo (Firebase Storage URLs n'ont
+  //    pas toujours d'extension claire → on présume image par défaut)
+  // Heuristique vidéo : URL contient .mp4/.webm/.mov/.m4v (encoded ou pas).
+  const looksLikeVideo = (u: string): boolean => {
+    const s = u.toLowerCase();
+    return /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(s)
+      || /(%2[fF])?[^/]*\.(mp4|webm|mov|m4v)/i.test(s);
+  };
   for (const m of mediaItems) {
     if (!m) continue;
     const url = typeof m === 'string' ? m : (m as AnyActivity).url;
     const type = typeof m === 'object' ? (m as AnyActivity).type : undefined;
     if (typeof url !== 'string' || !url) continue;
-    // Match : type explicite 'image' OU type absent + URL image-like
-    if (type === 'image' || (!type && isImageUrl(url))) {
+    // Match large : type='image' OU pas de type vidéo + pas vidéo-like
+    if (type === 'image') {
+      if (!chain.includes(url)) chain.push(url);
+      break;
+    }
+    if ((!type || type !== 'video') && !looksLikeVideo(url)) {
+      // Considère image par défaut (couvre Firebase Storage sans extension)
       if (!chain.includes(url)) chain.push(url);
       break;
     }

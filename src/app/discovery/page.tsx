@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, Heart, MapPin, Undo2, Zap, Lock, CheckCircle, RefreshCcw, Handshake, Share2, CreditCard, Check, Ticket, Loader2, Building2, Navigation, Clock, Users, Calendar, MessageCircle, Send, ChevronRight, Download, Gift, BadgeCheck, Info } from 'lucide-react';
+import { SpordateurLogo } from '@/components/SpordateurLogo';
 // Using regular img tags instead of next/image for external URLs reliability
 import { Badge } from "@/components/ui/badge";
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -701,7 +702,13 @@ export default function DiscoveryPage() {
           description: `Tu peux maintenant discuter avec ${currentProfile.name.split(',')[0]}.`,
           className: 'bg-zinc-900 border-accent/40 text-white',
         });
-        router.push(`/chat?match=${data.matchId}`);
+        // Fix #187 — Délai court avant push pour laisser Firestore propager
+        // le doc chats/{matchId} (eventual consistency) → la sidebar liste de
+        // /chat trouve la conv dès le premier load. Sans délai, parfois la
+        // page chat ouvrait l'état vide "Pas encore de conversations".
+        setTimeout(() => {
+          router.push(`/chat?match=${data.matchId}`);
+        }, 400);
       } else if (data.error === 'insufficient-credits') {
         toast({
           title: 'Solde insuffisant',
@@ -1722,14 +1729,15 @@ END:VCALENDAR`;
                 >
                   <Heart size={20} fill="currentColor" />
                 </button>
-                {/* Phase 9.5 c38b CH1 — 3e bouton : Chat direct payant (5 crédits) */}
+                {/* Phase 9.5 c38b CH1 — 3e bouton : Chat direct payant (5 crédits)
+                    Fix #187 — Icône remplacée par SpordateurLogo (cœur+flèche brand) */}
                 <button
                   onClick={handleDirectChat}
                   aria-label={`${t('discovery_direct_chat_button')} — ${t('discovery_direct_chat_cost')}`}
                   title={`${t('discovery_direct_chat_button')} — ${t('discovery_direct_chat_cost')}`}
                   className="w-12 h-12 rounded-full bg-accent backdrop-blur-md border border-accent flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
                 >
-                  <MessageCircle size={20} />
+                  <SpordateurLogo className="h-5 w-5" />
                 </button>
               </div>
             </div>
