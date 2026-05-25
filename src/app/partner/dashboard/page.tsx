@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/context/AuthContext";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import {
-  collection, query, where, getDocs, orderBy, limit, onSnapshot, Timestamp
+  collection, query, where, getDocs, getDoc, doc, orderBy, limit, onSnapshot, Timestamp
 } from 'firebase/firestore';
 import type { Session, Activity } from '@/types/firestore';
 import { CoInscribedWarning } from '@/components/partner/CoInscribedWarning';
@@ -35,8 +35,36 @@ export default function PartnerDashboardPage() {
 
     const load = async () => {
       try {
-        // Count activities
-        const actQ = query(collection(db!, 'activities'), where('partnerId', '==', user.uid));
+        // Fix #174 — Résoudre le partnerId correctement avant de query activities.
+        // 3 conventions historiques cohérentes avec /partner/wallet :
+        //   1. Direct : partners/{user.uid} (legacy)
+        //   2. Prefix : partners/partner-{user.uid} (convention post-#124)
+        //   3. Email fallback : partners where email == user.email
+        // Avant : query 'partnerId == user.uid' renvoyait toujours 0 activités si
+        // le partner doc avait l'ID prefixé → dashboard montrait 0 réservations
+        // alors que le wallet trouvait 1+ transactions. Maintenant on aligne.
+        let resolvedPartnerId = user.uid;
+        const directSnap = await getDoc(doc(db!, 'partners', user.uid));
+        if (!directSnap.exists()) {
+          const prefixedSnap = await getDoc(doc(db!, 'partners', `partner-${user.uid}`));
+          if (prefixedSnap.exists()) {
+            resolvedPartnerId = `partner-${user.uid}`;
+          } else if (user.email) {
+            const emailQ = query(
+              collection(db!, 'partners'),
+              where('email', '==', user.email),
+              limit(1),
+            );
+            const emailSnap = await getDocs(emailQ);
+            if (!emailSnap.empty) {
+              resolvedPartnerId = emailSnap.docs[0].id;
+            }
+          }
+        }
+
+        // Count activities — utilise le partnerId résolu (peut être user.uid OU
+        // partner-{uid} OU l'id retrouvé par email).
+        const actQ = query(collection(db!, 'activities'), where('partnerId', '==', resolvedPartnerId));
         const actSnap = await getDocs(actQ);
         const activities = actSnap.docs.map(d => ({ ...d.data(), activityId: d.id })) as Activity[];
 
