@@ -76,17 +76,25 @@ firebase deploy --only firestore:rules
 firebase deploy --only functions
 ```
 
-## 7. Déploiement Vercel
+## 7. Déploiement Hetzner (workflow actuel — ne PAS utiliser Vercel)
+
+**RÈGLE DURE** : Spordateur est déployé sur Hetzner via Docker Compose direct, PAS sur Coolify ni Vercel. Le `git push origin main` NE DÉCLENCHE AUCUN DEPLOY AUTO — il sert uniquement de backup GitHub. Pour mettre à jour le site en prod, il faut TOUJOURS lancer :
 
 ```bash
-# Déploiement preview (branche)
-vercel
-
-# Déploiement production (main)
-vercel --prod
+./deploy.sh                               # full : typecheck + rsync + docker rebuild
+./deploy.sh "message commit"              # idem + commit & push GitHub (backup)
+./deploy.sh --check                       # typecheck only (pas de deploy)
+./deploy.sh --no-build                    # rsync + restart (sans rebuild Docker)
+./deploy.sh --no-typecheck                # skip typecheck (urgence)
 ```
 
-**Variables d'environnement à configurer dans Vercel :**
+**Sous le capot** : le script SSH sur Hetzner (`178.105.201.62`), rsync les sources vers `/opt/spordateur/`, puis `docker compose up -d --force-recreate --build`. Build natif amd64 ≈ 2-3 min. Logs container : `docker logs --tail 30 spordateur`.
+
+**Variables d'env** : configurées dans `/opt/spordateur/.env` côté serveur (pas dans le repo, exclues du rsync). Pour modifier : `ssh -i ~/.ssh/hetzner_afroboost root@178.105.201.62 'nano /opt/spordateur/.env'` puis `docker compose restart`.
+
+**Pourquoi pas Coolify** : la migration tâches #40-#43 n'a jamais finalisé le setup Coolify projet Spordateur. Tout passe par le rsync direct. Ne pas perdre du temps à chercher un projet Coolify, il n'existe pas.
+
+**Variables d'environnement Firebase (rappel, déjà sur le serveur)** :
 - `NEXT_PUBLIC_FIREBASE_API_KEY`
 - `NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN`
 - `NEXT_PUBLIC_FIREBASE_PROJECT_ID`
