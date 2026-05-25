@@ -122,21 +122,24 @@ export default function PartnersPage() {
         <BackButton fallbackUrl="/activities" />
 
       {/* Nav */}
+      {/* Fix #170 — Header mobile : padding réduit + brand tronquable + bouton
+          DEVENIR PARTENAIRE avec padding adaptatif pour ne pas déborder sur
+          petits écrans (≤ 360px). */}
       <nav className="sticky top-0 z-50 border-b border-white/5 backdrop-blur-xl bg-black/90">
-        <div className="container mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <button onClick={() => router.back()} className="text-white/40 hover:text-white/70 transition mr-2"><ArrowLeft className="h-5 w-5" /></button>
-            <Link href="/" className="flex items-center gap-2">
+        <div className="container mx-auto px-3 sm:px-6 h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-shrink">
+            <button onClick={() => router.back()} className="text-white/40 hover:text-white/70 transition flex-shrink-0"><ArrowLeft className="h-5 w-5" /></button>
+            <Link href="/" className="flex items-center gap-2 min-w-0">
               {/* Accent feature — SVG inline (admin Couleur principale). */}
-              <SpordateurLogo className="h-8 w-8 text-accent" />
-              <span className="text-lg font-light tracking-widest uppercase">{t('partners_brand')}</span>
+              <SpordateurLogo className="h-7 w-7 sm:h-8 sm:w-8 text-accent flex-shrink-0" />
+              <span className="text-base sm:text-lg font-light tracking-widest uppercase truncate">{t('partners_brand')}</span>
             </Link>
           </div>
-          <div className="flex items-center gap-3">
-            <Link href="/partner/login" className="text-xs text-white/50 hover:text-white/80 transition hidden sm:inline">
+          <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
+            <Link href="/partner/login" className="text-xs text-white/50 hover:text-white/80 transition hidden md:inline">
               {t('partners_nav_partner_space')}
             </Link>
-            <Button asChild className="bg-accent hover:bg-accent/80 text-white text-xs font-normal uppercase tracking-wide px-6 h-10 rounded-full">
+            <Button asChild className="bg-accent hover:bg-accent/80 text-white text-[10px] sm:text-xs font-normal uppercase tracking-wide px-3 sm:px-6 h-9 sm:h-10 rounded-full whitespace-nowrap">
               <a href="#formulaire">{t('partners_nav_become')}</a>
             </Button>
           </div>
@@ -356,7 +359,10 @@ export default function PartnersPage() {
                   <label className="text-xs text-white/40 block mb-1.5">{t('partners_form_field_activity')}</label>
                   <Select value={formData.activity} onValueChange={v => setFormData(p => ({ ...p, activity: v }))}>
                     <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12 text-white"><SelectValue placeholder={t('partners_form_select_placeholder')} /></SelectTrigger>
-                    <SelectContent>{ACTIVITIES.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}</SelectContent>
+                    {/* Fix #170 — Force dark explicite + max-h pour mobile (sinon Radix Portal renvoie un popover transparent/débordant). */}
+                    <SelectContent className="bg-[#0F0F0F] border-white/15 text-white max-h-[60vh]">
+                      {ACTIVITIES.map(a => <SelectItem key={a} value={a} className="text-white focus:bg-accent/20 focus:text-white">{a}</SelectItem>)}
+                    </SelectContent>
                   </Select>
                 </div>
                 <div>
@@ -376,18 +382,25 @@ export default function PartnersPage() {
                   {locationMode === 'swiss' ? (
                     <Select value={formData.city} onValueChange={v => setFormData(p => ({ ...p, city: v }))}>
                       <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12 text-white"><SelectValue placeholder={t('partners_form_city_placeholder_swiss')} /></SelectTrigger>
-                      <SelectContent>{SWISS_CITIES.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                      {/* Fix #170 — Force dark explicite + max-h pour mobile. */}
+                      <SelectContent className="bg-[#0F0F0F] border-white/15 text-white max-h-[60vh]">
+                        {SWISS_CITIES.map(c => <SelectItem key={c} value={c} className="text-white focus:bg-accent/20 focus:text-white">{c}</SelectItem>)}
+                      </SelectContent>
                     </Select>
                   ) : (
                     <div className="space-y-3">
                       <Select value={selectedCountry} onValueChange={v => { setSelectedCountry(v); setFormData(p => ({ ...p, city: '' })); }}>
                         <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12 text-white"><SelectValue placeholder={t('partners_form_country_placeholder')} /></SelectTrigger>
-                        <SelectContent>{Object.keys(COUNTRIES).map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                        <SelectContent className="bg-[#0F0F0F] border-white/15 text-white max-h-[60vh]">
+                          {Object.keys(COUNTRIES).map(c => <SelectItem key={c} value={c} className="text-white focus:bg-accent/20 focus:text-white">{c}</SelectItem>)}
+                        </SelectContent>
                       </Select>
                       {selectedCountry && COUNTRIES[selectedCountry]?.length > 0 && (
                         <Select value={formData.city} onValueChange={v => setFormData(p => ({ ...p, city: `${v}, ${selectedCountry}` }))}>
                           <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12 text-white"><SelectValue placeholder={t('partners_form_city_placeholder_intl')} /></SelectTrigger>
-                          <SelectContent>{COUNTRIES[selectedCountry].map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}</SelectContent>
+                          <SelectContent className="bg-[#0F0F0F] border-white/15 text-white max-h-[60vh]">
+                            {COUNTRIES[selectedCountry].map(c => <SelectItem key={c} value={c} className="text-white focus:bg-accent/20 focus:text-white">{c}</SelectItem>)}
+                          </SelectContent>
                         </Select>
                       )}
                       {selectedCountry === 'Autre pays' && (

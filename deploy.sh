@@ -1,30 +1,23 @@
 #!/usr/bin/env bash
-# deploy.sh — Déploiement Spordateur Mac → Hetzner (Docker Compose / Coolify).
+# deploy.sh — Déploiement Spordateur via Coolify auto-deploy (depuis #131).
 #
 # Usage :
-#   ./deploy.sh                     # full deploy : typecheck + rsync + docker rebuild
-#   ./deploy.sh --check             # typecheck only, pas de deploy
-#   ./deploy.sh --no-typecheck      # skip typecheck (urgence — à éviter)
-#   ./deploy.sh --no-build          # rsync uniquement + restart (sans rebuild Docker)
-#   ./deploy.sh --help
+#   ./deploy.sh                       # commit auto + push (message: "deploy YYYY-MM-DD HH:MM")
+#   ./deploy.sh "mon message"         # commit avec message custom + push
+#   ./deploy.sh --skip-typecheck      # skip le typecheck local (urgence)
+#   ./deploy.sh --check               # typecheck only, pas de push
 #
-# Remplace l'ancien workflow manuel :
-#   tar czf ... && scp ... && ssh ... docker compose up --build
+# Workflow :
+#   1. Nettoie .git/index.lock résiduel
+#   2. Switch gh auth vers Afroboost44 si drift (cf. CLAUDE.md §10)
+#   3. Lance typecheck local (catch les erreurs avant push)
+#   4. git add -A → commit → push origin main
+#   5. Coolify détecte le push, build le Docker, déploie automatiquement
 #
-# Approche : rsync incrémental des sources → build Docker sur le serveur
-# (Hetzner amd64 natif ≈ 2–3 min, vs build local Mac M4 cross-compile QEMU ≈ 5–8 min).
+# Remplace l'ancien workflow rsync → Hetzner manuel. Pour l'historique :
+# voir git log avant 2026-05-22 (commit 3ccaeb1 Phase 1 Coolify).
 
 set -euo pipefail
-
-# =====================================================================
-# Configuration
-# =====================================================================
-
-REMOTE_HOST="178.105.201.62"
-REMOTE_USER="root"
-REMOTE_PATH="/opt/spordateur"
-SSH_KEY="$HOME/.ssh/hetzner_afroboost"
-CONTAINER="spordateur"
 
 # =====================================================================
 # UI helpers
@@ -43,139 +36,108 @@ ok()   { printf "${C_GREEN}✓${C_NONE} %s\n" "$*"; }
 err()  { printf "${C_RED}✗ %s${C_NONE}\n" "$*" >&2; exit 1; }
 warn() { printf "${C_YELLOW}⚠ %s${C_NONE}\n" "$*"; }
 step() { printf "\n${C_BOLD}${C_CYAN}▶ %s${C_NONE}\n" "$*"; }
-dim()  { printf "${C_DIM}%s${C_NONE}\n" "$*"; }
 
 # =====================================================================
 # Args
 # =====================================================================
 
-DO_TYPECHECK=1
-DO_BUILD=1
-CHECK_ONLY=0
-for arg in "$@"; do
-  case "$arg" in
-    --no-typecheck) DO_TYPECHECK=0 ;;
-    --no-build)     DO_BUILD=0 ;;
-    --check)        CHECK_ONLY=1 ;;
+SKIP_TYPECHECK=false
+CHECK_ONLY=false
+COMMIT_MSG=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --skip-typecheck) SKIP_TYPECHECK=true; shift ;;
+    --check) CHECK_ONLY=true; shift ;;
     --help|-h)
-      sed -n '1,15p' "$0" | sed 's/^# *//'
+      sed -n '2,12p' "$0"
       exit 0
       ;;
-    *) err "Argument inconnu : $arg (utilise --help)";;
+    -*) err "Unknown option: $1" ;;
+    *) COMMIT_MSG="$1"; shift ;;
   esac
 done
 
-# =====================================================================
-# Préchecks
-# =====================================================================
-
-# Se placer dans le dossier du script (= racine du projet)
-cd "$(dirname "$0")"
-
-[[ -f package.json ]] || err "package.json introuvable — le script doit être à la racine du projet."
-command -v rsync > /dev/null || err "rsync n'est pas installé."
-
-START_TS=$(date +%s)
-
-# =====================================================================
-# 1. Typecheck local
-# =====================================================================
-
-if [[ $DO_TYPECHECK -eq 1 ]]; then
-  step "Typecheck TypeScript"
-  if ! npm run typecheck > /tmp/spordate-tc.log 2>&1; then
-    cat /tmp/spordate-tc.log
-    err "Typecheck échoué. Corrige avant de redéployer (ou --no-typecheck pour forcer)."
-  fi
-  ok "Typecheck OK."
+# Default message si rien fourni
+if [[ -z "$COMMIT_MSG" ]]; then
+  COMMIT_MSG="deploy $(date '+%Y-%m-%d %H:%M')"
 fi
 
-if [[ $CHECK_ONLY -eq 1 ]]; then
-  ok "Mode --check : pas de déploiement."
+# =====================================================================
+# 1. Cleanup git index lock
+# =====================================================================
+
+step "Cleanup git lock"
+if [[ -f .git/index.lock ]]; then
+  warn ".git/index.lock présent — suppression"
+  rm -f .git/index.lock
+fi
+ok "git prêt"
+
+# =====================================================================
+# 2. Typecheck local (catch erreurs avant push)
+# =====================================================================
+
+if [[ "$SKIP_TYPECHECK" == false ]]; then
+  step "TypeScript check"
+  if npx tsc --noEmit 2>&1 | tee /tmp/spordate-tsc.log | grep -q "error TS"; then
+    err "TypeScript errors détectés — fix avant push (cf. /tmp/spordate-tsc.log)"
+  fi
+  ok "TypeScript clean"
+else
+  warn "Typecheck skippé (--skip-typecheck)"
+fi
+
+if [[ "$CHECK_ONLY" == true ]]; then
+  ok "Check only — pas de push (--check)"
   exit 0
 fi
 
 # =====================================================================
-# 2. SSH connectivity
+# 3. Vérification compte gh (cf. CLAUDE.md §10)
 # =====================================================================
 
-step "Connexion SSH au serveur"
-[[ -f "$SSH_KEY" ]] || err "Clé SSH introuvable : $SSH_KEY"
-if ! ssh -i "$SSH_KEY" -o ConnectTimeout=5 "$REMOTE_USER@$REMOTE_HOST" "echo OK" > /dev/null 2>&1; then
-  err "Impossible de joindre $REMOTE_HOST. VPN/réseau ?"
-fi
-ok "Serveur joignable."
-
-# =====================================================================
-# 3. Rsync code → serveur
-# =====================================================================
-
-step "Synchronisation des fichiers (rsync incrémental)"
-SYNC_START=$(date +%s)
-# Excludes :
-#  - node_modules / .next / .git : trop lourd, géré côté Docker build
-#  - .env* : on ne touche pas aux env du serveur (gérés via docker-compose)
-#  - outputs / *.tar.gz / *.log : artefacts locaux
-rsync -az \
-  --exclude='node_modules' \
-  --exclude='.next' \
-  --exclude='.git' \
-  --exclude='.vscode' \
-  --exclude='.idea' \
-  --exclude='.DS_Store' \
-  --exclude='.env*' \
-  --exclude='/outputs' \
-  --exclude='/marketing' \
-  --exclude='*.tar.gz' \
-  --exclude='*.log' \
-  -e "ssh -i $SSH_KEY" \
-  ./ \
-  "$REMOTE_USER@$REMOTE_HOST:$REMOTE_PATH/"
-SYNC_END=$(date +%s)
-ok "Sync terminé en $((SYNC_END - SYNC_START))s."
-
-# =====================================================================
-# 4. Build + restart Docker (sauf si --no-build)
-# =====================================================================
-
-if [[ $DO_BUILD -eq 0 ]]; then
-  step "Restart container (sans rebuild)"
-  ssh -i "$SSH_KEY" "$REMOTE_USER@$REMOTE_HOST" \
-    "cd $REMOTE_PATH && docker compose restart $CONTAINER"
-  ok "Container restarté."
+step "Vérification compte gh"
+if command -v gh &>/dev/null; then
+  ACTIVE=$(gh auth status 2>&1 | grep -E "Active account: true" -B 3 | grep "account" | awk '{print $NF}' | tr -d '\n' || true)
+  if [[ "$ACTIVE" != "Afroboost44" ]]; then
+    warn "Compte gh actif drift ($ACTIVE) → switch vers Afroboost44"
+    gh auth switch -u Afroboost44 || err "Échec gh auth switch — vérifier que Afroboost44 est dans le keyring"
+  fi
+  ok "gh sur Afroboost44"
 else
-  step "Build Docker + restart (≈ 2–3 min)"
-  BUILD_START=$(date +%s)
-  ssh -i "$SSH_KEY" "$REMOTE_USER@$REMOTE_HOST" \
-    "cd $REMOTE_PATH && DOCKER_BUILDKIT=1 docker compose up -d --force-recreate --build"
-  BUILD_END=$(date +%s)
-  ok "Build + restart en $((BUILD_END - BUILD_START))s."
+  warn "gh CLI absent — push pourrait échouer avec 403 si drift account"
 fi
 
 # =====================================================================
-# 5. Healthcheck container
+# 4. git add + commit + push
 # =====================================================================
 
-step "Vérification du container"
-sleep 3
-STATUS=$(ssh -i "$SSH_KEY" "$REMOTE_USER@$REMOTE_HOST" \
-  "docker ps --filter name=$CONTAINER --format '{{.Status}}'" 2>/dev/null || echo "")
+step "Stage des changements"
+git add -A
 
-if [[ -z "$STATUS" ]]; then
-  warn "Container $CONTAINER introuvable. Vérifie : ssh ... 'docker ps -a'"
-elif [[ "$STATUS" == *"healthy"* || "$STATUS" == *"Up"* ]]; then
-  ok "Container : $STATUS"
+# Vérifie s'il y a vraiment des changements à commiter
+if git diff --cached --quiet; then
+  warn "Aucun changement à commiter — push direct au cas où des commits locaux attendent"
 else
-  warn "Statut inattendu : $STATUS"
-  dim "  Logs : ssh -i $SSH_KEY $REMOTE_USER@$REMOTE_HOST 'docker logs --tail 30 $CONTAINER'"
+  log "Commit message : \"$COMMIT_MSG\""
+  git commit -m "$COMMIT_MSG"
+  ok "Commit créé"
 fi
 
+step "Push origin main"
+git push origin main || err "Échec push — vérifier gh auth status + connexion"
+ok "Push réussi"
+
 # =====================================================================
-# Récap
+# 5. Confirmation Coolify
 # =====================================================================
 
-END_TS=$(date +%s)
-TOTAL=$((END_TS - START_TS))
-echo
-ok "Déploiement terminé en ${TOTAL}s ✨"
-dim "→ https://spordateur.com  (⌘+Shift+R pour bypass le cache PWA)"
+step "Déploiement Coolify"
+log "Coolify va détecter le push et build automatiquement."
+log "Build attendu : ~2-3 min sur Hetzner amd64."
+log "Suivre le build : https://coolify.spordateur.com (dashboard)"
+ok "Deploy lancé"
+
+printf "\n${C_GREEN}${C_BOLD}🚀 Spordateur deploy en cours.${C_NONE}\n"
+printf "${C_DIM}Site : https://spordateur.com${C_NONE}\n\n"
