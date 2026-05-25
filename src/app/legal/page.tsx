@@ -2,169 +2,132 @@
 
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function LegalPage() {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen bg-black">
       <div className="container mx-auto px-4 py-12 max-w-3xl">
         <Link href="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-white transition-colors mb-8 text-sm font-light">
           <ArrowLeft className="h-4 w-4" />
-          Retour
+          {t('legal_back')}
         </Link>
 
         <h1 className="text-3xl md:text-4xl font-light text-white mb-2">
-          Mentions Légales
+          {t('legal_title')}
         </h1>
         <p className="text-sm text-gray-500 font-light mb-10">
-          Conformément à l&apos;art. 3 de la Loi fédérale contre la concurrence déloyale (LCD)
-          et à l&apos;Ordonnance sur les indications de prix (OIP)
+          {t('legal_subtitle')}
         </p>
 
         <div className="space-y-8 text-gray-400 font-light leading-relaxed text-[15px]">
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">Éditeur du site</h2>
+            <h2 className="text-lg text-white font-normal mb-3">{t('legal_h1_publisher')}</h2>
             <p>
-              <span className="text-white">Spordateur</span><br />
-              Rue des Maillefer 39<br />
-              2000 Neuchâtel, Suisse
+              <span className="text-white">{t('legal_publisher_name')}</span><br />
+              {t('legal_publisher_address1')}<br />
+              {t('legal_publisher_address2')}
             </p>
             <p className="mt-3">
               {/* BUG #82/#100 — Numéro IDE conservé (information légale obligatoire),
                   mention de l'entité juridique retirée (politique branding),
                   email unique : contact@spordateur.com. */}
-              Numéro IDE : CHE-407.097.646<br />
-              E-mail : contact@spordateur.com<br />
-              Site web : spordateur.com
+              {t('legal_publisher_ide')}<br />
+              {t('legal_publisher_email')}<br />
+              {t('legal_publisher_website')}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">Représentant légal</h2>
-            <p>
-              Le ou la responsable légal·e de Spordateur, agissant au nom et pour le compte
-              de la structure conformément aux statuts.
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('legal_h2_representative')}</h2>
+            <p>{t('legal_representative_p1')}</p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">Hébergement</h2>
+            <h2 className="text-lg text-white font-normal mb-3">{t('legal_h3_hosting')}</h2>
             <p>
-              <span className="text-white">Application web :</span><br />
-              Vercel Inc.<br />
-              340 S Lemon Ave #4133<br />
-              Walnut, CA 91789, États-Unis<br />
-              vercel.com
+              <span className="text-white">{t('legal_hosting_web_label')}</span><br />
+              {t('legal_hosting_vercel_line1')}<br />
+              {t('legal_hosting_vercel_line2')}<br />
+              {t('legal_hosting_vercel_line3')}<br />
+              {t('legal_hosting_vercel_line4')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Base de données et authentification :</span><br />
-              Google Cloud Platform — Firebase<br />
-              Région : europe-west3 (Francfort, Allemagne)<br />
-              Google Ireland Limited<br />
-              Gordon House, Barrow Street, Dublin 4, Irlande
+              <span className="text-white">{t('legal_hosting_db_label')}</span><br />
+              {t('legal_hosting_db_line1')}<br />
+              {t('legal_hosting_db_line2')}<br />
+              {t('legal_hosting_db_line3')}<br />
+              {t('legal_hosting_db_line4')}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">Prestataire de paiement</h2>
+            <h2 className="text-lg text-white font-normal mb-3">{t('legal_h4_payment')}</h2>
             <p>
-              Stripe Payments Europe, Ltd.<br />
-              1 Grand Canal Street Lower, Grand Canal Dock<br />
-              Dublin 2, Irlande<br />
-              Certification PCI DSS Level 1
+              {t('legal_payment_line1')}<br />
+              {t('legal_payment_line2')}<br />
+              {t('legal_payment_line3')}<br />
+              {t('legal_payment_line4')}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">Propriété intellectuelle</h2>
-            <p>
-              Le nom « Spordateur », le logo et l&apos;ensemble des contenus du site (textes, images,
-              graphismes, vidéos, architecture, code source) sont protégés par le droit d&apos;auteur
-              suisse (Loi fédérale sur le droit d&apos;auteur, LDA, RS 231.1) et les conventions
-              internationales applicables. Toute reproduction, même partielle, est soumise à
-              autorisation préalable.
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('legal_h5_ip')}</h2>
+            <p>{t('legal_ip_p1')}</p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">Protection des données</h2>
+            <h2 className="text-lg text-white font-normal mb-3">{t('legal_h6_data')}</h2>
             <p>
-              Le traitement des données personnelles est régi par notre{' '}
+              {t('legal_data_p1_part1')}{' '}
               <Link href="/privacy" className="text-accent hover:underline">
-                Politique de Confidentialité
+                {t('legal_data_privacy_link')}
               </Link>
-              , établie conformément à la nouvelle Loi fédérale sur la protection des données
-              (nLPD, RS 235.1).
+              {t('legal_data_p1_part2')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Autorité de surveillance :</span><br />
-              Préposé fédéral à la protection des données et à la transparence (PFPDT)<br />
-              Feldeggweg 1, 3003 Berne, Suisse<br />
-              edoeb.admin.ch
+              <span className="text-white">{t('legal_data_authority_label')}</span><br />
+              {t('legal_data_authority_line1')}<br />
+              {t('legal_data_authority_line2')}<br />
+              {t('legal_data_authority_line3')}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">Indications sur les prix</h2>
-            <p>
-              Conformément à l&apos;Ordonnance sur l&apos;indication des prix (OIP, RS 942.211),
-              tous les prix affichés sur la Plateforme sont indiqués en francs suisses (CHF)
-              et incluent la TVA applicable. Les prix des abonnements Premium sont les suivants :
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('legal_h7_prices')}</h2>
+            <p>{t('legal_prices_p1')}</p>
             <p className="mt-3">
-              — Premium Mensuel : CHF 19.90 / mois (renouvellement automatique)<br />
-              — Premium Annuel : CHF 149.00 / an (renouvellement automatique, soit CHF 12.42 / mois)
+              {t('legal_prices_monthly')}<br />
+              {t('legal_prices_yearly')}
             </p>
+            <p className="mt-3">{t('legal_prices_credits')}</p>
+          </section>
+
+          <section>
+            <h2 className="text-lg text-white font-normal mb-3">{t('legal_h8_disputes')}</h2>
+            <p>{t('legal_disputes_p1')}</p>
             <p className="mt-3">
-              Les crédits Sport Date sont proposés à l&apos;unité ou en packs selon les tarifs
-              affichés sur la page d&apos;achat.
+              <span className="text-white">{t('legal_disputes_trust_title')}</span> {t('legal_disputes_trust_desc')}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">Résolution des litiges</h2>
-            <p>
-              En cas de litige, nous encourageons l&apos;Utilisateur à nous contacter en premier lieu
-              à contact@spordateur.com afin de rechercher une solution amiable. À défaut d&apos;accord,
-              les tribunaux du canton de Neuchâtel sont compétents, sous réserve des fors impératifs prévus par
-              le droit suisse. Le droit suisse est applicable.
-            </p>
-            <p className="mt-3">
-              <span className="text-white">Sanctions Trust &amp; Safety.</span> Les sanctions appliquées
-              dans le cadre du système de modération privée Trust &amp; Safety (cf. CGU section 7.bis)
-              ne constituent pas des décisions juridictionnelles. Elles relèvent exclusivement de la
-              modération privée de Spordateur. Tout Utilisateur sanctionné dispose d&apos;un droit d&apos;appel
-              motivé adressé par écrit à contact@spordateur.com (1 appel par niveau de sanction,
-              SLA de réponse 7 jours calendaires) avant tout recours juridictionnel.
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('legal_h9_disclaimer')}</h2>
+            <p>{t('legal_disclaimer_p1')}</p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">Clause de non-responsabilité</h2>
-            <p>
-              Malgré le soin apporté à la rédaction du contenu de ce site, Spordateur ne peut garantir
-              l&apos;exactitude, la fiabilité ou l&apos;exhaustivité des informations publiées. Spordateur décline
-              toute responsabilité pour les dommages résultant de l&apos;utilisation ou de l&apos;impossibilité
-              d&apos;utiliser les informations diffusées sur ce site, y compris en cas de perte de données
-              ou de virus informatiques. Spordateur se réserve le droit de modifier, compléter ou
-              supprimer tout ou partie des informations publiées, sans préavis.
-            </p>
-          </section>
-
-          <section>
-            <h2 className="text-lg text-white font-normal mb-3">Liens externes</h2>
-            <p>
-              La Plateforme peut contenir des liens vers des sites tiers. Spordateur n&apos;exerce aucun
-              contrôle sur ces sites et décline toute responsabilité quant à leur contenu, leur
-              politique de confidentialité ou leurs pratiques.
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('legal_h10_external')}</h2>
+            <p>{t('legal_external_p1')}</p>
           </section>
 
         </div>
 
         <div className="mt-12 pt-8 border-t border-zinc-800 flex flex-wrap gap-6 text-sm text-gray-600 font-light">
-          <Link href="/terms" className="hover:text-white transition-colors">CGU</Link>
-          <Link href="/privacy" className="hover:text-white transition-colors">Politique de Confidentialité</Link>
+          <Link href="/terms" className="hover:text-white transition-colors">{t('legal_footer_terms')}</Link>
+          <Link href="/privacy" className="hover:text-white transition-colors">{t('legal_footer_privacy')}</Link>
         </div>
       </div>
     </div>

@@ -212,6 +212,29 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    // === PAYOUT REQUESTS (Fix #144 — in-house wallet model) ===
+    // Partner peut read ses propres payoutRequests pour afficher l'historique.
+    // Admin peut read tout. Write réservé Admin SDK (POST /api/wallet/request-payout +
+    // /api/admin/payouts/complete) → allow write: if false.
+    match /payoutRequests/{payoutId} {
+      allow read: if isAuth()
+        && (isAdmin()
+            || resource.data.partnerId == request.auth.uid
+            || resource.data.partnerId == 'partner-' + request.auth.uid);
+      allow write: if false;
+    }
+
+    // === WALLET TRANSACTIONS (Fix #144 — audit log mode in-house wallet) ===
+    // Partner peut read ses transactions (sale_credit + payout_request + payout_completed).
+    // Admin peut read tout. Write réservé Admin SDK.
+    match /walletTransactions/{walletTxId} {
+      allow read: if isAuth()
+        && (isAdmin()
+            || resource.data.partnerId == request.auth.uid
+            || resource.data.partnerId == 'partner-' + request.auth.uid);
+      allow write: if false;
+    }
+
     // === REFERRALS (server-side only) ===
     match /referrals/{referralId} {
       allow read: if isAuth()

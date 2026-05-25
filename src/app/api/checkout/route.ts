@@ -368,24 +368,34 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
       last_minute: 'Last Minute',
     };
 
-    // Phase 9.5 c7 COMMISSION FIX — Stripe Connect destination charge sur TOUS modes payants
-    // (solo mode='session' était l'oubli). 5% application_fee Spordateur via SPORDATE_INVITE_FEE_PCT.
-    // Edge case : partner pas onboarded Stripe Connect → 412 ConnectError (pattern existing).
-    const { getPartnerStripeAccount, ConnectError, assertConnectChargesEnabled } = await import(
+    // Fix #144 — Modèle in-house wallet (lieu de Stripe Connect).
+    // Tous les paiements vont sur le compte plateforme Spordateur.
+    // La commission + le crédit partner sont calculés et persistés via
+    // le webhook checkout.session.completed (cf. handler.ts) qui :
+    //   - incrémente partner.balance de (unitAmount - commission)
+    //   - incrémente partner.totalRevenue de unitAmount
+    //   - incrémente platform.commissionEarned de commission
+    // Le partner demande un virement via /partner/wallet → l'admin
+    // exécute manuellement le SEPA depuis sa banque.
+    //
+    // On garde quand même le lookup partnerStripeAccount pour vérifier
+    // que le partner existe en Firestore (sinon 412 partner-not-found).
+    // L'assertConnectChargesEnabled est SKIPPED — pas besoin de KYC Connect.
+    const { getPartnerStripeAccount, ConnectError } = await import(
       '@/lib/stripe/connectHelpers'
     );
-    let partnerStripeAccount: string;
+    let partnerStripeAccount: string | null = null;
     try {
       partnerStripeAccount = await getPartnerStripeAccount(session.partnerId);
-      await assertConnectChargesEnabled(partnerStripeAccount);
     } catch (err) {
-      if (err instanceof ConnectError) {
+      if (err instanceof ConnectError && err.code === 'partner-not-found') {
         return NextResponse.json(
           { error: err.code, partnerId: session.partnerId },
           { status: 412 },
         );
       }
-      throw err;
+      // 'partner-not-onboarded' (stripeAccountId absent) est OK en mode in-house.
+      console.log('[checkout] in-house wallet mode — partner sans Stripe Connect, OK');
     }
     // Phase 9.5 c45 BUG 1 — flag Duo multiplie unit_amount + bundleCredits ×2.
     // Le Stripe checkout affiche un seul line_item avec amount = price × seats.
@@ -398,11 +408,11 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
     const feePct = getApplicationFeePct();
     const applicationFeeAmount = Math.round((unitAmount * feePct) / 100);
 
+    // Fix #144 — En mode in-house wallet, on ne split PLUS via transfer_data.
+    // L'argent reste sur la plateforme. Le webhook handler crédite manuellement
+    // partner.balance avec (unitAmount - applicationFeeAmount).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const paymentIntentData: Record<string, any> = {
-      transfer_data: { destination: partnerStripeAccount },
-      application_fee_amount: applicationFeeAmount,
-    };
+    const paymentIntentData: Record<string, any> = {};
 
     // BUG #15 — la préférence UI (onglet Carte vs TWINT) détermine quel
     // paymentMethod Stripe Checkout affiche à l'utilisateur. Absent/'all'
@@ -446,7 +456,9 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
         partnerId: session.partnerId,
         bundleCredits: String(grantedCredits),
         applicationFeeAmount: String(applicationFeeAmount),
-        partnerStripeAccount,
+        // Fix #144 — partnerStripeAccount peut être null en mode in-house wallet
+        // (partner sans Connect onboarding). On stocke '' pour Stripe metadata.
+        partnerStripeAccount: partnerStripeAccount || '',
         paymentMethodPreference: body.paymentMethodPreference || 'all',
       },
     });
@@ -718,12 +730,15 @@ async function handleSessionFreeMode(
       }
     });
 
-    // Best-effort email confirmation
+    // Best-effort email confirmation (Fix #156/#157 i18n — propagate user.language)
     try {
       const { sendEmail } = await import('@/lib/email/sendEmail');
+      const { pickUserLang } = await import('@/lib/i18n/getUserLang');
       const userSnap = await db.collection('users').doc(body.userId).get();
-      const userEmail = userSnap.data()?.email as string | undefined;
-      const userName = (userSnap.data()?.displayName as string | undefined) || 'Hello';
+      const userData = userSnap.data();
+      const userEmail = userData?.email as string | undefined;
+      const userName = (userData?.displayName as string | undefined) || 'Hello';
+      const lang = pickUserLang(userData ?? null);
       if (userEmail) {
         await sendEmail({
           to: userEmail,
@@ -736,6 +751,7 @@ async function handleSessionFreeMode(
             amount: 0,
             bookingId,
           },
+          lang,
         });
       }
     } catch (err) {

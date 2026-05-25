@@ -98,6 +98,7 @@ export async function POST(request: NextRequest) {
 
     let resetUrl: string;
     let userName: string | undefined;
+    let userLang: 'fr' | 'en' | 'de' = 'fr';
     try {
       resetUrl = await auth.generatePasswordResetLink(email, {
         url: `${baseUrl}/login?reset=success`,
@@ -107,6 +108,13 @@ export async function POST(request: NextRequest) {
       try {
         const user = await auth.getUserByEmail(email);
         userName = user.displayName || undefined;
+        // Fix #156/#157 i18n — récupère user.language depuis Firestore
+        try {
+          const { getUserLang } = await import('@/lib/i18n/getUserLang');
+          userLang = await getUserLang(user.uid);
+        } catch {
+          // best-effort fallback 'fr'
+        }
       } catch {
         userName = undefined;
       }
@@ -126,7 +134,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Send Resend email avec template branded Spordateur
+    // Send Resend email avec template branded Spordateur (i18n via userLang)
     const emailResult = await sendEmail({
       to: email,
       templateName: 'passwordResetCustom',
@@ -135,6 +143,7 @@ export async function POST(request: NextRequest) {
         resetUrl,
         expiresInHours: RESET_LINK_EXPIRES_HOURS,
       },
+      lang: userLang,
     });
 
     if (!emailResult.ok) {

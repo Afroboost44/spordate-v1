@@ -238,6 +238,7 @@ export async function createReview(input: CreateReviewInput): Promise<CreateRevi
             rating: input.rating as 1 | 2,
             slaDays: MODERATION_SLA_DAYS,
           },
+          lang: ctx.lang,
         });
       }
     } catch (err) {

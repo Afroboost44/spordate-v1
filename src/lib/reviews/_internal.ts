@@ -216,6 +216,7 @@ export async function findLatestSharedPastSession(
  * - email (recipient — null si user introuvable, dans ce cas pas d'email envoyé)
  * - userName (personnalisation greeting, '' fallback)
  * - sessionTitle (subject + body, '' fallback)
+ * - lang (Fix #156/#157 i18n — propagation langue destinataire fr|en|de, default 'fr')
  *
  * Best-effort : tous les fetches sont try/catch, retournent valeurs par défaut.
  * Utilisé par awardReviewBonus, createReview (pending branch), moderateReview.
@@ -224,6 +225,7 @@ export interface ReviewEmailContext {
   email: string | null;
   userName: string;
   sessionTitle: string;
+  lang: 'fr' | 'en' | 'de';
 }
 
 export async function fetchReviewEmailContext(
@@ -234,6 +236,7 @@ export async function fetchReviewEmailContext(
   let email: string | null = null;
   let userName = '';
   let sessionTitle = '';
+  let lang: 'fr' | 'en' | 'de' = 'fr';
 
   try {
     const userSnap = await getDoc(doc(fbDb, 'users', userId));
@@ -241,6 +244,8 @@ export async function fetchReviewEmailContext(
       const data = userSnap.data() as UserProfile;
       email = data.email ?? null;
       userName = data.displayName ?? '';
+      const rawLang = (data as { language?: string }).language;
+      if (rawLang === 'fr' || rawLang === 'en' || rawLang === 'de') lang = rawLang;
     }
   } catch (err) {
     console.warn('[fetchReviewEmailContext] user fetch failed (non-blocking)', {
@@ -261,7 +266,7 @@ export async function fetchReviewEmailContext(
     });
   }
 
-  return { email, userName, sessionTitle };
+  return { email, userName, sessionTitle, lang };
 }
 
 /**

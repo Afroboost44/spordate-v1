@@ -48,6 +48,7 @@ import { groupBoostedActivitiesByCity } from '@/lib/discovery/whereToPractice';
 import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/cardImage';
 import { extractSwipedUids } from '@/lib/discovery/swipedUids';
 import { buildActivityListUrl } from '@/lib/activities/listUrl';
+import { getActivityThumbnail } from '@/lib/activities/getActivityThumbnail';
 import Link from 'next/link';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
 import { createMatch, getUserMatches, getNextFutureSessionForActivity } from '@/services/firestore';
@@ -1618,7 +1619,7 @@ END:VCALENDAR`;
                     {currentProfile.isVerified && (
                       <BadgeCheck
                         className="h-7 w-7 text-accent drop-shadow-2xl"
-                        aria-label="Profil vérifié"
+                        aria-label={t('profile_verified_aria')}
                       />
                     )}
                   </Link>
@@ -1628,7 +1629,7 @@ END:VCALENDAR`;
                     {currentProfile.isVerified && (
                       <BadgeCheck
                         className="h-7 w-7 text-accent drop-shadow-2xl"
-                        aria-label="Profil vérifié"
+                        aria-label={t('profile_verified_aria')}
                       />
                     )}
                   </div>
@@ -2221,7 +2222,7 @@ END:VCALENDAR`;
               <div className="flex items-start gap-3">
                 <Navigation className="h-5 w-5 text-violet-400 mt-0.5" />
                 <div>
-                  <p className="text-sm font-medium">Adresse complète</p>
+                  <p className="text-sm font-medium">{t('discovery_modal_address_label')}</p>
                   <p className="text-xs text-gray-400">{selectedPartner?.address}</p>
                   <p className="text-xs text-gray-400">{selectedPartner?.city}</p>
                 </div>
@@ -2267,7 +2268,7 @@ END:VCALENDAR`;
                 </div>
                 <div className="text-sm">
                   <p className="text-white">{mockParticipants.map(p => p.name).join(', ')}</p>
-                  <p className="text-xs text-gray-400">ont réservé récemment</p>
+                  <p className="text-xs text-gray-400">{t('discovery_modal_recent_bookings')}</p>
                 </div>
               </div>
             </div>
@@ -2306,7 +2307,7 @@ END:VCALENDAR`;
             </div>
 
             <div>
-              <h3 className="text-2xl font-bold mb-2">Réservation confirmée ! 🎉</h3>
+              <h3 className="text-2xl font-bold mb-2">{t('discovery_booking_confirmed_emoji')}</h3>
               <p className="text-gray-400 text-sm">
                 Votre séance {lastBooking?.isDuo ? 'Duo' : 'Solo'} avec {lastBooking?.profile} est réservée
                 {lastBooking?.partner !== 'Non défini' && ` à ${lastBooking?.partner}`}
@@ -2351,7 +2352,7 @@ END:VCALENDAR`;
 
             {/* Calendar Buttons */}
             <div className="space-y-2">
-              <p className="text-xs text-gray-500 mb-2">Ajouter à mon calendrier</p>
+              <p className="text-xs text-gray-500 mb-2">{t('discovery_add_to_calendar')}</p>
               <div className="flex gap-2">
                 <Button 
                   onClick={addToGoogleCalendar}
@@ -2512,8 +2513,8 @@ END:VCALENDAR`;
             {wherePracticeGroups.length === 0 ? (
               <div className="text-center py-12 text-white/30">
                 <Building2 className="h-10 w-10 mx-auto mb-3 opacity-40" />
-                <p className="text-sm">Aucune activité disponible pour le moment.</p>
-                <p className="text-xs mt-1 text-white/20">Reviens plus tard ou explore le swipe.</p>
+                <p className="text-sm">{t('discovery_modal_empty_title')}</p>
+                <p className="text-xs mt-1 text-white/20">{t('discovery_modal_empty_subtitle')}</p>
               </div>
             ) : (
               wherePracticeGroups.map((group) => (
@@ -2528,6 +2529,10 @@ END:VCALENDAR`;
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       const a = act as any;
                       const navId = a.id || a.activityId;
+                      // Fix #146 — utilise le helper unique getActivityThumbnail
+                      // (chaîne unifiée : thumbnailUrl → mediaItems image → video
+                      // thumb → imageUrl legacy). Plus jamais de carré rose Zap.
+                      const thumb = getActivityThumbnail(a);
                       return (
                         <button
                           key={navId}
@@ -2545,7 +2550,26 @@ END:VCALENDAR`;
                           className="text-left p-3 rounded-xl bg-white/5 border border-white/10 hover:border-accent/40 hover:bg-accent/5 transition active:scale-[0.98]"
                         >
                           <div className="flex items-start gap-3">
-                            <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-[#E91E63] flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold">
+                            {thumb ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={thumb}
+                                alt={a.title || a.name || 'Activité'}
+                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-white/5"
+                                loading="lazy"
+                                onError={(e) => {
+                                  // Si la miniature 404, on retombe sur le badge accent
+                                  // pour ne pas afficher un cadre vide cassé.
+                                  (e.currentTarget as HTMLImageElement).style.display = 'none';
+                                  const next = (e.currentTarget as HTMLImageElement).nextElementSibling as HTMLElement | null;
+                                  if (next) next.style.display = 'flex';
+                                }}
+                              />
+                            ) : null}
+                            <div
+                              className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-[#E91E63] flex-shrink-0 items-center justify-center text-white text-xs font-semibold"
+                              style={{ display: thumb ? 'none' : 'flex' }}
+                            >
                               <Zap className="h-4 w-4" />
                             </div>
                             <div className="flex-1 min-w-0">

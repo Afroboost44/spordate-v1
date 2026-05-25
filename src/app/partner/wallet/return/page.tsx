@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { CheckCircle, Loader2, AlertCircle } from 'lucide-react';
@@ -12,6 +13,7 @@ export default function StripeConnectReturnPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [status, setStatus] = useState<'loading' | 'success' | 'error'>('loading');
   const [message, setMessage] = useState('');
 
@@ -21,7 +23,7 @@ export default function StripeConnectReturnPage() {
 
     if (!accountId) {
       setStatus('error');
-      setMessage('Paramètres manquants.');
+      setMessage(t('wallet_return_missing_params'));
       return;
     }
 
@@ -57,20 +59,20 @@ export default function StripeConnectReturnPage() {
 
         if (data.detailsSubmitted) {
           setStatus('success');
-          setMessage('Votre compte bancaire est connecté avec succès.');
+          setMessage(t('wallet_return_success_message'));
         } else {
           setStatus('error');
-          setMessage('L\'inscription Stripe n\'est pas terminée. Veuillez réessayer.');
+          setMessage(t('wallet_return_incomplete_message'));
         }
       } catch (err: any) {
         console.error('[Stripe Return]', err);
         setStatus('error');
-        setMessage(err.message || 'Erreur lors de la vérification.');
+        setMessage(err.message || t('wallet_return_verification_error'));
       }
     };
 
     verifyAndSave();
-  }, [searchParams, user]);
+  }, [searchParams, user, t]);
 
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-4">
@@ -80,7 +82,7 @@ export default function StripeConnectReturnPage() {
             <div className="w-16 h-16 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto">
               <Loader2 className="h-8 w-8 text-accent animate-spin" />
             </div>
-            <p className="text-white/50 font-light">Vérification de votre compte...</p>
+            <p className="text-white/50 font-light">{t('wallet_return_verifying')}</p>
           </>
         )}
 
@@ -90,14 +92,14 @@ export default function StripeConnectReturnPage() {
               <CheckCircle className="h-8 w-8 text-green-400" />
             </div>
             <div>
-              <h2 className="text-xl font-extralight text-white mb-2">Compte connecté</h2>
+              <h2 className="text-xl font-extralight text-white mb-2">{t('wallet_return_connected_heading')}</h2>
               <p className="text-white/40 font-light text-sm">{message}</p>
             </div>
             <Button
               onClick={() => router.push('/partner/wallet')}
               className="bg-accent hover:bg-accent/80 text-white rounded-full h-12 px-8 font-light"
             >
-              Retour au portefeuille
+              {t('wallet_return_back_to_wallet')}
             </Button>
           </>
         )}
@@ -108,14 +110,14 @@ export default function StripeConnectReturnPage() {
               <AlertCircle className="h-8 w-8 text-red-400" />
             </div>
             <div>
-              <h2 className="text-xl font-extralight text-white mb-2">Problème de connexion</h2>
+              <h2 className="text-xl font-extralight text-white mb-2">{t('wallet_return_problem_heading')}</h2>
               <p className="text-white/40 font-light text-sm">{message}</p>
             </div>
             <Button
               onClick={() => router.push('/partner/wallet')}
               className="bg-white/5 hover:bg-white/10 border border-white/10 text-white rounded-full h-12 px-8 font-light"
             >
-              Réessayer
+              {t('wallet_return_retry')}
             </Button>
           </>
         )}

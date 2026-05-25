@@ -12,6 +12,7 @@ import {
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { resolveActiveReferralCode } from '@/lib/referral/refStorage';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, getDocs } from 'firebase/firestore';
@@ -20,69 +21,71 @@ import { collection, getDocs } from 'firebase/firestore';
 // Les 4 paliers partagent les mêmes avantages structurels ; seule la durée
 // + le quota de crédits mensuels change. Les visuals listent les avantages
 // communs, le rendu y injecte dynamiquement la ligne "X crédits".
+// BUG #164 — `text` est désormais une CLÉ i18n (ex: 'premium_feat_likes_24h'),
+// pas une string FR. Le rendu fait `t(feature.text)` côté composant pour
+// produire FR/EN/DE selon la langue active.
 const PLAN_VISUALS: Record<string, { features: { icon: any; text: string; highlight: boolean }[] }> = {
   'premium_24h': {
     features: [
-      { icon: Zap, text: 'Likes illimités 24h', highlight: true },
-      { icon: Eye, text: 'Voir qui m\'a liké', highlight: false },
-      { icon: Shield, text: 'Badge bleu vérifié', highlight: false },
+      { icon: Zap, text: 'premium_feat_likes_24h', highlight: true },
+      { icon: Eye, text: 'premium_feat_see_likers', highlight: false },
+      { icon: Shield, text: 'premium_feat_verified_badge', highlight: false },
     ],
   },
   'premium_week': {
     features: [
-      { icon: Zap, text: 'Likes illimités 7 jours', highlight: true },
-      { icon: Eye, text: 'Voir qui m\'a liké', highlight: false },
-      { icon: MessageCircle, text: 'Filtres avancés', highlight: false },
-      { icon: Shield, text: 'Badge bleu vérifié', highlight: false },
+      { icon: Zap, text: 'premium_feat_likes_7d', highlight: true },
+      { icon: Eye, text: 'premium_feat_see_likers', highlight: false },
+      { icon: MessageCircle, text: 'premium_feat_advanced_filters', highlight: false },
+      { icon: Shield, text: 'premium_feat_verified_badge', highlight: false },
     ],
   },
   'premium_month': {
     features: [
-      { icon: Zap, text: 'Likes illimités', highlight: true },
-      { icon: Eye, text: 'Voir qui m\'a liké', highlight: false },
-      { icon: MessageCircle, text: 'Filtres avancés', highlight: false },
-      { icon: Shield, text: 'Vérification prioritaire 12h', highlight: false },
-      { icon: Star, text: '1 boost 30 min / mois offert', highlight: true },
+      { icon: Zap, text: 'premium_feat_likes_unlimited', highlight: true },
+      { icon: Eye, text: 'premium_feat_see_likers', highlight: false },
+      { icon: MessageCircle, text: 'premium_feat_advanced_filters', highlight: false },
+      { icon: Shield, text: 'premium_feat_priority_verif', highlight: false },
+      { icon: Star, text: 'premium_feat_boost_monthly', highlight: true },
     ],
   },
   'premium_year': {
     features: [
-      { icon: Zap, text: 'Likes illimités', highlight: true },
-      { icon: Eye, text: 'Voir qui m\'a liké', highlight: false },
-      { icon: MessageCircle, text: 'Filtres avancés', highlight: false },
-      { icon: Shield, text: 'Vérification prioritaire 12h', highlight: false },
-      { icon: Star, text: '1 boost 30 min / mois offert', highlight: true },
-      { icon: Crown, text: 'Badge Fidélité exclusif', highlight: true },
+      { icon: Zap, text: 'premium_feat_likes_unlimited', highlight: true },
+      { icon: Eye, text: 'premium_feat_see_likers', highlight: false },
+      { icon: MessageCircle, text: 'premium_feat_advanced_filters', highlight: false },
+      { icon: Shield, text: 'premium_feat_priority_verif', highlight: false },
+      { icon: Star, text: 'premium_feat_boost_monthly', highlight: true },
+      { icon: Crown, text: 'premium_feat_loyalty_badge', highlight: true },
     ],
   },
   // Legacy (conservé si Firestore les affiche encore le temps de la migration)
   'premium_monthly': {
     features: [
-      { icon: Zap, text: 'Matching illimité', highlight: true },
-      { icon: Eye, text: 'Profil mis en avant', highlight: false },
-      { icon: MessageCircle, text: 'Chat illimité', highlight: false },
-      { icon: Shield, text: 'Sans publicité', highlight: false },
+      { icon: Zap, text: 'premium_feat_legacy_unlimited_match', highlight: true },
+      { icon: Eye, text: 'premium_feat_legacy_profile_boost', highlight: false },
+      { icon: MessageCircle, text: 'premium_feat_legacy_unlimited_chat', highlight: false },
+      { icon: Shield, text: 'premium_feat_legacy_ad_free', highlight: false },
     ],
   },
   'premium_yearly': {
     features: [
-      { icon: Zap, text: 'Matching illimité', highlight: true },
-      { icon: Eye, text: 'Profil mis en avant', highlight: false },
-      { icon: MessageCircle, text: 'Chat illimité', highlight: false },
-      { icon: Shield, text: 'Sans publicité', highlight: false },
-      { icon: Crown, text: 'Badge exclusif', highlight: true },
+      { icon: Zap, text: 'premium_feat_legacy_unlimited_match', highlight: true },
+      { icon: Eye, text: 'premium_feat_legacy_profile_boost', highlight: false },
+      { icon: MessageCircle, text: 'premium_feat_legacy_unlimited_chat', highlight: false },
+      { icon: Shield, text: 'premium_feat_legacy_ad_free', highlight: false },
+      { icon: Crown, text: 'premium_feat_legacy_exclusive_badge', highlight: true },
     ],
   },
 };
 
 // BUG #93 — Default pricing : 4 paliers Premium (PRICING-PROPOSAL.md §5).
-// `interval` est la string affichée à côté du prix ; pour les one_time (24h,
-// 1 semaine) c'est la durée, pour subscriptions c'est l'interval Stripe.
+// BUG #164 — name/interval/badge sont des CLÉS i18n (rendues via t()).
 const DEFAULT_PLANS = [
-  { id: 'premium_24h',   name: 'Flash 24h',         price: 4.90,   interval: '24h',     credits: 50,  badge: null as string | null },
-  { id: 'premium_week',  name: 'Découverte 1 sem.', price: 14.90,  interval: '7 jours', credits: 100, badge: null as string | null },
-  { id: 'premium_month', name: 'Standard 1 mois',   price: 29.90,  interval: 'mois',    credits: 200, badge: 'Populaire' as string | null },
-  { id: 'premium_year',  name: 'Fidélité 1 an',     price: 199.90, interval: 'an',      credits: 250, badge: 'Économisez 44%' as string | null },
+  { id: 'premium_24h',   name: 'premium_plan_24h_name',   price: 4.90,   interval: 'premium_interval_24h',  credits: 50,  badge: null as string | null },
+  { id: 'premium_week',  name: 'premium_plan_week_name',  price: 14.90,  interval: 'premium_interval_week', credits: 100, badge: null as string | null },
+  { id: 'premium_month', name: 'premium_plan_month_name', price: 29.90,  interval: 'premium_interval_month', credits: 200, badge: 'premium_badge_popular' as string | null },
+  { id: 'premium_year',  name: 'premium_plan_year_name',  price: 199.90, interval: 'premium_interval_year', credits: 250, badge: 'premium_badge_save_44' as string | null },
 ];
 
 export default function PremiumPage() {
@@ -90,6 +93,7 @@ export default function PremiumPage() {
   const searchParams = useSearchParams();
   const { width, height } = useWindowSize();
   const { user, userProfile, isLoggedIn, loading: authLoading } = useAuth();
+  const { t } = useLanguage();
 
   const [selectedPlan, setSelectedPlan] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -193,25 +197,25 @@ export default function PremiumPage() {
               </div>
             </div>
             <CardTitle className="text-3xl font-light text-white mb-2">
-              Bienvenue dans le Premium
+              {t('premium_welcome_title')}
             </CardTitle>
             <p className="text-base text-gray-400 font-light">
-              Votre abonnement est activé. Profitez du matching illimité !
+              {t('premium_welcome_subtitle')}
             </p>
           </CardHeader>
           <CardContent className="space-y-6 pb-8">
             <div className="bg-accent/5 border border-accent/20 rounded-xl p-5 space-y-3">
               <div className="flex items-center gap-3">
                 <Zap className="h-5 w-5 text-accent" />
-                <span className="text-gray-300 font-light">Matching illimité activé</span>
+                <span className="text-gray-300 font-light">{t('premium_matching_unlimited')}</span>
               </div>
               <div className="flex items-center gap-3">
                 <Star className="h-5 w-5 text-accent" />
-                <span className="text-gray-300 font-light">Crédits ajoutés à votre compte</span>
+                <span className="text-gray-300 font-light">{t('premium_credits_added')}</span>
               </div>
               <div className="flex items-center gap-3">
                 <Eye className="h-5 w-5 text-accent" />
-                <span className="text-gray-300 font-light">Votre profil est maintenant mis en avant</span>
+                <span className="text-gray-300 font-light">{t('premium_profile_boosted')}</span>
               </div>
             </div>
 
@@ -220,7 +224,7 @@ export default function PremiumPage() {
               className="w-full bg-accent text-white font-light text-lg py-6 hover:opacity-90 transition-all shadow-lg shadow-accent/30"
               onClick={() => router.push('/activities')}
             >
-              Découvrir les profils
+              {t('premium_discover_profiles_cta')}
               <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </CardContent>
@@ -234,7 +238,7 @@ export default function PremiumPage() {
       {/* Back button — visible on mobile AND desktop */}
       <div className="sticky top-0 z-40 bg-black/80 backdrop-blur-xl border-b border-white/5 px-4 h-12 flex items-center">
         <button onClick={() => router.back()} className="flex items-center gap-2 text-white/40 hover:text-white/70 text-sm transition">
-          <ArrowLeft className="h-4 w-4" /> Retour
+          <ArrowLeft className="h-4 w-4" /> {t('common_back')}
         </button>
       </div>
 
@@ -247,19 +251,18 @@ export default function PremiumPage() {
           <div className="text-center space-y-6">
             <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-accent/30 bg-accent/5">
               <Sparkles className="h-4 w-4 text-accent" />
-              <span className="text-sm text-accent font-light">Spordateur Premium</span>
+              <span className="text-sm text-accent font-light">{t('premium_brand_label')}</span>
             </div>
 
             <h1 className="text-4xl md:text-6xl font-light text-white tracking-tight">
-              Passez au niveau
+              {t('premium_hero_title_part1')}
               <span className="block text-transparent bg-clip-text bg-accent">
-                supérieur
+                {t('premium_hero_title_part2')}
               </span>
             </h1>
 
             <p className="text-lg text-gray-400 font-light max-w-xl mx-auto">
-              Matching illimité, profil mis en avant et crédits mensuels.
-              Maximisez vos chances de trouver votre Sport Date idéal.
+              {t('premium_hero_subtitle')}
             </p>
           </div>
         </div>
@@ -271,8 +274,8 @@ export default function PremiumPage() {
           <div className="flex items-center gap-3 p-4 rounded-xl border border-accent/30 bg-accent/5">
             <Crown className="h-6 w-6 text-accent" />
             <div>
-              <p className="text-white font-light">Vous êtes déjà Premium !</p>
-              <p className="text-sm text-gray-400 font-light">Votre abonnement est actif. Profitez de tous les avantages.</p>
+              <p className="text-white font-light">{t('premium_already_active')}</p>
+              <p className="text-sm text-gray-400 font-light">{t('premium_subscription_active')}</p>
             </div>
           </div>
         </div>
@@ -292,7 +295,7 @@ export default function PremiumPage() {
             // Build features list with dynamic credits
             const features = [
               ...(visuals?.features || []).slice(0, 1),
-              { icon: Star, text: `${plan.credits} crédits / ${plan.interval}`, highlight: true },
+              { icon: Star, text: t('premium_credits_per_interval', { credits: plan.credits, interval: t(plan.interval) }), highlight: true, isLiteral: true },
               ...(visuals?.features || []).slice(1),
             ];
 
@@ -301,7 +304,7 @@ export default function PremiumPage() {
                 {plan.badge && (
                   <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
                     <Badge className="bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 px-4 py-1 text-xs font-medium shadow-lg shadow-amber-500/30">
-                      {plan.badge}
+                      {t(plan.badge)}
                     </Badge>
                   </div>
                 )}
@@ -322,7 +325,7 @@ export default function PremiumPage() {
                       </div>
                     </div>
                     <CardTitle className="text-xl font-light text-white">
-                      {plan.name}
+                      {t(plan.name)}
                     </CardTitle>
                     <div className="mt-4">
                       <span className="text-5xl font-light text-white">
@@ -334,11 +337,11 @@ export default function PremiumPage() {
                           return safePrice % 1 === 0 ? safePrice : safePrice.toFixed(2);
                         })()}
                       </span>
-                      <span className="text-gray-400 font-light ml-1">CHF / {plan.interval}</span>
+                      <span className="text-gray-400 font-light ml-1">CHF / {t(plan.interval)}</span>
                     </div>
                     {isYearly && typeof plan.price === 'number' && Number.isFinite(plan.price) && (
                       <p className="text-sm text-accent font-light mt-2">
-                        soit ~{(plan.price / 12).toFixed(2)} CHF / mois
+                        {t('premium_year_equivalent', { price: (plan.price / 12).toFixed(2) })}
                       </p>
                     )}
                   </CardHeader>
@@ -357,7 +360,7 @@ export default function PremiumPage() {
                           <span className={`text-sm font-light ${
                             feature.highlight ? 'text-white' : 'text-gray-400'
                           }`}>
-                            {feature.text}
+                            {(feature as any).isLiteral ? feature.text : t(feature.text)}
                           </span>
                         </div>
                       ))}
@@ -382,11 +385,11 @@ export default function PremiumPage() {
                       ) : isPremium ? (
                         <span className="flex items-center gap-2">
                           <CheckCircle className="h-5 w-5" />
-                          Déjà abonné
+                          {t('premium_already_subscribed')}
                         </span>
                       ) : (
                         <span className="flex items-center gap-2">
-                          S&apos;abonner
+                          {t('premium_subscribe_cta')}
                           <ArrowRight className="h-4 w-4" />
                         </span>
                       )}
@@ -401,25 +404,25 @@ export default function PremiumPage() {
         {/* Comparison Section */}
         <div className="mt-20 max-w-3xl mx-auto">
           <h2 className="text-2xl font-light text-white text-center mb-10">
-            Gratuit vs Premium
+            {t('premium_compare_title')}
           </h2>
 
           <div className="rounded-2xl border border-zinc-800 overflow-hidden">
             <div className="grid grid-cols-3 bg-zinc-900/50 px-6 py-4 border-b border-zinc-800">
-              <div className="text-sm text-gray-400 font-light">Fonctionnalité</div>
-              <div className="text-sm text-gray-400 font-light text-center">Gratuit</div>
-              <div className="text-sm text-accent font-light text-center">Premium</div>
+              <div className="text-sm text-gray-400 font-light">{t('premium_feature_label')}</div>
+              <div className="text-sm text-gray-400 font-light text-center">{t('premium_compare_free')}</div>
+              <div className="text-sm text-accent font-light text-center">{t('premium_compare_premium')}</div>
             </div>
 
             {[
-              { feature: 'Matching par sport', free: true, premium: true },
-              { feature: 'Profil personnalisé', free: true, premium: true },
-              { feature: 'Matching illimité', free: false, premium: true },
-              { feature: 'Chat illimité', free: false, premium: true },
-              { feature: 'Profil mis en avant', free: false, premium: true },
-              { feature: 'Crédits mensuels', free: false, premium: true },
-              { feature: 'Sans publicité', free: false, premium: true },
-              { feature: 'Badge exclusif', free: false, premium: 'yearly' },
+              { feature: 'premium_compare_sport_match', free: true, premium: true },
+              { feature: 'premium_compare_custom_profile', free: true, premium: true },
+              { feature: 'premium_compare_unlimited_match', free: false, premium: true },
+              { feature: 'premium_compare_unlimited_chat', free: false, premium: true },
+              { feature: 'premium_compare_profile_boost', free: false, premium: true },
+              { feature: 'premium_compare_monthly_credits', free: false, premium: true },
+              { feature: 'premium_compare_no_ads', free: false, premium: true },
+              { feature: 'premium_compare_exclusive_badge', free: false, premium: 'yearly' },
             ].map((row, i) => (
               <div
                 key={i}
@@ -427,7 +430,7 @@ export default function PremiumPage() {
                   i % 2 === 0 ? 'bg-zinc-900/20' : ''
                 } ${i < 7 ? 'border-b border-zinc-800/50' : ''}`}
               >
-                <div className="text-sm text-gray-300 font-light">{row.feature}</div>
+                <div className="text-sm text-gray-300 font-light">{t(row.feature)}</div>
                 <div className="text-center">
                   {row.free ? (
                     <CheckCircle className="h-5 w-5 text-green-400 mx-auto" />
@@ -439,7 +442,7 @@ export default function PremiumPage() {
                   {row.premium === true ? (
                     <CheckCircle className="h-5 w-5 text-accent mx-auto" />
                   ) : row.premium === 'yearly' ? (
-                    <span className="text-xs text-accent font-light">Annuel</span>
+                    <span className="text-xs text-accent font-light">{t('premium_compare_yearly_only')}</span>
                   ) : (
                     <span className="text-gray-600">—</span>
                   )}
@@ -453,14 +456,14 @@ export default function PremiumPage() {
         {!authLoading && !isLoggedIn && (
           <div className="mt-16 text-center">
             <p className="text-gray-400 font-light mb-4">
-              Créez un compte pour accéder au Premium
+              {t('premium_signup_prompt')}
             </p>
             <Button
               variant="outline"
               className="border-accent/30 text-accent hover:bg-accent/10"
               onClick={() => router.push('/signup?redirect=/premium')}
             >
-              Créer un compte
+              {t('premium_signup_cta')}
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           </div>
@@ -470,10 +473,10 @@ export default function PremiumPage() {
         <div className="mt-12 text-center space-y-2">
           <div className="flex items-center justify-center gap-2 text-gray-500">
             <Shield className="h-4 w-4" />
-            <span className="text-xs font-light">Paiement sécurisé par Stripe — TWINT & Carte</span>
+            <span className="text-xs font-light">{t('premium_secure_stripe')}</span>
           </div>
           <p className="text-xs text-gray-600 font-light">
-            Annulation à tout moment. Vos crédits restants sont conservés.
+            {t('premium_cancel_anytime')}
           </p>
         </div>
       </div>

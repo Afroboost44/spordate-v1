@@ -10,7 +10,8 @@
 
 export interface AdminAuthLike {
   generatePasswordResetLink(email: string, opts?: unknown): Promise<string>;
-  getUserByEmail(email: string): Promise<{ displayName?: string | null }>;
+  // Fix #156/#157 i18n — `uid` ajouté pour lookup user.language via Firestore
+  getUserByEmail(email: string): Promise<{ displayName?: string | null; uid: string }>;
 }
 
 let _adminAuthOverride: AdminAuthLike | null = null;

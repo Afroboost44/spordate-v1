@@ -37,6 +37,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/context/LanguageContext';
 import { createReview, ReviewError } from '@/lib/reviews';
 import type { ReviewRating } from '@/types/firestore';
 import { StarRatingInput } from './StarRatingInput';
@@ -58,10 +59,10 @@ export interface ReviewFormProps {
   onSuccess?: (reviewId: string, status: 'published' | 'pending') => void;
 }
 
-function formatHoursLeft(coolingOffEndMs: number): string {
+function formatHoursLeft(coolingOffEndMs: number, fallbackLabel: string): string {
   const ms = coolingOffEndMs - Date.now();
   const h = Math.ceil(ms / (1000 * 60 * 60));
-  if (h <= 0) return 'quelques minutes';
+  if (h <= 0) return fallbackLabel;
   if (h === 1) return '1h';
   return `${h}h`;
 }
@@ -76,6 +77,7 @@ export function ReviewForm({
   onSuccess,
 }: ReviewFormProps) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [rating, setRating] = useState<number | null>(null);
   const [comment, setComment] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -100,10 +102,10 @@ export function ReviewForm({
 
       const successMsg =
         result.status === 'published'
-          ? 'Avis publié — merci ! +5 crédits chat ajoutés.'
-          : 'Avis envoyé — il sera publié après modération.';
+          ? t('review_form_success_published')
+          : t('review_form_success_pending');
       toast({
-        title: 'Avis envoyé',
+        title: t('review_form_success_title'),
         description: successMsg,
       });
 
@@ -113,48 +115,48 @@ export function ReviewForm({
       onOpenChange(false);
       onSuccess?.(result.reviewId, result.status);
     } catch (err) {
-      let title = 'Erreur';
-      let description = err instanceof Error ? err.message : 'Avis non envoyé';
+      let title = t('review_form_error_title');
+      let description = err instanceof Error ? err.message : t('review_form_error_default');
 
       if (err instanceof ReviewError) {
         switch (err.code) {
           case 'cooling-off-not-elapsed': {
             const coolingOffEndMs = err.details?.coolingOffEndMs as number | undefined;
-            const wait = coolingOffEndMs ? formatHoursLeft(coolingOffEndMs) : '24h';
-            title = 'Trop tôt pour laisser un avis';
-            description = `Tu pourras laisser un avis dans ${wait} (cooling-off de 24h après la session).`;
+            const wait = coolingOffEndMs ? formatHoursLeft(coolingOffEndMs, t('review_form_error_cooling_minutes')) : '24h';
+            title = t('review_form_error_cooling_title');
+            description = `${t('review_form_error_cooling_desc_prefix')} ${wait} ${t('review_form_error_cooling_desc_suffix')}`;
             break;
           }
           case 'review-window-closed':
-            title = 'Fenêtre fermée';
-            description = 'La fenêtre pour laisser un avis sur cette session est fermée (>7 jours).';
+            title = t('review_form_error_window_title');
+            description = t('review_form_error_window_desc');
             break;
           case 'review-already-exists':
-            title = 'Avis déjà existant';
-            description = 'Tu as déjà laissé un avis pour cette activité.';
+            title = t('review_form_error_exists_title');
+            description = t('review_form_error_exists_desc');
             break;
           case 'reviewer-equals-reviewee':
-            title = 'Impossible';
-            description = 'Tu ne peux pas te reviewer toi-même.';
+            title = t('review_form_error_self_title');
+            description = t('review_form_error_self_desc');
             break;
           case 'no-shared-session':
-            title = 'Pas de session partagée';
-            description = 'Tu n\'as pas encore participé à une session avec cette personne.';
+            title = t('review_form_error_noshared_title');
+            description = t('review_form_error_noshared_desc');
             break;
           case 'comment-too-short':
-            title = 'Commentaire trop court';
-            description = `Minimum ${COMMENT_MIN} caractères.`;
+            title = t('review_form_error_short_title');
+            description = `${t('review_form_error_short_prefix')} ${COMMENT_MIN} ${t('review_form_error_short_suffix')}`;
             break;
           case 'comment-too-long':
-            title = 'Commentaire trop long';
-            description = `Maximum ${COMMENT_MAX} caractères.`;
+            title = t('review_form_error_long_title');
+            description = `${t('review_form_error_long_prefix')} ${COMMENT_MAX} ${t('review_form_error_long_suffix')}`;
             break;
           case 'rating-out-of-range':
-            title = 'Note invalide';
-            description = 'La note doit être entre 1 et 5 étoiles.';
+            title = t('review_form_error_rating_title');
+            description = t('review_form_error_rating_desc');
             break;
           default:
-            description = `Code : ${err.code}`;
+            description = `${t('review_form_error_code_prefix')} ${err.code}`;
         }
       }
 
@@ -176,11 +178,10 @@ export function ReviewForm({
       <DialogContent className="bg-black border border-white/10 text-white max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white font-light text-xl">
-            Comment s&apos;est passée ta session ?
+            {t('review_form_title')}
           </DialogTitle>
           <DialogDescription className="text-white/70 font-light">
-            {revieweeName ? `Avis sur ${revieweeName}.` : 'Partage ton ressenti.'} 30 secondes
-            suffisent.
+            {revieweeName ? `${t('review_form_subtitle_about_prefix')} ${revieweeName}.` : t('review_form_subtitle_default')} {t('review_form_subtitle_duration')}
           </DialogDescription>
         </DialogHeader>
 
@@ -188,7 +189,7 @@ export function ReviewForm({
           {/* Star input */}
           <div className="flex flex-col gap-2">
             <label className="text-xs uppercase tracking-[0.18em] text-white/40 font-light">
-              Note
+              {t('review_form_rating_label')}
             </label>
             <StarRatingInput value={rating} onChange={setRating} size="lg" disabled={submitting} />
           </div>
@@ -196,8 +197,7 @@ export function ReviewForm({
           {/* Disclaimer 1-2★ */}
           {showLowRatingDisclaimer && (
             <p className="text-xs text-white/70 font-light leading-relaxed border-l-2 border-accent pl-3">
-              Les notes 1-2★ sont publiées anonymement après modération de notre équipe (sous 72h).
-              Cf. CGU section 7.ter.
+              {t('review_form_low_rating_disclaimer')}
             </p>
           )}
 
@@ -207,13 +207,13 @@ export function ReviewForm({
               htmlFor="review-comment"
               className="text-xs uppercase tracking-[0.18em] text-white/40 font-light"
             >
-              Commentaire
+              {t('review_form_comment_label')}
             </label>
             <Textarea
               id="review-comment"
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              placeholder="Décris ton expérience en quelques mots…"
+              placeholder={t('review_form_comment_placeholder')}
               maxLength={COMMENT_MAX}
               disabled={submitting}
               rows={4}
@@ -227,7 +227,7 @@ export function ReviewForm({
                     : ''
                 }
               >
-                Minimum {COMMENT_MIN} caractères
+                {t('review_form_comment_minimum')} {COMMENT_MIN} {t('review_form_comment_chars')}
               </span>
               <span
                 className={commentLength > COMMENT_MAX * 0.9 ? 'text-accent' : ''}
@@ -246,7 +246,7 @@ export function ReviewForm({
             disabled={submitting}
             className="flex-1 border-white/10 text-white hover:bg-white/5"
           >
-            Annuler
+            {t('review_form_cancel')}
           </Button>
           <Button
             type="button"
@@ -257,10 +257,10 @@ export function ReviewForm({
             {submitting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 motion-safe:animate-spin" aria-hidden="true" />
-                Envoi…
+                {t('review_form_sending')}
               </>
             ) : (
-              'Envoyer'
+              t('review_form_send')
             )}
           </Button>
         </DialogFooter>

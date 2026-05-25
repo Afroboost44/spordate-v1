@@ -34,6 +34,7 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import {
   softDeleteUser,
@@ -56,6 +57,7 @@ export function DeleteAccountActions({
   const { user, logout } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [reason, setReason] = useState('');
   const [pending, startTransition] = useTransition();
 
@@ -65,9 +67,8 @@ export function DeleteAccountActions({
       try {
         await softDeleteUser({ uid: user.uid, reason });
         toast({
-          title: 'Compte en cours de suppression',
-          description:
-            'Tu as 30 jours pour annuler en revenant sur cette page. Au-delà, suppression définitive.',
+          title: t('delete_account_pending_title'),
+          description: t('delete_account_pending_desc'),
           className: 'bg-zinc-900 border-accent/40 text-white',
         });
         // Logout + redirect home
@@ -81,13 +82,13 @@ export function DeleteAccountActions({
         const code =
           err instanceof SoftDeleteError ? err.code : err instanceof Error ? err.message : 'unknown';
         toast({
-          title: 'Erreur',
+          title: t('delete_account_error_title'),
           description:
             code === 'already-soft-deleted'
-              ? 'Ton compte est déjà en cours de suppression.'
+              ? t('delete_account_error_already_pending')
               : code === 'already-anonymized'
-                ? 'Ce compte a déjà été anonymisé.'
-                : `Suppression échouée — ${code}`,
+                ? t('delete_account_error_already_anon')
+                : `${t('delete_account_error_failed_prefix')} ${code}`,
           variant: 'destructive',
         });
       }
@@ -100,8 +101,8 @@ export function DeleteAccountActions({
       try {
         await restoreSoftDeletedUser({ uid: user.uid });
         toast({
-          title: 'Suppression annulée',
-          description: 'Ton compte est de nouveau actif.',
+          title: t('delete_account_restored_title'),
+          description: t('delete_account_restored_desc'),
           className: 'bg-zinc-900 border-green-500/40 text-white',
         });
         router.refresh();
@@ -109,13 +110,13 @@ export function DeleteAccountActions({
         const code =
           err instanceof SoftDeleteError ? err.code : err instanceof Error ? err.message : 'unknown';
         toast({
-          title: 'Erreur',
+          title: t('delete_account_error_title'),
           description:
             code === 'grace-expired'
-              ? 'Le délai de 30 jours est expiré, restoration impossible.'
+              ? t('delete_account_error_grace_expired')
               : code === 'not-soft-deleted'
-                ? 'Aucune suppression en cours.'
-                : `Restore échouée — ${code}`,
+                ? t('delete_account_error_not_pending')
+                : `${t('delete_account_error_restore_failed_prefix')} ${code}`,
           variant: 'destructive',
         });
       }
@@ -128,10 +129,9 @@ export function DeleteAccountActions({
         <div className="flex items-start gap-3">
           <ShieldAlert className="h-5 w-5 shrink-0 mt-0.5 text-amber-300" aria-hidden="true" />
           <div className="flex-1 text-sm text-amber-200">
-            <p className="font-medium mb-1">Compte en cours de suppression</p>
+            <p className="font-medium mb-1">{t('delete_account_pending_banner_title')}</p>
             <p className="text-amber-300/80">
-              Suppression définitive dans <strong>{graceDaysRemaining ?? 0} jours</strong>. Tu peux
-              annuler dès maintenant.
+              {t('delete_account_pending_banner_prefix')} <strong>{graceDaysRemaining ?? 0} {t('delete_account_pending_banner_days')}</strong>. {t('delete_account_pending_banner_suffix')}
             </p>
           </div>
         </div>
@@ -145,7 +145,7 @@ export function DeleteAccountActions({
           ) : (
             <Undo2 className="h-4 w-4 mr-2" />
           )}
-          Annuler la suppression
+          {t('delete_account_cancel_deletion')}
         </Button>
       </div>
     );
@@ -154,25 +154,25 @@ export function DeleteAccountActions({
   return (
     <div className="flex flex-col gap-4">
       <div className="rounded-md border border-red-500/40 bg-red-500/5 p-4 text-sm text-white/80 leading-relaxed">
-        <p className="font-medium text-red-300 mb-2">⚠️ Action irréversible après 30 jours</p>
+        <p className="font-medium text-red-300 mb-2">{t('delete_account_warning_title')}</p>
         <ul className="text-xs text-white/60 space-y-1 list-disc list-inside">
-          <li>Tes données personnelles (nom, email, photo, bio) seront anonymisées.</li>
-          <li>Tes reviews et reports anonymes restent (audit trail T&S).</li>
-          <li>Pendant 30 jours tu peux annuler la suppression depuis cette page.</li>
-          <li>Conformité RGPD Art. 17 / nLPD Art. 19.</li>
+          <li>{t('delete_account_warning_item_1')}</li>
+          <li>{t('delete_account_warning_item_2')}</li>
+          <li>{t('delete_account_warning_item_3')}</li>
+          <li>{t('delete_account_warning_item_4')}</li>
         </ul>
       </div>
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="delete-reason" className="text-xs uppercase tracking-wider text-white/50">
-          Raison (optionnelle, max {SOFT_DELETE_REASON_MAX_LENGTH} chars)
+          {t('delete_account_reason_label_prefix')} {SOFT_DELETE_REASON_MAX_LENGTH} {t('delete_account_reason_label_suffix')}
         </Label>
         <Textarea
           id="delete-reason"
           value={reason}
           onChange={(e) => setReason(e.target.value)}
           maxLength={SOFT_DELETE_REASON_MAX_LENGTH}
-          placeholder="Pour nous aider à améliorer (optionnel)…"
+          placeholder={t('delete_account_reason_placeholder')}
           rows={3}
           className="bg-zinc-900 border-white/10 text-white placeholder:text-white/30"
           disabled={pending}
@@ -188,32 +188,29 @@ export function DeleteAccountActions({
             disabled={pending}
             className="self-start bg-red-600 hover:bg-red-700 text-white"
           >
-            Supprimer mon compte
+            {t('delete_account_delete_button')}
           </Button>
         </AlertDialogTrigger>
         <AlertDialogContent className="bg-zinc-950 border border-zinc-800 text-white">
           <AlertDialogHeader>
             <AlertDialogTitle className="text-white flex items-center gap-2">
               <ShieldAlert className="h-5 w-5 text-red-400" />
-              Confirmer la suppression du compte
+              {t('delete_account_confirm_title')}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-white/60 text-sm">
-              Tu auras 30 jours pour annuler en revenant sur <code className="text-accent">/profile/delete</code>.
-              Au-delà, tes données personnelles (nom, email, photo, bio) seront anonymisées
-              de façon irréversible. Les reviews et reports T&S restent (anonymes, audit
-              trail).
+              {t('delete_account_confirm_desc_prefix')} <code className="text-accent">/profile/delete</code>. {t('delete_account_confirm_desc_suffix')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="bg-zinc-900 border-zinc-700 text-white hover:bg-zinc-800">
-              Annuler
+              {t('delete_account_cancel_button')}
             </AlertDialogCancel>
             <AlertDialogAction
               onClick={handleSoftDelete}
               className="bg-red-600 hover:bg-red-700 text-white"
             >
               {pending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Confirmer la suppression
+              {t('delete_account_confirm_button')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

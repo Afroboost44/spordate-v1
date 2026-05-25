@@ -36,7 +36,7 @@
  */
 
 import { Resend } from 'resend';
-import { renderTemplate, type TemplateDataMap, type TemplateName } from './templates';
+import { renderTemplate, type EmailLang, type TemplateDataMap, type TemplateName } from './templates';
 
 const SENDER = process.env.SENDER_EMAIL || 'Spordateur <noreply@spordateur.com>';
 
@@ -52,6 +52,8 @@ export interface SendEmailOptions<T extends TemplateName> {
   from?: string;
   /** Optionnel : reply-to (défaut SENDER). */
   replyTo?: string;
+  /** Optionnel : langue destinataire ('fr' | 'en' | 'de'). Default 'fr'. */
+  lang?: EmailLang;
 }
 
 export interface SendEmailResult {
@@ -100,10 +102,10 @@ function getResend(): Resend | null {
 export async function sendEmail<T extends TemplateName>(
   opts: SendEmailOptions<T>,
 ): Promise<SendEmailResult> {
-  // 1. Render template (type-safe dispatch)
+  // 1. Render template (type-safe dispatch + i18n lang propagation)
   let rendered: { subject: string; html: string };
   try {
-    rendered = renderTemplate(opts.templateName, opts.templateData);
+    rendered = renderTemplate(opts.templateName, opts.templateData, opts.lang ?? 'fr');
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);
     console.error('[sendEmail] Template render failed', {

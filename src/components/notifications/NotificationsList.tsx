@@ -30,6 +30,7 @@ import {
 import { Bell, X, Heart, CheckCircle, Clock, DollarSign, MessageSquare, Sparkles } from 'lucide-react';
 import { db } from '@/lib/firebase';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
@@ -55,19 +56,24 @@ function iconForType(type: NotificationType) {
   }
 }
 
-function relativeTime(ts: Timestamp | null | undefined): string {
+function relativeTime(
+  ts: Timestamp | null | undefined,
+  t: (key: string, params?: Record<string, string | number>) => string,
+  language: string,
+): string {
   if (!ts || typeof ts.toMillis !== 'function') return '';
   const diffMs = Date.now() - ts.toMillis();
   const sec = Math.floor(diffMs / 1000);
-  if (sec < 60) return `Il y a ${sec}s`;
+  if (sec < 60) return t('notif_relative_seconds', { n: sec });
   const min = Math.floor(sec / 60);
-  if (min < 60) return `Il y a ${min} min`;
+  if (min < 60) return t('notif_relative_minutes', { n: min });
   const h = Math.floor(min / 60);
-  if (h < 24) return `Il y a ${h}h`;
+  if (h < 24) return t('notif_relative_hours', { n: h });
   const d = Math.floor(h / 24);
-  if (d < 7) return `Il y a ${d}j`;
+  if (d < 7) return t('notif_relative_days', { n: d });
   const date = ts.toDate();
-  return date.toLocaleDateString('fr-CH', { day: '2-digit', month: 'short' });
+  const locale = language === 'de' ? 'de-CH' : language === 'en' ? 'en-GB' : 'fr-CH';
+  return date.toLocaleDateString(locale, { day: '2-digit', month: 'short' });
 }
 
 function clickUrlFromData(notif: Notification): string | null {
@@ -107,6 +113,7 @@ export function NotificationsList() {
   const { user } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const { t, language } = useLanguage();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -154,16 +161,16 @@ export function NotificationsList() {
       const res = await callMarkAllRead(token);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       toast({
-        title: 'Notifications lues',
-        description: 'Toutes les notifications ont été marquées comme lues.',
+        title: t('notif_marked_read_toast_title'),
+        description: t('notif_marked_read_toast_desc'),
         className: 'bg-[#1A1A1A] border-accent/40 text-white',
       });
     } catch (err) {
       console.warn('[NotificationsList] markAllRead failed:', err);
       setNotifications(snapshotBefore); // revert
       toast({
-        title: 'Erreur',
-        description: 'Impossible de marquer comme lues. Réessaie.',
+        title: t('notif_error_title'),
+        description: t('notif_mark_read_failed_desc'),
         variant: 'destructive',
       });
     }
@@ -202,10 +209,10 @@ export function NotificationsList() {
       setNotifications(snapshotBefore); // revert
       const isPermDenied = err instanceof NotificationError && err.code === 'forbidden';
       toast({
-        title: 'Erreur',
+        title: t('notif_error_title'),
         description: isPermDenied
-          ? 'Permission refusée — vérifie que tu es bien connecté.'
-          : 'Impossible de supprimer la notification.',
+          ? t('notif_perm_denied_desc')
+          : t('notif_dismiss_failed_desc'),
         variant: 'destructive',
       });
     }
@@ -215,7 +222,7 @@ export function NotificationsList() {
     return (
       <div className="text-center py-16 text-muted-foreground">
         <Bell className="mx-auto h-12 w-12 mb-4" />
-        <p>Connecte-toi pour voir tes notifications.</p>
+        <p>{t('notif_login_required')}</p>
       </div>
     );
   }
@@ -224,7 +231,7 @@ export function NotificationsList() {
     <div className="container mx-auto px-4 py-8 max-w-3xl">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <h1 className="text-4xl font-bold flex items-center gap-3 font-headline">
-          Activité Récente
+          {t('notif_page_title')}
           {unreadCount > 0 && (
             <div className="relative">
               <Bell className="h-8 w-8 text-accent" />
@@ -240,19 +247,19 @@ export function NotificationsList() {
           disabled={unreadCount === 0}
           className="border-accent/40 text-accent hover:bg-accent/10"
         >
-          Tout marquer comme lu
+          {t('notif_mark_all_read_button')}
         </Button>
       </header>
 
       {loading && (
-        <div className="text-center py-16 text-white/40">Chargement...</div>
+        <div className="text-center py-16 text-white/40">{t('common_loading')}</div>
       )}
 
       {!loading && notifications.length === 0 && (
         <div className="text-center py-16 text-muted-foreground border-2 border-dashed border-border/20 rounded-lg">
           <Bell className="mx-auto h-12 w-12 mb-4" />
-          <h3 className="text-xl font-semibold">Aucune notification pour le moment.</h3>
-          <p>Les nouvelles activités apparaîtront ici.</p>
+          <h3 className="text-xl font-semibold">{t('notif_empty_title')}</h3>
+          <p>{t('notif_empty_subtitle')}</p>
         </div>
       )}
 
@@ -284,14 +291,14 @@ export function NotificationsList() {
                   <h3 className="font-bold text-base">{notif.title}</h3>
                   <p className="text-foreground/70 text-sm">{notif.body}</p>
                   <p className="text-xs text-white/30 mt-1">
-                    {relativeTime(notif.createdAt)}
+                    {relativeTime(notif.createdAt, t, language)}
                   </p>
                 </div>
                 <button
                   type="button"
                   onClick={(e) => handleDismiss(notif, e)}
                   className="p-1 text-white/40 hover:text-accent transition-colors"
-                  aria-label="Masquer"
+                  aria-label={t('notif_dismiss_aria')}
                 >
                   <X className="h-4 w-4" />
                 </button>

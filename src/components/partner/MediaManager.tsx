@@ -59,6 +59,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/context/LanguageContext';
 import {
   uploadActivityMedia,
   StorageUploadError,
@@ -111,6 +112,7 @@ interface SortableItemProps {
  * black / #D91CD2 / white).
  */
 function UploadProgressBar({ value }: { value: number }) {
+  const { t } = useLanguage();
   const pct = Math.round(Math.max(0, Math.min(1, value)) * 100);
   return (
     <div className="flex items-center gap-2">
@@ -122,7 +124,7 @@ function UploadProgressBar({ value }: { value: number }) {
           aria-valuemin={0}
           aria-valuemax={100}
           aria-valuenow={pct}
-          aria-label="Progression de l'upload"
+          aria-label={t('media_manager_upload_progress')}
         />
       </div>
       <span className="text-[10px] font-mono tabular-nums text-white/70 w-9 text-right">
@@ -210,6 +212,7 @@ function SortableVideoThumb({ item }: { item: MediaItem }) {
 }
 
 function SortableItem({ id, item, index, onRemove, onReplace, onPickThumbnail }: SortableItemProps) {
+  const { t } = useLanguage();
   const {
     attributes,
     listeners,
@@ -243,7 +246,7 @@ function SortableItem({ id, item, index, onRemove, onReplace, onPickThumbnail }:
         {...attributes}
         {...listeners}
         className="cursor-grab active:cursor-grabbing text-white/40 hover:text-white/70 touch-none"
-        aria-label={`Réorganiser l'item ${index + 1}`}
+        aria-label={t('media_manager_reorder_item', { num: index + 1 })}
       >
         <GripVertical className="h-4 w-4" />
       </button>
@@ -272,7 +275,7 @@ function SortableItem({ id, item, index, onRemove, onReplace, onPickThumbnail }:
         <div className="flex items-center gap-2">
           {isPrimary && (
             <Badge className="bg-accent/15 border-accent/40 text-accent text-[9px] uppercase tracking-wider">
-              Principale
+              {t('media_manager_primary')}
             </Badge>
           )}
           {isVideo && item.provider && (
@@ -281,7 +284,7 @@ function SortableItem({ id, item, index, onRemove, onReplace, onPickThumbnail }:
             </Badge>
           )}
           <span className="text-[10px] uppercase tracking-wider text-white/40">
-            {item.source === 'upload' ? 'Upload' : 'URL'}
+            {item.source === 'upload' ? t('media_manager_source_upload') : t('media_manager_source_url')}
           </span>
         </div>
         <span className="text-xs text-white/60 truncate font-mono" title={item.url}>
@@ -298,8 +301,8 @@ function SortableItem({ id, item, index, onRemove, onReplace, onPickThumbnail }:
           type="button"
           onClick={onPickThumbnail}
           className="relative p-1.5 text-white/40 hover:text-accent transition-colors"
-          aria-label="Choisir une miniature pour cette vidéo"
-          title="Choisir une miniature"
+          aria-label={t('media_manager_pick_thumbnail_aria')}
+          title={t('media_manager_pick_thumbnail_title')}
         >
           <Camera className="h-4 w-4" />
           {item.thumbnailUrl && (
@@ -318,8 +321,8 @@ function SortableItem({ id, item, index, onRemove, onReplace, onPickThumbnail }:
           type="button"
           onClick={onReplace}
           className="p-1.5 text-white/40 hover:text-accent transition-colors"
-          aria-label="Remplacer ce fichier"
-          title="Remplacer ce fichier"
+          aria-label={t('media_manager_replace_file')}
+          title={t('media_manager_replace_file')}
         >
           <RefreshCcw className="h-4 w-4" />
         </button>
@@ -330,7 +333,7 @@ function SortableItem({ id, item, index, onRemove, onReplace, onPickThumbnail }:
         type="button"
         onClick={onRemove}
         className="p-1.5 text-white/40 hover:text-red-400 transition-colors"
-        aria-label="Supprimer"
+        aria-label={t('media_manager_delete')}
       >
         <Trash2 className="h-4 w-4" />
       </button>
@@ -359,6 +362,7 @@ export function MediaManager({
   disabled,
 }: MediaManagerProps) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [uploading, setUploading] = useState(false);
   // BUG #61 — Progress upload exposé par uploadBytesResumable (0..1). Affiché
   // dans la zone d'upload (empty state) OU au-dessus des boutons (liste non vide).
@@ -443,8 +447,8 @@ export function MediaManager({
           ),
         );
         toast({
-          title: 'Média remplacé',
-          description: result.kind === 'video' ? 'Vidéo mise à jour.' : 'Image mise à jour.',
+          title: t('media_manager_replaced_title'),
+          description: result.kind === 'video' ? t('media_manager_video_updated') : t('media_manager_image_updated'),
           className: 'bg-zinc-900 border-accent/40 text-white',
         });
       } catch (err) {
@@ -456,23 +460,23 @@ export function MediaManager({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const code = (err as any)?.code || 'unknown';
         console.error('[MediaManager] replace failed', { code, err });
-        let description = 'Erreur upload — réessaie dans un instant.';
+        let description = t('media_manager_upload_retry_err');
         if (err instanceof StorageUploadError) {
           if (err.code === 'file-too-large') {
             const max = (err.details as { max?: number; mb?: string })?.max;
             const mb = max ? Math.round(max / 1024 / 1024) : 50;
-            description = `Fichier trop lourd. Max ${mb} MB par fichier.`;
+            description = t('media_manager_err_file_too_large', { mb });
           } else if (err.code === 'invalid-content-type') {
-            description = 'Format non supporté. Utilise une image (JPG, PNG, WEBP) ou une vidéo (MP4, WEBM).';
+            description = t('media_manager_err_invalid_format');
           } else if (err.code === 'upload-failed') {
-            description = 'Échec de l\'upload. Les permissions Storage peuvent bloquer ce type de fichier — contacte le support.';
+            description = t('media_manager_err_upload_failed');
           }
         } else if (err instanceof Error) {
           description = err.message;
         }
         toast({
           variant: 'destructive',
-          title: 'Remplacement impossible',
+          title: t('media_manager_replace_impossible'),
           description,
         });
       } finally {
@@ -506,10 +510,10 @@ export function MediaManager({
         { url: result.url, type: result.kind, source: 'upload' },
       ]);
       toast({
-        title: result.kind === 'video' ? 'Vidéo uploadée' : 'Image uploadée',
+        title: result.kind === 'video' ? t('media_manager_video_uploaded') : t('media_manager_image_uploaded'),
         description: result.kind === 'video'
-          ? 'Vidéo ajoutée à l\'activité.'
-          : 'Image ajoutée à l\'activité.',
+          ? t('media_manager_video_added_desc')
+          : t('media_manager_image_added_desc'),
         className: 'bg-zinc-900 border-accent/40 text-white',
       });
     } catch (err) {
@@ -525,12 +529,12 @@ export function MediaManager({
         : MAX_SIZE_MB;
       const description =
         code === 'file-too-large'
-          ? `Fichier trop gros (max ${maxMb} MB).`
+          ? t('media_manager_err_file_too_big', { mb: maxMb })
           : code === 'invalid-content-type'
-            ? 'Format non supporté (images ou vidéos mp4 uniquement).'
-            : `Upload échoué — ${code}`;
+            ? t('media_manager_err_format_unsupported')
+            : t('media_manager_err_upload_code', { code });
       toast({
-        title: 'Erreur upload',
+        title: t('media_manager_upload_error'),
         description,
         variant: 'destructive',
       });
@@ -573,12 +577,12 @@ export function MediaManager({
     if (!urlDialog.open) return;
     const trimmed = urlDialog.value.trim();
     if (!trimmed) {
-      toast({ title: 'URL vide', description: 'Colle une URL valide.', variant: 'destructive' });
+      toast({ title: t('media_manager_url_empty_title'), description: t('media_manager_url_empty_desc'), variant: 'destructive' });
       return;
     }
     if (urlDialog.type === 'image') {
       // Heuristique extension-based
-      if (!isImageUrl(trimmed) && !confirm('Cette URL ne semble pas pointer vers une image (extension non-reconnue). Ajouter quand-même ?')) {
+      if (!isImageUrl(trimmed) && !confirm(t('media_manager_url_image_confirm'))) {
         return;
       }
       onChange([...value, { url: trimmed, type: 'image', source: 'url' }]);
@@ -587,8 +591,8 @@ export function MediaManager({
       const parsed = parseVideoUrl(trimmed);
       if (!parsed) {
         toast({
-          title: 'URL vidéo invalide',
-          description: 'Supportés : YouTube, Vimeo, Google Drive.',
+          title: t('media_manager_url_video_invalid_title'),
+          description: t('media_manager_url_video_invalid_desc'),
           variant: 'destructive',
         });
         return;
@@ -614,10 +618,10 @@ export function MediaManager({
     // contracter à la largeur de sa cellule grille (truncate/wrap interne prend le relais).
     <div className="flex flex-col gap-3 min-w-0">
       <Label className="text-xs uppercase tracking-wider text-white/60 flex items-center justify-between gap-2">
-        <span className="min-w-0">Photos &amp; vidéos ({value.length}/{maxItems})</span>
+        <span className="min-w-0">{t('media_manager_photos_videos_label', { current: value.length, max: maxItems })}</span>
         {value.length > 0 && (
           <span className="text-[10px] text-white/40 normal-case tracking-normal text-right min-w-0">
-            Glisse pour réorganiser — la première est l&apos;image principale
+            {t('media_manager_drag_to_reorder')}
           </span>
         )}
       </Label>
@@ -677,17 +681,17 @@ export function MediaManager({
                   className="text-sm font-medium text-white truncate"
                   title={uploadingName ?? undefined}
                 >
-                  {uploadingName ?? 'Upload en cours…'}
+                  {uploadingName ?? t('media_manager_upload_in_progress')}
                 </p>
                 <UploadProgressBar value={uploadProgress} />
               </>
             ) : (
               <>
                 <p className="text-sm font-medium text-white">
-                  Glissez vos fichiers ici ou parcourez votre ordinateur
+                  {t('media_manager_drop_or_browse')}
                 </p>
                 <p className="text-[11px] text-white/40">
-                  Image (jusqu&apos;à 5 MB) ou vidéo mp4 (jusqu&apos;à 50 MB)
+                  {t('media_manager_size_limits')}
                 </p>
               </>
             )}
@@ -712,7 +716,7 @@ export function MediaManager({
               className="text-xs font-medium text-white truncate"
               title={uploadingName ?? undefined}
             >
-              {uploadingName ?? 'Upload en cours…'}
+              {uploadingName ?? t('media_manager_upload_in_progress')}
             </p>
             <UploadProgressBar value={uploadProgress} />
           </div>
@@ -736,7 +740,7 @@ export function MediaManager({
           ) : (
             <UploadCloud className="h-5 w-5" />
           )}
-          Uploader image ou vidéo
+          {t('media_manager_upload_button')}
           <input
             type="file"
             accept="image/*,video/mp4,video/webm,video/quicktime"
@@ -755,7 +759,7 @@ export function MediaManager({
           className="hover:text-accent transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <LinkIcon className="h-3 w-3" />
-          Ajouter image via URL
+          {t('media_manager_add_image_url')}
         </button>
         <span className="text-white/20">·</span>
         <button
@@ -765,13 +769,13 @@ export function MediaManager({
           className="hover:text-accent transition-colors flex items-center gap-1 disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <Video className="h-3 w-3" />
-          Ajouter vidéo via URL
+          {t('media_manager_add_video_url')}
         </button>
       </div>
 
       {!canAddMore && (
         <p className="text-[11px] text-amber-300/70">
-          Limite atteinte ({maxItems}). Supprime un item pour en ajouter d&apos;autres.
+          {t('media_manager_limit_reached', { max: maxItems })}
         </p>
       )}
 
@@ -786,19 +790,19 @@ export function MediaManager({
               {urlDialog.open && urlDialog.type === 'image' ? (
                 <>
                   <ImagePlus className="h-5 w-5 text-accent" />
-                  Ajouter une image par URL
+                  {t('media_manager_add_image_dialog_title')}
                 </>
               ) : (
                 <>
                   <Video className="h-5 w-5 text-accent" />
-                  Ajouter une vidéo par URL
+                  {t('media_manager_add_video_dialog_title')}
                 </>
               )}
             </DialogTitle>
             <DialogDescription className="text-white/60 text-sm">
               {urlDialog.open && urlDialog.type === 'video'
-                ? 'YouTube, Vimeo ou Google Drive — la vidéo sera embed dans l\'activité.'
-                : 'Colle l\'URL d\'une image hébergée externe.'}
+                ? t('media_manager_add_video_dialog_desc')
+                : t('media_manager_add_image_dialog_desc')}
             </DialogDescription>
           </DialogHeader>
           {urlDialog.open && (
@@ -830,14 +834,14 @@ export function MediaManager({
               onClick={() => setUrlDialog({ open: false })}
               className="border-white/10 text-white"
             >
-              Annuler
+              {t('common_cancel')}
             </Button>
             <Button
               type="button"
               onClick={handleConfirmUrl}
               className="bg-accent hover:bg-accent/90 text-white"
             >
-              Ajouter
+              {t('media_manager_add_button')}
             </Button>
           </DialogFooter>
         </DialogContent>

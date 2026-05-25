@@ -83,6 +83,7 @@ export async function overturnSanction(input: OverturnSanctionInput): Promise<vo
           level: sanction.level,
           adminNote: input.reason,
         },
+        lang: ctx.lang,
       });
     }
   } catch (err) {

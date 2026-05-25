@@ -12,6 +12,7 @@
 
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
+import { useLanguage } from '@/context/LanguageContext';
 import {
   Select,
   SelectContent,
@@ -45,6 +46,7 @@ export interface ProfileExtrasEditorProps {
 const UNSET = '__unset__';
 
 export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtrasEditorProps) {
+  const { t } = useLanguage();
   const set = <K extends keyof Extras>(key: K, v: Extras[K] | undefined) => {
     const next = { ...value };
     if (v === undefined || v === null || v === '') {
@@ -64,7 +66,7 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
       {/* Taille */}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="extras-height" className="text-xs uppercase tracking-wider text-white/60">
-          Taille (cm)
+          {t('extras_height_label')}
         </Label>
         <Input
           id="extras-height"
@@ -101,14 +103,14 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
           className={fieldClass}
         />
         <p className="text-[10px] text-white/40">
-          Entre {HEIGHT_MIN_CM} et {HEIGHT_MAX_CM} cm
+          {t('extras_height_range', { min: HEIGHT_MIN_CM, max: HEIGHT_MAX_CM })}
         </p>
       </div>
 
       {/* Profession */}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="extras-profession" className="text-xs uppercase tracking-wider text-white/60">
-          Profession
+          {t('extras_profession_label')}
         </Label>
         <Input
           id="extras-profession"
@@ -117,7 +119,7 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
           value={value.profession ?? ''}
           onChange={(e) => set('profession', e.target.value)}
           disabled={disabled}
-          placeholder="Ex: Indépendante dans la santé"
+          placeholder={t('extras_profession_placeholder')}
           className={fieldClass}
         />
       </div>
@@ -125,7 +127,7 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
       {/* Ville d'origine */}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="extras-hometown" className="text-xs uppercase tracking-wider text-white/60">
-          Ville d&apos;origine
+          {t('extras_hometown_label')}
         </Label>
         <Input
           id="extras-hometown"
@@ -134,24 +136,24 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
           value={value.hometown ?? ''}
           onChange={(e) => set('hometown', e.target.value)}
           disabled={disabled}
-          placeholder="Ex: Bâle"
+          placeholder={t('extras_hometown_placeholder')}
           className={fieldClass}
         />
       </div>
 
       {/* Études */}
       <div className="flex flex-col gap-1.5">
-        <Label className="text-xs uppercase tracking-wider text-white/60">Études</Label>
+        <Label className="text-xs uppercase tracking-wider text-white/60">{t('extras_studies_label')}</Label>
         <Select
           value={value.studies ?? UNSET}
           onValueChange={(v) => set('studies', v === UNSET ? undefined : (v as Extras['studies']))}
           disabled={disabled}
         >
           <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Non précisé" />
+            <SelectValue placeholder={t('extras_unspecified')} />
           </SelectTrigger>
           <SelectContent className={selectContentClass}>
-            <SelectItem value={UNSET}>Non précisé</SelectItem>
+            <SelectItem value={UNSET}>{t('extras_unspecified')}</SelectItem>
             {STUDIES_OPTIONS.map((o) => (
               <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
             ))}
@@ -161,17 +163,17 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
 
       {/* Religion */}
       <div className="flex flex-col gap-1.5">
-        <Label className="text-xs uppercase tracking-wider text-white/60">Religion / Spiritualité</Label>
+        <Label className="text-xs uppercase tracking-wider text-white/60">{t('extras_religion_label')}</Label>
         <Select
           value={value.religion ?? UNSET}
           onValueChange={(v) => set('religion', v === UNSET ? undefined : (v as Extras['religion']))}
           disabled={disabled}
         >
           <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Non précisé" />
+            <SelectValue placeholder={t('extras_unspecified')} />
           </SelectTrigger>
           <SelectContent className={selectContentClass}>
-            <SelectItem value={UNSET}>Non précisé</SelectItem>
+            <SelectItem value={UNSET}>{t('extras_unspecified')}</SelectItem>
             {RELIGION_OPTIONS.map((o) => (
               <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
             ))}
@@ -182,7 +184,7 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
       {/* Origines / Ethnicité */}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="extras-ethnicity" className="text-xs uppercase tracking-wider text-white/60">
-          Origines (libre)
+          {t('extras_ethnicity_label')}
         </Label>
         <Input
           id="extras-ethnicity"
@@ -191,14 +193,14 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
           value={value.ethnicity ?? ''}
           onChange={(e) => set('ethnicity', e.target.value)}
           disabled={disabled}
-          placeholder="Ex: Sénégal, Suisse"
+          placeholder={t('extras_ethnicity_placeholder')}
           className={fieldClass}
         />
       </div>
 
       {/* Type de relation */}
       <div className="flex flex-col gap-1.5">
-        <Label className="text-xs uppercase tracking-wider text-white/60">Type de relation</Label>
+        <Label className="text-xs uppercase tracking-wider text-white/60">{t('extras_relationship_goals_label')}</Label>
         <Select
           value={value.relationshipGoals ?? UNSET}
           onValueChange={(v) =>
@@ -207,10 +209,10 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
           disabled={disabled}
         >
           <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Non précisé" />
+            <SelectValue placeholder={t('extras_unspecified')} />
           </SelectTrigger>
           <SelectContent className={selectContentClass}>
-            <SelectItem value={UNSET}>Non précisé</SelectItem>
+            <SelectItem value={UNSET}>{t('extras_unspecified')}</SelectItem>
             {RELATIONSHIP_GOALS_OPTIONS.map((o) => (
               <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
             ))}
@@ -220,7 +222,7 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
 
       {/* Style de relation */}
       <div className="flex flex-col gap-1.5">
-        <Label className="text-xs uppercase tracking-wider text-white/60">Style de relation</Label>
+        <Label className="text-xs uppercase tracking-wider text-white/60">{t('extras_relationship_style_label')}</Label>
         <Select
           value={value.relationshipStyle ?? UNSET}
           onValueChange={(v) =>
@@ -229,10 +231,10 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
           disabled={disabled}
         >
           <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Non précisé" />
+            <SelectValue placeholder={t('extras_unspecified')} />
           </SelectTrigger>
           <SelectContent className={selectContentClass}>
-            <SelectItem value={UNSET}>Non précisé</SelectItem>
+            <SelectItem value={UNSET}>{t('extras_unspecified')}</SelectItem>
             {RELATIONSHIP_STYLE_OPTIONS.map((o) => (
               <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
             ))}
@@ -242,7 +244,7 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
 
       {/* Ouverture aux enfants */}
       <div className="flex flex-col gap-1.5">
-        <Label className="text-xs uppercase tracking-wider text-white/60">Ouverture aux enfants</Label>
+        <Label className="text-xs uppercase tracking-wider text-white/60">{t('extras_children_label')}</Label>
         <Select
           value={value.openToChildren ?? UNSET}
           onValueChange={(v) =>
@@ -251,10 +253,10 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
           disabled={disabled}
         >
           <SelectTrigger className={triggerClass}>
-            <SelectValue placeholder="Non précisé" />
+            <SelectValue placeholder={t('extras_unspecified')} />
           </SelectTrigger>
           <SelectContent className={selectContentClass}>
-            <SelectItem value={UNSET}>Non précisé</SelectItem>
+            <SelectItem value={UNSET}>{t('extras_unspecified')}</SelectItem>
             {CHILDREN_OPTIONS.map((o) => (
               <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
             ))}
@@ -266,14 +268,14 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {(
           [
-            { field: 'alcohol', label: 'Alcool' },
-            { field: 'smoking', label: 'Tabac' },
-            { field: 'cannabis', label: 'Cannabis' },
-            { field: 'drugs', label: 'Autres drogues' },
+            { field: 'alcohol', labelKey: 'extras_alcohol_label' },
+            { field: 'smoking', labelKey: 'extras_smoking_label' },
+            { field: 'cannabis', labelKey: 'extras_cannabis_label' },
+            { field: 'drugs', labelKey: 'extras_drugs_label' },
           ] as const
-        ).map(({ field, label }) => (
+        ).map(({ field, labelKey }) => (
           <div key={field} className="flex flex-col gap-1.5">
-            <Label className="text-xs uppercase tracking-wider text-white/60">{label}</Label>
+            <Label className="text-xs uppercase tracking-wider text-white/60">{t(labelKey)}</Label>
             <Select
               value={(value[field] as string | undefined) ?? UNSET}
               onValueChange={(v) =>
@@ -282,10 +284,10 @@ export function ProfileExtrasEditor({ value, onChange, disabled }: ProfileExtras
               disabled={disabled}
             >
               <SelectTrigger className={triggerClass}>
-                <SelectValue placeholder="Non précisé" />
+                <SelectValue placeholder={t('extras_unspecified')} />
               </SelectTrigger>
               <SelectContent className={selectContentClass}>
-                <SelectItem value={UNSET}>Non précisé</SelectItem>
+                <SelectItem value={UNSET}>{t('extras_unspecified')}</SelectItem>
                 {FREQUENCY_OPTIONS.map((o) => (
                   <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                 ))}

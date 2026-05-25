@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { SpordateurLogo } from '@/components/SpordateurLogo';
@@ -25,6 +26,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading: authLoading, logout } = useAuth();
+  const { t } = useLanguage();
   const isAuthPage = pathname.includes('/login') || pathname.includes('/register');
   const [checking, setChecking] = useState(true);
   const [partner, setPartner] = useState<PartnerData | null>(null);
@@ -32,10 +34,10 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const navLinks = [
-    { href: "/partner/dashboard", label: "Dashboard", icon: <LayoutDashboard className="h-5 w-5" /> },
-    { href: "/partner/offers", label: "Mes Offres", icon: <Building className="h-5 w-5" /> },
-    { href: "/partner/wallet", label: "Portefeuille", icon: <Wallet className="h-5 w-5" /> },
-    { href: "/partner/boost", label: "Boost", icon: <Rocket className="h-5 w-5" /> },
+    { href: "/partner/dashboard", label: t('partner_layout_nav_dashboard'), icon: <LayoutDashboard className="h-5 w-5" /> },
+    { href: "/partner/offers", label: t('partner_layout_nav_offers'), icon: <Building className="h-5 w-5" /> },
+    { href: "/partner/wallet", label: t('partner_layout_nav_wallet'), icon: <Wallet className="h-5 w-5" /> },
+    { href: "/partner/boost", label: t('partner_layout_nav_boost'), icon: <Rocket className="h-5 w-5" /> },
   ];
 
   // useEffect MUST be called before any early return (React hooks rules)
@@ -83,14 +85,14 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
             <ShieldAlert className="h-10 w-10 text-red-400" />
           </div>
-          <h2 className="text-2xl font-extralight tracking-tight">Accès refusé</h2>
-          <p className="text-white/50 font-light">Votre compte n&apos;est pas associé à un profil partenaire.</p>
+          <h2 className="text-2xl font-extralight tracking-tight">{t('partner_layout_access_denied_title')}</h2>
+          <p className="text-white/50 font-light">{t('partner_layout_access_denied_desc')}</p>
           <div className="flex gap-3 justify-center">
             <Button asChild className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-light rounded-full px-6 h-11">
-              <Link href="/">Accueil</Link>
+              <Link href="/">{t('partner_layout_home')}</Link>
             </Button>
             <Button asChild className="bg-accent hover:bg-accent/80 text-white font-semibold rounded-full px-6 h-11">
-              <Link href="/partner/register">Devenir partenaire</Link>
+              <Link href="/partner/register">{t('partner_layout_become_partner')}</Link>
             </Button>
           </div>
         </div>
@@ -110,7 +112,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
             <Link href="/" className="flex items-center gap-2">
               {/* Accent feature — SVG inline (admin Couleur principale). */}
               <SpordateurLogo className="h-8 w-8 text-accent" />
-              <span className="text-lg font-light tracking-widest uppercase hidden sm:block">Spordateur</span>
+              <span className="text-lg font-light tracking-widest uppercase hidden sm:block">{t('partner_layout_brand')}</span>
             </Link>
             {partner && (
               <span className="text-xs text-white/30 font-light hidden md:block ml-4 border-l border-white/10 pl-4">{partner.name}</span>
@@ -135,15 +137,15 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
           <div className="flex items-center gap-2">
             <Link href="/activities" className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
               <Compass className="h-4 w-4" />
-              <span className="hidden md:inline">Activités</span>
+              <span className="hidden md:inline">{t('partner_layout_activities')}</span>
             </Link>
             <Link href="/" className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
               <Home className="h-4 w-4" />
-              <span className="hidden md:inline">Accueil</span>
+              <span className="hidden md:inline">{t('partner_layout_home')}</span>
             </Link>
             <button onClick={() => { logout(); router.push('/'); }} className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
               <LogOut className="h-4 w-4" />
-              <span className="hidden md:inline">Quitter</span>
+              <span className="hidden md:inline">{t('partner_layout_logout')}</span>
             </button>
           </div>
         </div>
@@ -168,12 +170,12 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
               <Link href="/activities" onClick={() => setMobileOpen(false)}
                 className="flex items-center gap-3 px-5 py-4 rounded-2xl text-base font-light text-white/50 hover:bg-white/5 transition">
                 <Compass className="h-5 w-5" />
-                <span>Voir les activités</span>
+                <span>{t('partner_layout_view_activities')}</span>
               </Link>
               <Link href="/" onClick={() => setMobileOpen(false)}
                 className="flex items-center gap-3 px-5 py-4 rounded-2xl text-base font-light text-white/50 hover:bg-white/5 transition">
                 <Home className="h-5 w-5" />
-                <span>Accueil</span>
+                <span>{t('partner_layout_home')}</span>
               </Link>
             </div>
           </div>

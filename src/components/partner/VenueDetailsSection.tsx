@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Wine, Cookie, Crown, Sparkles, Sun, Lock, Waves, Building2, Music } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 // =====================================================================
 // Types & constantes
@@ -41,47 +42,47 @@ export interface VenueDetailsValue {
 
 interface BonusOption {
   value: VenueBonus;
-  label: string;
+  labelKey: string;
   icon: LucideIcon;
 }
 
 const BONUS_OPTIONS: BonusOption[] = [
-  { value: 'none', label: 'Aucun bonus', icon: Sparkles },
-  { value: 'drink', label: '1 boisson offerte', icon: Wine },
-  { value: 'snack', label: 'Collation ou snack inclus', icon: Cookie },
-  { value: 'vip', label: 'Accès VIP', icon: Crown },
+  { value: 'none', labelKey: 'venue_bonus_none', icon: Sparkles },
+  { value: 'drink', labelKey: 'venue_bonus_drink', icon: Wine },
+  { value: 'snack', labelKey: 'venue_bonus_snack', icon: Cookie },
+  { value: 'vip', labelKey: 'venue_bonus_vip', icon: Crown },
 ];
 
 interface SpaceOption {
   value: VenueSpaceType;
-  label: string;
+  labelKey: string;
   icon: LucideIcon;
-  description: string;
+  descriptionKey: string;
 }
 
 const SPACE_OPTIONS: SpaceOption[] = [
   {
     value: 'outdoor_terrace',
-    label: 'Terrasse extérieure',
-    description: 'Patio ou cour en plein air.',
+    labelKey: 'venue_space_outdoor_terrace_label',
+    descriptionKey: 'venue_space_outdoor_terrace_desc',
     icon: Sun,
   },
   {
     value: 'indoor_private',
-    label: 'Espace intérieur privatisé',
-    description: 'Salle ou espace réservé en intérieur.',
+    labelKey: 'venue_space_indoor_private_label',
+    descriptionKey: 'venue_space_indoor_private_desc',
     icon: Lock,
   },
   {
     value: 'beach_lakeside',
-    label: 'Plage privée ou bord du lac',
-    description: 'Plage, ponton ou rive aménagée.',
+    labelKey: 'venue_space_beach_lakeside_label',
+    descriptionKey: 'venue_space_beach_lakeside_desc',
     icon: Waves,
   },
   {
     value: 'rooftop',
-    label: 'Rooftop',
-    description: 'Toit-terrasse avec vue.',
+    labelKey: 'venue_space_rooftop_label',
+    descriptionKey: 'venue_space_rooftop_desc',
     icon: Building2,
   },
 ];
@@ -135,6 +136,7 @@ export function VenueDetailsSection({
   onChange,
   disabled,
 }: VenueDetailsSectionProps) {
+  const { t } = useLanguage();
   const current: VenueDetailsValue = value ?? {};
   const selectedSpaces = current.spaceTypes ?? [];
 
@@ -179,10 +181,10 @@ export function VenueDetailsSection({
         <Sparkles className="h-4 w-4 text-accent mt-0.5 shrink-0" aria-hidden="true" />
         <div className="flex flex-col gap-0.5">
           <Label className="text-xs uppercase tracking-wider text-accent font-medium">
-            Cadre & Ambiance
+            {t('venue_details_title')}
           </Label>
           <p className="text-[11px] text-white/50 leading-relaxed">
-            Détails Bar/Club/Restaurant — affichés sur la page publique pour valoriser l&apos;événement.
+            {t('venue_details_subtitle')}
           </p>
         </div>
       </div>
@@ -190,7 +192,7 @@ export function VenueDetailsSection({
       {/* 1. Inclus avec l'activité */}
       <div className="flex flex-col gap-2">
         <Label htmlFor="venue-bonus" className="text-[11px] uppercase tracking-wider text-white/60">
-          Inclus avec l&apos;activité (optionnel)
+          {t('venue_details_bonus_label')}
         </Label>
         <Select
           value={current.bonus ?? 'none'}
@@ -201,7 +203,7 @@ export function VenueDetailsSection({
             id="venue-bonus"
             className="bg-zinc-900/60 border-white/10 text-white"
           >
-            <SelectValue placeholder="Aucun bonus" />
+            <SelectValue placeholder={t('venue_bonus_none')} />
           </SelectTrigger>
           <SelectContent className="bg-zinc-950 border border-white/10 text-white">
             {BONUS_OPTIONS.map((opt) => {
@@ -210,7 +212,7 @@ export function VenueDetailsSection({
                 <SelectItem key={opt.value} value={opt.value}>
                   <span className="flex items-center gap-2">
                     <Icon className="h-4 w-4 text-accent/80" aria-hidden="true" />
-                    {opt.label}
+                    {t(opt.labelKey)}
                   </span>
                 </SelectItem>
               );
@@ -222,7 +224,7 @@ export function VenueDetailsSection({
       {/* 2. Type d'espace */}
       <div className="flex flex-col gap-2">
         <Label className="text-[11px] uppercase tracking-wider text-white/60">
-          Type d&apos;espace mis à disposition (optionnel, plusieurs choix possibles)
+          {t('venue_details_space_label')}
         </Label>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {SPACE_OPTIONS.map((opt) => {
@@ -248,8 +250,8 @@ export function VenueDetailsSection({
                 />
                 <Icon className="h-5 w-5 text-accent/80 mt-0.5 shrink-0" aria-hidden="true" />
                 <div className="flex flex-col gap-0.5 flex-1 min-w-0">
-                  <span className="text-sm font-medium text-white">{opt.label}</span>
-                  <span className="text-[11px] text-white/50">{opt.description}</span>
+                  <span className="text-sm font-medium text-white">{t(opt.labelKey)}</span>
+                  <span className="text-[11px] text-white/50">{t(opt.descriptionKey)}</span>
                 </div>
               </label>
             );
@@ -264,7 +266,7 @@ export function VenueDetailsSection({
           className="text-[11px] uppercase tracking-wider text-white/60 flex items-center gap-2"
         >
           <Music className="h-3.5 w-3.5 text-accent/80" aria-hidden="true" />
-          Style musical (concept Silent — optionnel)
+          {t('venue_details_music_label')}
         </Label>
         <Select
           value={current.musicStyle ?? '_unset'}
@@ -275,10 +277,10 @@ export function VenueDetailsSection({
             id="venue-music"
             className="bg-zinc-900/60 border-white/10 text-white"
           >
-            <SelectValue placeholder="Aucune précision" />
+            <SelectValue placeholder={t('venue_music_none')} />
           </SelectTrigger>
           <SelectContent className="bg-zinc-950 border border-white/10 text-white">
-            <SelectItem value="_unset">Aucune précision</SelectItem>
+            <SelectItem value="_unset">{t('venue_music_none')}</SelectItem>
             {MUSIC_OPTIONS.map((opt) => (
               <SelectItem key={opt.value} value={opt.value}>
                 {opt.label}

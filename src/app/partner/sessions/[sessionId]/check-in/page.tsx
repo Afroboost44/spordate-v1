@@ -29,6 +29,7 @@ import { ArrowLeft, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import {
   collection,
@@ -63,11 +64,11 @@ function formatSessionDate(session: Session | null): string {
   });
 }
 
-function formatGraceLeft(graceEndMs: number): string {
+function formatGraceLeft(graceEndMs: number, t: (key: string, vars?: Record<string, string | number>) => string): string {
   const remainingMs = graceEndMs - Date.now();
-  if (remainingMs <= 0) return 'maintenant';
+  if (remainingMs <= 0) return t('partner_checkin_grace_now');
   const minutes = Math.ceil(remainingMs / (60 * 1000));
-  return `dans ${minutes} min`;
+  return t('partner_checkin_grace_in_min', { minutes });
 }
 
 function PartnerCheckInContent() {
@@ -76,6 +77,7 @@ function PartnerCheckInContent() {
   const sessionId = params.sessionId as string;
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   const [session, setSession] = useState<Session | null>(null);
   const [activity, setActivity] = useState<Activity | null>(null);
@@ -91,7 +93,7 @@ function PartnerCheckInContent() {
       const sessionSnap = await getDoc(doc(db, 'sessions', sessionId));
       if (!sessionSnap.exists()) {
         toast({
-          title: 'Session introuvable',
+          title: t('partner_checkin_toast_session_not_found'),
           description: `sessionId=${sessionId}`,
           variant: 'destructive',
         });
@@ -104,7 +106,7 @@ function PartnerCheckInContent() {
       // 2. Fetch activity + verify partnerId
       const activitySnap = await getDoc(doc(db, 'activities', sessionData.activityId));
       if (!activitySnap.exists()) {
-        toast({ title: 'Activity introuvable', variant: 'destructive' });
+        toast({ title: t('partner_checkin_toast_activity_not_found'), variant: 'destructive' });
         setLoading(false);
         return;
       }
@@ -175,14 +177,14 @@ function PartnerCheckInContent() {
     } catch (err) {
       console.error('[PartnerCheckIn] load error', err);
       toast({
-        title: 'Erreur',
-        description: 'Impossible de charger les données check-in.',
+        title: t('partner_checkin_error'),
+        description: t('partner_checkin_load_error_desc'),
         variant: 'destructive',
       });
     } finally {
       setLoading(false);
     }
-  }, [user?.uid, sessionId, toast]);
+  }, [user?.uid, sessionId, toast, t]);
 
   useEffect(() => {
     loadCheckInData();
@@ -198,30 +200,30 @@ function PartnerCheckInContent() {
           userId,
         });
         toast({
-          title: 'No-show enregistré',
-          description: 'Le participant a été notifié par email.',
+          title: t('partner_checkin_toast_marked_title'),
+          description: t('partner_checkin_toast_marked_desc'),
         });
         await loadCheckInData();
       } catch (err) {
-        let title = 'Erreur';
-        let description = err instanceof Error ? err.message : 'Marquage échoué';
+        let title = t('partner_checkin_error');
+        let description = err instanceof Error ? err.message : t('partner_checkin_mark_failed');
         if (err instanceof ReportError) {
           switch (err.code) {
             case 'grace-period-active':
-              title = 'Grâce active';
-              description = 'Attends 30 min après la fin de la session pour marquer un no-show.';
+              title = t('partner_checkin_err_grace_title');
+              description = t('partner_checkin_err_grace_desc');
               break;
             case 'duplicate-no-show':
-              title = 'Déjà marqué';
-              description = 'Ce participant est déjà marqué no-show.';
+              title = t('partner_checkin_err_dup_title');
+              description = t('partner_checkin_err_dup_desc');
               break;
             case 'not-confirmed-booker':
-              title = 'Booking non confirmé';
-              description = 'Ce participant n\'a pas de booking confirmé sur cette session.';
+              title = t('partner_checkin_err_notconf_title');
+              description = t('partner_checkin_err_notconf_desc');
               break;
             case 'not-partner':
-              title = 'Non autorisé';
-              description = 'Tu n\'es pas le partenaire de cette activity.';
+              title = t('partner_checkin_err_notpartner_title');
+              description = t('partner_checkin_err_notpartner_desc');
               break;
             default:
               description = `Code : ${err.code}`;
@@ -230,7 +232,7 @@ function PartnerCheckInContent() {
         toast({ title, description, variant: 'destructive' });
       }
     },
-    [user?.uid, sessionId, toast, loadCheckInData],
+    [user?.uid, sessionId, toast, loadCheckInData, t],
   );
 
   const handleCancelNoShow = useCallback(
@@ -239,18 +241,18 @@ function PartnerCheckInContent() {
       try {
         await cancelNoShowService({ partnerId: user.uid, reportId });
         toast({
-          title: 'No-show annulé',
-          description: 'Le marquage a été retiré.',
+          title: t('partner_checkin_toast_canceled_title'),
+          description: t('partner_checkin_toast_canceled_desc'),
         });
         await loadCheckInData();
       } catch (err) {
-        let title = 'Erreur';
-        let description = err instanceof Error ? err.message : 'Annulation échouée';
+        let title = t('partner_checkin_error');
+        let description = err instanceof Error ? err.message : t('partner_checkin_cancel_failed');
         if (err instanceof ReportError) {
           switch (err.code) {
             case 'cancel-window-closed':
-              title = 'Délai dépassé';
-              description = 'L\'annulation n\'est plus possible (>24h).';
+              title = t('partner_checkin_err_window_title');
+              description = t('partner_checkin_err_window_desc');
               break;
             default:
               description = `Code : ${err.code}`;
@@ -259,7 +261,7 @@ function PartnerCheckInContent() {
         toast({ title, description, variant: 'destructive' });
       }
     },
-    [user?.uid, toast, loadCheckInData],
+    [user?.uid, toast, loadCheckInData, t],
   );
 
   if (loading) {
@@ -273,16 +275,16 @@ function PartnerCheckInContent() {
   if (forbidden) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6 gap-4">
-        <p className="text-white/70 font-light text-lg">Accès refusé</p>
+        <p className="text-white/70 font-light text-lg">{t('partner_checkin_access_denied')}</p>
         <p className="text-white/50 font-light text-sm text-center max-w-sm">
-          Tu n&apos;es pas le partenaire de cette session.
+          {t('partner_checkin_not_partner_desc')}
         </p>
         <Button
           variant="ghost"
           onClick={() => router.push('/partner/dashboard')}
           className="text-white/70"
         >
-          <ArrowLeft className="mr-2 h-4 w-4" /> Retour dashboard
+          <ArrowLeft className="mr-2 h-4 w-4" /> {t('partner_checkin_back_dashboard')}
         </Button>
       </div>
     );
@@ -302,19 +304,19 @@ function PartnerCheckInContent() {
           size="icon"
           className="h-8 w-8 text-gray-400 hover:text-accent"
           onClick={() => router.push('/partner/dashboard')}
-          aria-label="Retour dashboard"
+          aria-label={t('partner_checkin_back_dashboard')}
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-white font-light text-lg flex-1 truncate">Check-in no-show</h1>
+        <h1 className="text-white font-light text-lg flex-1 truncate">{t('partner_checkin_header_title')}</h1>
       </div>
 
       <div className="max-w-lg mx-auto px-4 py-6">
         <div className="mb-6">
           <p className="text-xs uppercase tracking-[0.18em] text-white/40 font-light mb-1">
-            Session
+            {t('partner_checkin_session_label')}
           </p>
-          <p className="text-base text-white font-light">{activity.title || 'Session'}</p>
+          <p className="text-base text-white font-light">{activity.title || t('partner_checkin_session_fallback')}</p>
           <p className="text-xs text-white/50 font-light">{formatSessionDate(session)}</p>
         </div>
 
@@ -327,9 +329,9 @@ function PartnerCheckInContent() {
 
         {inGrace ? (
           <div className="rounded-lg border border-white/10 bg-white/5 px-4 py-6 text-center">
-            <p className="text-sm text-white font-light mb-1">Check-in pas encore disponible</p>
+            <p className="text-sm text-white font-light mb-1">{t('partner_checkin_grace_title')}</p>
             <p className="text-xs text-white/50 font-light">
-              Tu pourras marquer les no-shows {formatGraceLeft(graceEndMs)} (grâce {NO_SHOW_GRACE_MINUTES} min après fin de session).
+              {t('partner_checkin_grace_desc', { when: formatGraceLeft(graceEndMs, t), minutes: NO_SHOW_GRACE_MINUTES })}
             </p>
           </div>
         ) : (

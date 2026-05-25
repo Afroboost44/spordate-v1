@@ -15,6 +15,7 @@
 
 import Link from 'next/link';
 import { Crown, Zap, Heart, Sparkles, ArrowRight } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface ProfilePremiumCardProps {
   isPremium: boolean;
@@ -22,6 +23,7 @@ export interface ProfilePremiumCardProps {
 }
 
 export function ProfilePremiumCard({ isPremium, isPartner = false }: ProfilePremiumCardProps) {
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col gap-3">
       {/* Banner Premium upgrade ou status */}
@@ -35,10 +37,10 @@ export function ProfilePremiumCard({ isPremium, isPartner = false }: ProfilePrem
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm sm:text-base text-white font-medium">
-              Passe à Spordateur Premium
+              {t('profile_card_premium_upgrade_title')}
             </p>
             <p className="text-[11px] sm:text-xs text-white/60 mt-0.5 leading-snug">
-              Préférences avancées, plus de visibilité, sans pub.
+              {t('profile_card_premium_upgrade_subtitle')}
             </p>
           </div>
           <ArrowRight className="h-5 w-5 text-accent shrink-0 group-hover:translate-x-1 transition-transform" />
@@ -50,10 +52,10 @@ export function ProfilePremiumCard({ isPremium, isPartner = false }: ProfilePrem
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm sm:text-base text-white font-medium">
-              Spordateur Premium actif ✨
+              {t('profile_card_premium_active_title')}
             </p>
             <p className="text-[11px] sm:text-xs text-white/60 mt-0.5 leading-snug">
-              Tu profites de toutes les fonctionnalités avancées.
+              {t('profile_card_premium_active_subtitle')}
             </p>
           </div>
         </div>
@@ -69,11 +71,11 @@ export function ProfilePremiumCard({ isPremium, isPartner = false }: ProfilePrem
             <Zap className="h-4 w-4 text-cyan-300" aria-hidden="true" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-white font-medium">Boost</p>
+            <p className="text-sm text-white font-medium">{t('profile_card_boost')}</p>
             <p className="text-[10px] text-white/40 leading-snug">
               {isPartner
-                ? 'Mets ton activité en avant'
-                : 'Augmente ta visibilité'}
+                ? t('profile_card_boost_partner_subtitle')
+                : t('profile_card_boost_user_subtitle')}
             </p>
           </div>
         </Link>
@@ -86,9 +88,9 @@ export function ProfilePremiumCard({ isPremium, isPartner = false }: ProfilePrem
             <Heart className="h-4 w-4 text-pink-300" aria-hidden="true" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm text-white font-medium">Découvrir</p>
+            <p className="text-sm text-white font-medium">{t('profile_card_discover')}</p>
             <p className="text-[10px] text-white/40 leading-snug">
-              Nouveaux matchs aujourd&apos;hui
+              {t('profile_card_discover_subtitle')}
             </p>
           </div>
         </Link>

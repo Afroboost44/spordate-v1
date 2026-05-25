@@ -30,7 +30,7 @@
 import { Timestamp, collection, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 import type { SanctionLevel, SanctionReason } from '@/types/firestore';
 import { sendEmail } from '@/lib/email/sendEmail';
-import { ADMIN_CONTACT_EMAIL, fetchReportEmailContext, formatDateFR, getReportsDb } from './_internal';
+import { ADMIN_CONTACT_EMAIL, fetchReportEmailContext, formatDateByLang, getReportsDb } from './_internal';
 
 export interface TriggerAutoSanctionInput {
   userId: string;
@@ -92,10 +92,11 @@ export async function triggerAutoSanction(
           userName: ctx.displayName,
           level: input.level,
           reason: input.reason,
-          endsAtFormatted: endsAt ? formatDateFR(endsAt) : undefined,
+          endsAtFormatted: endsAt ? formatDateByLang(endsAt, ctx.lang) : undefined,
           appealable: !isWarning,
           appealEmail: ADMIN_CONTACT_EMAIL,
         },
+        lang: ctx.lang,
       });
     }
   } catch (err) {

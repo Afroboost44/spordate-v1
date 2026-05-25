@@ -40,6 +40,7 @@ import {
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { updateUser } from '@/services/firestore';
 import BackButton from '@/components/BackButton';
@@ -54,6 +55,7 @@ const UNSET = '__any__';
 export default function PreferencesPage() {
   const router = useRouter();
   const { user, userProfile } = useAuth();
+  const { t } = useLanguage();
   const { toast } = useToast();
   const [saving, setSaving] = useState(false);
 
@@ -126,7 +128,7 @@ export default function PreferencesPage() {
       <div className="max-w-2xl mx-auto px-4 py-6 sm:py-8">
         <div className="flex items-center gap-3 mb-8">
           <BackButton fallbackUrl="/profile" />
-          <h1 className="text-2xl sm:text-3xl font-light tracking-wide">Préférences</h1>
+          <h1 className="text-2xl sm:text-3xl font-light tracking-wide">{t('preferences_title')}</h1>
         </div>
 
         <div className="flex flex-col gap-6">
@@ -199,7 +201,7 @@ export default function PreferencesPage() {
               {/* Tranche d'âge — double slider simulé via 2 slider */}
               <div className="flex flex-col gap-2">
                 <Label className="text-xs uppercase tracking-wider text-white/60 flex items-center justify-between">
-                  <span>Tranche d&apos;âge</span>
+                  <span>{t('preferences_age_range')}</span>
                   <span className="text-white">{ageMin} – {ageMax} ans</span>
                 </Label>
                 <Slider
@@ -228,10 +230,10 @@ export default function PreferencesPage() {
                   }
                 >
                   <SelectTrigger className="bg-zinc-900/60 border-white/10 text-white h-11">
-                    <SelectValue placeholder="Ouvert à tous" />
+                    <SelectValue placeholder={t('preferences_open_to_all')} />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-950 border border-white/10 text-white">
-                    <SelectItem value={UNSET}>Ouvert à tous</SelectItem>
+                    <SelectItem value={UNSET}>{t('preferences_open_to_all')}</SelectItem>
                     {RELIGION_OPTIONS.map((o) => (
                       <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                     ))}
@@ -251,14 +253,14 @@ export default function PreferencesPage() {
                   }
                 >
                   <SelectTrigger className="bg-zinc-900/60 border-white/10 text-white h-11">
-                    <SelectValue placeholder="Ouvert à tous" />
+                    <SelectValue placeholder={t('preferences_open_to_all')} />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-950 border border-white/10 text-white">
-                    <SelectItem value={UNSET}>Ouvert à tous</SelectItem>
-                    <SelectItem value="long_term">Relation longue durée</SelectItem>
-                    <SelectItem value="short_term">Relation courte ou intermédiaire</SelectItem>
-                    <SelectItem value="casual">Amitié, fun, sport ensemble</SelectItem>
-                    <SelectItem value="open">Ouvert à voir où ça mène</SelectItem>
+                    <SelectItem value={UNSET}>{t('preferences_open_to_all')}</SelectItem>
+                    <SelectItem value="long_term">{t('preferences_relation_long')}</SelectItem>
+                    <SelectItem value="short_term">{t('preferences_relation_short')}</SelectItem>
+                    <SelectItem value="casual">{t('preferences_relation_friendship')}</SelectItem>
+                    <SelectItem value="open">{t('preferences_relation_open')}</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -312,11 +314,11 @@ export default function PreferencesPage() {
                   disabled={!isPremium}
                 >
                   <SelectTrigger className="bg-zinc-900/60 border-white/10 text-white h-11">
-                    <SelectValue placeholder="Ouvert à tous" />
+                    <SelectValue placeholder={t('preferences_open_to_all')} />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-950 border border-white/10 text-white">
-                    <SelectItem value={UNSET}>Ouvert à tous</SelectItem>
-                    <SelectItem value="has">A des enfants</SelectItem>
+                    <SelectItem value={UNSET}>{t('preferences_open_to_all')}</SelectItem>
+                    <SelectItem value="has">{t('preferences_has_children')}</SelectItem>
                     <SelectItem value="wants">En veut</SelectItem>
                     <SelectItem value="doesnt_want">N&apos;en veut pas</SelectItem>
                   </SelectContent>
@@ -346,10 +348,10 @@ export default function PreferencesPage() {
                     disabled={!isPremium}
                   >
                     <SelectTrigger className="bg-zinc-900/60 border-white/10 text-white h-11">
-                      <SelectValue placeholder="Ouvert à tous" />
+                      <SelectValue placeholder={t('preferences_open_to_all')} />
                     </SelectTrigger>
                     <SelectContent className="bg-zinc-950 border border-white/10 text-white">
-                      <SelectItem value={UNSET}>Ouvert à tous</SelectItem>
+                      <SelectItem value={UNSET}>{t('preferences_open_to_all')}</SelectItem>
                       {FREQUENCY_OPTIONS.map((o) => (
                         <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                       ))}
@@ -371,10 +373,10 @@ export default function PreferencesPage() {
                   disabled={!isPremium}
                 >
                   <SelectTrigger className="bg-zinc-900/60 border-white/10 text-white h-11">
-                    <SelectValue placeholder="Ouvert à tous" />
+                    <SelectValue placeholder={t('preferences_open_to_all')} />
                   </SelectTrigger>
                   <SelectContent className="bg-zinc-950 border border-white/10 text-white">
-                    <SelectItem value={UNSET}>Ouvert à tous</SelectItem>
+                    <SelectItem value={UNSET}>{t('preferences_open_to_all')}</SelectItem>
                     {STUDIES_OPTIONS.map((o) => (
                       <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
                     ))}

@@ -31,8 +31,7 @@ export async function POST(request: NextRequest) {
 
   const result = await notifyUser({
     uid,
-    title: '🎉 Test Spordateur',
-    body: 'Si tu lis ceci, les push fonctionnent. Tu peux fermer cette notif.',
+    messageKey: 'test_push',
     clickUrl: '/notifications',
     data: { type: 'test', source: 'api-test-push', ts: String(Date.now()) },
   });

@@ -10,10 +10,12 @@ import {
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from "@/hooks/use-toast";
 
 export default function SharePage() {
   const { user, userProfile } = useAuth();
+  const { t } = useLanguage();
   const { toast } = useToast();
   const searchParams = useSearchParams();
 
@@ -85,7 +87,7 @@ export default function SharePage() {
           </div>
           <h1 className="text-3xl font-light tracking-tight mb-2">Partage ton Sport Date</h1>
           <p className="text-white/40 text-sm font-light">
-            Montre à tes amis que tu bouges. Chaque partage = <span className="text-accent">1 crédit offert</span>
+            Montre à tes amis que tu bouges. Chaque partage = <span className="text-accent">{t('share_one_credit_offered')}</span>
           </p>
         </div>
 
@@ -102,7 +104,7 @@ export default function SharePage() {
               <div className="flex-1">
                 <p className="text-white font-medium">{sport}</p>
                 {partner && <p className="text-white/40 text-sm">avec {partner}</p>}
-                <p className="text-accent text-xs mt-1">Réservé avec succès</p>
+                <p className="text-accent text-xs mt-1">{t('share_reserved_success')}</p>
               </div>
               <Check className="h-6 w-6 text-green-400" />
             </div>
@@ -123,7 +125,7 @@ export default function SharePage() {
             </div>
             <div className="flex-1 text-left">
               <p className="text-white text-sm font-medium">WhatsApp</p>
-              <p className="text-white/30 text-xs">Envoie à tes amis sportifs</p>
+              <p className="text-white/30 text-xs">{t('share_send_to_friends')}</p>
             </div>
             <ArrowRight className="h-4 w-4 text-white/20" />
           </button>
@@ -168,7 +170,7 @@ export default function SharePage() {
             </div>
             <div className="flex-1 text-left">
               <p className="text-white text-sm font-medium">Facebook</p>
-              <p className="text-white/30 text-xs">Partage avec ta communauté</p>
+              <p className="text-white/30 text-xs">{t('share_share_with_community')}</p>
             </div>
             <ArrowRight className="h-4 w-4 text-white/20" />
           </button>
@@ -209,12 +211,12 @@ export default function SharePage() {
             <div className="flex-1">
               {rewardClaimed ? (
                 <>
-                  <p className="text-green-400 text-sm font-medium">Récompense débloquée !</p>
-                  <p className="text-white/30 text-xs">+1 crédit ajouté à ton compte</p>
+                  <p className="text-green-400 text-sm font-medium">{t('share_reward_unlocked')}</p>
+                  <p className="text-white/30 text-xs">{t('share_one_credit_added')}</p>
                 </>
               ) : (
                 <>
-                  <p className="text-white text-sm font-medium">Gagne 1 crédit gratuit</p>
+                  <p className="text-white text-sm font-medium">{t('share_earn_free_credit')}</p>
                   <p className="text-white/30 text-xs">Partage sur n'importe quelle plateforme</p>
                 </>
               )}

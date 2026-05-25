@@ -37,6 +37,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/context/LanguageContext';
 import { createReport, FREETEXT_MIN_LENGTH, ReportError } from '@/lib/reports';
 import type { ReportCategory } from '@/types/firestore';
 
@@ -44,19 +45,20 @@ const FREETEXT_MAX_LENGTH = 500;
 
 interface CategoryOption {
   value: ReportCategory;
-  label: string;
+  /** i18n key for the label */
+  labelKey: string;
   /** Tailwind class for priority dot. Cohérent doctrine §D.2 :
    *  rouge=urgente / orange=haute / jaune=moyenne / vert=basse. */
   dotClass: string;
 }
 
 const CATEGORIES: CategoryOption[] = [
-  { value: 'harassment_sexuel', label: 'Harcèlement sexuel', dotClass: 'bg-red-500' },
-  { value: 'comportement_agressif', label: 'Comportement agressif / violent', dotClass: 'bg-orange-500' },
-  { value: 'fake_profile', label: 'Faux profil / usurpation', dotClass: 'bg-yellow-500' },
-  { value: 'substance_etat_problematique', label: 'Substances / état problématique', dotClass: 'bg-red-500' },
-  { value: 'no_show', label: 'No-show / Absence', dotClass: 'bg-emerald-500' },
-  { value: 'autre', label: 'Autre (préciser)', dotClass: 'bg-yellow-500' },
+  { value: 'harassment_sexuel', labelKey: 'report_user_cat_harassment', dotClass: 'bg-red-500' },
+  { value: 'comportement_agressif', labelKey: 'report_user_cat_aggressive', dotClass: 'bg-orange-500' },
+  { value: 'fake_profile', labelKey: 'report_user_cat_fake', dotClass: 'bg-yellow-500' },
+  { value: 'substance_etat_problematique', labelKey: 'report_user_cat_substance', dotClass: 'bg-red-500' },
+  { value: 'no_show', labelKey: 'report_user_cat_noshow', dotClass: 'bg-emerald-500' },
+  { value: 'autre', labelKey: 'report_user_cat_other', dotClass: 'bg-yellow-500' },
 ];
 
 export interface ReportUserDialogProps {
@@ -82,6 +84,7 @@ export function ReportUserDialog({
   onReported,
 }: ReportUserDialogProps) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [category, setCategory] = useState<ReportCategory | null>(null);
   const [freeText, setFreeText] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -104,11 +107,11 @@ export function ReportUserDialog({
       });
 
       const successDescription = result.autoSanctionTriggered
-        ? 'Signalement enregistré. Une action automatique a été déclenchée.'
-        : 'Signalement enregistré. Notre équipe modération va l\'examiner.';
+        ? t('report_user_success_auto_sanction')
+        : t('report_user_success_pending');
 
       toast({
-        title: 'Merci pour ton signalement',
+        title: t('report_user_success_title'),
         description: successDescription,
       });
 
@@ -118,37 +121,37 @@ export function ReportUserDialog({
       onOpenChange(false);
       onReported?.(result.reportId);
     } catch (err) {
-      let title = 'Erreur';
-      let description = err instanceof Error ? err.message : 'Signalement non envoyé';
+      let title = t('report_user_error_title');
+      let description = err instanceof Error ? err.message : t('report_user_error_default');
 
       if (err instanceof ReportError) {
         switch (err.code) {
           case 'self-report':
-            title = 'Impossible';
-            description = 'Tu ne peux pas te signaler toi-même.';
+            title = t('report_user_error_self_title');
+            description = t('report_user_error_self_desc');
             break;
           case 'no-shared-session':
-            title = 'Pas de session partagée';
-            description = 'Vous n\'avez pas partagé de session ensemble.';
+            title = t('report_user_error_noshared_title');
+            description = t('report_user_error_noshared_desc');
             break;
           case 'rate-limit-exceeded':
-            title = 'Limite atteinte';
-            description = 'Tu as atteint la limite de 3 signalements par jour.';
+            title = t('report_user_error_ratelimit_title');
+            description = t('report_user_error_ratelimit_desc');
             break;
           case 'report-window-closed':
-            title = 'Délai dépassé';
-            description = 'Le délai pour signaler est dépassé (>30 jours après la session).';
+            title = t('report_user_error_window_title');
+            description = t('report_user_error_window_desc');
             break;
           case 'freetext-required':
-            title = 'Précision requise';
-            description = `Précise le motif (minimum ${FREETEXT_MIN_LENGTH} caractères).`;
+            title = t('report_user_error_freetext_title');
+            description = `${t('report_user_error_freetext_desc_prefix')} ${FREETEXT_MIN_LENGTH} ${t('report_user_error_freetext_desc_suffix')}`;
             break;
           case 'invalid-category':
-            title = 'Catégorie invalide';
-            description = 'Catégorie de signalement invalide.';
+            title = t('report_user_error_invcat_title');
+            description = t('report_user_error_invcat_desc');
             break;
           default:
-            description = `Code : ${err.code}`;
+            description = `${t('report_user_error_code_prefix')} ${err.code}`;
         }
       }
 
@@ -167,18 +170,17 @@ export function ReportUserDialog({
       <DialogContent className="bg-black border border-white/10 text-white max-w-md">
         <DialogHeader>
           <DialogTitle className="text-white font-light text-xl">
-            Signaler {targetName}
+            {t('report_user_dialog_title')} {targetName}
           </DialogTitle>
           <DialogDescription className="text-white/70 font-light leading-relaxed pt-2">
-            Choisis le motif du signalement.
+            {t('report_user_dialog_description')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="border-l-2 border-accent pl-3 py-1 my-2 flex items-start gap-2">
           <ShieldAlert className="h-4 w-4 text-accent shrink-0 mt-0.5" aria-hidden="true" />
           <p className="text-xs text-white/70 font-light leading-relaxed">
-            Ton signalement est <span className="text-white">100% anonyme</span>. {targetName} ne saura
-            jamais qui l&apos;a signalé. Les abus de signalement sont sanctionnés.
+            {t('report_user_anon_prefix')} <span className="text-white">{t('report_user_anon_emph')}</span>. {targetName} {t('report_user_anon_suffix')}
           </p>
         </div>
 
@@ -205,7 +207,7 @@ export function ReportUserDialog({
                   className="border-white/30 text-accent"
                 />
                 <span className={`h-2 w-2 rounded-full ${opt.dotClass}`} aria-hidden="true" />
-                <span className="text-sm font-light text-white/90 flex-1">{opt.label}</span>
+                <span className="text-sm font-light text-white/90 flex-1">{t(opt.labelKey)}</span>
               </Label>
             ))}
           </RadioGroup>
@@ -216,13 +218,13 @@ export function ReportUserDialog({
                 htmlFor="report-freetext"
                 className="text-xs uppercase tracking-[0.18em] text-white/40 font-light"
               >
-                Précise le motif
+                {t('report_user_freetext_label')}
               </Label>
               <Textarea
                 id="report-freetext"
                 value={freeText}
                 onChange={(e) => setFreeText(e.target.value)}
-                placeholder="Décris brièvement le motif du signalement…"
+                placeholder={t('report_user_freetext_placeholder')}
                 maxLength={FREETEXT_MAX_LENGTH}
                 disabled={submitting}
                 rows={3}
@@ -236,7 +238,7 @@ export function ReportUserDialog({
                       : ''
                   }
                 >
-                  Minimum {FREETEXT_MIN_LENGTH} caractères
+                  {t('report_user_freetext_minimum')} {FREETEXT_MIN_LENGTH} {t('report_user_freetext_chars')}
                 </span>
                 <span
                   className={freeText.length > FREETEXT_MAX_LENGTH * 0.9 ? 'text-accent' : ''}
@@ -256,7 +258,7 @@ export function ReportUserDialog({
             disabled={submitting}
             className="flex-1 border-white/10 text-white hover:bg-white/5"
           >
-            Annuler
+            {t('report_user_cancel')}
           </Button>
           <Button
             type="button"
@@ -267,10 +269,10 @@ export function ReportUserDialog({
             {submitting ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 motion-safe:animate-spin" aria-hidden="true" />
-                Envoi…
+                {t('report_user_sending')}
               </>
             ) : (
-              'Envoyer'
+              t('report_user_send')
             )}
           </Button>
         </DialogFooter>

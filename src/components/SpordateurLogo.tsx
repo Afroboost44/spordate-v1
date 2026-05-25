@@ -1,20 +1,22 @@
 /**
- * Accent feature — Logo Spordateur en SVG inline (S stylisé neon).
+ * Logo Spordateur — affiche l'image uploadée par l'admin si configurée,
+ * sinon fallback sur le SVG inline "S" stylisé historique.
  *
- * Remplace l'usage `<img src="/icons/icon-192.png">` qui était statique
- * (PNG charte officielle rose). Cette version utilise `currentColor`,
- * donc suit la couleur du parent (typiquement `text-accent` → suit
- * --accent-color du ThemeProvider, dynamique via /admin "Couleur principale").
+ * Fix #131 — Lit settings/site.brand via useBrandLogos() hook (onSnapshot
+ * realtime). Quand l'admin uploade un nouveau logo via /admin/manage page
+ * Site, TOUTES les instances de SpordateurLogo (header, footer, modals,
+ * PWARegister, signup, login, partner pages…) se mettent à jour en direct
+ * sans refresh.
  *
- * Shape source : public/offline.html (la même courbe "S" + 2 cercles
- * d'extrémité, design original Spordateur).
- *
- * Usage :
- *   <SpordateurLogo className="h-7 w-7" />          // default text-accent
- *   <SpordateurLogo className="h-8 w-8 text-white"> // override couleur
+ * Fallback SVG : preserve l'aspect "currentColor → text-accent" du composant
+ * historique. Utilise le path "S" courbe + 2 cercles, design original.
  *
  * @module
  */
+
+'use client';
+
+import { useBrandLogos, getBestLogoUrl } from '@/lib/brand/useBrandLogos';
 
 interface SpordateurLogoProps {
   /** Tailwind classes (size + couleur override via text-X). Défaut text-accent. */
@@ -27,6 +29,32 @@ export function SpordateurLogo({
   className = 'h-7 w-7 text-accent',
   ariaLabel = 'Spordateur',
 }: SpordateurLogoProps) {
+  const brand = useBrandLogos();
+  const imageUrl = getBestLogoUrl(brand);
+
+  // Fix #131 + #135 — Si l'admin a uploadé un logo, on l'affiche dans un
+  // ROND NOIR (rounded-full bg-black) avec le PNG transparent du logo au
+  // centre. Charte Spordateur cohérente : icône partout sur fond noir circulaire.
+  // Le className parent (h-7 w-7, h-10 w-10, h-24 w-24...) sert à dimensionner
+  // le wrapper. L'image est en object-contain à 75% pour laisser une marge
+  // visuelle propre (le logo ne touche pas les bords du cercle).
+  if (imageUrl) {
+    return (
+      <span
+        className={`${className} inline-flex items-center justify-center bg-black rounded-full overflow-hidden`}
+        role="img"
+        aria-label={ariaLabel}
+      >
+        <img
+          src={imageUrl}
+          alt=""
+          className="w-[75%] h-[75%] object-contain"
+        />
+      </span>
+    );
+  }
+
+  // Fallback SVG historique (suit currentColor → text-accent dynamique)
   return (
     <svg
       viewBox="0 0 32 32"

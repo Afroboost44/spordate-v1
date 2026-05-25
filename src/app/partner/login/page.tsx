@@ -15,10 +15,12 @@ import { auth, isFirebaseConfigured, db } from '@/lib/firebase';
 import { signInWithEmailAndPassword, sendPasswordResetEmail, GoogleAuthProvider, signInWithPopup, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { collection, query, where, getDocs, limit, doc, setDoc, serverTimestamp, GeoPoint } from 'firebase/firestore';
 import { SpordateurLogo } from '@/components/SpordateurLogo';
+import { useLanguage } from '@/context/LanguageContext';
 
 type PartnerStatus = 'loading' | 'no_partner' | 'needs_payment' | 'pending_approval' | 'active' | 'cancelled' | 'refused';
 
 export default function PartnerLoginPage() {
+  const { t } = useLanguage();
   const router = useRouter();
   const [view, setView] = useState<'login' | 'forgot' | 'status'>('login');
   const [email, setEmail] = useState('');
@@ -36,7 +38,7 @@ export default function PartnerLoginPage() {
     setIsLoading(true);
 
     try {
-      if (!auth || !isFirebaseConfigured || !db) throw new Error("Firebase non configuré.");
+      if (!auth || !isFirebaseConfigured || !db) throw new Error(t('partner_login_err_firebase_not_configured'));
 
       let userCred;
       try {
@@ -50,21 +52,21 @@ export default function PartnerLoginPage() {
             await updateProfile(userCred.user, { displayName: email.split('@')[0] });
           } catch (createErr: any) {
             if (createErr.code === 'auth/email-already-in-use') {
-              setError("Mot de passe incorrect. Essayez 'Mot de passe oublié ?' pour le réinitialiser.");
+              setError(t('partner_login_err_wrong_password_try_reset'));
             } else if (createErr.code === 'auth/weak-password') {
-              setError("Mot de passe trop court (min. 6 caractères).");
+              setError(t('partner_login_err_weak_password'));
             } else {
-              setError(createErr.message || "Erreur de connexion.");
+              setError(createErr.message || t('partner_login_err_connection'));
             }
             setIsLoading(false);
             return;
           }
         } else if (signInErr.code === 'auth/wrong-password') {
-          setError("Mot de passe incorrect.");
+          setError(t('partner_login_err_wrong_password'));
           setIsLoading(false);
           return;
         } else if (signInErr.code === 'auth/too-many-requests') {
-          setError("Trop de tentatives. Réessayez plus tard.");
+          setError(t('partner_login_err_too_many_attempts'));
           setIsLoading(false);
           return;
         } else {
@@ -106,14 +108,14 @@ export default function PartnerLoginPage() {
       await checkPartnerAndRedirect(userEmail);
     } catch (err: any) {
       console.error('[Partner Login]', err);
-      setError(err.message || "Une erreur est survenue.");
+      setError(err.message || t('partner_login_err_generic'));
       setIsLoading(false);
     }
   };
 
   // Check partner status after auth (shared by email + Google login)
   const checkPartnerAndRedirect = async (userEmail: string) => {
-    if (!db) throw new Error("Firestore non initialisé.");
+    if (!db) throw new Error(t('partner_login_err_firestore_not_initialized'));
     const partnerQ = query(collection(db, 'partners'), where('email', '==', userEmail), limit(1));
     const partnerSnap = await getDocs(partnerQ);
 
@@ -154,14 +156,14 @@ export default function PartnerLoginPage() {
     setError('');
     setIsLoading(true);
     try {
-      if (!auth || !isFirebaseConfigured || !db) throw new Error("Firebase non configuré.");
+      if (!auth || !isFirebaseConfigured || !db) throw new Error(t('partner_login_err_firebase_not_configured'));
       const provider = new GoogleAuthProvider();
       // Phase 9.5 c22 BUG T — force account selector (UX multi-comptes)
       provider.setCustomParameters({ prompt: 'select_account' });
       const result = await signInWithPopup(auth, provider);
       const user = result.user;
       const userEmail = user.email;
-      if (!userEmail) throw new Error("Email non disponible.");
+      if (!userEmail) throw new Error(t('partner_login_err_email_unavailable'));
 
       // Check if partner doc exists
       const partnerQ = query(collection(db, 'partners'), where('email', '==', userEmail), limit(1));
@@ -219,7 +221,7 @@ export default function PartnerLoginPage() {
       if (err.code === 'auth/popup-closed-by-user') {
         // User closed the popup, do nothing
       } else {
-        setError(err.message || "Erreur de connexion Google.");
+        setError(err.message || t('partner_login_err_google_connection'));
       }
       setIsLoading(false);
     }
@@ -229,13 +231,13 @@ export default function PartnerLoginPage() {
     setIsLoading(true);
     try {
       const userId = auth?.currentUser?.uid;
-      if (!userId) throw new Error("Session expirée.");
+      if (!userId) throw new Error(t('partner_login_err_session_expired'));
       const res = await fetch('/api/checkout', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ packageId: 'partner_monthly', userId }),
       });
       const data = await res.json();
-      if (!res.ok || !data.url) throw new Error(data.error || "Erreur paiement.");
+      if (!res.ok || !data.url) throw new Error(data.error || t('partner_login_err_payment'));
       window.location.href = data.url;
     } catch (err: any) { setError(err.message); setIsLoading(false); }
   };
@@ -252,12 +254,12 @@ export default function PartnerLoginPage() {
         body: JSON.stringify({ email }),
       });
       if (!res.ok) {
-        setError("Erreur lors de l'envoi. Vérifiez l'email.");
+        setError(t('partner_login_err_reset_email'));
       } else {
         setResetSent(true);
       }
     } catch {
-      setError("Erreur lors de l'envoi. Vérifiez l'email.");
+      setError(t('partner_login_err_reset_email'));
     }
     setIsLoading(false);
   };
@@ -277,7 +279,7 @@ export default function PartnerLoginPage() {
           </Link>
         </div>
         <Link href="/partner/register" className="text-sm text-accent hover:text-accent/80 transition font-light">
-          Devenir partenaire
+          {t('partner_login_become_partner')}
         </Link>
       </div>
     </nav>
@@ -295,10 +297,10 @@ export default function PartnerLoginPage() {
                 <div className="w-20 h-20 rounded-full bg-orange-500/10 border border-orange-500/20 flex items-center justify-center mx-auto">
                   <ShieldAlert className="h-10 w-10 text-orange-400" />
                 </div>
-                <h1 className="text-2xl font-extralight tracking-tight">Compte non partenaire</h1>
-                <p className="text-white/50 font-light">Ce compte n&apos;est pas enregistré comme partenaire.</p>
+                <h1 className="text-2xl font-extralight tracking-tight">{t('partner_login_no_partner_title')}</h1>
+                <p className="text-white/50 font-light">{t('partner_login_no_partner_desc')}</p>
                 <Button asChild className="bg-accent hover:bg-accent/80 text-white font-semibold h-12 rounded-full px-8">
-                  <Link href="/partner/register">Devenir partenaire</Link>
+                  <Link href="/partner/register">{t('partner_login_become_partner')}</Link>
                 </Button>
               </>
             )}
@@ -308,17 +310,17 @@ export default function PartnerLoginPage() {
                 <div className="w-20 h-20 rounded-full bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center mx-auto">
                   <CreditCard className="h-10 w-10 text-yellow-400" />
                 </div>
-                <h1 className="text-2xl font-extralight tracking-tight">Abonnement requis</h1>
+                <h1 className="text-2xl font-extralight tracking-tight">{t('partner_login_needs_payment_title')}</h1>
                 <p className="text-white/50 font-light">
-                  Bienvenue <strong className="text-white">{partnerName}</strong>. Activez votre abonnement pour accéder au portail.
+                  {t('partner_login_needs_payment_welcome')} <strong className="text-white">{partnerName}</strong>. {t('partner_login_needs_payment_activate')}
                 </p>
                 <div className="bg-accent/5 border border-accent/20 rounded-2xl p-6">
-                  <p className="text-4xl font-extralight text-white">49 <span className="text-lg text-white/40">CHF/mois</span></p>
+                  <p className="text-4xl font-extralight text-white">49 <span className="text-lg text-white/40">{t('partner_login_chf_month')}</span></p>
                 </div>
                 {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                 <Button onClick={handlePayNow} disabled={isLoading} className="w-full bg-accent hover:bg-accent/80 text-white font-semibold h-14 rounded-full">
                   {isLoading ? <Loader2 className="animate-spin mr-2" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                  Payer l&apos;abonnement
+                  {t('partner_login_pay_subscription')}
                 </Button>
               </>
             )}
@@ -328,22 +330,22 @@ export default function PartnerLoginPage() {
                 <div className="w-20 h-20 rounded-full bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto">
                   <AlertTriangle className="h-10 w-10 text-amber-400" />
                 </div>
-                <h1 className="text-2xl font-extralight tracking-tight text-amber-400">En attente de validation</h1>
+                <h1 className="text-2xl font-extralight tracking-tight text-amber-400">{t('partner_login_pending_title')}</h1>
                 <p className="text-white/50 font-light">
-                  Votre abonnement est actif. L&apos;administrateur va valider <strong className="text-white">{partnerName}</strong> pour activer votre portail.
+                  {t('partner_login_pending_desc_1')} <strong className="text-white">{partnerName}</strong> {t('partner_login_pending_desc_2')}
                 </p>
                 <div className="bg-white/5 border border-white/10 rounded-2xl p-6 text-left space-y-3">
                   <div className="flex items-center gap-3">
                     <CheckCircle className="h-4 w-4 text-green-400" />
-                    <span className="text-sm text-green-400 font-light">Abonnement payé</span>
+                    <span className="text-sm text-green-400 font-light">{t('partner_login_subscription_paid')}</span>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="h-4 w-4 rounded-full border-2 border-amber-400 animate-pulse" />
-                    <span className="text-sm text-amber-400 font-light">Validation admin en cours...</span>
+                    <span className="text-sm text-amber-400 font-light">{t('partner_login_admin_validation_in_progress')}</span>
                   </div>
                 </div>
                 <Button onClick={() => router.push('/')} className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-light rounded-full px-8 h-12">
-                  Retour à l&apos;accueil
+                  {t('partner_login_back_home')}
                 </Button>
               </>
             )}
@@ -353,12 +355,12 @@ export default function PartnerLoginPage() {
                 <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
                   <ShieldAlert className="h-10 w-10 text-red-400" />
                 </div>
-                <h1 className="text-2xl font-extralight tracking-tight text-red-400">Abonnement annulé</h1>
-                <p className="text-white/50 font-light">Votre abonnement a été annulé. Renouvelez-le pour retrouver l&apos;accès.</p>
+                <h1 className="text-2xl font-extralight tracking-tight text-red-400">{t('partner_login_cancelled_title')}</h1>
+                <p className="text-white/50 font-light">{t('partner_login_cancelled_desc')}</p>
                 {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
                 <Button onClick={handlePayNow} disabled={isLoading} className="w-full bg-accent hover:bg-accent/80 text-white font-semibold h-14 rounded-full">
                   {isLoading ? <Loader2 className="animate-spin mr-2" /> : <CreditCard className="mr-2 h-4 w-4" />}
-                  Renouveler l&apos;abonnement
+                  {t('partner_login_renew_subscription')}
                 </Button>
               </>
             )}
@@ -368,10 +370,10 @@ export default function PartnerLoginPage() {
                 <div className="w-20 h-20 rounded-full bg-red-500/10 border border-red-500/20 flex items-center justify-center mx-auto">
                   <ShieldAlert className="h-10 w-10 text-red-400" />
                 </div>
-                <h1 className="text-2xl font-extralight tracking-tight text-red-400">Demande refusée</h1>
-                <p className="text-white/50 font-light">Votre demande de partenariat a été refusée. Contactez-nous pour plus d&apos;informations.</p>
+                <h1 className="text-2xl font-extralight tracking-tight text-red-400">{t('partner_login_refused_title')}</h1>
+                <p className="text-white/50 font-light">{t('partner_login_refused_desc')}</p>
                 <Button onClick={() => router.push('/')} className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-light rounded-full px-8 h-12">
-                  Retour à l&apos;accueil
+                  {t('partner_login_back_home')}
                 </Button>
               </>
             )}
@@ -389,8 +391,8 @@ export default function PartnerLoginPage() {
         <div className="flex items-center justify-center min-h-[85vh] px-4">
           <div className="max-w-md w-full space-y-8">
             <div className="text-center space-y-3">
-              <h1 className="text-2xl font-extralight tracking-tight">Réinitialisation</h1>
-              <p className="text-white/50 font-light">Recevez un lien sécurisé par email.</p>
+              <h1 className="text-2xl font-extralight tracking-tight">{t('partner_login_reset_title')}</h1>
+              <p className="text-white/50 font-light">{t('partner_login_reset_desc')}</p>
             </div>
 
             {resetSent ? (
@@ -398,20 +400,20 @@ export default function PartnerLoginPage() {
                 <div className="w-16 h-16 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center mx-auto">
                   <CheckCircle className="h-8 w-8 text-green-400" />
                 </div>
-                <p className="text-green-400 font-light">Un lien a été envoyé à <strong>{email}</strong>.</p>
+                <p className="text-green-400 font-light">{t('partner_login_reset_sent_prefix')} <strong>{email}</strong>.</p>
                 <Button onClick={() => { setView('login'); setResetSent(false); }} className="bg-white/5 hover:bg-white/10 border border-white/10 text-white font-light rounded-full px-8 h-12">
-                  Retour connexion
+                  {t('partner_login_back_to_login')}
                 </Button>
               </div>
             ) : (
               <form onSubmit={handleForgotPassword} className="space-y-4">
-                <Input type="email" placeholder="Votre email professionnel" value={email} onChange={e => setEmail(e.target.value)} required
+                <Input type="email" placeholder={t('partner_login_email_pro_placeholder')} value={email} onChange={e => setEmail(e.target.value)} required
                   className="bg-black/50 border-white/10 text-white h-12 rounded-xl focus:border-accent/50" />
                 <Button disabled={isLoading} type="submit" className="w-full bg-accent hover:bg-accent/80 text-white font-semibold h-12 rounded-full">
-                  {isLoading ? <Loader2 className="animate-spin mr-2" /> : null} Envoyer le lien
+                  {isLoading ? <Loader2 className="animate-spin mr-2" /> : null} {t('partner_login_send_link')}
                 </Button>
                 <button type="button" onClick={() => setView('login')} className="w-full text-sm text-white/30 hover:text-white/50 font-light py-2">
-                  Annuler
+                  {t('partner_login_cancel')}
                 </button>
               </form>
             )}
@@ -432,7 +434,7 @@ export default function PartnerLoginPage() {
             <div className="w-16 h-16 rounded-2xl bg-accent/10 border border-accent/20 flex items-center justify-center mx-auto">
               <Building className="h-8 w-8 text-accent" />
             </div>
-            <h1 className="text-3xl font-extralight tracking-tight">Espace Partenaire</h1>
+            <h1 className="text-3xl font-extralight tracking-tight">{t('partner_login_partner_space')}</h1>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-5">
@@ -440,15 +442,15 @@ export default function PartnerLoginPage() {
 
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
               <div>
-                <Label className="text-white/40 text-xs font-light">Email Professionnel</Label>
+                <Label className="text-white/40 text-xs font-light">{t('partner_login_email_label')}</Label>
                 <Input type="email" value={email} onChange={e => setEmail(e.target.value)} required
                   className="bg-black/50 border-white/10 text-white h-12 rounded-xl mt-1.5 focus:border-accent/50" />
               </div>
               <div>
                 <div className="flex justify-between items-center">
-                  <Label className="text-white/40 text-xs font-light">Mot de passe</Label>
+                  <Label className="text-white/40 text-xs font-light">{t('partner_login_password_label')}</Label>
                   <button type="button" onClick={() => setView('forgot')} className="text-xs text-accent hover:underline font-light">
-                    Mot de passe oublié ?
+                    {t('partner_login_forgot_password')}
                   </button>
                 </div>
                 <div className="relative mt-1.5">
@@ -464,14 +466,14 @@ export default function PartnerLoginPage() {
 
             <Button disabled={isLoading} type="submit" className="w-full bg-accent hover:bg-accent/80 text-white font-semibold h-14 text-base rounded-full">
               {isLoading ? <Loader2 className="animate-spin mr-2" /> : <Lock className="mr-2 h-4 w-4" />}
-              Se connecter
+              {t('partner_login_sign_in')}
             </Button>
           </form>
 
           {/* Separator */}
           <div className="flex items-center gap-4">
             <div className="flex-1 h-px bg-white/10" />
-            <span className="text-xs text-white/20 font-light">ou</span>
+            <span className="text-xs text-white/20 font-light">{t('partner_login_or')}</span>
             <div className="flex-1 h-px bg-white/10" />
           </div>
 
@@ -488,11 +490,11 @@ export default function PartnerLoginPage() {
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
             </svg>
-            Continuer avec Google
+            {t('partner_login_continue_google')}
           </Button>
 
           <p className="text-center text-sm text-white/30 font-light">
-            Pas encore partenaire ? <Link href="/partner/register" className="text-accent hover:underline">Faites une demande ici</Link>
+            {t('partner_login_not_partner_yet')} <Link href="/partner/register" className="text-accent hover:underline">{t('partner_login_apply_here')}</Link>
           </p>
         </div>
       </div>

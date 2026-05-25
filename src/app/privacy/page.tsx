@@ -2,341 +2,189 @@
 
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 export default function PrivacyPage() {
+  const { t } = useLanguage();
   return (
     <div className="min-h-screen bg-black">
       <div className="container mx-auto px-4 py-12 max-w-3xl">
         <Link href="/" className="inline-flex items-center gap-2 text-gray-500 hover:text-white transition-colors mb-8 text-sm font-light">
           <ArrowLeft className="h-4 w-4" />
-          Retour
+          {t('privacy_back')}
         </Link>
 
         <h1 className="text-3xl md:text-4xl font-light text-white mb-2">
-          Politique de Confidentialité
+          {t('privacy_title')}
         </h1>
         <p className="text-sm text-gray-500 font-light mb-10">
-          Dernière mise à jour : 7 mai 2026 (ajout sections 2 / 5 / 7 / 8 — données scan IA chat, sous-traitant Google Gemini, conservation logs, droit opposition suggestions IA — Phase 8)
+          {t('privacy_last_update')}
         </p>
 
         <div className="space-y-8 text-gray-400 font-light leading-relaxed text-[15px]">
 
           <section>
-            <p>
-              La présente Politique de Confidentialité décrit comment Spordateur (ci-après « nous »,
-              « notre » ou « Spordateur ») collecte, utilise, conserve et protège vos données personnelles
-              conformément à la Loi fédérale sur la protection des données (nLPD, RS 235.1) et, dans
-              la mesure applicable, au Règlement général sur la protection des données (RGPD) de
-              l&apos;Union européenne.
-            </p>
+            <p>{t('privacy_intro_p1')}</p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">1. Responsable du traitement</h2>
-            <p>
-              Le responsable du traitement des données est :
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h1_controller')}</h2>
+            <p>{t('privacy_controller_intro')}</p>
             <p className="mt-2">
-              <span className="text-white">Spordateur</span><br />
-              Rue des Maillefer 39<br />
-              2000 Neuchâtel, Suisse<br />
-              Numéro IDE : CHE-407.097.646<br />
-              E-mail : <a href="mailto:contact@spordateur.com" className="text-accent hover:underline">contact@spordateur.com</a>
+              <span className="text-white">{t('privacy_controller_name')}</span><br />
+              {t('privacy_controller_address1')}<br />
+              {t('privacy_controller_address2')}<br />
+              {t('privacy_controller_ide')}<br />
+              {t('privacy_controller_email_label')} <a href="mailto:contact@spordateur.com" className="text-accent hover:underline">contact@spordateur.com</a>
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">2. Données collectées</h2>
-            <p>Nous collectons les catégories de données suivantes :</p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h2_data')}</h2>
+            <p>{t('privacy_data_intro')}</p>
             <p className="mt-3">
-              <span className="text-white">Données d&apos;inscription :</span> adresse e-mail, nom d&apos;affichage,
-              photo de profil (facultative), mot de passe hashé. En cas de connexion via Google OAuth,
-              nous recevons le nom, l&apos;e-mail et la photo de profil associés au compte Google.
+              <span className="text-white">{t('privacy_data_signup_title')}</span> {t('privacy_data_signup_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Données de profil :</span> genre, ville, biographie,
-              sports pratiqués, styles de danse, niveaux, photos téléchargées.
+              <span className="text-white">{t('privacy_data_profile_title')}</span> {t('privacy_data_profile_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Données d&apos;utilisation :</span> activités de matching,
-              historique de réservations, messages échangés via le chat.
+              <span className="text-white">{t('privacy_data_usage_title')}</span> {t('privacy_data_usage_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Données de paiement :</span> les informations de paiement
-              (carte bancaire, TWINT) sont traitées exclusivement par notre prestataire Stripe Inc.
-              Spordateur ne stocke aucune donnée de carte bancaire. Nous conservons uniquement les
-              identifiants de transaction, montants et dates.
+              <span className="text-white">{t('privacy_data_payment_title')}</span> {t('privacy_data_payment_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Données techniques :</span> adresse IP, type de navigateur,
-              système d&apos;exploitation, pages consultées, horodatages — collectées automatiquement via
-              des cookies techniques nécessaires au fonctionnement du service.
+              <span className="text-white">{t('privacy_data_technical_title')}</span> {t('privacy_data_technical_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Données conversationnelles et scan IA (Phase 8) :</span>{' '}
-              contenu des messages chat (stocké dans la collection chat de Firestore), métadonnées
-              (horodatage, expéditeur, statut). Les messages font l&apos;objet d&apos;un scan
-              automatisé hybride (filtres techniques + analyse contextuelle IA Gemini) afin de
-              détecter les tentatives de partage de coordonnées (cf. CGU section 7.quater). Le
-              journal de scan ne contient pas les messages lisibles : uniquement un score de
-              risque, un motif technique et un hash anonyme conservés 30 jours.
+              <span className="text-white">{t('privacy_data_chat_title')}</span> {t('privacy_data_chat_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Données Trust &amp; Safety (Phase 7) :</span> signalements
-              émis et reçus (motif, date, statut), reviews publiées (note, commentaire, date), historique
-              des sanctions appliquées, traces d&apos;audit administratif (collection adminActions —
-              identifiant admin, action, motif, horodatage). En cas de bannissement permanent, un
-              enregistrement Banlist (hash anonymisé du compte + raison + date + drapeau de non-recréation)
-              est conservé indéfiniment pour empêcher le contournement par création d&apos;un nouveau
-              compte avec les mêmes informations d&apos;identification.
+              <span className="text-white">{t('privacy_data_trust_title')}</span> {t('privacy_data_trust_desc')}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">3. Finalités du traitement</h2>
-            <p>Vos données sont traitées pour les finalités suivantes :</p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h3_purposes')}</h2>
+            <p>{t('privacy_purposes_intro')}</p>
             <p className="mt-2">
-              — Fourniture et amélioration du service de matching sportif ;
-              — Gestion de votre compte et de votre profil ;
-              — Traitement des paiements et gestion des abonnements ;
-              — Communication relative au service (notifications, e-mails transactionnels via Resend) ;
-              — <span className="text-white">Modération et sécurité de la Plateforme</span> :
-              traitement des signalements Trust &amp; Safety, application des sanctions, prévention
-              du harcèlement et des comportements inappropriés, audit des décisions admin ;
-              — Prévention des fraudes ;
-              — Respect de nos obligations légales.
+              {t('privacy_purposes_list_part1')}{' '}
+              <span className="text-white">{t('privacy_purposes_moderation_title')}</span>{' '}
+              {t('privacy_purposes_list_part2')}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">4. Bases juridiques du traitement</h2>
-            <p>Le traitement de vos données repose sur les bases juridiques suivantes (art. 31 nLPD) :</p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h4_legal_basis')}</h2>
+            <p>{t('privacy_legal_basis_intro')}</p>
             <p className="mt-2">
-              — <span className="text-white">Exécution du contrat</span> : traitement nécessaire à la fourniture
-              des services que vous avez souscrits ;
-              — <span className="text-white">Consentement</span> : pour les données facultatives (photos, biographie)
-              et les communications marketing ;
-              — <span className="text-white">Intérêt légitime</span> : amélioration du service, prévention des fraudes ;
-              — <span className="text-white">Obligation légale</span> : conservation des données de facturation.
+              — <span className="text-white">{t('privacy_legal_contract_title')}</span> {t('privacy_legal_contract_desc')}
+              — <span className="text-white">{t('privacy_legal_consent_title')}</span> {t('privacy_legal_consent_desc')}
+              — <span className="text-white">{t('privacy_legal_legitimate_title')}</span> {t('privacy_legal_legitimate_desc')}
+              — <span className="text-white">{t('privacy_legal_obligation_title')}</span> {t('privacy_legal_obligation_desc')}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">5. Hébergement et sous-traitants</h2>
-            <p>Vos données sont hébergées et traitées par les prestataires (sous-traitants au sens de l&apos;art. 9 nLPD / art. 28 RGPD) suivants :</p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h5_hosting')}</h2>
+            <p>{t('privacy_hosting_intro')}</p>
             <p className="mt-3">
-              <span className="text-white">Firebase / Google Cloud Platform</span> — Authentification,
-              base de données Firestore (région eur3 multi-region Frankfurt), stockage de fichiers,
-              Cloud Functions (région europe-west1 Belgique). Google LLC est certifié selon le
-              Swiss-U.S. Data Privacy Framework. Finalité : socle technique de la Plateforme.
+              <span className="text-white">{t('privacy_hosting_firebase_title')}</span> {t('privacy_hosting_firebase_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Vercel Inc.</span> — Hébergement de l&apos;application web
-              (États-Unis et Europe). Vercel est conforme au RGPD. Finalité : exécution du serveur
-              web Next.js et des routes API.
+              <span className="text-white">{t('privacy_hosting_vercel_title')}</span> {t('privacy_hosting_vercel_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Stripe Inc.</span> — Traitement des paiements (États-Unis,
-              Vermont). Stripe est certifié PCI DSS Level 1 et conforme au RGPD. Les données de carte
-              bancaire ne transitent jamais par nos serveurs. Finalité : encaissement des sessions et
-              abonnements en CHF.
+              <span className="text-white">{t('privacy_hosting_stripe_title')}</span> {t('privacy_hosting_stripe_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Hostinger International Ltd.</span> — Mailbox{' '}
-              contact@spordateur.com (Lituanie, UE). Hostinger est conforme au RGPD. Finalité : relais
-              des e-mails entrants utilisateurs (notamment les appels de sanctions T&amp;S).
+              <span className="text-white">{t('privacy_hosting_hostinger_title')}</span> {t('privacy_hosting_hostinger_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Resend.com</span> — E-mails transactionnels sortants
-              (États-Unis, Delaware). Resend est conforme au RGPD et utilise des sous-traitants AWS
-              (États-Unis et Europe). Finalité : envoi des notifications T&amp;S (avertissements,
-              suspensions, accusés d&apos;appel), confirmations de réservation, rappels de review 48h.
-              Les contenus des e-mails sont stockés temporairement (logs Resend, durée &lt; 30 jours).
+              <span className="text-white">{t('privacy_hosting_resend_title')}</span> {t('privacy_hosting_resend_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Google AI — Gemini Flash via Genkit (Phase 8).</span>{' '}
-              Modèle d&apos;intelligence artificielle Gemini Flash de Google LLC, utilisé via la
-              bibliothèque Genkit (Firebase AI stack) pour deux finalités distinctes : (a) analyse
-              contextuelle des messages chat ambigus (Layer 2 de la modération automatisée — cf.
-              CGU section 7.quater) ; (b) génération de suggestions contextuelles d&apos;activités
-              dans le chat post-session (cf. CGU section 7.quinquies). Les requêtes sont traitées
-              sur l&apos;infrastructure Google Cloud (multi-region, principalement EU). Google LLC
-              est certifié selon le Swiss-U.S. Data Privacy Framework et conforme au RGPD ; les
-              transferts vers les États-Unis sont encadrés par les clauses contractuelles types
-              (SCC) reconnues par le PFPDT. Aucune donnée transmise via l&apos;API Gemini standard
-              n&apos;est utilisée par Google pour l&apos;entraînement de ses modèles (DPA Google
-              Cloud — pas de consentement fine-tuning). Phase 8 : usage limité à la langue
-              française ; allemand et italien planifiés Phase 10+.
+              <span className="text-white">{t('privacy_hosting_gemini_title')}</span> {t('privacy_hosting_gemini_desc')}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">6. Transferts internationaux</h2>
-            <p>
-              Certains de nos sous-traitants sont établis aux États-Unis. Ces transferts sont encadrés
-              par le Swiss-U.S. Data Privacy Framework, les clauses contractuelles types (SCC) de la
-              Commission européenne reconnues par le PFPDT, ou le consentement explicite de l&apos;Utilisateur.
-              Nous veillons à ce que tout transfert offre un niveau de protection adéquat conformément
-              aux art. 16-17 nLPD.
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h6_transfers')}</h2>
+            <p>{t('privacy_transfers_p1')}</p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">7. Durée de conservation</h2>
-            <p>
-              Les données de profil sont conservées tant que votre compte est actif. En cas de suppression
-              du compte, vos données personnelles sont effacées dans un délai de 30 jours, à l&apos;exception
-              des données de facturation conservées pendant 10 ans conformément au droit commercial suisse
-              (art. 958f CO) et des données nécessaires à la constatation, l&apos;exercice ou la défense de
-              droits en justice.
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h7_retention')}</h2>
+            <p>{t('privacy_retention_p1')}</p>
             <p className="mt-3">
-              <span className="text-white">Durées spécifiques aux données Trust &amp; Safety
-              (proportionnalité — nLPD Art. 7) :</span>
+              <span className="text-white">{t('privacy_retention_trust_title')}</span>
             </p>
+            <p className="mt-2">{t('privacy_retention_list')}</p>
+          </section>
+
+          <section>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h8_rights')}</h2>
+            <p>{t('privacy_rights_intro')}</p>
             <p className="mt-2">
-              — <span className="text-white">Reviews publiques</span> : conservation indéfinie
-              sauf demande de suppression de l&apos;Utilisateur (art. 17 RGPD / nLPD) ;
-              — <span className="text-white">Signalements actifs (12 derniers mois)</span> :
-              conservation rolling 12 mois pour le calcul des seuils auto-sanctions ;
-              — <span className="text-white">Signalements résolus</span> (warning émis, suspension
-              ou ban exécuté) : 12 mois après résolution pour traçabilité audit et détection de
-              récidive ;
-              — <span className="text-white">Bannissements permanents — données personnelles (PII)</span> :
-              24 mois (e-mail original, données de profil), puis anonymisation automatique ;
-              — <span className="text-white">Bannissements permanents — enregistrement Banlist</span>
-              (hash anonymisé du compte + raison + date + drapeau de non-recréation) :
-              <span className="text-white"> conservation indéfinie</span> pour empêcher le
-              contournement par création d&apos;un nouveau compte ; cet enregistrement ne contient
-              aucune donnée personnelle identifiable après les 24 mois ;
-              — <span className="text-white">Traces d&apos;audit administratif (adminActions)</span> :
-              24 mois pour conformité et traçabilité des décisions de modération ;
-              — <span className="text-white">Logs Resend (e-mails sortants)</span> : durée
-              standard Resend (&lt; 30 jours) ;
-              — <span className="text-white">Logs de scan IA chat (Phase 8)</span> : 30 jours
-              en hash anonyme (score de risque + motif technique + hash du message, jamais le
-              contenu lisible), puis purge automatique. Les messages chat eux-mêmes suivent la
-              durée standard de la collection chat (non modifiée par le scan).
+              — <span className="text-white">{t('privacy_rights_access_title')}</span> {t('privacy_rights_access_desc')}
+              — <span className="text-white">{t('privacy_rights_rectif_title')}</span> {t('privacy_rights_rectif_desc')}
+              — <span className="text-white">{t('privacy_rights_erasure_title')}</span> {t('privacy_rights_erasure_desc')}
+              — <span className="text-white">{t('privacy_rights_portability_title')}</span> {t('privacy_rights_portability_desc')}
+              — <span className="text-white">{t('privacy_rights_opposition_title')}</span> {t('privacy_rights_opposition_desc')}
+              — <span className="text-white">{t('privacy_rights_withdraw_title')}</span> {t('privacy_rights_withdraw_desc')}
             </p>
-          </section>
-
-          <section>
-            <h2 className="text-lg text-white font-normal mb-3">8. Vos droits</h2>
-            <p>Conformément à la nLPD, vous disposez des droits suivants :</p>
-            <p className="mt-2">
-              — <span className="text-white">Droit d&apos;accès</span> (art. 25 nLPD) : obtenir confirmation du
-              traitement et une copie de vos données ;
-              — <span className="text-white">Droit de rectification</span> : corriger vos données inexactes ;
-              — <span className="text-white">Droit à l&apos;effacement</span> : demander la suppression de vos données ;
-              — <span className="text-white">Droit à la portabilité</span> (art. 28 nLPD) : recevoir vos données
-              dans un format structuré et couramment utilisé ;
-              — <span className="text-white">Droit d&apos;opposition</span> : vous opposer au traitement fondé
-              sur un intérêt légitime ;
-              — <span className="text-white">Droit de retirer votre consentement</span> à tout moment.
+            <p className="mt-3">{t('privacy_rights_exercise_p')}</p>
+            <p className="mt-3">
+              <span className="text-white">{t('privacy_rights_sanction_title')}</span> {t('privacy_rights_sanction_desc')}
             </p>
             <p className="mt-3">
-              Pour exercer ces droits, contactez-nous à contact@spordateur.com. Nous répondrons dans
-              un délai de 30 jours. En cas de désaccord, vous pouvez déposer une réclamation auprès
-              du Préposé fédéral à la protection des données et à la transparence (PFPDT).
+              <span className="text-white">{t('privacy_rights_ai_optout_title')}</span> {t('privacy_rights_ai_optout_desc1')}{' '}
+              <Link href="/profile" className="text-accent hover:underline">{t('privacy_rights_ai_profile_link')}</Link>.{' '}
+              {t('privacy_rights_ai_optout_desc2')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Droit d&apos;information sur sanctions Trust &amp; Safety
-              (nLPD Art. 19).</span> En cas de sanction (avertissement, suspension, bannissement),
-              vous recevez par e-mail une notification motivée mentionnant la catégorie du
-              signalement, la durée, la date de fin (si suspension) et le mécanisme d&apos;appel.
-              L&apos;identité du signalant n&apos;est jamais communiquée (protection lanceur d&apos;alerte).
-              Vous disposez d&apos;un droit d&apos;appel exerçable une seule fois par niveau de sanction
-              (réponse à l&apos;e-mail ou écrit à contact@spordateur.com), avec un délai de réponse
-              de notre équipe modération de 7 jours calendaires (Phase 7) — voir CGU section 7.bis.
+              <span className="text-white">{t('privacy_rights_moderation_title')}</span> {t('privacy_rights_moderation_desc')}
             </p>
             <p className="mt-3">
-              <span className="text-white">Droit d&apos;opposition aux suggestions IA dans le chat
-              (Phase 8).</span> Les suggestions contextuelles d&apos;activités générées par IA
-              dans le chat sont activées par défaut sur la base d&apos;un intérêt légitime
-              prépondérant (art. 31 nLPD). Vous pouvez les désactiver à tout moment via le toggle
-              dédié dans la rubrique « Confidentialité » de{' '}
-              <Link href="/profile" className="text-accent hover:underline">votre profil</Link>.
-              Lorsqu&apos;un membre du chat désactive les suggestions, aucune suggestion n&apos;est
-              générée pour ce chat (consensus opt-out).
-            </p>
-            <p className="mt-3">
-              <span className="text-white">Modération automatisée des messages — non
-              désactivable individuellement.</span> La modération automatisée des messages
-              (filtres techniques + analyse IA) constitue une mesure essentielle de sécurité et
-              de rétention plateforme : à ce titre, elle ne peut être désactivée individuellement
-              (intérêt légitime prépondérant — art. 31 nLPD). Les utilisateurs sont informés de
-              cette modération dès l&apos;inscription via les CGU (section 7.quater). Le journal
-              de scan n&apos;archive aucun contenu lisible (uniquement score, motif et hash
-              anonyme, conservation 30 jours).
-            </p>
-            <p className="mt-3">
-              <span className="text-white">Droit à l&apos;effacement et anonymisation soft delete
-              (RGPD Art. 17 / nLPD).</span> En cas de demande de suppression de votre compte,
-              vos données personnelles sont effacées sous 30 jours conformément à la section 7.
-              Les contenus relationnels nécessaires à l&apos;intégrité du système Trust &amp; Safety
-              (signalements émis ou reçus, reviews publiées, traces d&apos;audit admin) sont
-              <span className="text-white"> anonymisés</span> (suppression des informations
-              d&apos;identification personnelle, conservation du contenu non-identifiant pour
-              l&apos;intégrité historique). En Phase 7, cette anonymisation est effectuée
-              manuellement par notre équipe modération sur demande ; en Phase 9, une procédure UI
-              automatisée respectant les délais légaux sera mise en place.
+              <span className="text-white">{t('privacy_rights_softdelete_title')}</span> {t('privacy_rights_softdelete_desc1')}{' '}
+              <span className="text-white">{t('privacy_rights_anonymized_word')}</span> {t('privacy_rights_softdelete_desc2')}
             </p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">9. Cookies</h2>
-            <p>
-              La Plateforme utilise exclusivement des cookies techniques nécessaires au fonctionnement
-              du service (authentification, préférences de session). Aucun cookie publicitaire ou de
-              traçage n&apos;est utilisé. Aucun consentement préalable n&apos;est requis pour les cookies
-              strictement nécessaires (art. 45c al. 2 LTC).
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h9_cookies')}</h2>
+            <p>{t('privacy_cookies_p1')}</p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">10. Sécurité</h2>
-            <p>
-              Nous mettons en œuvre des mesures techniques et organisationnelles appropriées pour
-              protéger vos données contre tout accès non autorisé, modification, divulgation ou
-              destruction. Cela inclut le chiffrement des données en transit (TLS) et au repos,
-              l&apos;authentification renforcée, et la limitation d&apos;accès aux données selon le principe
-              du besoin de connaître.
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h10_security')}</h2>
+            <p>{t('privacy_security_p1')}</p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">11. Mineurs</h2>
-            <p>
-              La Plateforme est réservée aux personnes majeures (18 ans et plus). Nous ne collectons
-              pas sciemment de données de mineurs. Si nous découvrons qu&apos;un mineur a créé un compte,
-              celui-ci sera supprimé immédiatement.
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h11_minors')}</h2>
+            <p>{t('privacy_minors_p1')}</p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">12. Modifications</h2>
-            <p>
-              Nous nous réservons le droit de modifier la présente Politique de Confidentialité.
-              Les modifications substantielles seront notifiées par e-mail ou notification in-app
-              au moins 30 jours avant leur entrée en vigueur.
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h12_modifications')}</h2>
+            <p>{t('privacy_modifications_p1')}</p>
           </section>
 
           <section>
-            <h2 className="text-lg text-white font-normal mb-3">13. Contact</h2>
-            <p>
-              Pour toute question relative à la protection de vos données :
-            </p>
+            <h2 className="text-lg text-white font-normal mb-3">{t('privacy_h13_contact')}</h2>
+            <p>{t('privacy_contact_intro')}</p>
             <p className="mt-2 text-white">
-              Spordateur — contact@spordateur.com
+              {t('privacy_contact_line')}
             </p>
           </section>
 
         </div>
 
         <div className="mt-12 pt-8 border-t border-zinc-800 flex flex-wrap gap-6 text-sm text-gray-600 font-light">
-          <Link href="/terms" className="hover:text-white transition-colors">CGU</Link>
-          <Link href="/legal" className="hover:text-white transition-colors">Mentions Légales</Link>
+          <Link href="/terms" className="hover:text-white transition-colors">{t('privacy_footer_terms')}</Link>
+          <Link href="/legal" className="hover:text-white transition-colors">{t('privacy_footer_legal')}</Link>
         </div>
       </div>
     </div>

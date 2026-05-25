@@ -74,7 +74,11 @@ export default function ProfilePage() {
   const { toast } = useToast();
   const { user, userProfile, refreshProfile } = useAuth();
   const { t } = useLanguage();
+  const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
+  // Fix #163 — flag de navigation pour montrer un loader pendant le save
+  // pré-navigation vers /onboard/prompts (évite double-clic + perte de modifs).
+  const [navigatingToPrompts, setNavigatingToPrompts] = useState(false);
 
   // Form state
   const [displayName, setDisplayName] = useState('');
@@ -257,12 +261,12 @@ export default function ProfilePage() {
       toast({ title: "Photo ajoutée", className: "bg-green-600 text-white" });
     } catch (err) {
       console.warn('[Profile] uploadProfilePhoto failed', err);
-      let description = "Upload impossible. Réessaie.";
+      let description = t('profile_upload_error');
       if (err instanceof StorageUploadError) {
         if (err.code === 'file-too-large') {
           description = `Fichier trop lourd. Max ${PROFILE_PHOTO_MAX_BYTES / 1024 / 1024}MB par image.`;
         } else if (err.code === 'invalid-content-type') {
-          description = "Format non supporté. Utilise une image (JPG, PNG, WEBP).";
+          description = t('profile_upload_unsupported');
         }
       }
       toast({ title: "Erreur", description, variant: "destructive" });
@@ -405,6 +409,102 @@ export default function ProfilePage() {
     }
   };
 
+  // Fix #169 — Save silencieux SANS validation (ne valide pas displayName/city/sports,
+  // ne montre PAS de toast, ne fait PAS de refresh — pure persistance Firestore).
+  // Utilisé pour :
+  //  1. handleEditPrompts (avant nav vers /onboard/prompts)
+  //  2. unmount cleanup du composant /profile (au cas où l'user change d'onglet
+  //     ou clique sur un lien externe sans cliquer Sauvegarder)
+  //
+  // Pourquoi pas de validation : le user a peut-être un profil incomplet
+  // (pas encore de displayName/city) MAIS il vient de saisir sa bio, ses photos
+  // ou ses sports. On veut conserver ce qu'il a tapé même si le profil n'est
+  // pas encore complet — Firestore accepte les docs partiels (merge:true).
+  //
+  // Pourquoi pas de toast : silent = ne dérange pas l'user pendant la nav,
+  // évite la boucle de feedback ré-hydrate→re-toast qui avait cassé l'autosave
+  // dans #87. Le toast complet vient du bouton "Sauvegarder mon profil" explicite.
+  const saveProfileSilent = async () => {
+    if (!user) return;
+    try {
+      const danceLevelMap: Record<string, 'beginner' | 'intermediate' | 'advanced'> = {
+        'debutant': 'beginner',
+        'intermediaire': 'intermediate',
+        'avance': 'advanced',
+      };
+      const sportsEntries: SportEntry[] = [
+        ...selectedSports.map(name => ({ name, level: 'intermediate' as const })),
+        ...selectedDances.map(danceId => ({
+          name: danceId,
+          level: danceLevel ? danceLevelMap[danceLevel] || 'beginner' : 'beginner' as const,
+        })),
+      ];
+      const normalized = normalizePhotosForSave(photos);
+      const cleanedExtras: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(profileExtras)) {
+        if (v === undefined || v === null || v === '') continue;
+        cleanedExtras[k] = v;
+      }
+      // updateUser fait setDoc({merge:true}) — accepte un doc partiel sans
+      // exiger tous les champs. Seuls les champs réellement modifiables sont
+      // envoyés (pas de displayName forcé à '' si l'user ne l'a pas tapé).
+      const payload: Record<string, unknown> = {
+        bio: bio.trim(),
+        gender,
+        sports: sportsEntries,
+        photoURL: normalized.photoURL,
+        photos: normalized.photos,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        profileExtras: cleanedExtras as any,
+      };
+      // N'envoie displayName + city QUE si non-vides (sinon on garderait
+      // les valeurs Firestore existantes via le merge).
+      if (displayName.trim()) payload.displayName = displayName.trim();
+      if (city) payload.city = city;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await updateUser(user.uid, payload as any);
+    } catch (err) {
+      // Silent : pas de toast, juste un log. Si le save échoue, on perd les
+      // modifs en mémoire mais on ne bloque PAS la nav (priorité UX > data).
+      console.warn('[saveProfileSilent] non-blocking error', err);
+    }
+  };
+
+  // Fix #163 + #169 — Sauve TOUJOURS (pas de garde restrictive) avant de
+  // naviguer vers la page d'édition des 3 prompts. Garantit qu'aucune modif
+  // (bio, photos, sports, extras…) n'est perdue même si le profil n'est pas
+  // complet (displayName/city pas encore remplis).
+  const handleEditPrompts = async () => {
+    if (navigatingToPrompts) return;
+    setNavigatingToPrompts(true);
+    await saveProfileSilent();
+    router.push('/onboard/prompts');
+  };
+
+  // Fix #169 — Save silent automatique au démontage du composant. Couvre
+  // TOUTES les nav non-prévues : back button, lien externe, swipe back iOS,
+  // changement d'onglet bottom-nav, fermeture de la PWA, etc. C'est la
+  // "ceinture de sécurité" : même si l'user ne clique jamais Sauvegarder,
+  // ses modifs sont persistées dès qu'il quitte la page.
+  //
+  // Pattern ref : on garde une référence vers la VERSION ACTUELLE de
+  // saveProfileSilent (qui change à chaque render car les closures bio/photos
+  // changent). Le cleanup useEffect appellera saveSilentRef.current() qui
+  // pointera vers la dernière version au moment du démontage — donc avec
+  // les dernières valeurs en mémoire de l'utilisateur.
+  //
+  // Note : on fire-and-forget (pas d'await dans cleanup) car React ne supporte
+  // pas les cleanups async. C'est best-effort.
+  const saveSilentRef = useRef(saveProfileSilent);
+  saveSilentRef.current = saveProfileSilent;
+  useEffect(() => {
+    return () => {
+      if (!user) return;
+      void saveSilentRef.current();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
+
   // BUG #87 — Autosave RETIRÉ : malgré le snapshot ref + save silencieuse,
   // l'autosave continuait à déclencher la notification "Profil sauvegardé"
   // en boucle (probablement à cause d'un onSnapshot quelque part qui ré-
@@ -449,14 +549,14 @@ export default function ProfilePage() {
           )}
           <Link
             href="/preferences"
-            aria-label="Préférences de matching"
+            aria-label={t('profile_matching_prefs_aria')}
             className="p-2 rounded-full border border-white/10 text-white/60 hover:text-accent hover:border-accent/30 transition-colors"
           >
             <SlidersHorizontal className="h-4 w-4" />
           </Link>
           <Link
             href="/settings"
-            aria-label="Paramètres"
+            aria-label={t('profile_settings_aria')}
             className="p-2 rounded-full border border-white/10 text-white/60 hover:text-accent hover:border-accent/30 transition-colors"
           >
             <Settings className="h-4 w-4" />
@@ -480,8 +580,8 @@ export default function ProfilePage() {
             {userProfile?.selfieVerificationStatus === 'verified' && (
               <div
                 className="absolute -bottom-1 -right-1 bg-black rounded-full p-0.5 ring-2 ring-black"
-                title="Profil vérifié"
-                aria-label="Profil vérifié"
+                title={t('profile_verified_aria')}
+                aria-label={t('profile_verified_aria')}
               >
                 <BadgeCheck className="h-7 w-7 text-accent" />
               </div>
@@ -492,7 +592,7 @@ export default function ProfilePage() {
             {userProfile?.selfieVerificationStatus === 'verified' && (
               <BadgeCheck
                 className="h-5 w-5 text-accent flex-shrink-0"
-                aria-label="Profil vérifié"
+                aria-label={t('profile_verified_aria')}
               />
             )}
           </h1>
@@ -513,22 +613,21 @@ export default function ProfilePage() {
             className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-accent/40 bg-gradient-to-r from-accent/10 via-accent/5 to-accent/10 text-accent hover:bg-accent/20 transition-colors text-sm font-medium"
           >
             <Crown className="h-4 w-4" aria-hidden="true" />
-            Aperçu de mon profil
+            {t('profile_preview_button')}
           </button>
         </div>
 
-        {/* BUG #77 — Tabs Hinge-style : "Mon profil" / "Parrainage" / "Confidentialité".
-            Mobile : tabs prennent toute la largeur. Desktop : tabs centrées. */}
+        {/* BUG #77 — Tabs Hinge-style : "Mon profil" / "Parrainage" / "Confidentialité". */}
         <Tabs defaultValue="profile" className="w-full">
           <TabsList className="grid w-full grid-cols-3 bg-zinc-900/60 border border-white/5 mb-8">
             <TabsTrigger value="profile" className="text-xs sm:text-sm data-[state=active]:bg-accent/10 data-[state=active]:text-accent">
-              Mon profil
+              {t('profile_tab_profile')}
             </TabsTrigger>
             <TabsTrigger value="referral" className="text-xs sm:text-sm data-[state=active]:bg-accent/10 data-[state=active]:text-accent">
-              Parrainage
+              {t('profile_tab_referral')}
             </TabsTrigger>
             <TabsTrigger value="privacy" className="text-xs sm:text-sm data-[state=active]:bg-accent/10 data-[state=active]:text-accent">
-              Confidentialité
+              {t('profile_tab_privacy')}
             </TabsTrigger>
           </TabsList>
 
@@ -568,7 +667,7 @@ export default function ProfilePage() {
                   onClick={() => setVoicePromptModalOpen(true)}
                   className="w-full h-11 rounded-xl border border-white/10 text-white/70 hover:text-accent hover:border-accent/30 transition-colors text-sm"
                 >
-                  Modifier / Remplacer
+                  {t('profile_modify_replace')}
                 </button>
               </div>
             ) : (
@@ -618,7 +717,7 @@ export default function ProfilePage() {
                           return next;
                         });
                       }}
-                      title="Mettre cette photo en principale"
+                      title={t('profile_make_primary_title')}
                       className="absolute bottom-1 left-1 bg-black/70 backdrop-blur px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-[9px] uppercase tracking-wider text-white/80 hover:text-accent"
                     >
                       ★ Principale
@@ -780,7 +879,7 @@ export default function ProfilePage() {
                 sur mobile (chips text-sm + emoji débordaient 375px viewport). */}
             {selectedDances.length > 0 && (
               <div className="space-y-2 pt-2">
-                <p className="text-sm text-gray-400">Niveau de danse</p>
+                <p className="text-sm text-gray-400">{t('profile_dance_level_label')}</p>
                 <div className="grid grid-cols-3 gap-2">
                   {DANCE_LEVEL_OPTIONS.map(lvl => (
                     <Badge
@@ -812,9 +911,9 @@ export default function ProfilePage() {
               <div className="flex items-center gap-2 flex-1 text-left">
                 <UserCircle className="h-5 w-5 text-accent" />
                 <div>
-                  <p className="text-sm font-medium text-white">Plus sur toi</p>
+                  <p className="text-sm font-medium text-white">{t('profile_more_about_you')}</p>
                   <p className="text-xs text-white/40 font-light mt-0.5">
-                    Tout est optionnel. Plus tu remplis, plus ton profil est riche.
+                    {t('profile_more_about_you_subtitle')}
                   </p>
                 </div>
               </div>
@@ -836,10 +935,10 @@ export default function ProfilePage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <MessageSquareQuote className="h-5 w-5 text-accent" />
-              Tes 3 réponses profil
+              {t('profile_3_prompts_title')}
             </CardTitle>
             <p className="text-xs text-white/40 font-light mt-1">
-              Les questions qui rendent ton profil unique. Inspiré style Hinge.
+              {t('profile_3_prompts_subtitle')}
             </p>
           </CardHeader>
           <CardContent>
@@ -858,13 +957,19 @@ export default function ProfilePage() {
                     </p>
                   </div>
                 ))}
-                <Link
-                  href="/onboard/prompts"
-                  className="self-start inline-flex items-center gap-2 mt-2 px-4 py-2 rounded-full border border-accent/40 text-accent hover:bg-accent/10 text-sm font-light transition-colors"
+                <button
+                  type="button"
+                  onClick={handleEditPrompts}
+                  disabled={navigatingToPrompts || isSaving}
+                  className="self-start inline-flex items-center gap-2 mt-2 px-4 py-2 rounded-full border border-accent/40 text-accent hover:bg-accent/10 text-sm font-light transition-colors disabled:opacity-50"
                 >
-                  <Sparkles className="h-4 w-4" />
-                  Modifier mes réponses
-                </Link>
+                  {navigatingToPrompts ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  {t('profile_edit_prompts_button')}
+                </button>
               </div>
             ) : (
               <div className="flex flex-col items-center gap-3 py-6 text-center">
@@ -874,13 +979,19 @@ export default function ProfilePage() {
                 <p className="text-sm text-white/70 font-light">
                   Tu n&apos;as pas encore choisi tes 3 questions profil.
                 </p>
-                <Link
-                  href="/onboard/prompts"
-                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-accent text-white hover:bg-accent/90 text-sm font-medium transition-colors"
+                <button
+                  type="button"
+                  onClick={handleEditPrompts}
+                  disabled={navigatingToPrompts || isSaving}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full bg-accent text-white hover:bg-accent/90 text-sm font-medium transition-colors disabled:opacity-50"
                 >
-                  <Sparkles className="h-4 w-4" />
-                  Compléter mon profil
-                </Link>
+                  {navigatingToPrompts ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Sparkles className="h-4 w-4" />
+                  )}
+                  {t('profile_complete_button')}
+                </button>
               </div>
             )}
           </CardContent>
@@ -898,14 +1009,14 @@ export default function ProfilePage() {
               <Gift className="h-5 w-5 text-accent" />
               Parrainage & Crédits
             </CardTitle>
-            <p className="text-xs text-gray-500">Invite tes amis et gagne des crédits gratuits</p>
+            <p className="text-xs text-gray-500">{t('profile_invite_credits_title')}</p>
           </CardHeader>
           <CardContent className="space-y-5">
             {/* Crédits */}
             <div className="flex items-center justify-between p-4 bg-black/40 rounded-xl border border-white/5">
               <div className="flex items-center gap-3">
                 <CreditCard className="h-5 w-5 text-accent" />
-                <span className="text-sm text-white/70">Mes crédits</span>
+                <span className="text-sm text-white/70">{t('profile_my_credits')}</span>
               </div>
               <span className="text-2xl font-light text-white">{userProfile?.credits ?? 0}</span>
             </div>
@@ -973,7 +1084,7 @@ export default function ProfilePage() {
             {/* Explication */}
             <div className="p-4 bg-accent/5 border border-accent/10 rounded-xl">
               <p className="text-xs text-white/50 leading-relaxed">
-                Quand un ami s'inscrit avec ton lien et achète des crédits, tu reçois automatiquement <span className="text-accent font-medium">+1 crédit gratuit</span> par achat.
+                Quand un ami s'inscrit avec ton lien et achète des crédits, tu reçois automatiquement <span className="text-accent font-medium">{t('profile_one_free_credit')}</span> par achat.
               </p>
             </div>
           </CardContent>
@@ -985,7 +1096,7 @@ export default function ProfilePage() {
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-2">
                 <TrendingUp className="h-5 w-5 text-accent" />
-                <h3 className="text-base font-medium text-white">Devenir Créateur</h3>
+                <h3 className="text-base font-medium text-white">{t('profile_become_creator')}</h3>
               </div>
               <p className="text-xs text-white/40 leading-relaxed">
                 Partage ton lien sur TikTok, Instagram ou avec tes amis. Gagne <span className="text-accent">10% de commission</span> sur chaque achat généré.
@@ -1089,7 +1200,7 @@ export default function ProfilePage() {
             className="w-auto bg-accent hover:bg-accent/90 text-white font-medium h-11 px-8 rounded-full text-sm"
           >
             {isSaving ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <Save className="mr-2 h-4 w-4" />}
-            Sauvegarder mon profil
+            {t('profile_save_button')}
           </Button>
         </div>
 

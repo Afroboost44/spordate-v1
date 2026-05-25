@@ -34,8 +34,9 @@ import { PushOptInSwitch } from '@/components/profile/PushOptInSwitch';
 export default function SettingsPage() {
   const router = useRouter();
   const { user, userProfile } = useAuth();
-  const { language, setLanguage, t: _t } = useLanguage();
-  void _t;
+  // Fix #151 — Avant : `t` était importé puis jeté via `void _t` → la page
+  // ne se traduisait JAMAIS, même après setLanguage(). On câble t() partout.
+  const { language, setLanguage, t } = useLanguage();
   const { toast } = useToast();
   const [saving, setSaving] = useState<string | null>(null);
 
@@ -67,8 +68,8 @@ export default function SettingsPage() {
       console.error('[Settings] persist error', err);
       rollback();
       toast({
-        title: 'Erreur',
-        description: 'Impossible de sauvegarder. Réessaie dans un instant.',
+        title: t('common_error'),
+        description: t('settings_save_error'),
         variant: 'destructive',
       });
     } finally {
@@ -124,7 +125,7 @@ export default function SettingsPage() {
         {/* Header sticky avec retour */}
         <div className="flex items-center gap-3 mb-8">
           <BackButton fallbackUrl="/profile" />
-          <h1 className="text-2xl sm:text-3xl font-light tracking-wide">Paramètres</h1>
+          <h1 className="text-2xl sm:text-3xl font-light tracking-wide">{t('settings_title')}</h1>
         </div>
 
         <div className="flex flex-col gap-6">
@@ -132,14 +133,14 @@ export default function SettingsPage() {
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardHeader>
               <CardTitle className="text-sm uppercase tracking-wider text-white/50 font-light">
-                Profil
+                {t('settings_section_profile')}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               <SettingRow
                 Icon={PauseCircle}
-                title="Pause"
-                subtitle="Cache ton profil des nouveaux matchs. Tu pourras toujours discuter avec tes matchs actuels."
+                title={t('settings_pause_title')}
+                subtitle={t('settings_pause_subtitle')}
                 control={
                   <Switch
                     checked={isPaused}
@@ -150,8 +151,8 @@ export default function SettingsPage() {
               />
               <SettingRow
                 Icon={Eye}
-                title="Afficher mon dernier statut actif"
-                subtitle="Les autres voient quand tu t'es connecté pour la dernière fois."
+                title={t('settings_last_active_title')}
+                subtitle={t('settings_last_active_subtitle')}
                 control={
                   <Switch
                     checked={showLastActive}
@@ -167,7 +168,7 @@ export default function SettingsPage() {
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardHeader>
               <CardTitle className="text-sm uppercase tracking-wider text-white/50 font-light">
-                Notifications
+                {t('settings_section_notifications')}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
@@ -225,12 +226,12 @@ export default function SettingsPage() {
                 }}
                 className="w-full h-11 rounded-xl border border-accent/30 bg-accent/5 text-accent text-sm font-light hover:bg-accent/10 hover:border-accent/50 transition-colors"
               >
-                🔔 Tester les notifications push
+                {t('settings_push_test_button')}
               </button>
               <SettingRow
                 Icon={Mail}
-                title="E-mails"
-                subtitle="Résumé hebdomadaire, nouveaux matchs, invitations."
+                title={t('settings_emails_title')}
+                subtitle={t('settings_emails_subtitle')}
                 control={
                   <Switch
                     checked={emailNotificationsEnabled}
@@ -246,7 +247,7 @@ export default function SettingsPage() {
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardHeader>
               <CardTitle className="text-sm uppercase tracking-wider text-white/50 font-light flex items-center gap-2">
-                <Languages className="h-4 w-4 text-white/40" /> Langue
+                <Languages className="h-4 w-4 text-white/40" /> {t('settings_section_language')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -281,7 +282,7 @@ export default function SettingsPage() {
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardHeader>
               <CardTitle className="text-sm uppercase tracking-wider text-white/50 font-light flex items-center gap-2">
-                <Link2 className="h-4 w-4 text-white/40" /> Comptes connectés
+                <Link2 className="h-4 w-4 text-white/40" /> {t('settings_section_connected_accounts')}
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -290,11 +291,11 @@ export default function SettingsPage() {
                   <span className="text-sm text-white/80">Google</span>
                   {user.providerData?.some((p) => p.providerId === 'google.com') ? (
                     <span className="text-[10px] uppercase tracking-wider bg-green-500/10 border border-green-500/30 text-green-400 px-2 py-0.5 rounded-full">
-                      Connecté
+                      {t('settings_google_connected')}
                     </span>
                   ) : (
                     <span className="text-[10px] uppercase tracking-wider bg-white/5 border border-white/10 text-white/40 px-2 py-0.5 rounded-full">
-                      Non connecté
+                      {t('settings_google_not_connected')}
                     </span>
                   )}
                 </div>
@@ -307,13 +308,13 @@ export default function SettingsPage() {
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardHeader>
               <CardTitle className="text-sm uppercase tracking-wider text-white/50 font-light flex items-center gap-2">
-                <FileText className="h-4 w-4 text-white/40" /> Mentions légales
+                <FileText className="h-4 w-4 text-white/40" /> {t('settings_section_legal')}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-1">
-              <LegalLink href="/privacy" label="Politique de confidentialité" />
-              <LegalLink href="/terms" label="Conditions d'utilisation" />
-              <LegalLink href="/legal" label="Mentions légales & licences" />
+              <LegalLink href="/privacy" label={t('settings_legal_privacy')} />
+              <LegalLink href="/terms" label={t('settings_legal_terms')} />
+              <LegalLink href="/legal" label={t('settings_legal_legal')} />
             </CardContent>
           </Card>
 
@@ -321,7 +322,7 @@ export default function SettingsPage() {
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardHeader>
               <CardTitle className="text-sm uppercase tracking-wider text-white/50 font-light flex items-center gap-2">
-                <ShieldCheck className="h-4 w-4 text-white/40" /> Compte
+                <ShieldCheck className="h-4 w-4 text-white/40" /> {t('settings_section_account')}
               </CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
@@ -331,18 +332,17 @@ export default function SettingsPage() {
                 className="flex items-center justify-center gap-2 h-11 rounded-xl border border-white/10 text-white/70 hover:text-white hover:border-white/30 transition-colors text-sm font-light"
               >
                 <LogOut className="h-4 w-4" />
-                Se déconnecter
+                {t('settings_logout_button')}
               </button>
               <Link
                 href="/profile/delete"
                 className="flex items-center justify-center gap-2 h-11 rounded-xl border border-red-500/20 text-red-400 hover:text-red-300 hover:border-red-500/40 transition-colors text-sm font-light"
               >
                 <Trash2 className="h-4 w-4" />
-                Supprimer ou suspendre mon compte
+                {t('settings_delete_account')}
               </Link>
               <p className="text-[11px] text-white/30 leading-relaxed text-center pt-1">
-                Conformité RGPD Art.17 / nLPD Art.19 — délai de grâce 30 jours avant
-                anonymisation définitive.
+                {t('settings_legal_notice')}
               </p>
             </CardContent>
           </Card>

@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { ArrowRight, ChevronRight } from 'lucide-react';
 import { saveReferralCode } from '@/lib/referral/refStorage';
 import { PartnerContactDialog } from '@/components/landing/PartnerContactDialog';
+import { useLanguage } from '@/context/LanguageContext';
 
 // ─── S LOGO COMPONENT ────────────────────────────────────
 // Accent feature : inline SVG suit text-accent (dynamique admin /admin Couleur principale).
@@ -48,6 +49,8 @@ const SWISS_CITIES = ['Genève', 'Zurich', 'Lausanne', 'Bern', 'Bâle', 'Lucerne
 // ─── COMPONENT ──────────────────────────────────────────
 
 export default function LandingPage() {
+  // Fix #157 — câblage useLanguage pour traduction FR/EN/DE de toute la landing.
+  const { t } = useLanguage();
   const [hoveredActivity, setHoveredActivity] = useState<string | null>(null);
   // Fix #127 — état du dialog "Nous contacter" (formulaire partenaire home)
   const [contactOpen, setContactOpen] = useState(false);
@@ -76,11 +79,17 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
-    const load = async () => {
+    // Fix #146 — onSnapshot au lieu de getDoc one-shot.
+    // Avant : si admin sauvait une nouvelle URL hero, le user de la home
+    //         affichait l'ancienne valeur tant qu'il ne rechargeait pas.
+    // Maintenant : tout changement dans settings/site se propage automatiquement
+    //              en temps réel à tous les onglets ouverts.
+    let unsubscribe: (() => void) | null = null;
+    let cancelled = false;
+    const subscribe = async () => {
       try {
         const { initializeApp, getApps } = await import('firebase/app');
-        const { getFirestore, doc, getDoc } = await import('firebase/firestore');
-        // Phase 9.5 hotfix c2 — defensive .trim() (cohérent src/lib/firebase.ts)
+        const { getFirestore, doc, onSnapshot } = await import('firebase/firestore');
         const firebaseConfig = {
           apiKey: (process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '').trim(),
           authDomain: (process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || '').trim(),
@@ -88,13 +97,30 @@ export default function LandingPage() {
         };
         const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
         const db = getFirestore(app);
-        const snap = await getDoc(doc(db, 'settings', 'site'));
-        if (snap.exists()) {
-          setSite(prev => ({ ...prev, ...snap.data() }));
-        }
+        if (cancelled) return;
+        unsubscribe = onSnapshot(
+          doc(db, 'settings', 'site'),
+          (snap) => {
+            if (snap.exists()) {
+              const raw = snap.data() as Record<string, unknown>;
+              // Filtre les sous-objets non-string (ex: brand) pour rester
+              // compatible avec le shape Record<string, string> existant.
+              const flat: Record<string, string> = {};
+              for (const [k, v] of Object.entries(raw)) {
+                if (typeof v === 'string') flat[k] = v;
+              }
+              setSite(prev => ({ ...prev, ...flat }));
+            }
+          },
+          () => { /* silent — keep defaults if rules block */ },
+        );
       } catch { /* use defaults */ }
     };
-    load();
+    subscribe();
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
   }, []);
 
   return (
@@ -108,16 +134,16 @@ export default function LandingPage() {
             <span className="text-lg font-light tracking-widest uppercase text-white">Spordateur</span>
           </Link>
           <div className="hidden md:flex items-center gap-8">
-            <a href="#method" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Méthode</a>
-            <a href="#activities" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Activités</a>
-            <a href="#stories" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">Témoignages</a>
+            <a href="#method" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">{t('landing_method')}</a>
+            <a href="#activities" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">{t('nav_activities')}</a>
+            <a href="#stories" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">{t('landing_testimonials')}</a>
             <Button asChild className="bg-accent hover:bg-accent/80 text-white text-sm font-normal tracking-wide uppercase px-6 h-10 rounded-none">
-              <Link href="/signup">Rejoindre</Link>
+              <Link href="/signup">{t('landing_join')}</Link>
             </Button>
           </div>
           <div className="md:hidden">
             <Button asChild size="sm" className="bg-accent hover:bg-accent/80 text-white text-xs font-normal tracking-wide uppercase rounded-none">
-              <Link href="/signup">Rejoindre</Link>
+              <Link href="/signup">{t('landing_join')}</Link>
             </Button>
           </div>
         </div>
@@ -142,7 +168,7 @@ export default function LandingPage() {
                 <Link href="/signup">{site.ctaText}</Link>
               </Button>
               <Button asChild variant="outline" className="border-white/20 text-white/70 hover:text-white hover:bg-white/5 font-light text-sm tracking-wide uppercase px-8 h-14 rounded-full">
-                <Link href="#method">Comment ça marche <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                <Link href="#method">{t('landing_how_it_works')} <ArrowRight className="ml-2 h-4 w-4" /></Link>
               </Button>
             </div>
           </div>
@@ -153,8 +179,8 @@ export default function LandingPage() {
       <section id="method" className="py-16 md:py-24">
         <div className="container mx-auto px-4 md:px-6">
           <div className="max-w-xl mb-12">
-            <p className="text-sm font-light tracking-[0.3em] uppercase text-accent mb-3">Méthode</p>
-            <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">Trois étapes.<br />C&apos;est tout.</h2>
+            <p className="text-sm font-light tracking-[0.3em] uppercase text-accent mb-3">{t('landing_method')}</p>
+            <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">{t('landing_three_steps_title')}<br />{t('landing_three_steps_subtitle')}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-px bg-white/5">
             {[
@@ -181,10 +207,10 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 md:px-6">
           <div className="flex flex-col md:flex-row md:items-end md:justify-between mb-12 gap-4">
             <div>
-              <p className="text-sm font-light tracking-[0.3em] uppercase text-accent mb-3">Activités</p>
+              <p className="text-sm font-light tracking-[0.3em] uppercase text-accent mb-3">{t('nav_activities')}</p>
               <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">{site.sectionTitle}</h2>
             </div>
-            <p className="text-sm font-light text-white/40 max-w-sm leading-relaxed">Sport ou danse, débutant ou avancé. Chaque activité est une opportunité de rencontre.</p>
+            <p className="text-sm font-light text-white/40 max-w-sm leading-relaxed">{t('landing_section_subtitle_activities')}</p>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-px bg-white/5">
             {FEATURED_ACTIVITIES.map((activity) => (
@@ -196,7 +222,7 @@ export default function LandingPage() {
                 <div className="p-4 md:p-6">
                   <div className="flex items-center justify-between">
                     <h3 className="text-xs md:text-sm font-normal tracking-wide uppercase text-white">{activity.name}</h3>
-                    <span className={`text-[10px] tracking-widest uppercase font-light ${activity.type === 'dance' ? 'text-accent' : 'text-white/30'}`}>{activity.type === 'dance' ? 'Danse' : 'Sport'}</span>
+                    <span className={`text-[10px] tracking-widest uppercase font-light ${activity.type === 'dance' ? 'text-accent' : 'text-white/30'}`}>{activity.type === 'dance' ? t('landing_activity_type_dance') : t('landing_activity_type_sport')}</span>
                   </div>
                 </div>
                 <div className={`absolute inset-0 border transition-all duration-500 pointer-events-none ${hoveredActivity === activity.id ? 'border-accent/50' : 'border-transparent'}`} />
@@ -206,11 +232,11 @@ export default function LandingPage() {
           {/* Level matching */}
           <div className="mt-12 border border-white/5 p-6 md:p-10 flex flex-col md:flex-row items-center gap-8">
             <div className="flex-1">
-              <h3 className="text-xl font-light tracking-wide mb-3">Matching par niveau</h3>
-              <p className="text-sm font-light text-white/40 leading-relaxed max-w-md">Débutant, intermédiaire ou avancé. On te matche avec des partenaires de ton niveau pour une expérience optimale.</p>
+              <h3 className="text-xl font-light tracking-wide mb-3">{t('landing_level_matching_title')}</h3>
+              <p className="text-sm font-light text-white/40 leading-relaxed max-w-md">{t('landing_level_matching_desc')}</p>
             </div>
             <div className="flex gap-6">
-              {['Débutant', 'Intermédiaire', 'Avancé'].map((level) => (
+              {[t('landing_level_beginner'), t('landing_level_intermediate'), t('landing_level_advanced')].map((level) => (
                 <div key={level} className="text-center group cursor-pointer">
                   <div className="h-14 w-14 border border-white/10 group-hover:border-accent transition-colors duration-300 flex items-center justify-center mb-2">
                     <span className="text-xs font-light text-white/30 group-hover:text-accent transition-colors uppercase">{level.charAt(0)}</span>
@@ -227,7 +253,7 @@ export default function LandingPage() {
       <section id="stories" className="py-16 md:py-24 border-t border-white/5">
         <div className="container mx-auto px-4 md:px-6">
           <div className="max-w-xl mb-12">
-            <p className="text-sm font-light tracking-[0.3em] uppercase text-accent mb-3">Témoignages</p>
+            <p className="text-sm font-light tracking-[0.3em] uppercase text-accent mb-3">{t('landing_testimonials')}</p>
             <h2 className="text-3xl md:text-5xl font-extralight tracking-tight">{site.testimonialsTitle}</h2>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-px bg-white/5">
@@ -254,7 +280,7 @@ export default function LandingPage() {
         <div className="container mx-auto px-4 md:px-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <div>
-              <p className="text-sm font-light tracking-[0.3em] uppercase text-accent mb-3">Couverture</p>
+              <p className="text-sm font-light tracking-[0.3em] uppercase text-accent mb-3">{t('landing_coverage')}</p>
               <h2 className="text-3xl md:text-4xl font-extralight tracking-tight mb-6">{site.swissTitle}</h2>
               <p className="text-sm font-light text-white/40 leading-relaxed mb-8">{site.swissSubtitle}</p>
               <div className="grid grid-cols-2 gap-3">
@@ -277,7 +303,7 @@ export default function LandingPage() {
       {/* ── PARTNER CTA ── */}
       <section className="py-16 md:py-24 border-t border-white/5">
         <div className="container mx-auto px-4 md:px-6 text-center max-w-3xl">
-          <p className="text-sm font-light tracking-[0.3em] uppercase text-accent mb-4">Partenaires</p>
+          <p className="text-sm font-light tracking-[0.3em] uppercase text-accent mb-4">{t('landing_partners')}</p>
           <h2 className="text-2xl md:text-4xl font-extralight tracking-tight mb-6">{site.partnerTitle}</h2>
           <p className="text-sm font-light text-white/40 leading-relaxed mb-10 max-w-lg mx-auto">{site.partnerSubtitle}</p>
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
@@ -320,10 +346,10 @@ export default function LandingPage() {
                 <SLogo className="h-7 w-7" />
                 <span className="text-base font-light tracking-widest uppercase text-white">Spordateur</span>
               </div>
-              <p className="text-xs font-light text-white/30 leading-relaxed">La plateforme suisse de rencontres par le sport et la danse.</p>
+              <p className="text-xs font-light text-white/30 leading-relaxed">{t('footer_baseline')}</p>
             </div>
             <div>
-              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-4">Danses</h4>
+              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-4">{t('footer_section_dances')}</h4>
               <ul className="space-y-2 text-xs font-light text-white/30">
                 <li><a href="#" className="hover:text-white transition">Afroboost</a></li>
                 <li><a href="#" className="hover:text-white transition">Zumba</a></li>
@@ -332,25 +358,25 @@ export default function LandingPage() {
               </ul>
             </div>
             <div>
-              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-4">Entreprise</h4>
+              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-4">{t('footer_section_company')}</h4>
               <ul className="space-y-2 text-xs font-light text-white/30">
-                <li><a href="#" className="hover:text-white transition">À propos</a></li>
-                <li><a href="#" className="hover:text-white transition">Studios partenaires</a></li>
+                <li><a href="#" className="hover:text-white transition">{t('footer_about_us')}</a></li>
+                <li><a href="#" className="hover:text-white transition">{t('footer_studios')}</a></li>
                 {/* Fix #129 — Blog et Presse cachés (pages pas encore créées) */}
               </ul>
             </div>
             <div>
-              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-4">Légal</h4>
+              <h4 className="text-xs font-normal tracking-widest uppercase text-white/50 mb-4">{t('footer_section_legal')}</h4>
               <ul className="space-y-2 text-xs font-light text-white/30">
-                <li><a href="#" className="hover:text-white transition">Confidentialité</a></li>
-                <li><a href="#" className="hover:text-white transition">Conditions</a></li>
-                <li><a href="#" className="hover:text-white transition">Cookies</a></li>
-                <li><a href="#" className="hover:text-white transition">Contact</a></li>
+                <li><a href="#" className="hover:text-white transition">{t('footer_privacy')}</a></li>
+                <li><a href="#" className="hover:text-white transition">{t('footer_terms')}</a></li>
+                <li><a href="#" className="hover:text-white transition">{t('footer_cookies')}</a></li>
+                <li><a href="#" className="hover:text-white transition">{t('footer_contact')}</a></li>
               </ul>
             </div>
           </div>
           <div className="border-t border-white/5 pt-8 flex flex-col md:flex-row justify-between items-center text-xs font-light text-white/20">
-            <Link href="/login" className="hover:text-white/40 transition">© 2026 Spordateur. Tous droits réservés.</Link>
+            <Link href="/login" className="hover:text-white/40 transition">{t('footer_copyright')}</Link>
             <div className="flex gap-6 mt-3 md:mt-0">
               <a href="#" className="hover:text-white/60 transition tracking-wide uppercase">Instagram</a>
               <a href="#" className="hover:text-white/60 transition tracking-wide uppercase">TikTok</a>

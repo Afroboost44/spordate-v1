@@ -38,16 +38,33 @@ export const runtime = 'nodejs'; // firebase-admin requires Node.js
 
 /** Format FR date courte cohérent SuggestionMessage component (ex: "Sam 18 mai · 14h00"). */
 function formatSessionDateFR(ts: Timestamp | { toDate?: () => Date } | null | undefined): string {
+  return formatSessionDateByLang(ts, 'fr');
+}
+
+/** Fix #156/#157 i18n — variante localisée (fr|en|de) du format date courte. */
+function formatSessionDateByLang(
+  ts: Timestamp | { toDate?: () => Date } | null | undefined,
+  lang: 'fr' | 'en' | 'de',
+): string {
   if (!ts || typeof ts !== 'object') return '';
   const date = typeof (ts as { toDate?: () => Date }).toDate === 'function'
     ? (ts as { toDate: () => Date }).toDate()
     : null;
   if (!date) return '';
-  const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-  const months = ['jan', 'fév', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
+  const dictDays: Record<'fr' | 'en' | 'de', string[]> = {
+    fr: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'],
+    en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    de: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
+  };
+  const dictMonths: Record<'fr' | 'en' | 'de', string[]> = {
+    fr: ['jan', 'fév', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'],
+    en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    de: ['Jan', 'Feb', 'März', 'Apr', 'Mai', 'Juni', 'Juli', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
+  };
   const hours = date.getHours().toString().padStart(2, '0');
   const minutes = date.getMinutes().toString().padStart(2, '0');
-  return `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]} · ${hours}h${minutes !== '00' ? minutes : ''}`;
+  const sep = lang === 'fr' ? 'h' : ':';
+  return `${dictDays[lang][date.getDay()]} ${date.getDate()} ${dictMonths[lang][date.getMonth()]} · ${hours}${sep}${minutes !== '00' ? minutes : (lang === 'fr' ? '' : '00')}`;
 }
 
 export async function POST(request: NextRequest) {
@@ -139,11 +156,15 @@ export async function POST(request: NextRequest) {
         adminDb.collection('activities').doc(body.activityId).get(),
         adminDb.collection('sessions').doc(body.sessionId).get(),
       ]);
-      const toUserEmail = toUserSnap.data()?.email as string | undefined;
-      const toUserName = toUserSnap.data()?.displayName as string | undefined;
+      const toUserData = toUserSnap.data();
+      const toUserEmail = toUserData?.email as string | undefined;
+      const toUserName = toUserData?.displayName as string | undefined;
       const fromUserName = (fromUserSnap.data()?.displayName as string | undefined) || 'Un membre Spordateur';
       const activityTitle = (activitySnap.data()?.title as string | undefined) || 'une activité';
-      const sessionDate = formatSessionDateFR(sessionSnap.data()?.startAt);
+      // Fix #156/#157 i18n — date formatée dans la langue du destinataire
+      const { pickUserLang } = await import('@/lib/i18n/getUserLang');
+      const toUserLang = pickUserLang(toUserData ?? null);
+      const sessionDate = formatSessionDateByLang(sessionSnap.data()?.startAt, toUserLang);
       const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com';
 
       // 4. sendEmail (mode-aware Phase 9 SC2 c2/6 — best-effort)
@@ -168,6 +189,7 @@ export async function POST(request: NextRequest) {
                 inviteeAmountChf: (amounts.inviteeCents / 100).toFixed(2),
                 totalAmountChf: (totalCents / 100).toFixed(2),
               },
+              lang: toUserLang,
             });
           } else if (mode === 'gift' && totalCents) {
             await sendEmail({
@@ -182,6 +204,7 @@ export async function POST(request: NextRequest) {
                 message,
                 totalAmountChf: (totalCents / 100).toFixed(2),
               },
+              lang: toUserLang,
             });
           } else {
             // mode === 'individual' (default + legacy compat Phase 8 SC4)
@@ -196,6 +219,7 @@ export async function POST(request: NextRequest) {
                 inviteLink,
                 message,
               },
+              lang: toUserLang,
             });
           }
         } catch (err) {

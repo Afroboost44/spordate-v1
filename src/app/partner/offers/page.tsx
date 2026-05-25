@@ -142,6 +142,7 @@ const CITIES = [
  */
 function PartnerCardMedia({ act }: { act: Activity }) {
   const [imgIdx, setImgIdx] = useState(0);
+  const { t: tMedia } = useLanguage();
   const items = getMediaItems({ mediaUrls: act.mediaUrls, images: act.images });
   const first = items[0];
 
@@ -185,7 +186,7 @@ function PartnerCardMedia({ act }: { act: Activity }) {
           <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent pointer-events-none" />
           {items.length > 1 && (
             <span className="absolute top-2 right-2 bg-black/60 text-white/70 text-[10px] px-2 py-0.5 rounded-full">
-              {items.length} médias
+              {items.length} {tMedia('partner_offers_media_unit')}
             </span>
           )}
         </div>
@@ -217,7 +218,7 @@ function PartnerCardMedia({ act }: { act: Activity }) {
         <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent pointer-events-none" />
         {items.length > 1 && (
           <span className="absolute top-2 right-2 bg-black/60 text-white/70 text-[10px] px-2 py-0.5 rounded-full">
-            {items.length} médias
+            {items.length} {tMedia('partner_offers_media_unit')}
           </span>
         )}
       </div>
@@ -260,7 +261,7 @@ function PartnerCardMedia({ act }: { act: Activity }) {
       <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent" />
       {(extraImages.length > 0 || items.length > 1) && (
         <span className="absolute top-2 right-2 bg-black/60 text-white/70 text-[10px] px-2 py-0.5 rounded-full">
-          {items.length > 0 ? `${items.length} médias` : `${legacyImages.length} photos`}
+          {items.length > 0 ? `${items.length} ${tMedia('partner_offers_media_unit')}` : `${legacyImages.length} ${tMedia('partner_offers_photos_unit')}`}
         </span>
       )}
     </div>
@@ -465,14 +466,14 @@ export default function PartnerOffersPage() {
   // Toast d'erreur si champ obligatoire manquant.
   const validateStep = (step: 1 | 2 | 3): { ok: boolean; reason?: string } => {
     if (step === 1) {
-      if (!formName.trim()) return { ok: false, reason: 'Le nom est obligatoire' };
-      if (!formSport) return { ok: false, reason: 'Choisis un sport' };
+      if (!formName.trim()) return { ok: false, reason: t('partner_offers_val_name_required') };
+      if (!formSport) return { ok: false, reason: t('partner_offers_val_sport_required') };
       return { ok: true };
     }
     if (step === 2) {
-      if (!formPrice || Number(formPrice) < 0) return { ok: false, reason: 'Prix invalide' };
-      if (!formCity) return { ok: false, reason: 'Choisis une ville' };
-      if (!formScheduledAt) return { ok: false, reason: 'Date de la prochaine séance obligatoire' };
+      if (!formPrice || Number(formPrice) < 0) return { ok: false, reason: t('partner_offers_val_price_invalid') };
+      if (!formCity) return { ok: false, reason: t('partner_offers_val_city_required') };
+      if (!formScheduledAt) return { ok: false, reason: t('partner_offers_val_date_required') };
       return { ok: true };
     }
     return { ok: true };
@@ -488,7 +489,7 @@ export default function PartnerOffersPage() {
   const handleStepNext = () => {
     const v = validateStep(formStep);
     if (!v.ok) {
-      toast({ title: 'Champ obligatoire', description: v.reason, variant: 'destructive' });
+      toast({ title: t('partner_offers_toast_required_title'), description: v.reason, variant: 'destructive' });
       return;
     }
     if (formStep < 3) {
@@ -592,11 +593,11 @@ export default function PartnerOffersPage() {
         const code = validationErr instanceof Error ? validationErr.message : 'invalid';
         toast({
           variant: 'destructive',
-          title: 'Prix progressif invalide',
+          title: t('partner_offers_toast_pricing_invalid'),
           description:
             code === 'order'
               ? t('partner_pricing_validation_order')
-              : 'Tous les prix doivent être supérieurs à 0.',
+              : t('partner_offers_toast_pricing_gt0'),
         });
         return;
       }
@@ -705,19 +706,19 @@ export default function PartnerOffersPage() {
         }
 
         toast({
-          title: 'Activité mise à jour !',
+          title: t('partner_offers_toast_updated_title'),
           description:
             synced + preserved === 0
               ? undefined
-              : `${synced} session(s) future(s) synchronisée(s). ${preserved} préservée(s) (réservations).`,
+              : t('partner_offers_toast_synced_desc', { synced, preserved }),
         });
       } else {
         const ref = doc(collection(db, 'activities'));
         await setDoc(ref, { ...data, activityId: ref.id, currentParticipants: 0, rating: 0, reviewCount: 0, createdAt: serverTimestamp() });
-        toast({ title: 'Activité créée !', description: `"${formName}" est maintenant visible.` });
+        toast({ title: t('partner_offers_toast_created_title'), description: t('partner_offers_toast_created_desc', { name: formName }) });
       }
       setOpen(false); resetForm(); setEditing(null); await loadActivities();
-    } catch (err) { toast({ variant: 'destructive', title: 'Erreur', description: String(err) }); }
+    } catch (err) { toast({ variant: 'destructive', title: t('partner_offers_error'), description: String(err) }); }
     finally { setSaving(false); }
   };
 
@@ -740,7 +741,7 @@ export default function PartnerOffersPage() {
       await setDoc(ref, {
         ...rest,
         activityId: ref.id,
-        name: `${act.name} (copie)`,
+        name: `${act.name} ${t('partner_offers_copy_suffix')}`,
         isActive: false, // Force inactive — partner doit éditer avant publication
         currentParticipants: 0,
         rating: 0,
@@ -749,30 +750,30 @@ export default function PartnerOffersPage() {
         updatedAt: serverTimestamp(),
       });
       toast({
-        title: 'Activité dupliquée',
-        description: `"${act.name} (copie)" créée. Édite-la avant de la publier.`,
+        title: t('partner_offers_toast_duplicated_title'),
+        description: t('partner_offers_toast_duplicated_desc', { name: act.name }),
       });
       await loadActivities();
     } catch (err) {
       console.error('[Offers] duplicate failed', err);
-      toast({ variant: 'destructive', title: 'Erreur duplication', description: String(err) });
+      toast({ variant: 'destructive', title: t('partner_offers_toast_duplicate_error'), description: String(err) });
     }
   };
 
   const handleDelete = async (act: Activity) => {
-    if (!db || !confirm(`Supprimer "${act.name}" ?`)) return;
+    if (!db || !confirm(t('partner_offers_confirm_delete', { name: act.name }))) return;
     try {
       // BUG #3 — cascade AVANT le hard-delete : sinon les sessions futures
       // deviennent orphelines (activity introuvable, mais session "Réserver" active).
       const cancelled = await cascadeCancelFutureSessions(act.activityId);
       await deleteDoc(doc(db, 'activities', act.activityId));
       toast({
-        title: 'Activité supprimée',
-        description: cancelled > 0 ? `${cancelled} session(s) future(s) annulée(s).` : undefined,
+        title: t('partner_offers_toast_deleted_title'),
+        description: cancelled > 0 ? t('partner_offers_toast_sessions_cancelled', { count: cancelled }) : undefined,
       });
       await loadActivities();
     }
-    catch (err) { toast({ variant: 'destructive', title: 'Erreur', description: String(err) }); }
+    catch (err) { toast({ variant: 'destructive', title: t('partner_offers_error'), description: String(err) }); }
   };
 
   const handleToggleActive = async (act: Activity) => {
@@ -786,14 +787,14 @@ export default function PartnerOffersPage() {
       try {
         const cancelled = await cascadeCancelFutureSessions(act.activityId);
         if (cancelled > 0) {
-          toast({ title: 'Activité désactivée', description: `${cancelled} session(s) future(s) annulée(s).` });
+          toast({ title: t('partner_offers_toast_deactivated_title'), description: t('partner_offers_toast_sessions_cancelled', { count: cancelled }) });
         }
       } catch (err) {
         console.warn('[Offers] cascade cancel sessions failed:', err);
         toast({
           variant: 'destructive',
-          title: 'Sessions non synchronisées',
-          description: "Les sessions futures n'ont pas pu être annulées — réessaie de désactiver l'activité.",
+          title: t('partner_offers_toast_sync_failed_title'),
+          description: t('partner_offers_toast_sync_failed_desc'),
         });
       }
     }
@@ -806,11 +807,11 @@ export default function PartnerOffersPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-light text-white tracking-tight">Mes Activités</h1>
-          <p className="text-sm text-white/40">Créez, modifiez ou supprimez vos activités sportives</p>
+          <h1 className="text-2xl font-light text-white tracking-tight">{t('partner_offers_page_title')}</h1>
+          <p className="text-sm text-white/40">{t('partner_offers_page_subtitle')}</p>
         </div>
         <Button onClick={openCreate} className="bg-white/5 backdrop-blur-xl border border-accent text-white font-light tracking-wider uppercase h-12 px-6 hover:bg-accent/10">
-          <PlusCircle className="mr-2 h-4 w-4" /> Nouvelle activité
+          <PlusCircle className="mr-2 h-4 w-4" /> {t('partner_offers_new_btn')}
         </Button>
       </div>
 
@@ -818,8 +819,8 @@ export default function PartnerOffersPage() {
         <Card className="bg-[#1A1A1A] border-white/5">
           <CardContent className="py-12 text-center">
             <PlusCircle className="h-12 w-12 text-white/10 mx-auto mb-4" />
-            <p className="text-white/30">Aucune activité pour le moment</p>
-            <p className="text-xs text-white/20 mt-1">Créez votre première activité pour recevoir des réservations</p>
+            <p className="text-white/30">{t('partner_offers_empty_title')}</p>
+            <p className="text-xs text-white/20 mt-1">{t('partner_offers_empty_subtitle')}</p>
           </CardContent>
         </Card>
       ) : (
@@ -837,7 +838,7 @@ export default function PartnerOffersPage() {
                   <div>
                     <h3 className="text-white font-medium">{act.name}</h3>
                     <Badge className={`mt-1 text-xs ${act.isActive ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-white/5 text-white/30 border-white/10'}`}>
-                      {act.isActive ? 'Actif' : 'Inactif'}
+                      {act.isActive ? t('partner_offers_active') : t('partner_offers_inactive')}
                     </Badge>
                   </div>
                   <Switch checked={act.isActive} onCheckedChange={() => handleToggleActive(act)} />
@@ -849,12 +850,12 @@ export default function PartnerOffersPage() {
                   <p className="flex items-center gap-2"><span className="text-accent">{act.sport}</span> · <span className="text-white font-medium">{act.price} CHF</span> · <span>{act.duration || 60} min</span></p>
                   <p className="flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5" /> {act.city}{act.address ? ` — ${act.address}` : ''}</p>
                   <p className="flex items-center gap-1.5"><Clock className="h-3.5 w-3.5" /> {act.schedule}</p>
-                  <p className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {act.currentParticipants || 0}/{act.maxParticipants} participants</p>
+                  <p className="flex items-center gap-1.5"><Users className="h-3.5 w-3.5" /> {act.currentParticipants || 0}/{act.maxParticipants} {t('partner_offers_participants')}</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button onClick={() => openEdit(act)} variant="outline" size="sm" className="flex-1 border-white/10 text-white/50 hover:text-white"><Edit className="h-3.5 w-3.5 mr-1.5" /> Modifier</Button>
+                  <Button onClick={() => openEdit(act)} variant="outline" size="sm" className="flex-1 border-white/10 text-white/50 hover:text-white"><Edit className="h-3.5 w-3.5 mr-1.5" /> {t('partner_offers_edit_btn')}</Button>
                   {/* Fix #121 — bouton Dupliquer : crée copie inactive éditable */}
-                  <Button onClick={() => handleDuplicate(act)} variant="outline" size="sm" className="border-white/10 text-white/50 hover:text-accent" title="Dupliquer cette activité"><Copy className="h-3.5 w-3.5" /></Button>
+                  <Button onClick={() => handleDuplicate(act)} variant="outline" size="sm" className="border-white/10 text-white/50 hover:text-accent" title={t('partner_offers_duplicate_title')}><Copy className="h-3.5 w-3.5" /></Button>
                   <Button onClick={() => handleDelete(act)} variant="outline" size="sm" className="border-red-500/20 text-red-400/50 hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               </CardContent>
@@ -889,8 +890,8 @@ export default function PartnerOffersPage() {
         >
           <form onSubmit={handleSubmit}>
             <DialogHeader>
-              <DialogTitle className="text-white text-xl font-light">{editing ? "Modifier l'activité" : "Nouvelle activité"}</DialogTitle>
-              <DialogDescription>{editing ? "Mettez à jour les détails." : "Créez une activité pour recevoir des réservations."}</DialogDescription>
+              <DialogTitle className="text-white text-xl font-light">{editing ? t('partner_offers_modal_edit_title') : t('partner_offers_modal_create_title')}</DialogTitle>
+              <DialogDescription>{editing ? t('partner_offers_modal_edit_desc') : t('partner_offers_modal_create_desc')}</DialogDescription>
             </DialogHeader>
             {/* Phase 9.5 c34 BUG#6 — Retrait pr-2 (gutter scrollbar) qui laissait
                 une zone vide ~8px à droite après que c25 ait rendu la scrollbar
@@ -918,7 +919,7 @@ export default function PartnerOffersPage() {
                       {formStep > s ? <Check className="h-3.5 w-3.5" /> : s}
                     </div>
                     <span className={`text-xs font-medium whitespace-nowrap ${formStep === s ? 'text-white' : 'text-white/40'}`}>
-                      {s === 1 ? 'Bases' : s === 2 ? 'Logistique' : 'Médias'}
+                      {s === 1 ? t('partner_offers_step_basics') : s === 2 ? t('partner_offers_step_logistics') : t('partner_offers_step_media')}
                     </span>
                     {i < 2 && <div className={`h-px flex-1 ${formStep > s ? 'bg-accent/40' : 'bg-white/10'}`} />}
                   </div>
@@ -929,11 +930,11 @@ export default function PartnerOffersPage() {
               {formStep === 1 && (
                 <>
                   <div className="grid gap-2">
-                    <Label className="text-white/50">Nom de l&apos;activité *</Label>
-                    <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder="Ex: Cours de Zumba" className="bg-[#1A1A1A] border-white/10 h-12" />
+                    <Label className="text-white/50">{t('partner_offers_field_name')}</Label>
+                    <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder={t('partner_offers_field_name_placeholder')} className="bg-[#1A1A1A] border-white/10 h-12" />
                   </div>
                   <div className="grid gap-2">
-                    <Label className="text-white/50">Sport *</Label>
+                    <Label className="text-white/50">{t('partner_offers_field_sport')}</Label>
                     {/* BUG #53 — Select avec option "Autre" en bas. Si user choisit
                         "Autre", un input texte libre apparaît pour custom sport.
                         Édition activité legacy avec sport custom : input visible direct. */}
@@ -954,26 +955,26 @@ export default function PartnerOffersPage() {
                       }}
                     >
                       <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12">
-                        <SelectValue placeholder="Choisir" />
+                        <SelectValue placeholder={t('partner_offers_select_placeholder')} />
                       </SelectTrigger>
                       <SelectContent className="max-h-[250px]">
                         {SPORTS.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                        <SelectItem value={SPORT_OTHER_VALUE}>Autre (précise ci-dessous)</SelectItem>
+                        <SelectItem value={SPORT_OTHER_VALUE}>{t('partner_offers_sport_other')}</SelectItem>
                       </SelectContent>
                     </Select>
                     {(useCustomSport || (formSport && !SPORTS.includes(formSport))) && (
                       <Input
                         value={formSport}
                         onChange={e => setFormSport(e.target.value)}
-                        placeholder="Précise ton sport (ex: Surf, Escalade...)"
+                        placeholder={t('partner_offers_sport_custom_placeholder')}
                         className="bg-[#1A1A1A] border-white/10 h-10 text-sm"
                         autoFocus={useCustomSport && !formSport}
                       />
                     )}
                   </div>
                   <div className="grid gap-2">
-                    <Label className="text-white/50">Description</Label>
-                    <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder="Décrivez votre activité, l'ambiance, ce que les participants vont vivre..." className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
+                    <Label className="text-white/50">{t('partner_offers_field_description')}</Label>
+                    <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder={t('partner_offers_field_description_placeholder')} className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
                   </div>
                 </>
               )}
@@ -982,7 +983,7 @@ export default function PartnerOffersPage() {
               {formStep === 2 && (
                 <>
               <div className="grid gap-2">
-                <Label className="text-white/50">Prix (CHF) *</Label>
+                <Label className="text-white/50">{t('partner_offers_field_price')}</Label>
                 <Input value={formPrice} onChange={e => setFormPrice(e.target.value)} type="number" placeholder="25" className="bg-[#1A1A1A] border-white/10 h-12" />
               </div>
 
@@ -1093,10 +1094,10 @@ export default function PartnerOffersPage() {
                 <div className="rounded-xl border border-white/10 bg-[#1A1A1A]/40 p-4 space-y-3">
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4 text-accent" />
-                    <Label className="text-white text-sm font-medium">Sessions à venir</Label>
+                    <Label className="text-white text-sm font-medium">{t('partner_offers_sessions_title')}</Label>
                     {editingSessions.length > 0 && (
                       <span className="text-[10px] text-white/40 ml-auto">
-                        {editingSessions.length} session{editingSessions.length > 1 ? 's' : ''}
+                        {editingSessions.length} {editingSessions.length > 1 ? t('partner_offers_sessions_plural') : t('partner_offers_sessions_singular')}
                       </span>
                     )}
                   </div>
@@ -1109,7 +1110,7 @@ export default function PartnerOffersPage() {
                     className="w-full border-dashed border-accent/40 text-accent hover:bg-accent/5 hover:border-accent/60 h-9"
                   >
                     <PlusCircle className="h-3.5 w-3.5 mr-1.5" />
-                    Ajouter une session
+                    {t('partner_offers_add_session_btn')}
                   </Button>
                   {loadingEditingSessions ? (
                     <div className="flex justify-center py-4">
@@ -1117,8 +1118,7 @@ export default function PartnerOffersPage() {
                     </div>
                   ) : editingSessions.length === 0 ? (
                     <p className="text-[11px] text-white/40 font-light py-2">
-                      Aucune session future programmée. Ajoute une date via le champ
-                      « Prochaine séance » ci-dessous pour créer une session.
+                      {t('partner_offers_sessions_empty')}
                     </p>
                   ) : (
                     <div className="rounded-xl border border-white/10 bg-black/30 divide-y divide-white/5">
@@ -1149,7 +1149,7 @@ export default function PartnerOffersPage() {
                               {isFree ? (
                                 <Badge className="bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 text-[9px] h-5">
                                   <Gift className="h-2.5 w-2.5 mr-1" />
-                                  OFFERT
+                                  {t('partner_offers_free_badge')}
                                 </Badge>
                               ) : (
                                 <span className="text-xs font-medium text-accent">{effectivePriceCHF} CHF</span>
@@ -1170,7 +1170,7 @@ export default function PartnerOffersPage() {
                               className="text-white/50 hover:text-white hover:bg-white/5 disabled:opacity-40 h-7 text-[11px]"
                             >
                               <Edit3 className="h-3 w-3 mr-1" />
-                              Modifier
+                              {t('partner_offers_edit_btn')}
                             </Button>
                           </div>
                         );
@@ -1182,11 +1182,11 @@ export default function PartnerOffersPage() {
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="grid gap-2">
-                  <Label className="text-white/50">Durée (min) *</Label>
+                  <Label className="text-white/50">{t('partner_offers_field_duration')}</Label>
                   <Input value={formDuration} onChange={e => setFormDuration(e.target.value)} type="number" placeholder="60" className="bg-[#1A1A1A] border-white/10 h-12" />
                 </div>
                 <div className="grid gap-2">
-                  <Label className="text-white/50">Places max</Label>
+                  <Label className="text-white/50">{t('partner_offers_field_max')}</Label>
                   <Input value={formMax} onChange={e => setFormMax(e.target.value)} type="number" placeholder="10" className="bg-[#1A1A1A] border-white/10 h-12" />
                 </div>
               </div>
@@ -1204,7 +1204,7 @@ export default function PartnerOffersPage() {
                 }}
               />
               <div className="grid gap-2">
-                <Label className="text-white/50">Ville *</Label>
+                <Label className="text-white/50">{t('partner_offers_field_city')}</Label>
                 <Select value={formCity} onValueChange={setFormCity}>
                   <SelectTrigger className="bg-[#1A1A1A] border-white/10 h-12">
                     <SelectValue placeholder="Choisir" />
@@ -1226,7 +1226,7 @@ export default function PartnerOffersPage() {
                   activités) pour ne pas casser les Activities legacy en lecture. */}
               <div className="grid gap-2">
                 <Label className="text-white/50 flex items-center justify-between">
-                  <span>Prochaine séance — date et heure *</span>
+                  <span>{t('partner_offers_next_session_label')}</span>
                 </Label>
                 <Input
                   type="datetime-local"
@@ -1235,8 +1235,7 @@ export default function PartnerOffersPage() {
                   className="bg-[#1A1A1A] border-white/10 h-12 text-white"
                 />
                 <p className="text-[11px] text-white/40">
-                  Date et heure de la prochaine séance disponible à la réservation.
-                  Un compte à rebours s&apos;affiche aux participants sur leur page de réservation.
+                  {t('partner_offers_next_session_helper')}
                 </p>
               </div>
                 </>
@@ -1284,19 +1283,19 @@ export default function PartnerOffersPage() {
               {formStep > 1 ? (
                 <Button type="button" variant="outline" onClick={handleStepPrev} className="border-white/10">
                   <ChevronLeft className="h-4 w-4 mr-1" />
-                  Précédent
+                  {t('partner_offers_btn_prev')}
                 </Button>
               ) : (
-                <DialogClose asChild><Button type="button" variant="outline" className="border-white/10">Annuler</Button></DialogClose>
+                <DialogClose asChild><Button type="button" variant="outline" className="border-white/10">{t('partner_offers_btn_cancel')}</Button></DialogClose>
               )}
               {formStep < 3 ? (
                 <Button type="button" onClick={handleStepNext} className="bg-accent hover:bg-accent/80 text-white">
-                  Suivant
+                  {t('partner_offers_btn_next')}
                   <ChevronRight className="h-4 w-4 ml-1" />
                 </Button>
               ) : (
                 <Button type="submit" disabled={saving || stepTransitioning} className="bg-accent hover:bg-accent/80 text-white">
-                  {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{editing ? "Mettre à jour" : "Publier"}
+                  {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}{editing ? t('partner_offers_btn_update') : t('partner_offers_btn_publish')}
                 </Button>
               )}
             </DialogFooter>

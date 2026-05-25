@@ -8,6 +8,7 @@ import { CheckCircle, Zap, Crown, Rocket, Lock, CreditCard, Smartphone, Apple, L
 import Confetti from 'react-confetti';
 import { useWindowSize } from 'react-use';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { resolveActiveReferralCode } from '@/lib/referral/refStorage';
 import Link from 'next/link';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
@@ -34,62 +35,64 @@ interface CreditPackage {
 // (PRICING-PROPOSAL.md §3). Les crédits servent UNIQUEMENT pour les services
 // intra-app : likes premium, boost user, messages (texte/audio). JAMAIS pour
 // réserver une activité (qui se paye Stripe direct via mode='session').
+// BUG #166 — Les strings (subtitle, features, cta, badge) sont désormais des
+// CLÉS i18n. Le rendu fait t() côté composant pour FR/EN/DE.
 const VISUAL_CONFIG: Record<string, Omit<CreditPackage, 'id' | 'credits' | 'price' | 'pricePerCredit' | 'title'>> = {
   'pack_starter': {
-    subtitle: 'Pour commencer',
+    subtitle: 'payment_pack_starter_subtitle',
     color: 'from-emerald-500 to-teal-500',
     icon: <Zap className="h-6 w-6" />,
-    features: ['50 crédits Spordateur', 'Likes premium + messages audio', 'Pas d\'expiration'],
-    cta: 'Acheter Starter',
+    features: ['payment_pack_starter_feat_1', 'payment_pack_starter_feat_2', 'payment_pack_starter_feat_3'],
+    cta: 'payment_pack_starter_cta',
   },
   'pack_confort': {
-    subtitle: 'Le bon équilibre',
+    subtitle: 'payment_pack_confort_subtitle',
     color: 'from-accent to-[#E91E63]',
     icon: <Star className="h-6 w-6" />,
-    features: ['150 crédits Spordateur', 'Économise 20% vs Starter', 'Idéal usage régulier'],
-    cta: 'Choisir Confort',
+    features: ['payment_pack_confort_feat_1', 'payment_pack_confort_feat_2', 'payment_pack_confort_feat_3'],
+    cta: 'payment_pack_confort_cta',
   },
   'pack_pro': {
-    subtitle: 'Power user',
+    subtitle: 'payment_pack_pro_subtitle',
     color: 'from-amber-500 to-orange-500',
     icon: <Rocket className="h-6 w-6" />,
-    badge: 'Populaire',
-    features: ['500 crédits Spordateur', 'Économise 40% vs Starter', '~10 boost user 30min inclus'],
-    cta: 'Choisir Pro',
+    badge: 'payment_badge_popular',
+    features: ['payment_pack_pro_feat_1', 'payment_pack_pro_feat_2', 'payment_pack_pro_feat_3'],
+    cta: 'payment_pack_pro_cta',
     popular: true,
   },
   'pack_vip': {
-    subtitle: 'Le maximum',
+    subtitle: 'payment_pack_vip_subtitle',
     color: 'from-purple-500 to-fuchsia-500',
     icon: <Crown className="h-6 w-6" />,
-    badge: 'Meilleur prix',
-    features: ['1500 crédits Spordateur', 'Économise 52% vs Starter', 'Réserve longue durée'],
-    cta: 'Choisir VIP',
+    badge: 'payment_badge_best_price',
+    features: ['payment_pack_vip_feat_1', 'payment_pack_vip_feat_2', 'payment_pack_vip_feat_3'],
+    cta: 'payment_pack_vip_cta',
   },
   // Legacy (conservés si jamais Firestore les expose encore)
   '1_date': {
-    subtitle: 'Idéal pour tester',
+    subtitle: 'payment_legacy_1date_subtitle',
     color: 'from-emerald-500 to-teal-500',
     icon: <Zap className="h-6 w-6" />,
-    features: ['1 crédit = 1 date sportif', 'Accès à toutes les activités', 'Débloque la conversation'],
-    cta: 'Commencer',
+    features: ['payment_legacy_1date_feat_1', 'payment_legacy_1date_feat_2', 'payment_legacy_1date_feat_3'],
+    cta: 'payment_legacy_1date_cta',
   },
   '3_dates': {
-    subtitle: 'Multiplie les rencontres',
+    subtitle: 'payment_legacy_3dates_subtitle',
     color: 'from-accent to-[#E91E63]',
     icon: <Star className="h-6 w-6" />,
-    badge: 'Populaire',
-    features: ['Économise sur le prix/crédit', 'Accès prioritaire Afroboost & Zumba', 'Offre la plus choisie'],
-    cta: 'Choisir cette offre',
+    badge: 'payment_badge_popular',
+    features: ['payment_legacy_3dates_feat_1', 'payment_legacy_3dates_feat_2', 'payment_legacy_3dates_feat_3'],
+    cta: 'payment_legacy_3dates_cta',
     popular: true,
   },
   '10_dates': {
-    subtitle: 'Passe à l\'action',
+    subtitle: 'payment_legacy_10dates_subtitle',
     color: 'from-amber-500 to-orange-500',
     icon: <Rocket className="h-6 w-6" />,
-    badge: 'Meilleur prix',
-    features: ['Meilleur rapport qualité/prix', 'Accès prioritaire + suggestions', 'Expérience complète'],
-    cta: 'Passer au Premium',
+    badge: 'payment_badge_best_price',
+    features: ['payment_legacy_10dates_feat_1', 'payment_legacy_10dates_feat_2', 'payment_legacy_10dates_feat_3'],
+    cta: 'payment_legacy_10dates_cta',
   },
 };
 
@@ -98,6 +101,7 @@ export default function PaymentPage() {
   const searchParams = useSearchParams();
   const { width, height } = useWindowSize();
   const { user, userProfile, isLoggedIn } = useAuth();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [paymentSuccess, setPaymentSuccess] = useState(false);
@@ -260,17 +264,17 @@ export default function PaymentPage() {
             <CheckCircle className="h-20 w-20 text-green-400 relative z-10" />
           </div>
 
-          <h1 className="text-3xl font-light text-white">Paiement confirmé !</h1>
+          <h1 className="text-3xl font-light text-white">{t('payment_confirmed')}</h1>
 
           {verifyingPayment ? (
             <div className="flex items-center justify-center gap-2">
               <Loader2 className="h-4 w-4 text-accent animate-spin" />
-              <p className="text-white/40 text-sm">Activation de vos crédits...</p>
+              <p className="text-white/40 text-sm">{t('payment_credits_activating')}</p>
             </div>
           ) : creditsVerified ? (
             <p className="text-green-400 text-sm">{grantedCredits} crédit(s) ajouté(s) à votre compte</p>
           ) : (
-            <p className="text-white/40 text-sm">Vos crédits ont été ajoutés à votre compte.</p>
+            <p className="text-white/40 text-sm">{t('payment_credits_added')}</p>
           )}
 
           <div className="space-y-3 pt-2">
@@ -307,7 +311,7 @@ export default function PaymentPage() {
       <div className="min-h-screen bg-black flex items-center justify-center">
         <div className="text-center">
           <Loader2 className="h-12 w-12 text-accent animate-spin mx-auto mb-4" />
-          <p className="text-white/40">Redirection vers le paiement sécurisé...</p>
+          <p className="text-white/40">{t('payment_redirecting')}</p>
         </div>
       </div>
     );
@@ -325,7 +329,7 @@ export default function PaymentPage() {
       <div className="max-w-4xl mx-auto px-4 py-8 md:py-16">
         {/* Header */}
         <div className="text-center mb-10 md:mb-14">
-          <p className="text-xs text-accent uppercase tracking-[0.3em] mb-3">Crédits Sport Date</p>
+          <p className="text-xs text-accent uppercase tracking-[0.3em] mb-3">{t('payment_credits_sport_date')}</p>
           <h1 className="text-3xl md:text-5xl font-light text-white tracking-tight mb-3">
             Trouve ton match.<br />Bouge ensemble.
           </h1>
@@ -350,7 +354,7 @@ export default function PaymentPage() {
               {pkg.badge && (
                 <div className="absolute -top-0 right-0">
                   <span className={`inline-block px-3 py-1 text-[10px] font-bold text-white uppercase tracking-wider rounded-bl-xl bg-gradient-to-r ${pkg.color}`}>
-                    {pkg.badge}
+                    {t(pkg.badge)}
                   </span>
                 </div>
               )}
@@ -361,7 +365,7 @@ export default function PaymentPage() {
                   {pkg.icon}
                 </div>
                 <h3 className="text-lg font-medium text-white mb-0.5">{pkg.title}</h3>
-                <p className="text-xs text-white/30 mb-5">{pkg.subtitle}</p>
+                <p className="text-xs text-white/30 mb-5">{t(pkg.subtitle)}</p>
 
                 {/* Price */}
                 <div className="flex items-baseline gap-1 mb-5">
@@ -379,7 +383,7 @@ export default function PaymentPage() {
                   {pkg.features.map((f, i) => (
                     <div key={i} className="flex items-start gap-2 text-sm text-white/50">
                       <CheckCircle className="h-4 w-4 text-green-400 flex-shrink-0 mt-0.5" />
-                      <span>{f}</span>
+                      <span>{t(f)}</span>
                     </div>
                   ))}
                 </div>
@@ -393,7 +397,7 @@ export default function PaymentPage() {
                       : 'bg-white/5 backdrop-blur-xl border border-white/10 text-white hover:bg-white/10'
                   }`}
                 >
-                  {pkg.cta}
+                  {t(pkg.cta)}
                 </button>
               </CardContent>
             </Card>
@@ -409,7 +413,7 @@ export default function PaymentPage() {
           </div>
           <div className="flex items-center justify-center gap-2 text-xs text-white/20">
             <Lock className="h-3 w-3" />
-            <span>Paiement sécurisé par Stripe — Activation instantanée</span>
+            <span>{t('payment_secure_instant')}</span>
           </div>
         </div>
 
@@ -419,8 +423,8 @@ export default function PaymentPage() {
             <CardContent className="p-5 flex items-center gap-4">
               <Gift className="h-8 w-8 text-accent flex-shrink-0" />
               <div>
-                <p className="text-sm text-white font-medium">Invite un ami = crédits offerts</p>
-                <p className="text-xs text-white/30">Partage ton lien de parrainage et gagne des crédits gratuits</p>
+                <p className="text-sm text-white font-medium">{t('payment_invite_friend_credits')}</p>
+                <p className="text-xs text-white/30">{t('payment_share_ref_link')}</p>
               </div>
             </CardContent>
           </Card>

@@ -234,7 +234,7 @@ export default function Header() {
                 {isLoggedIn && isPartner && (
                   <Link href="/partner/offers" className="px-4 py-2 rounded-md hover:bg-accent/10 text-accent flex items-center gap-2">
                     <Building className="h-5 w-5" />
-                    Espace Partenaire
+                    {t('header_partner_space')}
                   </Link>
                 )}
                 {isLoggedIn && (
@@ -250,7 +250,7 @@ export default function Header() {
                 <div className="flex items-center gap-2 mb-2">
                   <Languages className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                   <span className="text-xs uppercase tracking-wider text-muted-foreground font-light">
-                    Langue
+                    {t('settings_section_language')}
                   </span>
                 </div>
                 <div className="grid grid-cols-3 gap-2">

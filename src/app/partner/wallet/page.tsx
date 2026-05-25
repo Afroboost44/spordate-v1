@@ -1,45 +1,115 @@
+/**
+ * Fix #144 — Page /partner/wallet refactorisée pour le modèle in-house wallet.
+ *
+ * Le partner voit :
+ *   - Solde disponible (partner.balance, en centimes)
+ *   - Revenus totaux (partner.totalRevenue)
+ *   - Nombre de virements demandés (partner.payoutCount)
+ *   - Formulaire IBAN (sauvegarde dans partner.iban / partner.ibanHolder)
+ *   - Bouton "Demander un virement" → POST /api/wallet/request-payout
+ *
+ * Mode in-house wallet : la plateforme est marchand de référence, l'admin exécute
+ * les virements SEPA manuellement depuis sa banque (le temps que Stripe Connect
+ * KYC soit validé). Une fois Connect activé, ce flow sera remplacé par les
+ * payouts Stripe automatiques.
+ */
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Button } from "@/components/ui/button";
 import {
-  Wallet, CreditCard, CheckCircle, AlertCircle,
-  Building, ArrowUpRight, TrendingUp, Clock, Loader2, ExternalLink
+  Wallet, CheckCircle, AlertCircle,
+  ArrowUpRight, TrendingUp, Clock, Loader2, CreditCard,
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { db } from '@/lib/firebase';
-import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
+import {
+  doc, getDoc, collection, query, where, getDocs, limit, orderBy,
+} from 'firebase/firestore';
+
+interface PartnerWallet {
+  id: string;
+  balance?: number; // en centimes CHF
+  totalRevenue?: number; // en centimes CHF
+  payoutCount?: number;
+  iban?: string;
+  ibanHolder?: string;
+}
+
+interface WalletTransaction {
+  walletTransactionId: string;
+  type: 'sale_credit' | 'payout_request' | 'payout_completed';
+  amountCents: number;
+  currency: string;
+  createdAt?: { toDate: () => Date };
+}
+
+function formatChf(cents?: number) {
+  const v = (cents ?? 0) / 100;
+  return v.toFixed(2);
+}
 
 export default function PartnerWalletPage() {
   const { user } = useAuth();
   const { toast } = useToast();
-  const [isLoading, setIsLoading] = useState(false);
-  const [partnerData, setPartnerData] = useState<any>(null);
+  const { t } = useLanguage();
+  const [partnerData, setPartnerData] = useState<PartnerWallet | null>(null);
+  const [transactions, setTransactions] = useState<WalletTransaction[]>([]);
   const [loadingData, setLoadingData] = useState(true);
+  const [iban, setIban] = useState('');
+  const [ibanHolder, setIbanHolder] = useState('');
+  const [savingIban, setSavingIban] = useState(false);
+  const [requestingPayout, setRequestingPayout] = useState(false);
 
-  const isConnected = !!partnerData?.stripeAccountId && partnerData?.stripeDetailsSubmitted;
+  const hasIban = useMemo(() => !!(partnerData?.iban && partnerData.iban.length >= 10), [partnerData]);
+  const balanceCents = partnerData?.balance ?? 0;
+  const canRequestPayout = hasIban && balanceCents > 0;
 
-  // Load partner data from Firestore
+  // Load partner data + transactions
   useEffect(() => {
     if (!user?.uid || !db) { setLoadingData(false); return; }
-    const fbDb = db; // capture for async closure (already proven non-null by guard above)
+    const fbDb = db;
 
-    const loadPartner = async () => {
+    const load = async () => {
       try {
-        // Try direct doc by uid
-        const docSnap = await getDoc(doc(fbDb, 'partners', user.uid));
-        if (docSnap.exists()) {
-          setPartnerData({ id: docSnap.id, ...docSnap.data() });
-          setLoadingData(false);
-          return;
+        let partnerSnap = await getDoc(doc(fbDb, 'partners', user.uid));
+        let partnerId = user.uid;
+
+        if (!partnerSnap.exists()) {
+          partnerSnap = await getDoc(doc(fbDb, 'partners', `partner-${user.uid}`));
+          partnerId = `partner-${user.uid}`;
         }
-        // Fallback: query by email
-        const q = query(collection(fbDb, 'partners'), where('email', '==', user.email), limit(1));
-        const snap = await getDocs(q);
-        if (!snap.empty) {
-          const d = snap.docs[0];
-          setPartnerData({ id: d.id, ...d.data() });
+
+        if (!partnerSnap.exists() && user.email) {
+          const q = query(collection(fbDb, 'partners'), where('email', '==', user.email), limit(1));
+          const snap = await getDocs(q);
+          if (!snap.empty) {
+            partnerSnap = snap.docs[0] as typeof partnerSnap;
+            partnerId = snap.docs[0].id;
+          }
+        }
+
+        if (partnerSnap.exists()) {
+          const data = partnerSnap.data();
+          setPartnerData({ id: partnerId, ...data });
+          setIban((data?.iban as string) || '');
+          setIbanHolder((data?.ibanHolder as string) || '');
+
+          // Load last 20 transactions
+          try {
+            const txQ = query(
+              collection(fbDb, 'walletTransactions'),
+              where('partnerId', '==', partnerId),
+              orderBy('createdAt', 'desc'),
+              limit(20),
+            );
+            const txSnap = await getDocs(txQ);
+            setTransactions(txSnap.docs.map(d => ({ walletTransactionId: d.id, ...(d.data() as Omit<WalletTransaction, 'walletTransactionId'>) })));
+          } catch {
+            // Composite index may be missing — skip silently
+          }
         }
       } catch (err) {
         console.error('[Wallet] Error loading partner:', err);
@@ -47,59 +117,60 @@ export default function PartnerWalletPage() {
       setLoadingData(false);
     };
 
-    loadPartner();
+    load();
   }, [user]);
 
-  const handleConnectStripe = async () => {
-    if (!user?.email || !partnerData?.id) {
-      toast({ title: "Erreur", description: "Données partenaire introuvables.", variant: "destructive" });
+  const handleSaveIban = async () => {
+    if (!user?.uid || !partnerData?.id) return;
+    if (!iban.trim() || !ibanHolder.trim()) {
+      toast({ title: t('partner_wallet_toast_missing_title'), description: t('partner_wallet_toast_missing_desc'), variant: "destructive" });
       return;
     }
-
-    setIsLoading(true);
+    setSavingIban(true);
     try {
-      const res = await fetch('/api/stripe-connect', {
+      const token = await (await import('@/lib/firebase')).auth?.currentUser?.getIdToken();
+      const res = await fetch('/api/wallet/update-iban', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          partnerId: partnerData.id,
-          email: user.email,
-          name: partnerData.name || user.displayName || '',
-        }),
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ partnerId: partnerData.id, iban: iban.trim().replace(/\s+/g, ''), ibanHolder: ibanHolder.trim() }),
       });
-
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-
-      // Redirect to Stripe onboarding
-      window.location.href = data.onboardingUrl;
-    } catch (err: any) {
-      console.error('[Stripe Connect]', err);
-      toast({
-        title: "Erreur de connexion",
-        description: err.message || "Impossible de lancer la connexion bancaire.",
-        variant: "destructive",
-      });
-      setIsLoading(false);
+      if (!res.ok) throw new Error(data.error || t('partner_wallet_server_error'));
+      toast({ title: t('partner_wallet_toast_iban_saved_title'), description: t('partner_wallet_toast_iban_saved_desc') });
+      setPartnerData(p => p ? { ...p, iban: iban.trim().replace(/\s+/g, ''), ibanHolder: ibanHolder.trim() } : p);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : t('partner_wallet_error');
+      toast({ title: t('partner_wallet_error'), description: m, variant: "destructive" });
     }
+    setSavingIban(false);
   };
 
-  const handleOpenDashboard = async () => {
-    if (!partnerData?.stripeAccountId) return;
-    setIsLoading(true);
+  const handleRequestPayout = async () => {
+    if (!user?.uid || !partnerData?.id) return;
+    if (balanceCents <= 0) return;
+    setRequestingPayout(true);
     try {
-      const res = await fetch(`/api/stripe-connect?accountId=${partnerData.stripeAccountId}&action=dashboard`);
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
-      window.open(data.dashboardUrl, '_blank');
-    } catch (err: any) {
-      toast({
-        title: "Erreur",
-        description: err.message || "Impossible d'ouvrir le tableau de bord Stripe.",
-        variant: "destructive",
+      const token = await (await import('@/lib/firebase')).auth?.currentUser?.getIdToken();
+      const res = await fetch('/api/wallet/request-payout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ partnerId: partnerData.id }),
       });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || t('partner_wallet_server_error'));
+      toast({ title: t('partner_wallet_toast_payout_title'), description: t('partner_wallet_toast_payout_desc') });
+      setPartnerData(p => p ? { ...p, balance: 0, payoutCount: (p.payoutCount ?? 0) + 1 } : p);
+    } catch (err) {
+      const m = err instanceof Error ? err.message : t('partner_wallet_error');
+      toast({ title: t('partner_wallet_error'), description: m, variant: "destructive" });
     }
-    setIsLoading(false);
+    setRequestingPayout(false);
   };
 
   if (loadingData) {
@@ -112,13 +183,12 @@ export default function PartnerWalletPage() {
 
   return (
     <div className="space-y-8">
-      {/* Header */}
       <div>
         <h1 className="text-2xl md:text-3xl font-extralight tracking-tight">
-          Mon Portefeuille
+          {t('partner_wallet_page_title')}
         </h1>
         <p className="text-white/40 font-light mt-1">
-          Gérez vos revenus et coordonnées bancaires.
+          {t('partner_wallet_page_subtitle')}
         </p>
       </div>
 
@@ -129,9 +199,9 @@ export default function PartnerWalletPage() {
             <div className="w-10 h-10 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center">
               <Wallet className="h-5 w-5 text-accent" />
             </div>
-            <span className="text-xs text-white/30 uppercase tracking-wider font-light">Solde disponible</span>
+            <span className="text-xs text-white/30 uppercase tracking-wider font-light">{t('partner_wallet_balance_label')}</span>
           </div>
-          <p className="text-3xl font-extralight text-white">0.00 <span className="text-base text-white/30">CHF</span></p>
+          <p className="text-3xl font-extralight text-white">{formatChf(balanceCents)} <span className="text-base text-white/30">CHF</span></p>
         </div>
 
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
@@ -139,9 +209,9 @@ export default function PartnerWalletPage() {
             <div className="w-10 h-10 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center">
               <TrendingUp className="h-5 w-5 text-green-400" />
             </div>
-            <span className="text-xs text-white/30 uppercase tracking-wider font-light">Revenus totaux</span>
+            <span className="text-xs text-white/30 uppercase tracking-wider font-light">{t('partner_wallet_revenue_label')}</span>
           </div>
-          <p className="text-3xl font-extralight text-white">0.00 <span className="text-base text-white/30">CHF</span></p>
+          <p className="text-3xl font-extralight text-white">{formatChf(partnerData?.totalRevenue)} <span className="text-base text-white/30">CHF</span></p>
         </div>
 
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
@@ -149,73 +219,69 @@ export default function PartnerWalletPage() {
             <div className="w-10 h-10 rounded-full bg-purple-500/10 border border-purple-500/20 flex items-center justify-center">
               <ArrowUpRight className="h-5 w-5 text-purple-400" />
             </div>
-            <span className="text-xs text-white/30 uppercase tracking-wider font-light">Virements effectués</span>
+            <span className="text-xs text-white/30 uppercase tracking-wider font-light">{t('partner_wallet_payouts_count_label')}</span>
           </div>
-          <p className="text-3xl font-extralight text-white">0</p>
+          <p className="text-3xl font-extralight text-white">{partnerData?.payoutCount ?? 0}</p>
         </div>
       </div>
 
-      {/* Main content grid */}
+      {/* IBAN + withdrawal */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-        {/* Bank connection card */}
-        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-6">
+        {/* IBAN card */}
+        <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-accent/10 border border-accent/20 flex items-center justify-center">
               <CreditCard className="h-5 w-5 text-accent" />
             </div>
             <div>
-              <h3 className="text-base font-light text-white">Compte bancaire</h3>
-              <p className="text-xs text-white/30 font-light">Connexion sécurisée via Stripe</p>
+              <h3 className="text-base font-light text-white">{t('partner_wallet_iban_card_title')}</h3>
+              <p className="text-xs text-white/30 font-light">{t('partner_wallet_iban_card_subtitle')}</p>
             </div>
           </div>
 
-          {isConnected ? (
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-4 bg-green-500/5 border border-green-500/10 rounded-xl">
-                <CheckCircle className="h-6 w-6 text-green-400 flex-shrink-0" />
-                <div>
-                  <p className="text-sm text-green-400 font-light">Compte actif</p>
-                  <p className="text-xs text-white/30 font-light">
-                    {partnerData.stripePayoutsEnabled
-                      ? 'Virements activés — vous pouvez recevoir des paiements'
-                      : 'En cours de vérification par Stripe'}
-                  </p>
-                </div>
-              </div>
-              <Button
-                onClick={handleOpenDashboard}
-                disabled={isLoading}
-                className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white/70 font-light rounded-full h-11 text-sm"
-              >
-                {isLoading ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : <ExternalLink className="mr-2 h-4 w-4" />}
-                Ouvrir mon tableau de bord Stripe
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 p-3 bg-yellow-500/5 border border-yellow-500/10 rounded-xl">
-                <AlertCircle className="h-4 w-4 text-yellow-400 flex-shrink-0" />
-                <p className="text-sm text-yellow-400/80 font-light">
-                  Connectez votre banque pour recevoir vos revenus.
+          {hasIban && (
+            <div className="flex items-center gap-3 p-4 bg-green-500/5 border border-green-500/10 rounded-xl">
+              <CheckCircle className="h-5 w-5 text-green-400 flex-shrink-0" />
+              <div>
+                <p className="text-sm text-green-400 font-light">{t('partner_wallet_iban_saved')}</p>
+                <p className="text-xs text-white/40 font-light font-mono">
+                  {partnerData?.iban?.replace(/(.{4})/g, '$1 ').trim()}
                 </p>
               </div>
-              <Button
-                onClick={handleConnectStripe}
-                disabled={isLoading}
-                className="w-full bg-accent hover:bg-accent/80 text-white font-semibold rounded-full h-12"
-              >
-                {isLoading ? (
-                  <><Loader2 className="animate-spin mr-2 h-4 w-4" /> Connexion en cours...</>
-                ) : (
-                  <><Building className="mr-2 h-4 w-4" /> Connecter mon compte bancaire</>
-                )}
-              </Button>
-              <p className="text-xs text-center text-white/20 font-light">
-                Vous serez redirigé vers Stripe pour une inscription sécurisée.
-              </p>
             </div>
           )}
+
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs text-white/40 mb-1 font-light">{t('partner_wallet_iban_field_label')}</label>
+              <input
+                type="text"
+                value={iban}
+                onChange={(e) => setIban(e.target.value.toUpperCase())}
+                placeholder="CH00 0000 0000 0000 0000 0"
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-light text-white placeholder:text-white/20 focus:outline-none focus:border-accent/50"
+              />
+            </div>
+            <div>
+              <label className="block text-xs text-white/40 mb-1 font-light">{t('partner_wallet_holder_field_label')}</label>
+              <input
+                type="text"
+                value={ibanHolder}
+                onChange={(e) => setIbanHolder(e.target.value)}
+                placeholder={t('partner_wallet_holder_placeholder')}
+                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3 text-sm font-light text-white placeholder:text-white/20 focus:outline-none focus:border-accent/50"
+              />
+            </div>
+            <Button
+              onClick={handleSaveIban}
+              disabled={savingIban}
+              className="w-full bg-accent hover:bg-accent/80 text-white font-light rounded-full h-11"
+            >
+              {savingIban ? <Loader2 className="animate-spin mr-2 h-4 w-4" /> : null}
+              {hasIban ? t('partner_wallet_update_iban_btn') : t('partner_wallet_save_iban_btn')}
+            </Button>
+          </div>
         </div>
 
         {/* Withdrawal card */}
@@ -225,41 +291,78 @@ export default function PartnerWalletPage() {
               <ArrowUpRight className="h-5 w-5 text-purple-400" />
             </div>
             <div>
-              <h3 className="text-base font-light text-white">Demander un virement</h3>
-              <p className="text-xs text-white/30 font-light">Transférer votre solde vers votre banque</p>
+              <h3 className="text-base font-light text-white">{t('partner_wallet_payout_card_title')}</h3>
+              <p className="text-xs text-white/30 font-light">{t('partner_wallet_payout_card_subtitle')}</p>
             </div>
           </div>
 
-          <div className="bg-white/5 border border-white/5 rounded-xl p-5 text-center space-y-3">
-            <p className="text-4xl font-extralight text-white">0.00 <span className="text-lg text-white/30">CHF</span></p>
-            <p className="text-xs text-white/20 font-light">Solde disponible pour retrait</p>
+          <div className="bg-white/5 border border-white/5 rounded-xl p-5 text-center space-y-2">
+            <p className="text-4xl font-extralight text-white">{formatChf(balanceCents)} <span className="text-lg text-white/30">CHF</span></p>
+            <p className="text-xs text-white/20 font-light">{t('partner_wallet_balance_label')}</p>
           </div>
 
+          {!hasIban && (
+            <div className="flex items-start gap-2 p-3 bg-yellow-500/5 border border-yellow-500/10 rounded-xl">
+              <AlertCircle className="h-4 w-4 text-yellow-400 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-yellow-400/80 font-light">
+                {t('partner_wallet_iban_required_warning')}
+              </p>
+            </div>
+          )}
+
           <Button
-            disabled={!isConnected}
+            onClick={handleRequestPayout}
+            disabled={!canRequestPayout || requestingPayout}
             className={`w-full rounded-full h-12 font-light ${
-              isConnected
+              canRequestPayout
                 ? 'bg-accent hover:bg-accent/80 text-white'
                 : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
             }`}
           >
-            {isConnected ? 'Demander un virement' : 'Connectez votre banque d\'abord'}
+            {requestingPayout && <Loader2 className="animate-spin mr-2 h-4 w-4" />}
+            {!hasIban
+              ? t('partner_wallet_btn_iban_first')
+              : balanceCents <= 0
+                ? t('partner_wallet_btn_no_balance')
+                : `${t('partner_wallet_btn_request')} ${formatChf(balanceCents)} CHF`}
           </Button>
         </div>
       </div>
 
-      {/* Recent transactions */}
+      {/* Transactions */}
       <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-        <h3 className="text-base font-light text-white mb-4">Historique des transactions</h3>
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <div className="w-14 h-14 rounded-full bg-white/5 border border-white/5 flex items-center justify-center mb-4">
-            <Clock className="h-6 w-6 text-white/20" />
+        <h3 className="text-base font-light text-white mb-4">{t('partner_wallet_history_title')}</h3>
+        {transactions.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 text-center">
+            <div className="w-14 h-14 rounded-full bg-white/5 border border-white/5 flex items-center justify-center mb-4">
+              <Clock className="h-6 w-6 text-white/20" />
+            </div>
+            <p className="text-white/30 font-light text-sm">{t('partner_wallet_history_empty')}</p>
+            <p className="text-white/15 font-light text-xs mt-1">
+              {t('partner_wallet_history_empty_desc')}
+            </p>
           </div>
-          <p className="text-white/30 font-light text-sm">Aucune transaction pour le moment</p>
-          <p className="text-white/15 font-light text-xs mt-1">
-            Les transactions apparaîtront ici quand vous recevrez des paiements.
-          </p>
-        </div>
+        ) : (
+          <div className="divide-y divide-white/5">
+            {transactions.map(tx => (
+              <div key={tx.walletTransactionId} className="py-3 flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-light text-white">
+                    {tx.type === 'sale_credit' && `💰 ${t('partner_wallet_tx_sale')}`}
+                    {tx.type === 'payout_request' && `📤 ${t('partner_wallet_tx_payout_req')}`}
+                    {tx.type === 'payout_completed' && `✅ ${t('partner_wallet_tx_payout_done')}`}
+                  </p>
+                  <p className="text-xs text-white/30 font-light">
+                    {tx.createdAt?.toDate ? tx.createdAt.toDate().toLocaleString('fr-CH') : ''}
+                  </p>
+                </div>
+                <p className={`text-sm font-light ${tx.type === 'sale_credit' ? 'text-green-400' : 'text-purple-400'}`}>
+                  {tx.type === 'sale_credit' ? '+' : '−'}{formatChf(Math.abs(tx.amountCents))} {tx.currency}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

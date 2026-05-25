@@ -23,9 +23,14 @@ import {
 import { Input } from '@/components/ui/input';
 import { db } from '@/lib/firebase';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
+// Fix #153 — getActivityThumbnail = helper unique (chaîne thumbnailUrl →
+// mediaItems image → video thumb → imageUrl legacy). Remplace la chaîne
+// copiée-collée incomplète qui manquait thumbnailUrl + imageUrl.
+import { getActivityThumbnail } from '@/lib/activities/getActivityThumbnail';
 import { displayActivityTitle } from '@/lib/chat/activityInvite';
 import { getNextFutureSessionForActivity } from '@/services/firestore';
 import { getBookingPriceCHF } from '@/lib/booking/price';
+import { useLanguage } from '@/context/LanguageContext';
 import type { Activity, Session } from '@/types/firestore';
 
 export interface ActivitySelectorPick {
@@ -44,6 +49,7 @@ interface ActivitySelectorModalProps {
 
 export function ActivitySelectorModal({ open, onOpenChange, onSelect }: ActivitySelectorModalProps) {
   const router = useRouter();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(false);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [search, setSearch] = useState('');
@@ -140,10 +146,10 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <Calendar className="h-5 w-5 text-accent" />
-            Choisir une activité
+            {t('activity_selector_title')}
           </DialogTitle>
           <DialogDescription className="text-white/40 text-xs">
-            Sélectionne l&apos;activité à laquelle tu veux inviter.
+            {t('activity_selector_description')}
           </DialogDescription>
         </DialogHeader>
 
@@ -153,7 +159,7 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
           <Input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Rechercher..."
+            placeholder={t('activity_selector_search_placeholder')}
             className="pl-9 bg-zinc-900 border-white/10 text-white text-sm"
           />
         </div>
@@ -167,7 +173,7 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
                   type="button"
                   onClick={() => setFilterSport('')}
                   className={`flex-shrink-0 text-[10px] px-2 py-1 rounded-full border transition ${filterSport === '' ? 'bg-accent/15 border-accent/40 text-accent' : 'bg-white/5 border-white/10 text-white/50'}`}
-                >Tous sports</button>
+                >{t('activity_selector_all_sports')}</button>
                 {sportOptions.map((s) => (
                   <button
                     key={s}
@@ -184,7 +190,7 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
                   type="button"
                   onClick={() => setFilterCity('')}
                   className={`flex-shrink-0 text-[10px] px-2 py-1 rounded-full border transition ${filterCity === '' ? 'bg-accent/15 border-accent/40 text-accent' : 'bg-white/5 border-white/10 text-white/50'}`}
-                >Toutes villes</button>
+                >{t('activity_selector_all_cities')}</button>
                 {cityOptions.map((c) => (
                   <button
                     key={c}
@@ -205,10 +211,22 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
               <Loader2 className="h-6 w-6 text-accent animate-spin" />
             </div>
           ) : filtered.length === 0 ? (
-            <p className="text-center py-8 text-white/30 text-sm">Aucune activité trouvée.</p>
+            <p className="text-center py-8 text-white/30 text-sm">{t('activity_selector_no_results')}</p>
           ) : (
             filtered.map((a) => {
-              const imageUrl = a.images?.[0] || (a.mediaUrls?.find((m) => m.type === 'image')?.url ?? '');
+              // Fix #153 — Une seule source de vérité : helper getActivityThumbnail
+              // (chaîne complète : thumbnailUrl explicite → images[0] legacy →
+              // mediaItems image → video thumbnail → imageUrl legacy si image-like).
+              // Plus de copie-coller de chain entre composants. Plus de "thumbnailUrl
+              // qui revient à zéro à chaque refactor".
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const aLoose = a as any;
+              const imageUrl = getActivityThumbnail({
+                thumbnailUrl: aLoose.thumbnailUrl,
+                images: aLoose.images,
+                mediaItems: aLoose.mediaUrls,
+                imageUrl: aLoose.imageUrl,
+              }) || '';
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const aName = (a as any).name as string | undefined;
               const cardTitle = displayActivityTitle({ title: a.title, name: aName, sport: a.sport, city: a.city });
@@ -237,7 +255,7 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
                     type="button"
                     onClick={pick}
                     className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition"
-                    aria-label={`Sélectionner ${cardTitle}`}
+                    aria-label={t('activity_selector_aria_select', { title: cardTitle })}
                   >
                     {imageUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
@@ -263,7 +281,7 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
                           </>
                         )}
                         <span className="ml-auto text-accent font-medium">
-                          {effectivePriceCHF === 0 ? 'Gratuit' : `${effectivePriceCHF} CHF`}
+                          {effectivePriceCHF === 0 ? t('activity_selector_free') : `${effectivePriceCHF} CHF`}
                         </span>
                       </p>
                     </div>
@@ -272,10 +290,10 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
                     type="button"
                     onClick={() => handleDiscover(a.activityId)}
                     className="flex-shrink-0 h-9 px-2.5 rounded-lg text-[11px] text-white/60 hover:text-white hover:bg-white/5 flex items-center gap-1 transition"
-                    aria-label={`Découvrir ${cardTitle}`}
+                    aria-label={t('activity_selector_aria_discover', { title: cardTitle })}
                   >
                     <Info className="h-3.5 w-3.5" />
-                    Découvrir
+                    {t('activity_selector_discover')}
                   </button>
                 </div>
               );

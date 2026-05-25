@@ -30,6 +30,7 @@ import type { Report, ReportCategory } from '@/types/firestore';
 import { sendEmail } from '@/lib/email/sendEmail';
 import {
   REPORT_CATEGORY_LABELS,
+  REPORT_CATEGORY_LABELS_BY_LANG,
   ReportError,
   FREETEXT_MIN_LENGTH,
   RATE_LIMIT_PER_DAY,
@@ -203,14 +204,19 @@ export async function createReport(input: CreateReportInput): Promise<CreateRepo
   try {
     const ctx = await fetchReportEmailContext({ userId: input.reporterId });
     if (ctx.email) {
+      const categoryLabel =
+        REPORT_CATEGORY_LABELS_BY_LANG[ctx.lang][input.category] ??
+        REPORT_CATEGORY_LABELS[input.category] ??
+        input.category;
       await sendEmail({
         to: ctx.email,
         templateName: 'reportSubmitted',
         templateData: {
           reporterName: ctx.displayName,
-          categoryLabel: REPORT_CATEGORY_LABELS[input.category] ?? input.category,
+          categoryLabel,
           slaHours: ADMIN_REVIEW_SLA_HOURS,
         },
+        lang: ctx.lang,
       });
     }
   } catch (err) {

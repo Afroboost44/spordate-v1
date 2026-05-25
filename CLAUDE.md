@@ -116,6 +116,33 @@ Avant toute modification, Claude doit :
 3. Faire un `npm run type-check` après chaque modification.
 4. Ne jamais lancer `git push` sans validation explicite de l'utilisateur.
 
+## 9.bis Règle i18n (Fix #156/#157)
+
+**RÈGLE DURE** : à chaque fois que Claude modifie un fichier .tsx pour quelque
+raison que ce soit (fix bug, ajout feature, refactor, restyle), il DOIT
+convertir 100% des strings FR hardcodées du fichier en `t('key')` avant de
+fermer le fix.
+
+Procédure :
+1. Avant la 1ère édition, exécuter `node tests/admin/i18n-hardcoded-strings.test.js`
+   pour voir le seuil baseline du fichier.
+2. Faire le fix demandé.
+3. Lister TOUTES les strings FR encore hardcodées dans le fichier touché.
+4. Pour chacune :
+    - Ajouter une clé `t('...')` dans les 3 langues (FR/EN/DE) de
+      `src/context/LanguageContext.tsx`.
+    - Remplacer la string par `{t('key')}`.
+5. Baisser le seuil baseline correspondant dans
+   `tests/admin/i18n-hardcoded-strings.test.js` au nouveau compte exact.
+6. Vérifier que tous les tests passent (`npm run typecheck` + scanner i18n).
+
+Le baseline ne peut **QUE descendre**. Si une modif augmente le compteur,
+le test casse → la modif est refusée tant que les nouvelles strings ne sont
+pas converties en t().
+
+**Anti-pattern** : laisser une nouvelle string FR hardcodée "pour faire vite".
+Le test scanner casse, le déploiement est bloqué.
+
 ## 10. Troubleshooting Git Auth
 
 **Pattern récurrent** : sur cette machine, le compte gh actif drift régulièrement vers

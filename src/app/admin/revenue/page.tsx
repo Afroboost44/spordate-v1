@@ -18,6 +18,7 @@ import { db, isFirebaseConfigured } from "@/lib/firebase";
 import {
   collection, query, getDocs, orderBy, where, Timestamp
 } from 'firebase/firestore';
+import { useLanguage } from '@/context/LanguageContext';
 
 // Types
 interface Transaction {
@@ -52,6 +53,7 @@ function formatDate(ts: Timestamp | null): string {
 
 export default function RevenueDashboardPage() {
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [dateFrom, setDateFrom] = useState('');
@@ -196,7 +198,7 @@ export default function RevenueDashboardPage() {
           <CardContent className="p-4 flex flex-col md:flex-row gap-3 items-end">
             <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-3">
               <div>
-                <label className="text-xs text-white/40 mb-1 block">Date début</label>
+                <label className="text-xs text-white/40 mb-1 block">{t('admin_revenue_date_start')}</label>
                 <Input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="bg-black border-white/10 h-10" />
               </div>
               <div>
@@ -204,11 +206,11 @@ export default function RevenueDashboardPage() {
                 <Input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="bg-black border-white/10 h-10" />
               </div>
               <div>
-                <label className="text-xs text-white/40 mb-1 block">Méthode</label>
+                <label className="text-xs text-white/40 mb-1 block">{t('admin_revenue_method_label')}</label>
                 <Select value={filterMethod} onValueChange={setFilterMethod}>
                   <SelectTrigger className="bg-black border-white/10 h-10"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">Toutes</SelectItem>
+                    <SelectItem value="all">{t('admin_revenue_all_methods')}</SelectItem>
                     <SelectItem value="card">Carte</SelectItem>
                     <SelectItem value="twint">TWINT</SelectItem>
                   </SelectContent>
@@ -243,7 +245,7 @@ export default function RevenueDashboardPage() {
           </Card>
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-2"><Users className="h-4 w-4 text-amber-400" /><span className="text-xs text-white/40 uppercase tracking-wider">Crédits vendus</span></div>
+              <div className="flex items-center gap-2 mb-2"><Users className="h-4 w-4 text-amber-400" /><span className="text-xs text-white/40 uppercase tracking-wider">{t('admin_revenue_credits_sold')}</span></div>
               <p className="text-2xl font-light">{filtered.reduce((s, tx) => s + (tx.creditsGranted || 0), 0)}</p>
             </CardContent>
           </Card>
@@ -258,7 +260,7 @@ export default function RevenueDashboardPage() {
           </CardHeader>
           <CardContent>
             {dailyData.length === 0 ? (
-              <p className="text-sm text-white/30 py-8 text-center">Aucune donnée pour cette période</p>
+              <p className="text-sm text-white/30 py-8 text-center">{t('admin_revenue_no_data_period')}</p>
             ) : (
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={dailyData}>
@@ -289,7 +291,7 @@ export default function RevenueDashboardPage() {
             </CardHeader>
             <CardContent>
               {byMethod.length === 0 ? (
-                <p className="text-sm text-white/30 py-8 text-center">Aucune donnée</p>
+                <p className="text-sm text-white/30 py-8 text-center">{t('admin_revenue_no_data')}</p>
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <PieChart>
@@ -312,7 +314,7 @@ export default function RevenueDashboardPage() {
             </CardHeader>
             <CardContent>
               {byPackage.length === 0 ? (
-                <p className="text-sm text-white/30 py-8 text-center">Aucune donnée</p>
+                <p className="text-sm text-white/30 py-8 text-center">{t('admin_revenue_no_data')}</p>
               ) : (
                 <ResponsiveContainer width="100%" height={250}>
                   <BarChart data={byPackage} layout="vertical">
@@ -337,7 +339,7 @@ export default function RevenueDashboardPage() {
           </CardHeader>
           <CardContent>
             {byCity.length === 0 ? (
-              <p className="text-sm text-white/30 py-8 text-center">Aucune donnée</p>
+              <p className="text-sm text-white/30 py-8 text-center">{t('admin_revenue_no_data')}</p>
             ) : (
               <div className="space-y-3">
                 {byCity.slice(0, 8).map((city, i) => (
@@ -363,7 +365,7 @@ export default function RevenueDashboardPage() {
         {/* Recent transactions table */}
         <Card className="bg-[#1A1A1A] border-white/5">
           <CardHeader className="pb-2">
-            <CardTitle className="text-base font-light text-white">Dernières transactions</CardTitle>
+            <CardTitle className="text-base font-light text-white">{t('admin_revenue_latest_transactions')}</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="overflow-x-auto">
@@ -372,9 +374,9 @@ export default function RevenueDashboardPage() {
                   <tr className="border-b border-white/5">
                     <th className="text-left text-white/30 font-light py-2 px-2">Date</th>
                     <th className="text-left text-white/30 font-light py-2 px-2">Montant</th>
-                    <th className="text-left text-white/30 font-light py-2 px-2">Méthode</th>
+                    <th className="text-left text-white/30 font-light py-2 px-2">{t('admin_revenue_th_method')}</th>
                     <th className="text-left text-white/30 font-light py-2 px-2">Package</th>
-                    <th className="text-left text-white/30 font-light py-2 px-2">Crédits</th>
+                    <th className="text-left text-white/30 font-light py-2 px-2">{t('admin_revenue_th_credits')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -393,7 +395,7 @@ export default function RevenueDashboardPage() {
                   ))}
                 </tbody>
               </table>
-              {filtered.length === 0 && <p className="text-sm text-white/30 py-6 text-center">Aucune transaction</p>}
+              {filtered.length === 0 && <p className="text-sm text-white/30 py-6 text-center">{t('admin_revenue_no_transaction')}</p>}
             </div>
           </CardContent>
         </Card>

@@ -25,6 +25,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/context/LanguageContext';
 import {
   VOICE_PROMPT_MAX_SECONDS,
   VOICE_PROMPT_OPTIONS,
@@ -57,6 +58,7 @@ export function VoicePromptRecorder({
   onDeleted,
 }: VoicePromptRecorderProps) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [state, setState] = useState<RecorderState>('idle');
   const [selectedPrompt, setSelectedPrompt] = useState<string>(
     current?.question || VOICE_PROMPT_OPTIONS[0],
@@ -143,8 +145,8 @@ export function VoicePromptRecorder({
       console.error('[VoicePrompt] mic permission denied', err);
       toast({
         variant: 'destructive',
-        title: 'Micro inaccessible',
-        description: 'Autorise l\'accès au micro dans ton navigateur puis réessaie.',
+        title: t('voice_prompt_mic_inaccessible_title'),
+        description: t('voice_prompt_mic_inaccessible_desc'),
       });
       setState('idle');
     }
@@ -194,7 +196,7 @@ export function VoicePromptRecorder({
   const handleSave = async () => {
     const question = selectedPrompt.trim();
     if (!question) {
-      toast({ variant: 'destructive', title: 'Choisis ou saisis une question' });
+      toast({ variant: 'destructive', title: t('voice_prompt_pick_question') });
       return;
     }
     setState('saving');
@@ -234,7 +236,7 @@ export function VoicePromptRecorder({
       );
 
       toast({
-        title: 'Accroche vocale enregistrée',
+        title: t('voice_prompt_saved_toast'),
         className: 'bg-zinc-900 border-accent/40 text-white',
       });
       onSaved({ url: finalUrl, question, duration: finalDur });
@@ -252,25 +254,25 @@ export function VoicePromptRecorder({
       const code = e?.code || e?.name || 'unknown';
       const message = err instanceof Error ? err.message : String(err);
       console.error('[VoicePrompt] save failed', { code, message, err });
-      let description = 'Réessaie dans un instant.';
+      let description = t('voice_prompt_err_retry');
       if (code === 'storage/unauthorized' || code === 'permission-denied') {
-        description = 'Les permissions Storage/Firestore bloquent. L\'admin doit déployer les nouvelles règles (firebase deploy --only storage,firestore).';
+        description = t('voice_prompt_err_permissions');
       } else if (code === 'storage/canceled') {
-        description = 'Upload annulé. Réessaie.';
+        description = t('voice_prompt_err_canceled');
       } else if (code === 'storage/quota-exceeded') {
-        description = 'Quota de stockage plein. Contacte le support.';
+        description = t('voice_prompt_err_quota');
       } else if (code === 'storage/retry-limit-exceeded' || code === 'storage/server-file-wrong-size') {
-        description = 'Connexion instable. Vérifie ton réseau et réessaie.';
+        description = t('voice_prompt_err_network');
       } else if (message.includes('firebase-not-initialized')) {
-        description = 'Firebase non initialisé. Recharge la page.';
+        description = t('voice_prompt_err_firebase_init');
       } else if (message.includes('no-recording')) {
-        description = 'Aucun enregistrement à sauvegarder. Enregistre d\'abord.';
+        description = t('voice_prompt_err_no_recording');
       } else if (message) {
-        description = `Erreur : ${message}`;
+        description = `${t('voice_prompt_err_generic')} ${message}`;
       }
       toast({
         variant: 'destructive',
-        title: 'Sauvegarde impossible',
+        title: t('voice_prompt_save_failed_title'),
         description,
       });
       setState('preview');
@@ -294,12 +296,12 @@ export function VoicePromptRecorder({
         { merge: true },
       );
       // Le fichier Storage est laissé (pas critique, sera écrasé au prochain upload).
-      toast({ title: 'Accroche vocale supprimée', className: 'bg-zinc-900 border-accent/40 text-white' });
+      toast({ title: t('voice_prompt_deleted_toast'), className: 'bg-zinc-900 border-accent/40 text-white' });
       onDeleted();
       onOpenChange(false);
     } catch (err) {
       console.error('[VoicePrompt] delete failed', err);
-      toast({ variant: 'destructive', title: 'Suppression impossible', description: 'Réessaie.' });
+      toast({ variant: 'destructive', title: t('voice_prompt_delete_failed_title'), description: t('voice_prompt_delete_failed_desc') });
       setState('preview');
     }
   };
@@ -310,16 +312,16 @@ export function VoicePromptRecorder({
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             <AudioLines className="h-4 w-4 text-accent" />
-            Accroche vocale
+            {t('voice_prompt_title')}
           </DialogTitle>
           <DialogDescription className="text-white/40 text-xs">
-            Une voix dit plus qu&apos;un texte. Choisis une question et enregistre ta réponse (max {VOICE_PROMPT_MAX_SECONDS}s).
+            {t('voice_prompt_description', { max: VOICE_PROMPT_MAX_SECONDS })}
           </DialogDescription>
         </DialogHeader>
 
         {/* Sélecteur question */}
         <div className="space-y-2">
-          <p className="text-[10px] uppercase tracking-wider text-white/40">Choisis ta question</p>
+          <p className="text-[10px] uppercase tracking-wider text-white/40">{t('voice_prompt_pick_question_label')}</p>
           {VOICE_PROMPT_OPTIONS.map((q) => (
             <button
               key={q}
@@ -343,13 +345,13 @@ export function VoicePromptRecorder({
                 : 'border-white/10 bg-zinc-900/40 text-white/70 hover:border-white/20'
             }`}
           >
-            ✏️ Écrire ma propre question
+            ✏️ {t('voice_prompt_write_own')}
           </button>
           {customMode && (
             <Input
               value={selectedPrompt}
               onChange={(e) => setSelectedPrompt(e.target.value)}
-              placeholder="Ta question (ex: ton mantra avant de transpirer)"
+              placeholder={t('voice_prompt_custom_placeholder')}
               maxLength={120}
               className="bg-black border-white/10 h-11 text-white text-sm rounded-xl"
             />
@@ -364,18 +366,18 @@ export function VoicePromptRecorder({
                 type="button"
                 onClick={startRecording}
                 className="h-16 w-16 rounded-full bg-accent hover:bg-accent/90 text-white shadow-xl shadow-accent/30"
-                aria-label="Enregistrer"
+                aria-label={t('voice_prompt_record_aria')}
               >
                 <AudioLines className="h-6 w-6" />
               </Button>
-              <p className="text-[11px] text-white/50">Appuie pour enregistrer</p>
+              <p className="text-[11px] text-white/50">{t('voice_prompt_tap_to_record')}</p>
             </div>
           )}
 
           {state === 'requesting' && (
             <div className="flex flex-col items-center gap-2 py-4">
               <Loader2 className="h-6 w-6 text-accent animate-spin" />
-              <p className="text-xs text-white/60">Autorise le micro…</p>
+              <p className="text-xs text-white/60">{t('voice_prompt_authorize_mic')}</p>
             </div>
           )}
 
@@ -400,7 +402,7 @@ export function VoicePromptRecorder({
                   type="button"
                   onClick={stopRecording}
                   className="bg-red-500 hover:bg-red-600 text-white h-12 w-12 rounded-full"
-                  aria-label="Stop"
+                  aria-label={t('voice_prompt_stop_aria')}
                 >
                   <Square className="h-5 w-5" />
                 </Button>
@@ -414,7 +416,7 @@ export function VoicePromptRecorder({
               <audio controls src={previewUrl} className="w-full" />
               {finalDuration > 0 && (
                 <p className="text-[10px] text-white/40 text-center">
-                  Durée : {formatVoiceTime(finalDuration)}
+                  {t('voice_prompt_duration_label', { duration: formatVoiceTime(finalDuration) })}
                 </p>
               )}
               <div className="flex gap-2">
@@ -425,7 +427,7 @@ export function VoicePromptRecorder({
                   className="flex-1 border-white/10 text-white/70 hover:bg-white/5 h-11 rounded-xl"
                 >
                   <Trash2 className="h-4 w-4 mr-1.5" />
-                  Refaire
+                  {t('voice_prompt_retake')}
                 </Button>
               </div>
             </div>
@@ -434,7 +436,7 @@ export function VoicePromptRecorder({
           {state === 'saving' && (
             <div className="flex flex-col items-center gap-2 py-4">
               <Loader2 className="h-6 w-6 text-accent animate-spin" />
-              <p className="text-xs text-white/60">Sauvegarde…</p>
+              <p className="text-xs text-white/60">{t('voice_prompt_saving')}</p>
             </div>
           )}
         </div>
@@ -459,7 +461,7 @@ export function VoicePromptRecorder({
             disabled={state === 'saving' || state === 'recording'}
             className="flex-1 border-white/10 text-white/70 hover:bg-white/5 h-11 rounded-xl"
           >
-            Annuler
+            {t('voice_prompt_cancel')}
           </Button>
           <Button
             type="button"
@@ -477,7 +479,7 @@ export function VoicePromptRecorder({
             ) : (
               <Check className="h-4 w-4 mr-1.5" />
             )}
-            Sauvegarder
+            {t('voice_prompt_save')}
           </Button>
         </div>
       </DialogContent>

@@ -10,6 +10,7 @@ import {
 import { useRouter, useParams } from "next/navigation";
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { getUser } from "@/services/firestore";
 import { getReviewsByUser, getReviewerProfiles, type ReviewerProfile } from "@/lib/reviews";
 import { isBlocked } from "@/lib/blocks";
@@ -39,10 +40,10 @@ function calculateAge(birthDate: Timestamp | null | undefined): number | null {
   return age;
 }
 
-const LEVEL_LABELS: Record<string, string> = {
-  beginner: 'Débutant',
-  intermediate: 'Intermédiaire',
-  advanced: 'Avancé',
+const LEVEL_KEYS: Record<string, string> = {
+  beginner: 'profile_uid_level_beginner',
+  intermediate: 'profile_uid_level_intermediate',
+  advanced: 'profile_uid_level_advanced',
 };
 
 function PublicProfileContent() {
@@ -50,6 +51,7 @@ function PublicProfileContent() {
   const params = useParams();
   const uid = params.uid as string;
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -108,9 +110,9 @@ function PublicProfileContent() {
   if (!profile) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6">
-        <p className="text-gray-400 font-light text-lg mb-4">Profil introuvable</p>
+        <p className="text-gray-400 font-light text-lg mb-4">{t('profile_uid_not_found')}</p>
         <Button variant="ghost" onClick={() => router.back()} className="text-gray-400">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Retour
+          <ArrowLeft className="mr-2 h-4 w-4" /> {t('profile_uid_back')}
         </Button>
       </div>
     );
@@ -121,9 +123,9 @@ function PublicProfileContent() {
   if (blocked === true) {
     return (
       <div className="min-h-screen bg-black flex flex-col items-center justify-center px-6">
-        <p className="text-gray-400 font-light text-lg mb-4">Profil non disponible</p>
+        <p className="text-gray-400 font-light text-lg mb-4">{t('profile_uid_unavailable')}</p>
         <Button variant="ghost" onClick={() => router.back()} className="text-gray-400">
-          <ArrowLeft className="mr-2 h-4 w-4" /> Retour
+          <ArrowLeft className="mr-2 h-4 w-4" /> {t('profile_uid_back')}
         </Button>
       </div>
     );
@@ -143,20 +145,20 @@ function PublicProfileContent() {
         >
           <ArrowLeft className="h-5 w-5" />
         </Button>
-        <h1 className="text-white font-light text-lg flex-1">Profil</h1>
+        <h1 className="text-white font-light text-lg flex-1">{t('profile_uid_header')}</h1>
         {/* Phase 7 sub-chantier 2-3 : entry points T&S (block + report variant 'profile') */}
         {user?.uid && (
           <div className="flex items-center gap-2">
             <ReportButton
               variant="profile"
               targetUid={uid}
-              targetName={profile.displayName || 'cet utilisateur'}
+              targetName={profile.displayName || t('profile_uid_this_user')}
               currentUserId={user.uid}
             />
             <BlockButton
               variant="profile"
               targetUid={uid}
-              targetName={profile.displayName || 'cet utilisateur'}
+              targetName={profile.displayName || t('profile_uid_this_user')}
               currentUserId={user.uid}
             />
           </div>
@@ -181,7 +183,7 @@ function PublicProfileContent() {
             {profile.selfieVerificationStatus === 'verified' && (
               <BadgeCheck
                 className="h-5 w-5 text-accent"
-                aria-label="Profil vérifié"
+                aria-label={t('profile_uid_verified_aria')}
               />
             )}
           </h2>
@@ -216,7 +218,7 @@ function PublicProfileContent() {
         {/* Bio */}
         {profile.bio && (
           <div className="mb-8">
-            <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2 font-light">À propos</h3>
+            <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-2 font-light">{t('profile_uid_about')}</h3>
             <p className="text-sm text-gray-300 font-light leading-relaxed">
               {profile.bio}
             </p>
@@ -254,7 +256,7 @@ function PublicProfileContent() {
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={item.url}
-                        alt={`${profile.displayName} — photo ${item.idx + 2}`}
+                        alt={t('profile_uid_photo_alt', { name: profile.displayName, idx: item.idx + 2 })}
                         className="absolute inset-0 w-full h-full object-cover"
                         loading={item.idx === 0 ? 'eager' : 'lazy'}
                       />
@@ -281,7 +283,7 @@ function PublicProfileContent() {
         {profile.sports && profile.sports.length > 0 && (
           <div className="mb-8">
             <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-3 font-light flex items-center gap-1.5">
-              <Dumbbell className="h-3.5 w-3.5" /> Sports
+              <Dumbbell className="h-3.5 w-3.5" /> {t('profile_uid_sports')}
             </h3>
             <div className="flex flex-wrap gap-2">
               {profile.sports.map((sport, i) => (
@@ -291,7 +293,7 @@ function PublicProfileContent() {
                 >
                   <span className="text-sm text-white font-light">{sport.name}</span>
                   <span className="text-xs text-gray-500 font-light ml-1.5">
-                    {LEVEL_LABELS[sport.level] || sport.level}
+                    {LEVEL_KEYS[sport.level] ? t(LEVEL_KEYS[sport.level]) : sport.level}
                   </span>
                 </div>
               ))}
@@ -305,7 +307,7 @@ function PublicProfileContent() {
             <div className="flex items-center gap-1.5 text-gray-600">
               <Calendar className="h-3.5 w-3.5" />
               <span className="text-xs font-light">
-                Membre depuis {(profile.createdAt instanceof Timestamp ? profile.createdAt.toDate() : new Date(profile.createdAt as any)).toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' })}
+                {t('profile_uid_member_since', { date: (profile.createdAt instanceof Timestamp ? profile.createdAt.toDate() : new Date(profile.createdAt as any)).toLocaleDateString('fr-CH', { month: 'long', year: 'numeric' }) })}
               </span>
             </div>
           </div>
@@ -314,7 +316,7 @@ function PublicProfileContent() {
         {/* Reviews reçues (Phase 7 sub-chantier 1) */}
         <div className="mb-8">
           <h3 className="text-xs text-gray-500 uppercase tracking-wider mb-3 font-light">
-            Avis reçus
+            {t('profile_uid_reviews_received')}
           </h3>
           <ReviewsList reviews={reviews} variant="profile" reviewerProfiles={reviewerProfiles} />
         </div>
@@ -325,7 +327,7 @@ function PublicProfileContent() {
           className="w-full bg-accent text-white font-light hover:opacity-90 rounded-xl h-11"
         >
           <MessageCircle className="mr-2 h-4 w-4" />
-          Retour au chat
+          {t('profile_uid_back_to_chat')}
         </Button>
       </div>
     </div>

@@ -37,6 +37,24 @@ const SANCTION_LEVEL_LABEL_FR: Record<SanctionLevel, string> = {
   ban_permanent: 'Bannissement permanent',
 };
 
+// Fix #156/#157 i18n — labels traduits pour appealAcknowledgment (le label
+// est passé en data, donc on le localise ici plutôt que dans le template).
+const SANCTION_LEVEL_LABEL_BY_LANG: Record<'fr' | 'en' | 'de', Record<SanctionLevel, string>> = {
+  fr: SANCTION_LEVEL_LABEL_FR,
+  en: {
+    warning: 'Warning',
+    suspension_7d: '7-day suspension',
+    suspension_30d: '30-day suspension',
+    ban_permanent: 'Permanent ban',
+  },
+  de: {
+    warning: 'Verwarnung',
+    suspension_7d: '7-tägige Sperre',
+    suspension_30d: '30-tägige Sperre',
+    ban_permanent: 'Dauerhafte Sperre',
+  },
+};
+
 const APPEAL_SLA_DAYS = 7;
 
 export interface AppealSanctionInput {
@@ -102,7 +120,8 @@ export async function appealSanction(input: AppealSanctionInput): Promise<void> 
   try {
     const ctx = await fetchReportEmailContext({ userId: input.userId });
     if (ctx.email) {
-      const receivedAt = new Date().toLocaleDateString('fr-CH', {
+      const localeMap = { fr: 'fr-CH', en: 'en-GB', de: 'de-CH' } as const;
+      const receivedAt = new Date().toLocaleDateString(localeMap[ctx.lang], {
         day: 'numeric',
         month: 'long',
         year: 'numeric',
@@ -114,10 +133,11 @@ export async function appealSanction(input: AppealSanctionInput): Promise<void> 
         templateName: 'appealAcknowledgment',
         templateData: {
           userName: ctx.displayName,
-          banLevelLabel: SANCTION_LEVEL_LABEL_FR[sanction.level],
+          banLevelLabel: SANCTION_LEVEL_LABEL_BY_LANG[ctx.lang][sanction.level],
           receivedAt,
           slaDays: APPEAL_SLA_DAYS,
         },
+        lang: ctx.lang,
       });
     }
   } catch (err) {

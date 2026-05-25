@@ -35,6 +35,7 @@ import {
   type UserCommission, type CommissionMode,
 } from "@/lib/referral/commission";
 import { validateCreditAdjustment } from "@/lib/admin/creditAdjustment";
+import { useLanguage } from '@/context/LanguageContext';
 
 type Tab = 'cockpit' | 'users' | 'partners' | 'credits' | 'promos' | 'tarifs' | 'site' | 'settings' | 'errors';
 
@@ -87,6 +88,7 @@ interface PartnerRequestItem { requestId: string; name: string; email: string; p
 export default function AdminManagePage() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [tab, setTab] = useState<Tab>('cockpit');
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserItem[]>([]);
@@ -573,7 +575,11 @@ export default function AdminManagePage() {
     if (!db) return;
     setSiteSaving(true);
     try {
-      await setDoc(doc(db, 'settings', 'site'), { ...siteConfig, updatedAt: serverTimestamp() });
+      // Fix #145 — passe par le service centralisé updateSiteConfig() qui force
+      // toujours { merge: true } + ajoute updatedAt. Plus aucune section ne peut
+      // écraser une autre (brand, hero, étapes, témoignages préservés).
+      const { updateSiteConfig } = await import('@/lib/site/updateSiteConfig');
+      await updateSiteConfig({ ...siteConfig });
       toast({ title: 'Configuration du site sauvegardée !' });
     } catch (err) {
       console.error('[Admin] Save site error:', err);
@@ -670,7 +676,7 @@ export default function AdminManagePage() {
                   <div className="h-3 w-3 rounded-full bg-accent animate-pulse" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-accent">{pendingRequests.length} nouvelle(s) demande(s) de partenariat</p>
-                    <p className="text-xs text-white/40">Formulaire de contact — cliquez pour traiter</p>
+                    <p className="text-xs text-white/40">{t('admin_manage_partner_request_hint')}</p>
                   </div>
                   <Building2 className="h-5 w-5 text-accent" />
                 </CardContent>
@@ -682,7 +688,7 @@ export default function AdminManagePage() {
                   <div className="h-3 w-3 rounded-full bg-amber-400 animate-pulse" />
                   <div className="flex-1">
                     <p className="text-sm font-medium text-amber-400">{pendingPartners.length} partenaire(s) payé(s) en attente d&apos;approbation</p>
-                    <p className="text-xs text-white/40">Cliquez pour voir et valider</p>
+                    <p className="text-xs text-white/40">{t('admin_manage_pending_partner_hint')}</p>
                   </div>
                   <Building2 className="h-5 w-5 text-amber-400" />
                 </CardContent>
@@ -710,14 +716,14 @@ export default function AdminManagePage() {
             {/* Recent transactions */}
             <Card className="bg-[#1A1A1A] border-white/5">
               <CardContent className="p-4">
-                <h3 className="text-sm text-white/50 mb-3">Dernières transactions</h3>
+                <h3 className="text-sm text-white/50 mb-3">{t('admin_manage_latest_transactions')}</h3>
                 {transactions.slice(0, 5).map(tx => (
                   <div key={tx.transactionId} className="flex items-center justify-between py-2 border-b border-white/5 last:border-0">
                     <div><p className="text-xs text-white/60">{tx.userId?.substring(0, 10)}...</p><p className="text-[10px] text-white/20">{tx.package} · {tx.paymentMethod}</p></div>
                     <Badge className={tx.status === 'succeeded' ? 'bg-green-500/10 text-green-400 border-green-500/20 text-xs' : 'bg-red-500/10 text-red-400 text-xs'}>{(tx.amount/100).toFixed(2)} CHF</Badge>
                   </div>
                 ))}
-                {transactions.length === 0 && <p className="text-xs text-white/20 text-center py-4">Aucune transaction</p>}
+                {transactions.length === 0 && <p className="text-xs text-white/20 text-center py-4">{t('admin_manage_no_transaction')}</p>}
               </CardContent>
             </Card>
           </div>
@@ -784,7 +790,7 @@ export default function AdminManagePage() {
                     </select>
                     <button
                       onClick={() => openCommissionModal(u)}
-                      title="Configurer la commission (créateur + invitation)"
+                      title={t('admin_manage_commission_btn_title')}
                       className={`h-7 px-2 rounded text-[10px] flex items-center gap-1 border ${u.commission ? 'border-amber-400/30 text-amber-400 bg-amber-400/5' : 'border-white/10 text-white/40 hover:text-white/70 hover:border-white/20'}`}
                     >
                       <Percent className="h-3 w-3" /> Commission
@@ -989,7 +995,7 @@ export default function AdminManagePage() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm text-white">{r.name}</span>
-                          <Badge className="text-[9px] bg-blue-500/10 text-blue-400 border-blue-500/20">Contacté</Badge>
+                          <Badge className="text-[9px] bg-blue-500/10 text-blue-400 border-blue-500/20">{t('admin_manage_badge_contacted')}</Badge>
                           <Badge className="text-[9px] bg-white/5 text-white/40 border-white/10">{r.activity}</Badge>
                         </div>
                         <p className="text-[11px] text-white/25">{r.email} · {r.city}</p>
@@ -999,7 +1005,7 @@ export default function AdminManagePage() {
                         className="bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 text-xs h-8 px-3"
                         onClick={() => updatePartnerRequest(r.requestId, 'approved', r.name)}
                       >
-                        Approuvé (inscrit)
+                        {t('admin_manage_btn_approved_registered')}
                       </Button>
                     </CardContent>
                   </Card>
@@ -1023,7 +1029,7 @@ export default function AdminManagePage() {
                         <div className="flex-1 min-w-0 space-y-1">
                           <div className="flex items-center gap-2">
                             <span className="text-base font-medium text-white">{p.name}</span>
-                            <Badge className="text-[10px] bg-green-500/10 text-green-400 border-green-500/20">Payé</Badge>
+                            <Badge className="text-[10px] bg-green-500/10 text-green-400 border-green-500/20">{t('admin_manage_badge_paid')}</Badge>
                           </div>
                           <p className="text-xs text-white/40">{p.email} · {p.phone || 'N/A'}</p>
                           <p className="text-xs text-white/30">{p.city} · {p.type || 'studio'}</p>
@@ -1066,7 +1072,7 @@ export default function AdminManagePage() {
             {/* All partners list */}
             <div className="space-y-2">
               <h3 className="text-xs text-white/30 uppercase tracking-wider">Tous les partenaires ({filteredPartners.length})</h3>
-              {filteredPartners.length === 0 && <p className="text-white/30 text-center py-8">Aucun partenaire</p>}
+              {filteredPartners.length === 0 && <p className="text-white/30 text-center py-8">{t('admin_manage_no_partner')}</p>}
               {filteredPartners.map(p => (
                 <Card key={p.partnerId} className="bg-[#1A1A1A] border-white/5">
                   <CardContent className="p-3 flex items-center gap-3">
@@ -1074,15 +1080,15 @@ export default function AdminManagePage() {
                       <div className="flex items-center gap-2">
                         <span className="text-sm text-white">{p.name}</span>
                         {p.subscriptionStatus === 'active' && <Badge className="text-[9px] bg-green-500/10 text-green-400 border-green-500/20">Abo actif</Badge>}
-                        {p.subscriptionStatus === 'trial' && <Badge className="text-[9px] bg-yellow-500/10 text-yellow-400 border-yellow-500/20">Non payé</Badge>}
-                        {p.subscriptionStatus === 'cancelled' && <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">Annulé</Badge>}
+                        {p.subscriptionStatus === 'trial' && <Badge className="text-[9px] bg-yellow-500/10 text-yellow-400 border-yellow-500/20">{t('admin_manage_badge_unpaid')}</Badge>}
+                        {p.subscriptionStatus === 'cancelled' && <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">{t('admin_manage_badge_cancelled')}</Badge>}
                         {!p.isApproved && p.subscriptionStatus === 'active' && <Badge className="text-[9px] bg-amber-500/10 text-amber-400 border-amber-500/20">En attente</Badge>}
                       </div>
                       <p className="text-[11px] text-white/25">{p.email} · {p.city} · {p.totalBookings || 0} réservations · {(p.totalRevenue || 0).toFixed(0)} CHF</p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">Visible</span><Switch checked={p.isActive} onCheckedChange={() => togglePartner(p.partnerId, 'isActive', p.isActive)} /></div>
-                      <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">Approuvé</span><Switch checked={p.isApproved} onCheckedChange={() => togglePartner(p.partnerId, 'isApproved', p.isApproved)} /></div>
+                      <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">{t('admin_manage_partner_switch_visible')}</span><Switch checked={p.isActive} onCheckedChange={() => togglePartner(p.partnerId, 'isActive', p.isActive)} /></div>
+                      <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">{t('admin_manage_partner_switch_approved')}</span><Switch checked={p.isApproved} onCheckedChange={() => togglePartner(p.partnerId, 'isApproved', p.isApproved)} /></div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1093,7 +1099,7 @@ export default function AdminManagePage() {
             <Card className="bg-[#1A1A1A] border-white/5">
               <CardContent className="p-5 space-y-4">
                 <div className="flex items-center justify-between">
-                  <h3 className="text-sm text-white/50">Commission sur les réservations</h3>
+                  <h3 className="text-sm text-white/50">{t('admin_manage_commission_h')}</h3>
                   <Switch checked={commissionEnabled} onCheckedChange={v => setCommissionEnabled(v)} />
                 </div>
                 {commissionEnabled && (
@@ -1110,7 +1116,7 @@ export default function AdminManagePage() {
                     </div>
                   </div>
                 )}
-                {!commissionEnabled && <p className="text-xs text-white/20">Désactivé — 100% des revenus vont au partenaire</p>}
+                {!commissionEnabled && <p className="text-xs text-white/20">{t('admin_manage_commission_disabled_hint')}</p>}
                 <Button onClick={saveCommission} disabled={commissionSaving} size="sm" className="bg-accent hover:bg-accent/80 text-white text-xs h-9">
                   {commissionSaving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                   Sauvegarder commission
@@ -1124,17 +1130,17 @@ export default function AdminManagePage() {
         {tab === 'credits' && (
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardContent className="p-5 space-y-4">
-              <h3 className="text-sm text-white/50">Ajouter / Retirer des crédits</h3>
+              <h3 className="text-sm text-white/50">{t('admin_manage_credits_h')}</h3>
               <div className="space-y-3">
                 <div>
                   <label className="text-xs text-white/30 block mb-1">User ID</label>
                   <select value={creditUserId} onChange={e => setCreditUserId(e.target.value)} className="w-full bg-black border border-white/10 rounded-lg text-sm text-white px-3 h-11">
-                    <option value="">Sélectionner un utilisateur</option>
+                    <option value="">{t('admin_manage_credits_select_user')}</option>
                     {users.map(u => <option key={u.uid} value={u.uid}>{u.displayName || u.email} ({u.credits} crédits)</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="text-xs text-white/30 block mb-1">Nombre de crédits</label>
+                  <label className="text-xs text-white/30 block mb-1">{t('admin_manage_credits_amount_label')}</label>
                   <Input type="number" value={creditAmount} onChange={e => setCreditAmount(e.target.value)} className="bg-black border-white/10 h-11" />
                 </div>
                 <div className="flex gap-2">
@@ -1150,22 +1156,22 @@ export default function AdminManagePage() {
         {tab === 'promos' && (
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardContent className="p-5 space-y-4">
-              <h3 className="text-sm text-white/50">Créer un code promo</h3>
+              <h3 className="text-sm text-white/50">{t('admin_manage_promo_h')}</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
                   <label className="text-xs text-white/30 block mb-1">Code</label>
                   <Input value={promoCode} onChange={e => setPromoCode(e.target.value)} placeholder="FREEFIRSTDATE" className="bg-black border-white/10 h-11 uppercase" />
                 </div>
                 <div>
-                  <label className="text-xs text-white/30 block mb-1">Crédits offerts</label>
+                  <label className="text-xs text-white/30 block mb-1">{t('admin_manage_promo_credits_label')}</label>
                   <Input type="number" value={promoCredits} onChange={e => setPromoCredits(e.target.value)} placeholder="1" className="bg-black border-white/10 h-11" />
                 </div>
                 <div>
-                  <label className="text-xs text-white/30 block mb-1">Réduction %</label>
+                  <label className="text-xs text-white/30 block mb-1">{t('admin_manage_promo_discount_label')}</label>
                   <Input type="number" value={promoDiscount} onChange={e => setPromoDiscount(e.target.value)} placeholder="0" className="bg-black border-white/10 h-11" />
                 </div>
               </div>
-              <Button onClick={createPromo} disabled={!promoCode} className="bg-accent hover:bg-accent/80 text-white h-11"><Gift className="h-4 w-4 mr-2" /> Créer le code promo</Button>
+              <Button onClick={createPromo} disabled={!promoCode} className="bg-accent hover:bg-accent/80 text-white h-11"><Gift className="h-4 w-4 mr-2" /> {t('admin_manage_promo_create_btn')}</Button>
             </CardContent>
           </Card>
         )}
@@ -1176,7 +1182,7 @@ export default function AdminManagePage() {
             {/* LEFT — Éditeur (60% sur desktop = 3/5 cols, full width sur mobile) */}
             <div className="lg:col-span-3 space-y-4">
               <div className="flex items-center justify-between gap-3 sticky top-0 z-10 bg-black/95 backdrop-blur py-2 -mx-1 px-1 rounded-md">
-                <h3 className="text-base text-white font-medium">Modifier les tarifs</h3>
+                <h3 className="text-base text-white font-medium">{t('admin_manage_pricing_h')}</h3>
                 <Button onClick={savePricing} disabled={pricingSaving} className="bg-accent hover:bg-accent/90 text-white h-10 px-4 text-xs rounded-full shadow-lg shadow-accent/20">
                   {pricingSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Settings className="h-4 w-4 mr-1.5" />}
                   Sauvegarder
@@ -1194,7 +1200,7 @@ export default function AdminManagePage() {
               {/* BUG #94 — Filter par PREFIX d'ID. BUG #97/#98 — œil PAR carte
                   (à côté du switch) qui toggle la mini-card dans l'aperçu droit.
                   Grid 2 cols sur PC, 1 col mobile. */}
-              <p className="text-xs text-accent uppercase tracking-wider mt-2">Packs crédits</p>
+              <p className="text-xs text-accent uppercase tracking-wider mt-2">{t('admin_manage_pricing_packs_label')}</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {pricing.filter(p => p.id.startsWith('pack_')).map(p => (
                 <Card key={p.id} className={`bg-[#0F0F0F] border-white/10 rounded-2xl transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/10 ${!p.isActive ? 'border-red-500/20 opacity-70' : ''}`}>
@@ -1205,14 +1211,14 @@ export default function AdminManagePage() {
                         {!p.isActive && <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">OFF</Badge>}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <PreviewEyeButton targetId={`preview-${p.id}`} active={visiblePreviewIds.has(`preview-${p.id}`)} label="Voir aperçu" />
+                        <PreviewEyeButton targetId={`preview-${p.id}`} active={visiblePreviewIds.has(`preview-${p.id}`)} label={t('admin_manage_preview_eye_label')} />
                         <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Prix CHF</label><Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
-                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Crédits</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
-                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Nom</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">{t('admin_manage_field_price_chf')}</label><Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">{t('admin_manage_field_credits')}</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">{t('admin_manage_field_name')}</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1220,7 +1226,7 @@ export default function AdminManagePage() {
 
               </div>
 
-              <p className="text-xs text-accent uppercase tracking-wider mt-4">Plans Premium</p>
+              <p className="text-xs text-accent uppercase tracking-wider mt-4">{t('admin_manage_premium_plans_label')}</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {pricing.filter(p => p.id.startsWith('premium_')).map(p => (
                 <Card key={p.id} className={`bg-[#0F0F0F] border-white/10 rounded-2xl transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/10 ${!p.isActive ? 'border-red-500/20 opacity-70' : ''}`}>
@@ -1232,14 +1238,14 @@ export default function AdminManagePage() {
                         {!p.isActive && <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">OFF</Badge>}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <PreviewEyeButton targetId={`preview-${p.id}`} active={visiblePreviewIds.has(`preview-${p.id}`)} label="Voir aperçu" />
+                        <PreviewEyeButton targetId={`preview-${p.id}`} active={visiblePreviewIds.has(`preview-${p.id}`)} label={t('admin_manage_preview_eye_label')} />
                         <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Prix CHF</label><Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
-                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Crédits / période</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
-                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Nom</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">{t('admin_manage_field_price_chf')}</label><Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">{t('admin_manage_field_credits_period')}</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">{t('admin_manage_field_name')}</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1247,7 +1253,7 @@ export default function AdminManagePage() {
 
               </div>
 
-              <p className="text-xs text-accent uppercase tracking-wider mt-4">Abonnement Partenaire</p>
+              <p className="text-xs text-accent uppercase tracking-wider mt-4">{t('admin_manage_partner_sub_label')}</p>
               {pricing.filter(p => p.id.startsWith('partner_')).map(p => (
                 <Card key={p.id} className={`bg-[#0F0F0F] border-white/10 rounded-2xl transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/10 ${!p.isActive ? 'border-red-500/20 opacity-70' : ''}`}>
                   <CardContent className="p-4 sm:p-5 space-y-3">
@@ -1258,14 +1264,14 @@ export default function AdminManagePage() {
                         {!p.isActive && <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20">OFF</Badge>}
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <PreviewEyeButton targetId={`preview-${p.id}`} active={visiblePreviewIds.has(`preview-${p.id}`)} label="Voir aperçu" />
+                        <PreviewEyeButton targetId={`preview-${p.id}`} active={visiblePreviewIds.has(`preview-${p.id}`)} label={t('admin_manage_preview_eye_label')} />
                         <Switch checked={p.isActive} onCheckedChange={(v) => updatePricing(p.id, 'isActive', v)} />
                       </div>
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Prix CHF</label><Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
-                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Crédits</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
-                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">Nom</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">{t('admin_manage_field_price_chf')}</label><Input type="number" step="0.01" value={p.price} onChange={e => updatePricing(p.id, 'price', parseFloat(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">{t('admin_manage_field_credits')}</label><Input type="number" value={p.credits} onChange={e => updatePricing(p.id, 'credits', parseInt(e.target.value) || 0)} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
+                      <div><label className="text-[11px] text-white/40 block mb-1 uppercase tracking-wider">{t('admin_manage_field_name')}</label><Input value={p.label} onChange={e => { const v = e.target.value; setPricing(pricing.map(x => x.id === p.id ? { ...x, label: v } : x)); }} className="bg-black border-white/15 h-11 w-full text-white text-base rounded-xl focus:border-accent/50 transition-colors" /></div>
                     </div>
                   </CardContent>
                 </Card>
@@ -1274,7 +1280,7 @@ export default function AdminManagePage() {
 
             {/* RIGHT — Aperçu en direct (BUG #94/#96/#99 : 40% desktop, sticky, scroll interne) */}
             <div className="lg:col-span-2 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-120px)] lg:overflow-y-auto scrollbar-thin space-y-4 pr-1">
-              <h3 className="text-base text-white font-medium flex items-center gap-2 sticky top-0 bg-black/95 backdrop-blur py-1 -mx-1 px-1 z-10"><Eye className="h-4 w-4 text-accent" /> Aperçu en direct</h3>
+              <h3 className="text-base text-white font-medium flex items-center gap-2 sticky top-0 bg-black/95 backdrop-blur py-1 -mx-1 px-1 z-10"><Eye className="h-4 w-4 text-accent" /> {t('admin_manage_live_preview_h')}</h3>
 
               {/* BUG #101 — Sections Chat/Likes/Boost user supprimées :
                   ces tarifs intra-app n'ont pas de "carte client" à montrer.
@@ -1299,7 +1305,7 @@ export default function AdminManagePage() {
                 return (
                   <>
                     <p id="preview-packs" className="text-xs text-white/30 uppercase tracking-wider mt-3 flex items-center gap-2 scroll-mt-4 rounded-md p-1">
-                      <span>📱 Aperçu /payment — Packs crédits</span>
+                      <span>{t('admin_manage_preview_payment_packs_h')}</span>
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {visiblePacks.map(p => {
@@ -1361,7 +1367,7 @@ export default function AdminManagePage() {
                 return (
                   <>
                     <p id="preview-premium" className="text-xs text-white/30 uppercase tracking-wider mt-3 flex items-center gap-2 scroll-mt-4 rounded-md p-1">
-                      <span>👑 Aperçu /premium — Plans Spordateur</span>
+                      <span>{t('admin_manage_preview_premium_h')}</span>
                     </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                       {visible.map(p => {
@@ -1413,8 +1419,8 @@ export default function AdminManagePage() {
                               </p>
                             )}
                             <div className="mt-3 space-y-1.5">
-                              <div className="flex items-center gap-2 text-[11px] text-white/70"><Zap className="h-3 w-3 text-accent" /> Likes illimités</div>
-                              <div className="flex items-center gap-2 text-[11px] text-white/70"><Eye className="h-3 w-3 text-accent" /> Voir qui m&apos;a liké</div>
+                              <div className="flex items-center gap-2 text-[11px] text-white/70"><Zap className="h-3 w-3 text-accent" /> {t('admin_manage_premium_feat_unlimited_likes')}</div>
+                              <div className="flex items-center gap-2 text-[11px] text-white/70"><Eye className="h-3 w-3 text-accent" /> {t('admin_manage_premium_feat_see_likes')}</div>
                               <div className="flex items-center gap-2 text-[11px] text-white/70"><Crown className="h-3 w-3 text-accent" /> {p.credits} crédits inclus</div>
                             </div>
                             <div className={`mt-3 h-8 rounded-full flex items-center justify-center text-[11px] font-medium ${
@@ -1439,7 +1445,7 @@ export default function AdminManagePage() {
                 return (
                   <>
                     <p className="text-xs text-white/30 uppercase tracking-wider mt-3 flex items-center gap-2 rounded-md p-1">
-                      <span>💼 Aperçu Partenaire Pro</span>
+                      <span>{t('admin_manage_preview_partner_pro_h')}</span>
                     </p>
                     <div
                       id={`preview-${partner.id}`}
@@ -1455,7 +1461,7 @@ export default function AdminManagePage() {
                         <span className="text-4xl font-light text-white">{partner.price.toFixed(0)}</span>
                         <span className="text-sm text-white/40 ml-1">CHF / mois</span>
                       </div>
-                      <p className="text-[11px] text-white/40 text-center mt-3">Pour coachs, clubs et lieux sportifs</p>
+                      <p className="text-[11px] text-white/40 text-center mt-3">{t('admin_manage_preview_partner_pro_sub')}</p>
                     </div>
                   </>
                 );
@@ -1543,7 +1549,7 @@ export default function AdminManagePage() {
                 <span className="text-sm text-white font-medium">Section Hero (haut de page)</span>
                 <div><label className="text-[11px] text-white/40 block mb-1">Ligne 1</label><Input value={siteConfig.heroTitle1} onChange={e => updateSite('heroTitle1', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
                 <div><label className="text-[11px] text-white/40 block mb-1">Ligne 2</label><Input value={siteConfig.heroTitle2} onChange={e => updateSite('heroTitle2', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
-                <div><label className="text-[11px] text-white/40 block mb-1">Ligne 3 (colorée)</label><Input value={siteConfig.heroTitle3} onChange={e => updateSite('heroTitle3', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
+                <div><label className="text-[11px] text-white/40 block mb-1">{t('admin_manage_site_hero_line3')}</label><Input value={siteConfig.heroTitle3} onChange={e => updateSite('heroTitle3', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
                 <div><label className="text-[11px] text-white/40 block mb-1">Sous-titre</label><Input value={siteConfig.heroSubtitle} onChange={e => updateSite('heroSubtitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
                 <div><label className="text-[11px] text-white/40 block mb-1">Texte bouton</label><Input value={siteConfig.ctaText} onChange={e => updateSite('ctaText', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
                 <div>
@@ -1557,7 +1563,7 @@ export default function AdminManagePage() {
             {/* 3 Étapes */}
             <Card className="bg-[#111] border-white/10">
               <CardContent className="p-4 space-y-3">
-                <span className="text-sm text-white font-medium">3 Étapes</span>
+                <span className="text-sm text-white font-medium">{t('admin_manage_site_steps_h')}</span>
                 {[
                   { title: 'step1Title', desc: 'step1Desc', img: 'step1Image', num: '01' },
                   { title: 'step2Title', desc: 'step2Desc', img: 'step2Image', num: '02' },
@@ -1580,7 +1586,7 @@ export default function AdminManagePage() {
             {/* Section Activités */}
             <Card className="bg-[#111] border-white/10">
               <CardContent className="p-4 space-y-3">
-                <span className="text-sm text-white font-medium">Section Activités</span>
+                <span className="text-sm text-white font-medium">{t('admin_manage_site_section_activities')}</span>
                 <div><label className="text-[11px] text-white/40 block mb-1">Titre section</label><Input value={siteConfig.sectionTitle} onChange={e => updateSite('sectionTitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
                 <div><label className="text-[11px] text-white/40 block mb-1">Sous-titre</label><Input value={siteConfig.sectionSubtitle} onChange={e => updateSite('sectionSubtitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
               </CardContent>
@@ -1599,7 +1605,7 @@ export default function AdminManagePage() {
             {/* Témoignages */}
             <Card className="bg-[#111] border-white/10">
               <CardContent className="p-4 space-y-3">
-                <span className="text-sm text-white font-medium">Témoignages</span>
+                <span className="text-sm text-white font-medium">{t('admin_manage_site_testimonials')}</span>
                 <div><label className="text-[11px] text-white/40 block mb-1">Titre section</label><Input value={siteConfig.testimonialsTitle} onChange={e => updateSite('testimonialsTitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
                 {[1, 2, 3, 4].map(i => (
                   <div key={i} className="border-t border-white/5 pt-3 space-y-2">
@@ -1608,7 +1614,7 @@ export default function AdminManagePage() {
                       <Input value={siteConfig[`testimonial${i}Name`]} onChange={e => updateSite(`testimonial${i}Name` as keyof SiteConfig, e.target.value)} placeholder="Nom" className="bg-black border-white/15 h-10 text-white text-sm" />
                       <Input value={siteConfig[`testimonial${i}City`]} onChange={e => updateSite(`testimonial${i}City` as keyof SiteConfig, e.target.value)} placeholder="Ville" className="bg-black border-white/15 h-10 text-white text-sm" />
                     </div>
-                    <Input value={siteConfig[`testimonial${i}Text`]} onChange={e => updateSite(`testimonial${i}Text` as keyof SiteConfig, e.target.value)} placeholder="Témoignage..." className="bg-black border-white/15 h-10 text-white text-sm" />
+                    <Input value={siteConfig[`testimonial${i}Text`]} onChange={e => updateSite(`testimonial${i}Text` as keyof SiteConfig, e.target.value)} placeholder={t('admin_manage_testimonial_placeholder')} className="bg-black border-white/15 h-10 text-white text-sm" />
                     <Input value={siteConfig[`testimonial${i}Sport`]} onChange={e => updateSite(`testimonial${i}Sport` as keyof SiteConfig, e.target.value)} placeholder="Sport" className="bg-black border-white/15 h-10 text-white text-sm w-40" />
                   </div>
                 ))}
@@ -1622,7 +1628,7 @@ export default function AdminManagePage() {
                 <div><label className="text-[11px] text-white/40 block mb-1">Titre</label><Input value={siteConfig.swissTitle} onChange={e => updateSite('swissTitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
                 <div><label className="text-[11px] text-white/40 block mb-1">Sous-titre</label><Input value={siteConfig.swissSubtitle} onChange={e => updateSite('swissSubtitle', e.target.value)} className="bg-black border-white/15 h-11 text-white" /></div>
                 <div>
-                  <label className="text-[11px] text-white/40 block mb-1">Villes (séparées par virgule)</label>
+                  <label className="text-[11px] text-white/40 block mb-1">{t('admin_manage_site_swiss_cities_label')}</label>
                   <Input value={siteConfig.swissCities} onChange={e => updateSite('swissCities', e.target.value)} placeholder="Geneve,Zurich,Lausanne..." className="bg-black border-white/15 h-11 text-white text-sm" />
                 </div>
                 <div>
@@ -1649,7 +1655,7 @@ export default function AdminManagePage() {
             {/* Aperçu rapide */}
             <Card className="bg-[#0A0A0A] border-white/10">
               <CardContent className="p-5 space-y-4">
-                <span className="text-xs text-white/30 uppercase tracking-wider">Aperçu hero</span>
+                <span className="text-xs text-white/30 uppercase tracking-wider">{t('admin_manage_site_hero_preview')}</span>
                 <div className="relative h-32 rounded-xl overflow-hidden">
                   <img src={siteConfig.heroImage} alt="hero" className="absolute inset-0 w-full h-full object-cover opacity-30" />
                   <div className="relative z-10 p-4">
@@ -1660,7 +1666,7 @@ export default function AdminManagePage() {
               </CardContent>
             </Card>
 
-            <p className="text-[11px] text-white/20 text-center pb-8">Cliquez "Sauvegarder tout" pour appliquer les changements sur le site.</p>
+            <p className="text-[11px] text-white/20 text-center pb-8">{t('admin_manage_site_save_hint')}</p>
           </div>
         )}
 
@@ -1668,7 +1674,7 @@ export default function AdminManagePage() {
         {tab === 'settings' && (
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardContent className="p-5 space-y-4">
-              <h3 className="text-sm text-white/50">Envoyer une notification à tous les utilisateurs</h3>
+              <h3 className="text-sm text-white/50">{t('admin_manage_notif_h')}</h3>
               <div className="space-y-3">
                 <div>
                   <label className="text-xs text-white/30 block mb-1">Titre</label>
@@ -1676,7 +1682,7 @@ export default function AdminManagePage() {
                 </div>
                 <div>
                   <label className="text-xs text-white/30 block mb-1">Message</label>
-                  <Input value={notifBody} onChange={e => setNotifBody(e.target.value)} placeholder="Réserve ta place pour la Zumba de ce soir" className="bg-black border-white/10 h-11" />
+                  <Input value={notifBody} onChange={e => setNotifBody(e.target.value)} placeholder={t('admin_manage_notif_body_placeholder')} className="bg-black border-white/10 h-11" />
                 </div>
                 <Button onClick={sendNotification} disabled={!notifTitle} className="bg-accent hover:bg-accent/80 text-white h-11"><Send className="h-4 w-4 mr-2" /> Envoyer à {users.length} utilisateurs</Button>
               </div>
@@ -1687,7 +1693,7 @@ export default function AdminManagePage() {
         {/* ===== ERRORS ===== */}
         {tab === 'errors' && (
           <div className="space-y-2">
-            {errors.length === 0 && <p className="text-white/30 text-center py-8">Aucune erreur non résolue</p>}
+            {errors.length === 0 && <p className="text-white/30 text-center py-8">{t('admin_manage_errors_none')}</p>}
             {errors.map(e => (
               <Card key={e.logId} className="bg-[#1A1A1A] border-white/5">
                 <CardContent className="p-3 flex items-start gap-3">
@@ -1696,7 +1702,7 @@ export default function AdminManagePage() {
                     <p className="text-sm text-white/70 break-all">{e.message}</p>
                     <p className="text-[10px] text-white/20">{e.source}</p>
                   </div>
-                  <Button size="sm" variant="outline" onClick={() => resolveError(e.logId)} className="border-green-500/20 text-green-400 text-xs h-7">Résoudre</Button>
+                  <Button size="sm" variant="outline" onClick={() => resolveError(e.logId)} className="border-green-500/20 text-green-400 text-xs h-7">{t('admin_manage_btn_resolve')}</Button>
                 </CardContent>
               </Card>
             ))}

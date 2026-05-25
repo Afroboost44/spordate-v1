@@ -262,16 +262,19 @@ export async function markNoShow(input: MarkNoShowInput): Promise<MarkNoShowResu
       activityId: session.activityId,
     });
     if (userCtx.email) {
-      const partnerName = activity.partnerName ?? 'le partenaire';
+      const partnerFallback = userCtx.lang === 'en' ? 'the partner' : userCtx.lang === 'de' ? 'der/die Partner:in' : 'le partenaire';
+      const sessionFallback = userCtx.lang === 'en' ? 'the session' : userCtx.lang === 'de' ? 'die Session' : 'la session';
+      const partnerName = activity.partnerName ?? partnerFallback;
       await sendEmail({
         to: userCtx.email,
         templateName: 'noShowWarningNotice',
         templateData: {
           userName: userCtx.displayName,
-          sessionTitle: userCtx.sessionTitle || 'la session',
+          sessionTitle: userCtx.sessionTitle || sessionFallback,
           partnerName,
           noShowCount: noShowCountAfter,
         },
+        lang: userCtx.lang,
       });
     }
   } catch (err) {
@@ -289,8 +292,9 @@ export async function markNoShow(input: MarkNoShowInput): Promise<MarkNoShowResu
     });
     const userCtxForPartner = await fetchReportEmailContext({ userId: input.userId });
     if (partnerCtx.email) {
+      const localeMap = { fr: 'fr-CH', en: 'en-GB', de: 'de-CH' } as const;
       const sessionDate = session.startAt?.toDate
-        ? session.startAt.toDate().toLocaleDateString('fr-CH', {
+        ? session.startAt.toDate().toLocaleDateString(localeMap[partnerCtx.lang], {
             weekday: 'long',
             day: 'numeric',
             month: 'long',
@@ -298,16 +302,21 @@ export async function markNoShow(input: MarkNoShowInput): Promise<MarkNoShowResu
             minute: '2-digit',
           })
         : '';
+      const userFallback =
+        partnerCtx.lang === 'en' ? 'the participant' : partnerCtx.lang === 'de' ? 'die teilnehmende Person' : 'le participant';
+      const sessionFallback =
+        partnerCtx.lang === 'en' ? 'the session' : partnerCtx.lang === 'de' ? 'die Session' : 'la session';
       await sendEmail({
         to: partnerCtx.email,
         templateName: 'partnerNoShowConfirmed',
         templateData: {
           partnerName: partnerCtx.displayName,
-          userName: userCtxForPartner.displayName || 'le participant',
-          sessionTitle: partnerCtx.sessionTitle || 'la session',
+          userName: userCtxForPartner.displayName || userFallback,
+          sessionTitle: partnerCtx.sessionTitle || sessionFallback,
           sessionDate,
           cancelWindowHours: NO_SHOW_CANCEL_WINDOW_HOURS,
         },
+        lang: partnerCtx.lang,
       });
     }
   } catch (err) {

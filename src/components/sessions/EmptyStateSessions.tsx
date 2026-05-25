@@ -40,6 +40,7 @@
 
 import { useEffect } from 'react';
 import { Calendar, AlertCircle, ArrowRight, RefreshCw } from 'lucide-react';
+import { useLanguage } from '@/context/LanguageContext';
 
 const DEFAULT_CONTACT_EMAIL = 'contact@spordateur.com';
 
@@ -65,6 +66,7 @@ export function EmptyStateSessions({
   onRetry,
   className = '',
 }: EmptyStateSessionsProps) {
+  const { t } = useLanguage();
   // Logging variant 'error' côté client (Phase 7 path : POST /api/error-log)
   useEffect(() => {
     if (variant === 'error') {
@@ -89,16 +91,16 @@ export function EmptyStateSessions({
           strokeWidth={1.25}
         />
         <h2 className="text-xl sm:text-2xl text-white font-light leading-tight">
-          Les prochaines sessions arrivent
+          {t('empty_sessions_title')}
         </h2>
         <p className="text-sm sm:text-base text-white/70 font-light leading-relaxed">
-          On t&apos;avertit dès qu&apos;une nouvelle date est publiée.
+          {t('empty_sessions_subtitle')}
         </p>
         <a
           href={mailtoHref}
           className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-accent text-accent text-sm font-medium hover:bg-accent hover:text-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black"
         >
-          <span>Me prévenir</span>
+          <span>{t('empty_sessions_notify_me')}</span>
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
         </a>
       </div>
@@ -126,10 +128,10 @@ export function EmptyStateSessions({
         strokeWidth={1.25}
       />
       <h2 className="text-xl sm:text-2xl text-white font-light leading-tight">
-        Impossible de charger les sessions
+        {t('empty_sessions_error_title')}
       </h2>
       <p className="text-sm sm:text-base text-white/70 font-light leading-relaxed">
-        Une erreur réseau a interrompu le chargement. Réessaie dans un instant.
+        {t('empty_sessions_error_subtitle')}
       </p>
       {errorDetails && (
         <code className="block text-xs text-white/40 font-mono break-all">
@@ -142,7 +144,7 @@ export function EmptyStateSessions({
         className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-xl border border-accent text-accent text-sm font-medium hover:bg-accent hover:text-black transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black"
       >
         <RefreshCw className="h-4 w-4" aria-hidden="true" />
-        <span>Réessayer</span>
+        <span>{t('empty_sessions_retry')}</span>
       </button>
     </div>
   );

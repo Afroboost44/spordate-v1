@@ -3,21 +3,23 @@
 import { Button } from "@/components/ui/button";
 import { Share2, Copy, PartyPopper, Users, Gift } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useLanguage } from "@/context/LanguageContext";
 import type { StepGrowthProps } from "./types";
 
 export function StepGrowth({ referralCode, onGoToProfile }: StepGrowthProps) {
   const { toast } = useToast();
-  const shareUrl = typeof window !== 'undefined' 
-    ? `${window.location.origin}?ref=${referralCode}` 
+  const { t } = useLanguage();
+  const shareUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}?ref=${referralCode}`
     : `${process.env.NEXT_PUBLIC_APP_URL || ''}?ref=${referralCode}`;
 
   const shareReferralLink = async () => {
-    const shareText = `Rejoins-moi sur Spordateur pour trouver des partenaires de sport ! 🏃‍♂️🎾`;
+    const shareText = t('step_growth_share_text');
 
     if (navigator.share) {
       try {
         await navigator.share({
-          title: "Spordateur - Trouve ton partenaire de sport",
+          title: t('step_growth_share_title'),
           text: shareText,
           url: shareUrl,
         });
@@ -32,8 +34,8 @@ export function StepGrowth({ referralCode, onGoToProfile }: StepGrowthProps) {
   const copyReferralLink = async () => {
     await navigator.clipboard.writeText(shareUrl);
     toast({
-      title: "Lien copié !",
-      description: "Le lien a été copié dans le presse-papier.",
+      title: t('step_growth_link_copied_title'),
+      description: t('step_growth_link_copied_desc'),
     });
   };
 
@@ -43,7 +45,7 @@ export function StepGrowth({ referralCode, onGoToProfile }: StepGrowthProps) {
       <div className="p-4 bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30 rounded-xl">
         <div className="flex items-center justify-center gap-2 text-green-400">
           <PartyPopper className="h-5 w-5" />
-          <p className="font-semibold">Ton compte est créé !</p>
+          <p className="font-semibold">{t('step_growth_account_created')}</p>
         </div>
       </div>
 
@@ -51,7 +53,7 @@ export function StepGrowth({ referralCode, onGoToProfile }: StepGrowthProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-center gap-2 text-muted-foreground">
           <Gift className="h-4 w-4" />
-          <p className="text-sm">Ton code de parrainage :</p>
+          <p className="text-sm">{t('step_growth_referral_code_label')}</p>
         </div>
         <div className="p-4 bg-accent/10 border border-accent/30 rounded-xl">
           <p className="font-mono text-2xl font-bold tracking-wider text-accent">
@@ -64,7 +66,7 @@ export function StepGrowth({ referralCode, onGoToProfile }: StepGrowthProps) {
       <div className="space-y-2">
         <div className="flex items-center justify-center gap-2 text-muted-foreground">
           <Users className="h-4 w-4" />
-          <p className="text-sm">Partage ce lien avec tes amis :</p>
+          <p className="text-sm">{t('step_growth_share_link_label')}</p>
         </div>
         <div className="p-3 bg-muted/50 rounded-lg text-xs break-all font-mono text-muted-foreground">
           {shareUrl}
@@ -79,16 +81,16 @@ export function StepGrowth({ referralCode, onGoToProfile }: StepGrowthProps) {
           className="flex-1 group"
           data-testid="copy-link"
         >
-          <Copy className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" /> 
-          Copier
+          <Copy className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+          {t('step_growth_copy')}
         </Button>
         <Button
           onClick={shareReferralLink}
           className="flex-1 bg-accent text-white font-semibold group"
           data-testid="share-link"
         >
-          <Share2 className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" /> 
-          Partager
+          <Share2 className="mr-2 h-4 w-4 group-hover:scale-110 transition-transform" />
+          {t('step_growth_share')}
         </Button>
       </div>
 
@@ -99,7 +101,7 @@ export function StepGrowth({ referralCode, onGoToProfile }: StepGrowthProps) {
         className="w-full mt-2 text-muted-foreground hover:text-foreground"
         data-testid="go-to-profile"
       >
-        Accéder à mon profil →
+        {t('step_growth_go_to_profile')}
       </Button>
     </div>
   );

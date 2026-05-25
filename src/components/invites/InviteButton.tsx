@@ -17,6 +17,7 @@ import { useState } from 'react';
 import { Send, Loader2, UserPlus, Users, Gift, User } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import {
   Dialog,
   DialogContent,
@@ -61,6 +62,7 @@ export function InviteButton({
 }: InviteButtonProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
@@ -68,7 +70,7 @@ export function InviteButton({
   const [mode, setMode] = useState<InviteMode>('individual');
   const [splitInviterRatio, setSplitInviterRatio] = useState<number>(0.5);
 
-  const triggerLabel = label || `Inviter ${toUserName}`;
+  const triggerLabel = label || t('invite_button_label', { name: toUserName });
   const isAuth = !!user;
 
   // Phase 9 SC2 c5/6 — preview montants (si totalCents fourni)
@@ -76,10 +78,10 @@ export function InviteButton({
     if (!totalCents || totalCents <= 0) return null;
     const totalChf = (totalCents / 100).toFixed(2);
     if (mode === 'individual') {
-      return { youChf: '0.00', otherChf: totalChf, totalChf, hint: `${toUserName} paie tout` };
+      return { youChf: '0.00', otherChf: totalChf, totalChf, hint: t('invite_hint_individual', { name: toUserName }) };
     }
     if (mode === 'gift') {
-      return { youChf: totalChf, otherChf: '0.00', totalChf, hint: `Tu offres tout (cadeau)` };
+      return { youChf: totalChf, otherChf: '0.00', totalChf, hint: t('invite_hint_gift') };
     }
     // split
     const inviterCents = Math.round(totalCents * splitInviterRatio);
@@ -88,15 +90,15 @@ export function InviteButton({
       youChf: (inviterCents / 100).toFixed(2),
       otherChf: (inviteeCents / 100).toFixed(2),
       totalChf,
-      hint: `Tu paies ${(splitInviterRatio * 100).toFixed(0)}%, ${toUserName} paie ${(100 - splitInviterRatio * 100).toFixed(0)}%`,
+      hint: t('invite_hint_split', { you: (splitInviterRatio * 100).toFixed(0), other: (100 - splitInviterRatio * 100).toFixed(0), name: toUserName }),
     };
   })();
 
   const handleSubmit = async () => {
     if (!user) {
       toast({
-        title: 'Connexion requise',
-        description: 'Connecte-toi pour envoyer une invitation.',
+        title: t('invite_login_required_title'),
+        description: t('invite_login_required_desc'),
         variant: 'destructive',
       });
       return;
@@ -151,24 +153,24 @@ export function InviteButton({
               window.location.href = prepayData.url;
               return;
             }
-            const reason = prepayData.detail || prepayData.error || 'Erreur paiement';
+            const reason = prepayData.detail || prepayData.error || t('invite_payment_generic_error');
             toast({
-              title: 'Invitation créée — paiement requis',
-              description: `${toUserName} a été notifié·e mais ton paiement (${data.mode}) n'a pas pu démarrer : ${reason}`,
+              title: t('invite_created_payment_required_title'),
+              description: t('invite_created_payment_required_desc', { name: toUserName, mode: data.mode || '', reason }),
               variant: 'destructive',
             });
           } catch (err) {
             console.warn('[InviteButton] prepay checkout failed', err);
             toast({
-              title: 'Invitation créée — paiement requis',
-              description: `Réessaye de payer ta part depuis la page d'invitation.`,
+              title: t('invite_created_payment_required_title'),
+              description: t('invite_retry_payment_desc'),
               variant: 'destructive',
             });
           }
         } else {
           toast({
-            title: 'Invitation envoyée',
-            description: `${toUserName} a reçu ton invitation par email.`,
+            title: t('invite_sent_title'),
+            description: t('invite_sent_desc', { name: toUserName }),
             className: 'bg-green-600 text-white',
           });
         }
@@ -179,34 +181,34 @@ export function InviteButton({
 
       const data = (await response.json().catch(() => ({}))) as { error?: string; detail?: string };
       const errorCode = data.error || `http-${response.status}`;
-      let userMessage = data.detail || 'Une erreur est survenue.';
+      let userMessage = data.detail || t('invite_generic_error');
 
       if (response.status === 409 || errorCode === 'invalid-status') {
-        userMessage = `Tu as déjà invité ${toUserName} pour cette session.`;
+        userMessage = t('invite_err_already_invited', { name: toUserName });
       } else if (errorCode === 'session-too-soon') {
-        userMessage = 'Cette session démarre dans moins d’1h, invitation impossible.';
+        userMessage = t('invite_err_session_too_soon');
       } else if (errorCode === 'self-invite-forbidden') {
-        userMessage = 'Tu ne peux pas t’inviter toi-même.';
+        userMessage = t('invite_err_self_invite');
       } else if (errorCode === 'invalid-split-ratio') {
-        userMessage = 'Ratio split invalide (10-90%).';
+        userMessage = t('invite_err_invalid_split');
       } else if (errorCode === 'invalid-mode') {
-        userMessage = 'Mode d\'invitation invalide.';
+        userMessage = t('invite_err_invalid_mode');
       } else if (response.status === 401) {
-        userMessage = 'Session expirée — reconnecte-toi pour inviter.';
+        userMessage = t('invite_err_session_expired');
       } else if (response.status === 404) {
-        userMessage = 'Session introuvable.';
+        userMessage = t('invite_err_session_not_found');
       }
 
       toast({
-        title: 'Invitation refusée',
+        title: t('invite_refused_title'),
         description: userMessage,
         variant: 'destructive',
       });
     } catch (err) {
       console.warn('[InviteButton] fetch failed', err);
       toast({
-        title: 'Erreur réseau',
-        description: 'Réessaye dans un instant.',
+        title: t('invite_network_error_title'),
+        description: t('invite_network_error_desc'),
         variant: 'destructive',
       });
     } finally {
@@ -230,7 +232,7 @@ export function InviteButton({
             : 'border border-white/15 text-white/70 hover:text-white hover:border-accent/40 disabled:opacity-40 disabled:cursor-not-allowed',
           className,
         )}
-        title={isAuth ? `Inviter ${toUserName}` : 'Connecte-toi pour inviter'}
+        title={isAuth ? t('invite_button_title_auth', { name: toUserName }) : t('invite_button_title_unauth')}
       >
         <UserPlus className="h-3.5 w-3.5" />
         {triggerLabel}
@@ -240,16 +242,16 @@ export function InviteButton({
         <DialogContent className="bg-black border border-zinc-800 text-white max-w-md">
           <DialogHeader>
             <DialogTitle className="text-white font-light text-lg">
-              Inviter {toUserName}
+              {t('invite_dialog_title', { name: toUserName })}
             </DialogTitle>
             <DialogDescription className="text-gray-400 font-light text-sm leading-relaxed pt-2">
-              Choisis comment partager le coût de la session avec {toUserName}.
+              {t('invite_dialog_desc', { name: toUserName })}
             </DialogDescription>
           </DialogHeader>
 
           {/* Phase 9 SC2 c5/6 — mode selection RadioGroup */}
           <div className="space-y-3 pt-2">
-            <Label className="text-xs text-white/50 font-light">Mode de paiement</Label>
+            <Label className="text-xs text-white/50 font-light">{t('invite_mode_label')}</Label>
             <RadioGroup
               value={mode}
               onValueChange={(v) => setMode(v as InviteMode)}
@@ -259,22 +261,22 @@ export function InviteButton({
                 value="individual"
                 checked={mode === 'individual'}
                 icon={<User className="h-4 w-4" />}
-                title="Chacun paye sa part"
-                description={`${toUserName} paye sa session — toi rien.`}
+                title={t('invite_mode_individual_title')}
+                description={t('invite_mode_individual_desc', { name: toUserName })}
               />
               <ModeOption
                 value="split"
                 checked={mode === 'split'}
                 icon={<Users className="h-4 w-4" />}
-                title="Partager le coût"
-                description="Toi + lui/elle, en pourcentage choisi."
+                title={t('invite_mode_split_title')}
+                description={t('invite_mode_split_desc')}
               />
               <ModeOption
                 value="gift"
                 checked={mode === 'gift'}
                 icon={<Gift className="h-4 w-4" />}
-                title="Offrir (cadeau)"
-                description="Toi paye 100% — c'est cadeau !"
+                title={t('invite_mode_gift_title')}
+                description={t('invite_mode_gift_desc')}
               />
             </RadioGroup>
           </div>
@@ -283,7 +285,7 @@ export function InviteButton({
           {mode === 'split' && (
             <div className="space-y-2 pt-1">
               <div className="flex justify-between items-center">
-                <Label className="text-xs text-white/50 font-light">Ta part</Label>
+                <Label className="text-xs text-white/50 font-light">{t('invite_your_share_label')}</Label>
                 <span className="text-xs text-accent font-medium">
                   {(splitInviterRatio * 100).toFixed(0)}%
                 </span>
@@ -303,12 +305,12 @@ export function InviteButton({
           {/* Preview montants (si totalCents fourni) */}
           {previewAmounts && (
             <div className="bg-white/5 rounded-lg border border-zinc-800 p-3 mt-2 space-y-1">
-              <p className="text-[11px] text-white/40 uppercase tracking-wider">Aperçu</p>
+              <p className="text-[11px] text-white/40 uppercase tracking-wider">{t('invite_preview_label')}</p>
               <p className="text-xs text-white/70 font-light leading-relaxed">
                 {previewAmounts.hint}
               </p>
               <div className="flex justify-between text-sm pt-1 border-t border-white/5 mt-1.5">
-                <span className="text-white/60">Toi</span>
+                <span className="text-white/60">{t('invite_preview_you')}</span>
                 <span className="text-accent font-medium">{previewAmounts.youChf} CHF</span>
               </div>
               <div className="flex justify-between text-sm">
@@ -316,7 +318,7 @@ export function InviteButton({
                 <span className="text-white">{previewAmounts.otherChf} CHF</span>
               </div>
               <div className="flex justify-between text-xs text-white/40 pt-1 border-t border-white/5">
-                <span>Total session</span>
+                <span>{t('invite_preview_total')}</span>
                 <span>{previewAmounts.totalChf} CHF</span>
               </div>
             </div>
@@ -324,11 +326,11 @@ export function InviteButton({
 
           <div className="space-y-2 pt-2">
             <label htmlFor="invite-message" className="text-xs text-white/50 font-light">
-              Message optionnel <span className="text-white/30">({MAX_MESSAGE_LEN} max)</span>
+              {t('invite_message_label')} <span className="text-white/30">({MAX_MESSAGE_LEN} max)</span>
             </label>
             <Textarea
               id="invite-message"
-              placeholder={`Tu m'accompagnes ?`}
+              placeholder={t('invite_message_placeholder')}
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               maxLength={MAX_MESSAGE_LEN + 50}
@@ -355,7 +357,7 @@ export function InviteButton({
               disabled={loading}
               className="text-white/50 hover:text-white"
             >
-              Annuler
+              {t('common_cancel')}
             </Button>
             <Button
               onClick={handleSubmit}
@@ -365,16 +367,16 @@ export function InviteButton({
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {mode === 'individual' ? 'Envoi…' : 'Redirection paiement…'}
+                  {mode === 'individual' ? t('invite_sending') : t('invite_redirecting_payment')}
                 </>
               ) : (
                 <>
                   <Send className="mr-2 h-4 w-4" />
                   {mode === 'individual'
-                    ? "Envoyer l'invitation"
+                    ? t('invite_submit_send')
                     : mode === 'gift'
-                      ? `Offrir & payer`
-                      : `Envoyer & payer ma part`}
+                      ? t('invite_submit_gift')
+                      : t('invite_submit_split')}
                 </>
               )}
             </Button>

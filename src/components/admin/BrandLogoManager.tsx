@@ -141,15 +141,38 @@ export function BrandLogoManager({ brand, onUpdated }: BrandLogoManagerProps) {
         (newBrand as Record<string, unknown>)[slot.storageSlot] = url;
       }
 
-      // 5. Persist Firestore
-      const { doc, setDoc, serverTimestamp } = await import('firebase/firestore');
-      const { db } = await import('@/lib/firebase');
-      if (!db) throw new Error('Firestore non initialisé');
-      await setDoc(
-        doc(db, 'settings', 'site'),
-        { brand: newBrand, updatedAt: serverTimestamp() },
-        { merge: true },
-      );
+      // 5. Persist Firestore — Fix #145 : passe par le service centralisé
+      // updateSiteConfig() qui garantit merge:true. Plus aucune section ne
+      // peut écraser une autre (hero, étapes, témoignages préservés).
+      const { updateSiteConfig } = await import('@/lib/site/updateSiteConfig');
+      await updateSiteConfig({ brand: newBrand });
+
+      // Fix #142 — Cleanup ancien brand sur Storage (extraire version du
+      // sourceUrl précédent et delete les anciens variants). Best-effort,
+      // ne bloque pas si fail.
+      if (brand.version && brand.version !== version) {
+        try {
+          const { deleteObject, ref: refStorage } = await import('firebase/storage');
+          const oldSlots = ['icon16', 'icon32', 'icon192', 'icon512', 'maskable192',
+            'maskable512', 'appleTouch180', 'monochrome512', 'splash1024'];
+          await Promise.allSettled(
+            oldSlots.map((slot) =>
+              deleteObject(refStorage(storage, `brand/v${brand.version}/${slot}.png`)),
+            ),
+          );
+          // Aussi le source (extension variable, on tente png par défaut)
+          await Promise.allSettled([
+            deleteObject(refStorage(storage, `brand/v${brand.version}/source.png`)),
+            deleteObject(refStorage(storage, `brand/v${brand.version}/source.jpg`)),
+            deleteObject(refStorage(storage, `brand/v${brand.version}/source.jpeg`)),
+            deleteObject(refStorage(storage, `brand/v${brand.version}/source.webp`)),
+            deleteObject(refStorage(storage, `brand/v${brand.version}/source.svg`)),
+          ]);
+          console.log('[BrandLogoManager] Cleanup ancien brand v' + brand.version + ' OK');
+        } catch (err) {
+          console.warn('[BrandLogoManager] Cleanup ancien brand failed (non-bloquant)', err);
+        }
+      }
 
       toast({
         title: 'Logos générés ✓',
@@ -234,7 +257,7 @@ export function BrandLogoManager({ brand, onUpdated }: BrandLogoManagerProps) {
               e.target.value = ''; // reset pour re-sélection
             }}
           />
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button
               type="button"
               variant="outline"
@@ -289,25 +312,42 @@ export function BrandLogoManager({ brand, onUpdated }: BrandLogoManagerProps) {
             <h4 className="text-white/80 text-sm font-light tracking-wide uppercase">
               Logos actuels
             </h4>
-            {brand.generatedAt && (
-              <p className="text-white/40 text-xs font-mono">
-                Généré le {new Date(brand.generatedAt).toLocaleString('fr-FR')}
-              </p>
-            )}
+            {brand.generatedAt && (() => {
+              // Fix #152 — Si les logos ont été générés il y a > 24h, on affiche
+              // un hint visuel pour que l'admin sache qu'un re-clic sur "Générer
+              // & appliquer" appliquera les dernières améliorations de l'algo
+              // (notamment fix monochrome #148/#150 si applicable).
+              const ageMs = Date.now() - new Date(brand.generatedAt).getTime();
+              const isStale = ageMs > 24 * 60 * 60 * 1000;
+              return (
+                <p className={`text-xs font-mono ${isStale ? 'text-yellow-400/80' : 'text-white/40'}`}>
+                  {isStale && '⚠ '}Généré le {new Date(brand.generatedAt).toLocaleString('fr-FR')}
+                </p>
+              );
+            })()}
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
             {SLOTS.map((slot) => {
               const url = (brand as Record<string, unknown>)[slot.storageSlot] as string | undefined;
+              // Fix #152 — cache-bust via query param `?v=generatedAt` :
+              // si l'admin re-génère, l'URL change → le browser refetch le PNG
+              // au lieu de servir l'ancien depuis le cache. Indispensable car
+              // Firebase Storage URLs n'ont pas de validation cache-control
+              // courte par défaut → le browser peut conserver l'ancien PNG
+              // jusqu'à plusieurs heures malgré une nouvelle version.
+              const bustedUrl = url
+                ? `${url}${url.includes('?') ? '&' : '?'}v=${brand.generatedAt || Date.now()}`
+                : undefined;
               return (
                 <Card
                   key={slot.key}
                   className="bg-black/40 border-white/10 p-3 space-y-2 flex flex-col items-center text-center"
                 >
                   <div className="h-16 w-16 flex items-center justify-center bg-white/5 rounded-lg overflow-hidden">
-                    {url ? (
+                    {bustedUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={url}
+                        src={bustedUrl}
                         alt={slot.label}
                         className="max-h-14 max-w-14 object-contain"
                       />

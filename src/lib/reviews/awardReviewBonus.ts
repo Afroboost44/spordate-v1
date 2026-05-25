@@ -108,6 +108,7 @@ export async function awardReviewBonus(reviewId: string): Promise<AwardReviewBon
           rating: reviewSnapshot.review.rating,
           creditsAdded: REVIEW_BONUS_CREDITS,
         },
+        lang: ctx.lang,
       });
     }
   } catch (err) {

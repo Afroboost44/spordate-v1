@@ -79,8 +79,8 @@ export async function POST(request: NextRequest) {
     const { notifyUser } = await import('@/lib/notifications/notifyUser');
     const push = await notifyUser({
       uid: recipientUid,
-      title: `${senderName} t'a écrit`,
-      body: preview,
+      messageKey: 'chat_new_message',
+      params: { senderName, preview },
       clickUrl,
       data: { type: 'message', chatId, matchId: chatId, senderId: senderUid },
     });
@@ -111,7 +111,9 @@ export async function POST(request: NextRequest) {
           emailResult = { ok: false, reason: 'rate-limited-5min' };
         } else {
           const { sendEmail } = await import('@/lib/email/sendEmail');
+          const { pickUserLang } = await import('@/lib/i18n/getUserLang');
           const baseUrl = (process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com').replace(/\/$/, '');
+          const lang = pickUserLang(recipientData);
           const r = await sendEmail({
             to: recipientEmail,
             templateName: 'chatMessageReceived',
@@ -121,6 +123,7 @@ export async function POST(request: NextRequest) {
               messagePreview: preview,
               chatLink: `${baseUrl}/chat?match=${chatId}`,
             },
+            lang,
           });
           emailResult = { ok: r.ok, reason: r.error };
           if (r.ok) {

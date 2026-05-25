@@ -101,6 +101,22 @@ service firebase.storage {
     }
 
     // ========================================
+    // Fix #128 — Logos de marque (PWA, favicon, splash, apple-touch...)
+    // Path : brand/v{timestamp}/{slot}.png — uploadé par /admin/manage > Logos du site.
+    // Read : PUBLIC (favicon + manifest + splash sont chargés par navigateurs non-auth).
+    // Write : authenticated user uniquement. Defense-in-depth via UI : seul l'admin
+    //   peut voir/utiliser BrandLogoManager (guard role=='admin' dans /admin/layout.tsx).
+    //   TODO : durcir avec firestore.get(users/$uid).role == 'admin' une fois propagation
+    //   IAM cross-service confirmée et users/{uid}.role bien renseigné en prod.
+    // ========================================
+    match /brand/{allPaths=**} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    // ========================================
     // Default deny (sécurité)
     // ========================================
     match /{allPaths=**} {

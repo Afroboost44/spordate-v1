@@ -20,6 +20,7 @@ import { Loader2, UserX } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
 import { NO_SHOW_CANCEL_WINDOW_HOURS } from '@/lib/reports';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface NoShowParticipant {
   userId: string;
@@ -61,6 +62,7 @@ interface RowProps {
 }
 
 function ParticipantRow({ participant, onMark, onCancel }: RowProps) {
+  const { t } = useLanguage();
   const [submitting, setSubmitting] = useState(false);
 
   const handleMark = async () => {
@@ -99,7 +101,7 @@ function ParticipantRow({ participant, onMark, onCancel }: RowProps) {
       <div className="flex flex-col flex-1 min-w-0 gap-0.5">
         <p className="text-sm text-white font-medium truncate">{participant.displayName}</p>
         {participant.hasNoShow === true && (
-          <p className="text-xs text-accent/90 font-light">No-show enregistré</p>
+          <p className="text-xs text-accent/90 font-light">{t('no_show_recorded')}</p>
         )}
       </div>
       {participant.hasNoShow !== true ? (
@@ -116,7 +118,7 @@ function ParticipantRow({ participant, onMark, onCancel }: RowProps) {
           ) : (
             <>
               <UserX className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
-              Marquer no-show
+              {t('no_show_mark_button')}
             </>
           )}
         </Button>
@@ -132,11 +134,11 @@ function ParticipantRow({ participant, onMark, onCancel }: RowProps) {
           {submitting ? (
             <Loader2 className="h-3.5 w-3.5 motion-safe:animate-spin" aria-hidden="true" />
           ) : (
-            `Annuler (${formatHoursLeft(participant.noShowAgeMs)})`
+            t('no_show_cancel_with_time', { time: formatHoursLeft(participant.noShowAgeMs) })
           )}
         </Button>
       ) : (
-        <span className="text-xs text-white/40 font-light shrink-0">Délai dépassé</span>
+        <span className="text-xs text-white/40 font-light shrink-0">{t('no_show_deadline_passed')}</span>
       )}
     </article>
   );
@@ -148,10 +150,11 @@ export function NoShowCheckInList({
   onCancelNoShow,
   className = '',
 }: NoShowCheckInListProps) {
+  const { t } = useLanguage();
   if (participants.length === 0) {
     return (
       <div className={`flex flex-col items-center justify-center gap-3 py-12 ${className}`}>
-        <p className="text-sm text-white/50 font-light">Aucun participant confirmé sur cette session</p>
+        <p className="text-sm text-white/50 font-light">{t('no_show_no_participants')}</p>
       </div>
     );
   }

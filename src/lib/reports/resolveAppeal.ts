@@ -119,6 +119,7 @@ export async function resolveAppeal(input: ResolveAppealInput): Promise<void> {
           decision: input.decision,
           adminNote: input.decisionNote,
         },
+        lang: ctx.lang,
       });
     }
   } catch (err) {

@@ -197,7 +197,9 @@ export async function POST(req: NextRequest) {
               }
             }
             if (!pushDelivered) {
-              // Fallback email (legacy comportement)
+              // Fallback email (legacy comportement) — Fix #156/#157 i18n via user.language
+              const { pickUserLang } = await import('@/lib/i18n/getUserLang');
+              const userLang = pickUserLang(userData);
               await sendEmail({
                 to: userEmail,
                 templateName: 'reviewReminder',
@@ -208,6 +210,7 @@ export async function POST(req: NextRequest) {
                   reviewLink,
                   creditsBonus: REVIEW_BONUS_CREDITS,
                 },
+                lang: userLang,
               });
             }
             await bdoc.ref.update({ reviewReminderSent: true });

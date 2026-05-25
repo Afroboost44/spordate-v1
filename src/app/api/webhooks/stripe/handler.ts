@@ -492,6 +492,54 @@ async function handleSessionPayment(
     }, { merge: true });
   } catch { /* silent */ }
 
+  // Fix #144 — Mode in-house wallet : crédit du solde partner.
+  // Tous les paiements arrivent sur le compte plateforme Spordateur.
+  // On crédite ici partner.balance avec (amountTotal - applicationFeeAmount).
+  // Le partner peut demander un virement via /partner/wallet → l'admin exécute
+  // manuellement le SEPA depuis sa banque (workflow temporaire le temps que
+  // Stripe Connect KYC soit validé).
+  const partnerId = meta.partnerId || '';
+  const applicationFeeAmount = parseInt(meta.applicationFeeAmount || '0');
+  if (partnerId && amountTotal > 0) {
+    try {
+      const partnerNetCents = Math.max(0, amountTotal - applicationFeeAmount);
+      const { findPartnerDoc } = await import('@/lib/partner/findPartnerDoc');
+      const partnerDocId = await findPartnerDoc(db, partnerId);
+      if (partnerDocId) {
+        await db.collection('partners').doc(partnerDocId).set({
+          balance: FV.increment(partnerNetCents),
+          totalRevenue: FV.increment(amountTotal),
+          commissionPaid: FV.increment(applicationFeeAmount),
+          lastSaleAt: FV.serverTimestamp(),
+        }, { merge: true });
+
+        // Audit log pour la transparence partner & admin
+        const wtRef = db.collection('walletTransactions').doc();
+        await wtRef.set({
+          walletTransactionId: wtRef.id,
+          partnerId: partnerDocId,
+          type: 'sale_credit',
+          amountCents: partnerNetCents,
+          grossAmountCents: amountTotal,
+          commissionCents: applicationFeeAmount,
+          currency: 'CHF',
+          stripeSessionId,
+          stripePaymentIntentId: paymentIntentId,
+          sessionId,
+          bookingId: bookingIdResult,
+          userId,
+          paymentMethod: pm,
+          createdAt: FV.serverTimestamp(),
+        });
+      } else {
+        await logErr(db, FV, `[in-house wallet] partner doc introuvable pour partnerId=${partnerId}`, stripeSessionId);
+      }
+    } catch (walletErr) {
+      const m = walletErr instanceof Error ? walletErr.message : String(walletErr);
+      await logErr(db, FV, `[in-house wallet] crédit partner échoué: ${m}`, stripeSessionId);
+    }
+  }
+
   if (referralCode) {
     try {
       await processCommission({ db, FV, payerUserId: userId, amount: amountTotal, code: referralCode });

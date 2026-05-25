@@ -26,6 +26,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowRight, Check, X, Sparkles, Loader2 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { doc, updateDoc, setDoc, getDoc, serverTimestamp } from 'firebase/firestore';
@@ -50,6 +51,7 @@ export default function OnboardPromptsPage() {
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [selected, setSelected] = useState<SelectedPrompt[]>([]);
   const [saving, setSaving] = useState(false);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -127,8 +129,8 @@ export default function OnboardPromptsPage() {
     if (!user || !db || !isFirebaseConfigured) return;
     if (!isComplete) {
       toast({
-        title: 'Réponses incomplètes',
-        description: `Choisis ${REQUIRED_PROMPT_COUNT} questions et écris une réponse pour chaque (min 2 caractères).`,
+        title: t('onboard_prompts_incomplete_title'),
+        description: t('onboard_prompts_incomplete_desc', { count: REQUIRED_PROMPT_COUNT }),
         variant: 'destructive',
       });
       return;
@@ -152,16 +154,16 @@ export default function OnboardPromptsPage() {
         { merge: true },
       );
       toast({
-        title: 'Profil complété ✨',
-        description: 'Tes réponses sont publiées.',
+        title: t('onboard_prompts_success_title'),
+        description: t('onboard_prompts_success_desc'),
         className: 'bg-zinc-900 border-accent/40 text-white',
       });
       router.push('/activities');
     } catch (err) {
       console.error('[OnboardPrompts] save error', err);
       toast({
-        title: 'Erreur',
-        description: 'Impossible de sauvegarder. Réessaie dans un instant.',
+        title: t('onboard_prompts_error_title'),
+        description: t('onboard_prompts_error_desc'),
         variant: 'destructive',
       });
       setSaving(false);
@@ -184,16 +186,15 @@ export default function OnboardPromptsPage() {
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-accent" aria-hidden="true" />
             <span className="text-xs uppercase tracking-[0.2em] text-accent">
-              Étape finale
+              {t('onboard_prompts_final_step')}
             </span>
           </div>
           <h1 className="text-2xl sm:text-3xl font-light tracking-tight">
-            Donne vie à ton profil
+            {t('onboard_prompts_title')}
           </h1>
           <p className="text-sm text-white/60 leading-relaxed">
-            Choisis <span className="text-white font-medium">{REQUIRED_PROMPT_COUNT} questions</span>{' '}
-            parmi notre catalogue et écris une réponse personnelle. C&apos;est ce qui rendra ton
-            profil unique pour les matchs.
+            {t('onboard_prompts_intro_part1')} <span className="text-white font-medium">{t('onboard_prompts_questions_count', { count: REQUIRED_PROMPT_COUNT })}</span>{' '}
+            {t('onboard_prompts_intro_part2')}
           </p>
         </div>
 
@@ -223,7 +224,7 @@ export default function OnboardPromptsPage() {
                       <button
                         type="button"
                         onClick={() => removeSlot(i)}
-                        aria-label="Retirer cette question"
+                        aria-label={t('onboard_prompts_remove_question')}
                         className="text-white/40 hover:text-white/80 transition-colors p-1"
                       >
                         <X className="h-4 w-4" />
@@ -235,7 +236,7 @@ export default function OnboardPromptsPage() {
                         onChange={(e) => setAnswer(i, e.target.value)}
                         rows={3}
                         maxLength={PROMPT_ANSWER_MAX_LENGTH}
-                        placeholder="Ta réponse personnelle…"
+                        placeholder={t('onboard_prompts_answer_placeholder')}
                         className="bg-zinc-950 border-white/10 text-white placeholder:text-white/30 resize-none"
                       />
                       <div className="flex justify-end">
@@ -249,7 +250,7 @@ export default function OnboardPromptsPage() {
                       onClick={() => openPicker(i)}
                       className="self-start text-xs text-white/50 hover:text-accent underline transition-colors"
                     >
-                      Changer de question
+                      {t('onboard_prompts_change_question')}
                     </button>
                   </div>
                 ) : (
@@ -259,7 +260,7 @@ export default function OnboardPromptsPage() {
                     className="w-full flex items-center justify-between gap-3 py-2"
                   >
                     <span className="text-sm sm:text-base text-white/60 font-light text-left">
-                      Question {i + 1} — choisis dans le catalogue
+                      {t('onboard_prompts_choose_question', { num: i + 1 })}
                     </span>
                     <ArrowRight className="h-4 w-4 text-accent shrink-0" aria-hidden="true" />
                   </button>
@@ -283,12 +284,12 @@ export default function OnboardPromptsPage() {
           {saving ? (
             <>
               <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
-              Sauvegarde…
+              {t('onboard_prompts_saving')}
             </>
           ) : (
             <>
               <Check className="h-4 w-4 mr-2" aria-hidden="true" />
-              Publier mes réponses
+              {t('onboard_prompts_publish')}
             </>
           )}
         </Button>
@@ -299,7 +300,7 @@ export default function OnboardPromptsPage() {
           onClick={() => router.push('/activities')}
           className="text-xs text-white/40 hover:text-white/70 underline self-center transition-colors"
         >
-          Passer pour l&apos;instant (compléter plus tard via Mon Profil)
+          {t('onboard_prompts_skip')}
         </button>
       </div>
 
@@ -317,13 +318,13 @@ export default function OnboardPromptsPage() {
           >
             <div className="sticky top-0 bg-zinc-950/95 backdrop-blur border-b border-white/10 px-5 py-4 flex items-center justify-between">
               <Label className="text-xs uppercase tracking-wider text-accent font-medium">
-                Choisis une question
+                {t('onboard_prompts_picker_title')}
               </Label>
               <button
                 type="button"
                 onClick={() => setPickerOpen(false)}
                 className="text-white/40 hover:text-white/80 transition-colors"
-                aria-label="Fermer"
+                aria-label={t('common_close')}
               >
                 <X className="h-5 w-5" />
               </button>

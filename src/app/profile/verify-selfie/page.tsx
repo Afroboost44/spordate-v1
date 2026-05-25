@@ -26,6 +26,7 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -69,6 +70,7 @@ export default function VerifySelfiePage() {
   const router = useRouter();
   const { user, userProfile } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -121,9 +123,7 @@ export default function VerifySelfiePage() {
       setState('streaming');
     } catch (err) {
       console.error('[selfie] getUserMedia failed', err);
-      setError(
-        "Impossible d'accéder à la caméra. Vérifie l'autorisation dans ton navigateur.",
-      );
+      setError(t('verify_selfie_camera_error'));
       setState('idle');
     }
   };
@@ -246,8 +246,8 @@ export default function VerifySelfiePage() {
       );
 
       toast({
-        title: 'Selfie envoyé ✓',
-        description: 'Notre équipe vérifie ton selfie sous 24h. Tu recevras une notification.',
+        title: t('verify_selfie_sent_title'),
+        description: t('verify_selfie_sent_desc'),
         className: 'bg-zinc-900 border-accent/40 text-white',
       });
       router.push('/profile');
@@ -259,14 +259,14 @@ export default function VerifySelfiePage() {
       const message = err instanceof Error ? err.message : String(err);
       console.error('[selfie submit] failed', { code, message, uid: user.uid });
       const userMessage = code === 'storage/unauthorized'
-        ? 'Tu n\'as pas la permission. Reconnecte-toi puis réessaie.'
+        ? t('verify_selfie_err_unauthorized')
         : code === 'storage/quota-exceeded'
-          ? 'Quota de stockage atteint. Contact le support.'
+          ? t('verify_selfie_err_quota')
           : code === 'storage/canceled'
-            ? 'Envoi annulé.'
-            : 'Réessaie dans un instant. Si ça persiste, contact contact@spordateur.com.';
+            ? t('verify_selfie_err_canceled')
+            : t('verify_selfie_err_generic');
       toast({
-        title: 'Envoi impossible',
+        title: t('verify_selfie_err_title'),
         description: userMessage,
         variant: 'destructive',
       });
@@ -282,7 +282,7 @@ export default function VerifySelfiePage() {
   if (!user) {
     return (
       <div className="min-h-screen bg-black text-white flex items-center justify-center">
-        <Loader2 className="animate-spin mr-2 h-5 w-5" /> Chargement…
+        <Loader2 className="animate-spin mr-2 h-5 w-5" /> {t('verify_selfie_loading')}
       </div>
     );
   }
@@ -294,7 +294,7 @@ export default function VerifySelfiePage() {
           <BackButton fallbackUrl="/profile" />
           <h1 className="text-2xl sm:text-3xl font-light tracking-wide flex items-center gap-2">
             <ShieldCheck className="h-6 w-6 text-accent" />
-            Vérification du selfie
+            {t('verify_selfie_page_title')}
           </h1>
         </div>
 
@@ -304,17 +304,16 @@ export default function VerifySelfiePage() {
             <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
               <BadgeCheck className="h-16 w-16 text-accent" />
               <div>
-                <h2 className="text-xl text-white font-medium">Profil vérifié ✓</h2>
+                <h2 className="text-xl text-white font-medium">{t('verify_selfie_verified_title')}</h2>
                 <p className="text-sm text-white/60 mt-2 max-w-sm">
-                  Ton profil affiche le badge bleu vérifié — il inspire plus de
-                  confiance et reçoit plus de matchs.
+                  {t('verify_selfie_verified_desc')}
                 </p>
               </div>
               <Button
                 onClick={() => router.push('/profile')}
                 className="bg-accent text-white hover:bg-accent/90"
               >
-                Retour à mon profil
+                {t('verify_selfie_back_to_profile')}
               </Button>
             </CardContent>
           </Card>
@@ -323,10 +322,9 @@ export default function VerifySelfiePage() {
             <CardContent className="flex flex-col items-center gap-4 py-10 text-center">
               <Loader2 className="h-12 w-12 text-accent animate-spin" />
               <div>
-                <h2 className="text-xl text-white font-medium">Vérification en cours</h2>
+                <h2 className="text-xl text-white font-medium">{t('verify_selfie_pending_title')}</h2>
                 <p className="text-sm text-white/60 mt-2 max-w-sm">
-                  Notre équipe est en train de vérifier ton selfie. Tu recevras
-                  une notification sous 24h.
+                  {t('verify_selfie_pending_desc')}
                 </p>
               </div>
             </CardContent>
@@ -335,13 +333,13 @@ export default function VerifySelfiePage() {
           <Card className="bg-[#1A1A1A] border-white/5">
             <CardHeader>
               <CardTitle className="text-base text-white font-medium">
-                Comment ça marche
+                {t('verify_selfie_howto_title')}
               </CardTitle>
               <ul className="text-xs text-white/60 font-light leading-relaxed mt-2 list-disc pl-5 space-y-1">
-                <li>Prends un selfie avec ton visage clairement visible.</li>
-                <li>On compare ton selfie à tes photos de profil.</li>
-                <li>Si match, ton profil reçoit le badge ✓ Vérifié sous 24h.</li>
-                <li>Aucune photo n&apos;est publiée — usage interne uniquement.</li>
+                <li>{t('verify_selfie_howto_item_1')}</li>
+                <li>{t('verify_selfie_howto_item_2')}</li>
+                <li>{t('verify_selfie_howto_item_3')}</li>
+                <li>{t('verify_selfie_howto_item_4')}</li>
               </ul>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
@@ -359,7 +357,7 @@ export default function VerifySelfiePage() {
                     className="bg-accent text-white hover:bg-accent/90 h-12 px-8 rounded-full"
                   >
                     <Camera className="h-5 w-5 mr-2" />
-                    Ouvrir la caméra
+                    {t('verify_selfie_open_camera')}
                   </Button>
                 </div>
               )}
@@ -382,7 +380,7 @@ export default function VerifySelfiePage() {
                   <Button
                     onClick={capture}
                     className="bg-accent text-white hover:bg-accent/90 h-14 w-14 rounded-full"
-                    aria-label="Capturer le selfie"
+                    aria-label={t('verify_selfie_capture_aria')}
                   >
                     <Camera className="h-6 w-6" />
                   </Button>
@@ -396,7 +394,7 @@ export default function VerifySelfiePage() {
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={previewUrl}
-                      alt="Aperçu du selfie"
+                      alt={t('verify_selfie_preview_alt')}
                       className="absolute inset-0 w-full h-full object-cover [transform:scaleX(-1)]"
                     />
                   </div>
@@ -407,14 +405,14 @@ export default function VerifySelfiePage() {
                       className="border-white/10 text-white"
                     >
                       <RotateCw className="h-4 w-4 mr-2" />
-                      Reprendre
+                      {t('verify_selfie_retake')}
                     </Button>
                     <Button
                       onClick={submit}
                       className="bg-accent text-white hover:bg-accent/90"
                     >
                       <Check className="h-4 w-4 mr-2" />
-                      Envoyer pour vérification
+                      {t('verify_selfie_submit')}
                     </Button>
                   </div>
                 </div>
@@ -428,11 +426,10 @@ export default function VerifySelfiePage() {
                     <Sparkles className="h-5 w-5 text-accent absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2" />
                   </div>
                   <p className="text-sm text-white/80 font-medium">
-                    {analyzeMessage || 'Analyse en cours…'}
+                    {analyzeMessage || t('verify_selfie_analyzing')}
                   </p>
                   <p className="text-xs text-white/40 max-w-xs text-center">
-                    On compare ton selfie à ta photo de profil avec une IA locale.
-                    Aucune donnée n&apos;est envoyée à un serveur externe.
+                    {t('verify_selfie_analyzing_desc')}
                   </p>
                 </div>
               )}
@@ -441,7 +438,7 @@ export default function VerifySelfiePage() {
               {state === 'uploading' && (
                 <div className="flex flex-col items-center gap-3 py-8">
                   <Loader2 className="h-8 w-8 text-accent animate-spin" />
-                  <p className="text-sm text-white/70">Sauvegarde…</p>
+                  <p className="text-sm text-white/70">{t('verify_selfie_saving')}</p>
                 </div>
               )}
 

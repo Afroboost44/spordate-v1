@@ -16,11 +16,13 @@ import { useRouter } from 'next/navigation';
 import { Coins, ArrowRight } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useCredits } from '@/hooks/useCredits';
+import { useLanguage } from '@/context/LanguageContext';
 
 export function RechargeBanner() {
   const { isLoggedIn } = useAuth();
   const { credits } = useCredits();
   const router = useRouter();
+  const { t } = useLanguage();
 
   if (!isLoggedIn) return null;
   if (credits > 0) return null;
@@ -33,8 +35,8 @@ export function RechargeBanner() {
       <div className="flex items-center gap-2 min-w-0">
         <Coins className="h-4 w-4 text-accent shrink-0" />
         <span className="truncate">
-          <span className="font-medium">Plus de crédits chat.</span>{' '}
-          <span className="text-white/70">Recharge pour continuer à discuter.</span>
+          <span className="font-medium">{t('recharge_banner_no_credits')}</span>{' '}
+          <span className="text-white/70">{t('recharge_banner_cta_text')}</span>
         </span>
       </div>
       <button
@@ -42,7 +44,7 @@ export function RechargeBanner() {
         onClick={() => router.push('/payment')}
         className="inline-flex items-center gap-1 rounded-full bg-accent px-3 py-1 text-xs font-semibold text-white hover:bg-accent/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-black shrink-0"
       >
-        Recharger
+        {t('recharge_banner_button')}
         <ArrowRight className="h-3 w-3" />
       </button>
     </div>

@@ -10,6 +10,7 @@ import { useRouter } from "next/navigation";
 import { db, isFirebaseConfigured } from "@/lib/firebase";
 import { collection, query, where, getDocs, orderBy, limit, Timestamp } from "firebase/firestore";
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import BackButton from '@/components/BackButton';
 import { CheckCircle } from 'lucide-react';
 import { getMediaItems } from '@/lib/activities/media';
@@ -227,6 +228,7 @@ function FullscreenLightbox({
   initialIndex: number;
   onClose: () => void;
 }) {
+  const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
@@ -290,7 +292,7 @@ function FullscreenLightbox({
       ref={containerRef}
       className="fixed inset-0 z-[100] bg-black overflow-hidden"
       role="dialog"
-      aria-label="Aperçu plein écran"
+      aria-label={t('activities_fullscreen_preview_aria')}
     >
       {/* X fermer déplacé top-LEFT pour ne pas cacher le bouton volume du
           CardVideoEmbed (qui est top-right). */}
@@ -425,6 +427,7 @@ function ActivityCardComponent({
   // BUG #49 v4 — abandon de embla pour CSS scroll-snap natif. Embla refusait
   // de capturer les touch events sur Samsung Chrome mobile (PC OK). CSS scroll-snap
   // est universel mobile, zéro JS pour le swipe (navigateur natif).
+  const { t } = useLanguage();
   const carouselScrollRef = useRef<HTMLDivElement>(null);
   const [currentSlide, setCurrentSlide] = useState(0);
   // BUG #52 — fullscreen lightbox état : null = fermé, sinon le MediaItem affiché.
@@ -534,7 +537,7 @@ function ActivityCardComponent({
             className="absolute bottom-2 left-2 z-10 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-white text-[11px] font-medium px-2 py-0.5 rounded-full select-none hover:bg-black/80 transition-colors"
           >
             <Info className="h-3 w-3 opacity-80" />
-            <span>Voir détail</span>
+            <span>{t('activities_see_detail')}</span>
           </Link>
           {/* BUG #52 — bouton "Plein écran" en haut-droite, à GAUCHE du
               volume toggle (right-12 = 48px laisse la place au volume du
@@ -545,11 +548,11 @@ function ActivityCardComponent({
             type="button"
             onClick={(e) => { e.stopPropagation(); e.preventDefault(); setFullscreenStartIndex(currentSlide); }}
             className="absolute top-3 z-10 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-white text-[11px] font-medium px-2 py-1 rounded-full hover:bg-black/80 transition-colors"
-            aria-label="Afficher en plein écran"
+            aria-label={t('activities_display_fullscreen_aria')}
             style={{ right: existingBookingId ? '7rem' : '3rem' }}
           >
             <Maximize2 className="h-3 w-3" />
-            <span>Plein écran</span>
+            <span>{t('activities_fullscreen')}</span>
           </button>
           {/* Phase 9.5 c16 BUG F — badge "Déjà réservée" si user a un booking actif */}
           {existingBookingId && (
@@ -577,7 +580,7 @@ function ActivityCardComponent({
               <button
                 onClick={(e) => { e.stopPropagation(); e.preventDefault(); scrollToSlide(Math.max(0, currentSlide - 1)); }}
                 className="absolute left-2 top-1/2 -translate-y-1/2 bg-black/50 hover:bg-black/70 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                aria-label="Image précédente"
+                aria-label={t('activities_previous_image_aria')}
                 type="button"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -718,6 +721,7 @@ export default function ActivitiesPage() {
   // Phase 9.5 c16 BUG F — map activityId → bookingId pour les bookings actifs (< 24h) du user.
   // Single-query batch au mount (limit 50, ordered DESC) pour éviter N×M queries.
   const { user } = useAuth();
+  const { t } = useLanguage();
   const [activeBookings, setActiveBookings] = useState<Record<string, string>>({});
 
   useEffect(() => {
@@ -888,7 +892,7 @@ export default function ActivitiesPage() {
             onChange={(e) => setCitySearch(e.target.value)}
             placeholder="Rechercher par ville ou pays…"
             className="w-full pl-10 pr-4 py-3 rounded-full bg-zinc-900 border border-white/10 text-white placeholder:text-white/40 focus:outline-none focus:border-accent/40 focus:bg-zinc-900/80 transition-colors"
-            aria-label="Filtrer les activités par ville ou pays"
+            aria-label={t('activities_filter_aria')}
           />
           {citySearch && (
             <button
@@ -951,7 +955,7 @@ export default function ActivitiesPage() {
       <div className="mt-16 text-center border-t border-white/5 pt-12">
         <p className="text-white/30 text-sm max-w-lg mx-auto">
           Les réservations incluent l&apos;accès au studio et l&apos;encadrement par un coach professionnel.
-          Vous êtes partenaire ? <Link href="/partner/register" className="text-accent hover:underline">Rejoignez le réseau Spordateur</Link>.
+          Vous êtes partenaire ? <Link href="/partner/register" className="text-accent hover:underline">{t('activities_join_network')}</Link>.
         </p>
       </div>
     </div>

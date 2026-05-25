@@ -13,6 +13,7 @@ import {
 import type { Session, Activity } from '@/types/firestore';
 import { CoInscribedWarning } from '@/components/partner/CoInscribedWarning';
 import { PartnerDiscoveryOptInCard } from '@/components/partner/PartnerDiscoveryOptInCard';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface RecentSessionForCheckIn {
   sessionId: string;
@@ -22,6 +23,7 @@ interface RecentSessionForCheckIn {
 }
 
 export default function PartnerDashboardPage() {
+  const { t } = useLanguage();
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ activities: 0, bookings: 0, revenue: 0 });
@@ -97,7 +99,7 @@ export default function PartnerDashboardPage() {
         });
         setRecentBookings(bookings.slice(0, 5));
       } catch (err) {
-        console.error('Erreur dashboard partenaire:', err);
+        console.error('[PartnerDashboard] load error:', err);
       } finally {
         setLoading(false);
       }
@@ -119,9 +121,9 @@ export default function PartnerDashboardPage() {
       <div>
         <h1 className="text-2xl font-light text-white tracking-tight flex items-center gap-3">
           <BarChart className="h-6 w-6 text-accent" />
-          Tableau de Bord
+          {t('partner_dashboard_title')}
         </h1>
-        <p className="text-sm text-white/40 mt-1">Suivez vos performances en temps réel</p>
+        <p className="text-sm text-white/40 mt-1">{t('partner_dashboard_subtitle')}</p>
       </div>
 
       {/* Phase 7 sub-chantier 4 commit 3/4 — warning co-inscrits bloqués (doctrine §9.sexies E) */}
@@ -136,7 +138,7 @@ export default function PartnerDashboardPage() {
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-2">
               <Users className="h-4 w-4 text-blue-400" />
-              <span className="text-xs text-white/40 uppercase tracking-wider">Activités publiées</span>
+              <span className="text-xs text-white/40 uppercase tracking-wider">{t('partner_dashboard_activities_published')}</span>
             </div>
             <p className="text-3xl font-light text-white">{stats.activities}</p>
           </CardContent>
@@ -146,7 +148,7 @@ export default function PartnerDashboardPage() {
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-2">
               <CalendarCheck className="h-4 w-4 text-green-400" />
-              <span className="text-xs text-white/40 uppercase tracking-wider">Réservations</span>
+              <span className="text-xs text-white/40 uppercase tracking-wider">{t('partner_dashboard_bookings')}</span>
             </div>
             <p className="text-3xl font-light text-white">{stats.bookings}</p>
           </CardContent>
@@ -156,7 +158,7 @@ export default function PartnerDashboardPage() {
           <CardContent className="p-5">
             <div className="flex items-center gap-2 mb-2">
               <Wallet className="h-4 w-4 text-accent" />
-              <span className="text-xs text-white/40 uppercase tracking-wider">Revenus</span>
+              <span className="text-xs text-white/40 uppercase tracking-wider">{t('partner_dashboard_revenue')}</span>
             </div>
             <p className="text-3xl font-light text-white">{stats.revenue.toFixed(2)} <span className="text-base text-white/40">CHF</span></p>
           </CardContent>
@@ -169,7 +171,7 @@ export default function PartnerDashboardPage() {
           <CardHeader className="pb-3">
             <CardTitle className="text-base font-light text-white flex items-center gap-2">
               <UserX className="h-4 w-4 text-accent" />
-              Check-in no-show (sessions terminées 24h)
+              {t('partner_dashboard_checkin_noshow_title')}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -183,7 +185,7 @@ export default function PartnerDashboardPage() {
                   <div className="flex-1 min-w-0">
                     <p className="text-sm text-white truncate">{s.title}</p>
                     <p className="text-xs text-white/40">
-                      Terminée {s.endAt.toDate().toLocaleString('fr-CH', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      {t('partner_dashboard_finished')} {s.endAt.toDate().toLocaleString('fr-CH', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </p>
                   </div>
                   <ChevronRight className="h-4 w-4 text-white/30 shrink-0" />
@@ -199,25 +201,25 @@ export default function PartnerDashboardPage() {
         <CardHeader className="pb-3">
           <CardTitle className="text-base font-light text-white flex items-center gap-2">
             <Bell className="h-4 w-4 text-accent" />
-            Dernières réservations
+            {t('partner_dashboard_recent_bookings')}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {recentBookings.length === 0 ? (
-            <p className="text-sm text-white/30 py-4 text-center">Aucune réservation pour le moment</p>
+            <p className="text-sm text-white/30 py-4 text-center">{t('partner_dashboard_no_bookings')}</p>
           ) : (
             <div className="space-y-3">
               {recentBookings.map((b, i) => (
                 <div key={i} className="flex items-center justify-between p-3 bg-black/40 rounded-xl border border-white/5">
                   <div>
-                    <p className="text-sm text-white">{b.sport || 'Activité'}</p>
+                    <p className="text-sm text-white">{b.sport || t('partner_dashboard_activity')}</p>
                     <p className="text-xs text-white/30">
-                      {b.ticketType === 'duo' ? 'Duo' : 'Solo'} · {b.userId?.substring(0, 8)}...
+                      {b.ticketType === 'duo' ? t('partner_dashboard_duo') : t('partner_dashboard_solo')} · {b.userId?.substring(0, 8)}...
                     </p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm text-accent font-medium">{b.amount || 0} CHF</p>
-                    <Badge className="text-[10px] bg-green-500/10 text-green-400 border-green-500/20">Confirmé</Badge>
+                    <Badge className="text-[10px] bg-green-500/10 text-green-400 border-green-500/20">{t('partner_dashboard_confirmed')}</Badge>
                   </div>
                 </div>
               ))}

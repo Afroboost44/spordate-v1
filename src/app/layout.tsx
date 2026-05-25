@@ -8,6 +8,7 @@ import PWARegister from "@/components/PWARegister";
 import { SanctionBanner } from "@/components/SanctionBanner";
 import AdminBroadcastModal from "@/components/AdminBroadcastModal";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { BrandProvider } from "@/components/BrandProvider";
 import { getServerTheme, buildThemeStyleString } from "@/lib/theme/server";
 import { getServerBrand } from "@/lib/brand/server";
 
@@ -174,11 +175,13 @@ export default async function RootLayout({
         <AuthProvider>
           <LanguageProvider>
             <ThemeProvider>
-              <SanctionBanner />
-              {children}
-              <Toaster />
-              <PWARegister />
-              <AdminBroadcastModal />
+              <BrandProvider initialBrand={brand}>
+                <SanctionBanner />
+                {children}
+                <Toaster />
+                <PWARegister />
+                <AdminBroadcastModal />
+              </BrandProvider>
             </ThemeProvider>
           </LanguageProvider>
         </AuthProvider>

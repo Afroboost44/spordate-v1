@@ -49,6 +49,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { validateSessionDate } from '@/lib/billing/sessionDateValidation';
 import type { Session } from '@/types/firestore';
 
@@ -82,6 +83,7 @@ export function SessionEditModal({
 }: SessionEditModalProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [useCustom, setUseCustom] = useState(false);
   const [customPrice, setCustomPrice] = useState('');
   const [datetimeLocal, setDatetimeLocal] = useState('');
@@ -154,24 +156,24 @@ export function SessionEditModal({
       if (!res.ok) {
         const code = (data?.error as string) || `HTTP ${res.status}`;
         let msg = data?.detail || code;
-        if (code === 'session-frozen') msg = 'Cette session a déjà des réservations, modifications bloquées.';
-        else if (code === 'forbidden') msg = "Tu n'es pas le propriétaire de cette session.";
-        else if (code === 'unauthenticated') msg = 'Session expirée — reconnecte-toi.';
-        toast({ title: 'Erreur', description: msg, variant: 'destructive' });
+        if (code === 'session-frozen') msg = t('session_edit_err_frozen');
+        else if (code === 'forbidden') msg = t('session_edit_err_forbidden');
+        else if (code === 'unauthenticated') msg = t('session_edit_err_unauthenticated');
+        toast({ title: t('session_edit_error_title'), description: msg, variant: 'destructive' });
         return;
       }
       toast({
-        title: 'Session mise à jour ✓',
+        title: t('session_edit_updated_title'),
         description: data?.mode === 'custom'
-          ? `Prix : ${data.effectivePriceCHF} CHF`
-          : `Prix : ${activityDefaultPriceCHF} CHF (héritage activité)`,
+          ? t('session_edit_updated_custom', { price: data.effectivePriceCHF })
+          : t('session_edit_updated_default', { price: activityDefaultPriceCHF }),
         className: 'bg-zinc-900 border-accent/40 text-white',
       });
       onOpenChange(false);
       if (onSaved) onSaved();
     } catch (err) {
       console.warn('[SessionEditModal] PATCH failed', err);
-      toast({ title: 'Erreur', description: 'Impossible de mettre à jour. Réessaie.', variant: 'destructive' });
+      toast({ title: t('session_edit_error_title'), description: t('session_edit_err_update_generic'), variant: 'destructive' });
     } finally {
       setSaving(false);
     }
@@ -190,14 +192,14 @@ export function SessionEditModal({
       if (!res.ok) {
         const code = (data?.error as string) || `HTTP ${res.status}`;
         let msg = data?.detail || code;
-        if (code === 'session-frozen') msg = 'Cette session a déjà des réservations, suppression impossible.';
-        else if (code === 'forbidden') msg = "Tu n'es pas le propriétaire de cette session.";
-        toast({ title: 'Erreur', description: msg, variant: 'destructive' });
+        if (code === 'session-frozen') msg = t('session_edit_err_frozen_delete');
+        else if (code === 'forbidden') msg = t('session_edit_err_forbidden');
+        toast({ title: t('session_edit_error_title'), description: msg, variant: 'destructive' });
         return;
       }
       toast({
-        title: 'Session supprimée ✓',
-        description: 'La session ne sera plus visible.',
+        title: t('session_edit_deleted_title'),
+        description: t('session_edit_deleted_desc'),
         className: 'bg-zinc-900 border-accent/40 text-white',
       });
       setConfirmDeleteOpen(false);
@@ -205,7 +207,7 @@ export function SessionEditModal({
       if (onSaved) onSaved();
     } catch (err) {
       console.warn('[SessionEditModal] DELETE failed', err);
-      toast({ title: 'Erreur', description: 'Impossible de supprimer. Réessaie.', variant: 'destructive' });
+      toast({ title: t('session_edit_error_title'), description: t('session_edit_err_delete_generic'), variant: 'destructive' });
     } finally {
       setDeleting(false);
     }
@@ -216,10 +218,10 @@ export function SessionEditModal({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="bg-[#0A0A0A] border-white/10 text-white sm:max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-white">Modifier la session</DialogTitle>
+            <DialogTitle className="text-white">{t('session_edit_modal_title')}</DialogTitle>
             <DialogDescription className="text-white/50 text-xs">
               {activityLabel && (
-                <span>Activité : <span className="text-accent">{activityLabel}</span></span>
+                <span>{t('session_edit_activity_label')} <span className="text-accent">{activityLabel}</span></span>
               )}
             </DialogDescription>
           </DialogHeader>
@@ -227,7 +229,7 @@ export function SessionEditModal({
           <div className="mt-3 space-y-4">
             {/* Date / Heure */}
             <div className="rounded-xl border border-white/10 bg-[#1A1A1A]/40 p-4 space-y-2">
-              <Label className="text-white text-sm font-medium">Date et heure</Label>
+              <Label className="text-white text-sm font-medium">{t('session_edit_datetime_label')}</Label>
               <Input
                 type="datetime-local"
                 value={datetimeLocal}
@@ -238,9 +240,9 @@ export function SessionEditModal({
               {dateChanged && !dateValidation.valid && (
                 <p className="text-[11px] text-red-400 flex items-center gap-1.5">
                   <AlertTriangle className="h-3 w-3" />
-                  {dateValidation.reason === 'past' && 'La date doit être dans le futur.'}
-                  {dateValidation.reason === 'too-far' && 'La date ne peut pas être à plus d\'1 an.'}
-                  {dateValidation.reason === 'invalid-date' && 'Date invalide.'}
+                  {dateValidation.reason === 'past' && t('session_edit_err_date_past')}
+                  {dateValidation.reason === 'too-far' && t('session_edit_err_date_too_far')}
+                  {dateValidation.reason === 'invalid-date' && t('session_edit_err_date_invalid')}
                 </p>
               )}
             </div>
@@ -249,9 +251,9 @@ export function SessionEditModal({
             <div className="rounded-xl border border-white/10 bg-[#1A1A1A]/40 p-4 space-y-3">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex-1">
-                  <Label className="text-white text-sm font-medium">Prix spécifique à cette session</Label>
+                  <Label className="text-white text-sm font-medium">{t('session_edit_custom_price_label')}</Label>
                   <p className="text-[11px] text-white/40 mt-1 font-light">
-                    Active pour définir un prix différent du prix par défaut de l&apos;activité.
+                    {t('session_edit_custom_price_hint')}
                   </p>
                 </div>
                 <Switch checked={useCustom} onCheckedChange={setUseCustom} disabled={isFrozen || saving} />
@@ -259,12 +261,12 @@ export function SessionEditModal({
               {useCustom ? (
                 <div className="space-y-2 pt-1">
                   <div className="flex items-center gap-3">
-                    <Label className="text-xs text-white/50 flex-1 min-w-0 truncate">Prix de cette session</Label>
+                    <Label className="text-xs text-white/50 flex-1 min-w-0 truncate">{t('session_edit_custom_price_input')}</Label>
                     <Input
                       type="number"
                       value={customPrice}
                       onChange={(e) => setCustomPrice(e.target.value)}
-                      placeholder="0 = OFFERT"
+                      placeholder={t('session_edit_free_placeholder')}
                       min={0}
                       max={1000}
                       step="1"
@@ -276,19 +278,19 @@ export function SessionEditModal({
                   {isFree && (
                     <p className="text-[11px] text-emerald-300 flex items-center gap-1.5">
                       <Gift className="h-3 w-3" />
-                      Cette session sera OFFERTE — les participants ne paient pas.
+                      {t('session_edit_will_be_free_long')}
                     </p>
                   )}
                   {priceInvalid && (
                     <p className="text-[11px] text-red-400 flex items-center gap-1.5">
                       <AlertTriangle className="h-3 w-3" />
-                      Prix invalide. Entre une valeur entre 0 et 1000 CHF.
+                      {t('session_edit_err_price_range')}
                     </p>
                   )}
                 </div>
               ) : (
                 <p className="text-[11px] text-white/30 font-light">
-                  Prix par défaut de l&apos;activité : <span className="text-white/60">{activityDefaultPriceCHF} CHF</span>
+                  {t('session_edit_default_price_label')} <span className="text-white/60">{activityDefaultPriceCHF} CHF</span>
                 </p>
               )}
             </div>
@@ -296,11 +298,11 @@ export function SessionEditModal({
             {/* Note V9 freeze */}
             {isFrozen ? (
               <p className="text-[11px] text-amber-300 font-light px-1">
-                🔒 Cette session a {session?.currentParticipants} réservation{(session?.currentParticipants ?? 0) > 1 ? 's' : ''} — modifications et suppression bloquées (anti-cheat).
+                {t('session_edit_frozen_note', { count: session?.currentParticipants ?? 0, s: (session?.currentParticipants ?? 0) > 1 ? 's' : '' })}
               </p>
             ) : (
               <p className="text-[10px] text-white/30 font-light px-1">
-                ℹ️ Une fois qu&apos;une réservation est prise, tout est gelé (anti-cheat).
+                {t('session_edit_freeze_warning')}
               </p>
             )}
           </div>
@@ -314,11 +316,11 @@ export function SessionEditModal({
               className="bg-red-500/10 border border-red-500/30 text-red-300 hover:bg-red-500/20"
             >
               <Trash2 className="h-4 w-4 mr-1.5" />
-              Supprimer
+              {t('session_edit_delete_button')}
             </Button>
             <div className="flex gap-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)} disabled={saving} className="border-white/10">
-                Annuler
+                {t('common_cancel')}
               </Button>
               <Button
                 type="button"
@@ -327,7 +329,7 @@ export function SessionEditModal({
                 className="bg-accent hover:bg-accent/80 text-white"
               >
                 {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                Enregistrer
+                {t('common_save')}
               </Button>
             </div>
           </DialogFooter>
@@ -338,18 +340,18 @@ export function SessionEditModal({
       <AlertDialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
         <AlertDialogContent className="bg-[#0A0A0A] border-white/10 text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Supprimer cette session ?</AlertDialogTitle>
+            <AlertDialogTitle className="text-white">{t('session_edit_confirm_delete_title')}</AlertDialogTitle>
             <AlertDialogDescription className="text-white/60">
-              Cette action est irréversible. La session sera retirée du calendrier et ne pourra plus être réservée.
+              {t('session_edit_confirm_delete_desc')}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={deleting} className="border-white/10 bg-transparent text-white hover:bg-white/5">
-              Annuler
+              {t('common_cancel')}
             </AlertDialogCancel>
             <AlertDialogAction onClick={handleDelete} disabled={deleting} className="bg-red-500 hover:bg-red-600 text-white">
               {deleting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              Supprimer
+              {t('session_edit_delete_button')}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

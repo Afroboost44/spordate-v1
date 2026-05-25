@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
 import {
   getCreator, createCreator, getCreatorReferrals, requestPayout
 } from "@/services/firestore";
@@ -30,6 +31,7 @@ function formatDate(ts: Timestamp | null | undefined): string {
 export default function CreatorDashboardPage() {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { t } = useLanguage();
 
   const [creator, setCreator] = useState<Creator | null>(null);
   const [referrals, setReferrals] = useState<Referral[]>([]);
@@ -45,8 +47,8 @@ export default function CreatorDashboardPage() {
 
         // Auto-create creator profile if not exists
         if (!c) {
-          c = await createCreator(user.uid, user.displayName || 'Créateur');
-          toast({ title: 'Profil créateur activé !' });
+          c = await createCreator(user.uid, user.displayName || t('creator_dashboard_default_name'));
+          toast({ title: t('creator_dashboard_activated') });
         }
 
         setCreator(c);
@@ -66,15 +68,15 @@ export default function CreatorDashboardPage() {
   const handleCopyLink = () => {
     if (!creator?.referralLink) return;
     navigator.clipboard.writeText(creator.referralLink);
-    toast({ title: 'Lien copié !' });
+    toast({ title: t('creator_dashboard_link_copied') });
   };
 
   const handleRequestPayout = async () => {
     if (!creator || creator.pendingPayout < 10) {
       toast({
         variant: 'destructive',
-        title: 'Minimum 10 CHF',
-        description: 'Tu dois avoir au moins 10 CHF de commission pour demander un retrait.'
+        title: t('creator_dashboard_minimum_payout'),
+        description: t('creator_dashboard_minimum_payout_desc')
       });
       return;
     }
@@ -87,13 +89,13 @@ export default function CreatorDashboardPage() {
         creator.payoutMethod || 'twint',
         creator.payoutDetails || {}
       );
-      toast({ title: 'Demande envoyée !', description: 'Tu recevras ton paiement sous 48h.' });
+      toast({ title: t('creator_dashboard_request_sent'), description: t('creator_dashboard_request_sent_desc') });
 
       // Refresh
       const updated = await getCreator(creator.creatorId);
       if (updated) setCreator(updated);
     } catch (err) {
-      toast({ variant: 'destructive', title: 'Erreur', description: String(err) });
+      toast({ variant: 'destructive', title: t('creator_dashboard_error'), description: String(err) });
     } finally {
       setRequestingPayout(false);
     }
@@ -111,7 +113,7 @@ export default function CreatorDashboardPage() {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center px-6 text-center">
         <AlertCircle className="h-12 w-12 text-white/20 mb-4" />
-        <p className="text-white/50">Impossible de charger le profil créateur.</p>
+        <p className="text-white/50">{t('creator_dashboard_load_error')}</p>
       </div>
     );
   }
@@ -122,8 +124,8 @@ export default function CreatorDashboardPage() {
 
         {/* Header */}
         <div>
-          <h1 className="text-3xl font-light tracking-tight">Dashboard Créateur</h1>
-          <p className="text-sm text-white/40 mt-1">Suis tes revenus et tes filleuls en temps réel</p>
+          <h1 className="text-3xl font-light tracking-tight">{t('creator_dashboard_title')}</h1>
+          <p className="text-sm text-white/40 mt-1">{t('creator_dashboard_subtitle')}</p>
         </div>
 
         {/* Stats Cards */}
@@ -132,7 +134,7 @@ export default function CreatorDashboardPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Wallet className="h-4 w-4 text-accent" />
-                <span className="text-xs text-white/40 uppercase tracking-wider">Gains totaux</span>
+                <span className="text-xs text-white/40 uppercase tracking-wider">{t('creator_dashboard_stat_total_earnings')}</span>
               </div>
               <p className="text-2xl font-light text-white">{formatCHF(creator.totalEarnings)}</p>
             </CardContent>
@@ -142,7 +144,7 @@ export default function CreatorDashboardPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <TrendingUp className="h-4 w-4 text-green-400" />
-                <span className="text-xs text-white/40 uppercase tracking-wider">En attente</span>
+                <span className="text-xs text-white/40 uppercase tracking-wider">{t('creator_dashboard_stat_pending')}</span>
               </div>
               <p className="text-2xl font-light text-green-400">{formatCHF(creator.pendingPayout)}</p>
             </CardContent>
@@ -152,7 +154,7 @@ export default function CreatorDashboardPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <Users className="h-4 w-4 text-blue-400" />
-                <span className="text-xs text-white/40 uppercase tracking-wider">Filleuls</span>
+                <span className="text-xs text-white/40 uppercase tracking-wider">{t('creator_dashboard_stat_referrals')}</span>
               </div>
               <p className="text-2xl font-light text-white">{creator.totalReferrals}</p>
             </CardContent>
@@ -162,7 +164,7 @@ export default function CreatorDashboardPage() {
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-2">
                 <ArrowUpRight className="h-4 w-4 text-amber-400" />
-                <span className="text-xs text-white/40 uppercase tracking-wider">Achats</span>
+                <span className="text-xs text-white/40 uppercase tracking-wider">{t('creator_dashboard_stat_purchases')}</span>
               </div>
               <p className="text-2xl font-light text-white">{creator.totalPurchases}</p>
             </CardContent>
@@ -172,7 +174,7 @@ export default function CreatorDashboardPage() {
         {/* Lien de parrainage */}
         <Card className="bg-[#1A1A1A] border-white/5">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-light tracking-wide">Ton lien créateur</CardTitle>
+            <CardTitle className="text-base font-light tracking-wide">{t('creator_dashboard_referral_link_title')}</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="flex items-center gap-2">
@@ -190,14 +192,14 @@ export default function CreatorDashboardPage() {
               {creator.referralLink && (
                 <QRCodeButton
                   url={creator.referralLink}
-                  label="Lien créateur"
+                  label={t('creator_dashboard_qr_label')}
                   code={creator.referralCode}
                   className="h-12 w-12 inline-flex items-center justify-center rounded-md border border-accent/30 text-accent hover:bg-accent/10 transition active:scale-95"
                 />
               )}
             </div>
             <p className="text-xs text-white/30">
-              Commission : <span className="text-accent">{(creator.commissionRate * 100).toFixed(0)}%</span> sur chaque achat via ton lien
+              {t('creator_dashboard_commission_prefix')} <span className="text-accent">{(creator.commissionRate * 100).toFixed(0)}%</span> {t('creator_dashboard_commission_suffix')}
             </p>
           </CardContent>
         </Card>
@@ -206,9 +208,9 @@ export default function CreatorDashboardPage() {
         <Card className="bg-[#1A1A1A] border-white/5">
           <CardContent className="p-6 flex flex-col md:flex-row items-center justify-between gap-4">
             <div>
-              <p className="text-sm text-white/50">Solde disponible pour retrait</p>
+              <p className="text-sm text-white/50">{t('creator_dashboard_balance_label')}</p>
               <p className="text-3xl font-light text-green-400 mt-1">{formatCHF(creator.pendingPayout)}</p>
-              <p className="text-xs text-white/30 mt-1">Méthode : {creator.payoutMethod === 'twint' ? 'TWINT' : 'Virement bancaire'}</p>
+              <p className="text-xs text-white/30 mt-1">{t('creator_dashboard_payout_method')} {creator.payoutMethod === 'twint' ? 'TWINT' : t('creator_dashboard_payout_bank')}</p>
             </div>
             <Button
               onClick={handleRequestPayout}
@@ -220,7 +222,7 @@ export default function CreatorDashboardPage() {
               ) : (
                 <Wallet className="h-4 w-4 mr-2" />
               )}
-              Demander un retrait
+              {t('creator_dashboard_request_payout')}
             </Button>
           </CardContent>
         </Card>
@@ -228,14 +230,14 @@ export default function CreatorDashboardPage() {
         {/* Historique filleuls */}
         <Card className="bg-[#1A1A1A] border-white/5">
           <CardHeader className="pb-3">
-            <CardTitle className="text-base font-light tracking-wide">Mes filleuls</CardTitle>
+            <CardTitle className="text-base font-light tracking-wide">{t('creator_dashboard_my_referrals')}</CardTitle>
           </CardHeader>
           <CardContent>
             {referrals.length === 0 ? (
               <div className="text-center py-8">
                 <Users className="h-10 w-10 text-white/10 mx-auto mb-3" />
-                <p className="text-sm text-white/30">Aucun filleul pour le moment</p>
-                <p className="text-xs text-white/20 mt-1">Partage ton lien pour commencer à gagner</p>
+                <p className="text-sm text-white/30">{t('creator_dashboard_no_referrals')}</p>
+                <p className="text-xs text-white/20 mt-1">{t('creator_dashboard_share_to_earn')}</p>
               </div>
             ) : (
               <div className="space-y-2">
@@ -246,7 +248,7 @@ export default function CreatorDashboardPage() {
                         <Users className="h-4 w-4 text-white/30" />
                       </div>
                       <div>
-                        <p className="text-sm text-white/70">Filleul</p>
+                        <p className="text-sm text-white/70">{t('creator_dashboard_referral_label')}</p>
                         <p className="text-xs text-white/30">{formatDate(ref.createdAt)}</p>
                       </div>
                     </div>
@@ -257,9 +259,9 @@ export default function CreatorDashboardPage() {
                           ref.status === 'first_purchase' ? 'bg-amber-500/10 text-amber-400 border-amber-500/20' :
                           'bg-white/5 text-white/30 border-white/10'
                         }`}>
-                          {ref.status === 'active' ? 'Actif' :
-                           ref.status === 'first_purchase' ? '1er achat' :
-                           'Inscrit'}
+                          {ref.status === 'active' ? t('creator_dashboard_status_active') :
+                           ref.status === 'first_purchase' ? t('creator_dashboard_status_first_purchase') :
+                           t('creator_dashboard_status_registered')}
                         </Badge>
                       </div>
                       {ref.totalCommission > 0 && (

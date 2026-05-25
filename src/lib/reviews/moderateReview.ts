@@ -114,6 +114,7 @@ export async function moderateReview(input: ModerateReviewInput): Promise<Modera
             rating: review.rating,
             sessionTitle: ctx.sessionTitle,
           },
+          lang: ctx.lang,
         });
       }
     } catch (err) {
@@ -154,6 +155,7 @@ export async function moderateReview(input: ModerateReviewInput): Promise<Modera
           rating: review.rating,
           sessionTitle: ctx.sessionTitle,
         },
+        lang: ctx.lang,
       });
     }
   } catch (err) {

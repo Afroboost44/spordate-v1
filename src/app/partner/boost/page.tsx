@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Rocket, Zap, MapPin, Clock, TrendingUp, Eye, Users, Loader2, Globe, ChevronLeft, CheckCircle, XCircle, CreditCard, Coins, ListChecks } from 'lucide-react';
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { useCredits } from '@/hooks/useCredits';
 import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
@@ -35,10 +36,10 @@ const INTERNATIONAL_COUNTRIES: Record<string, string[]> = {
 // Les VRAIS prix sont lus depuis settings/pricing.boostPartner{24h,3d,7d}PriceCHF
 // dans le composant (useEffect). Si Firestore down ou champs absents, fallback
 // sur ces defaults — qui correspondent aussi aux prix actuellement en prod.
-const DEFAULT_DURATIONS: Array<{ value: string; label: string; price: number }> = [
-  { value: '24h', label: '24 heures', price: 15 },
-  { value: '3d',  label: '3 jours',   price: 35 },
-  { value: '7d',  label: '1 semaine', price: 50 },
+const DEFAULT_DURATIONS: Array<{ value: string; labelKey: string; price: number }> = [
+  { value: '24h', labelKey: 'partner_boost_duration_24h', price: 15 },
+  { value: '3d',  labelKey: 'partner_boost_duration_3d',  price: 35 },
+  { value: '7d',  labelKey: 'partner_boost_duration_7d',  price: 50 },
 ];
 
 type LocationMode = 'choose' | 'swiss' | 'international-country' | 'international-city';
@@ -48,6 +49,7 @@ export default function PartnerBoostPage() {
   const router = useRouter();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { t } = useLanguage();
   const { credits } = useCredits();
   const [locationMode, setLocationMode] = useState<LocationMode>('choose');
   const [selectedCountry, setSelectedCountry] = useState('');
@@ -78,19 +80,19 @@ export default function PartnerBoostPage() {
         setDurations([
           {
             value: '24h',
-            label: '24 heures',
+            labelKey: 'partner_boost_duration_24h',
             price: typeof data.boostPartner24hPriceCHF === 'number' && data.boostPartner24hPriceCHF >= 0
               ? data.boostPartner24hPriceCHF : 15,
           },
           {
             value: '3d',
-            label: '3 jours',
+            labelKey: 'partner_boost_duration_3d',
             price: typeof data.boostPartner3dPriceCHF === 'number' && data.boostPartner3dPriceCHF >= 0
               ? data.boostPartner3dPriceCHF : 35,
           },
           {
             value: '7d',
-            label: '1 semaine',
+            labelKey: 'partner_boost_duration_7d',
             price: typeof data.boostPartner7dPriceCHF === 'number' && data.boostPartner7dPriceCHF >= 0
               ? data.boostPartner7dPriceCHF : 50,
           },
@@ -111,10 +113,10 @@ export default function PartnerBoostPage() {
   // Branche `credits` saute le check hasEnoughCredits (déjà géré par le bouton
   // alternatif "Solde insuffisant — Recharger" qui remplace le bouton normal).
   const getDisabledReason = (): string | null => {
-    if (!selectedActivityId) return "Choisissez d'abord l'activité à booster";
-    if (!selectedCity) return "Sélectionnez d'abord une ville ciblée";
-    if (!selectedDuration) return 'Choisissez la durée du boost';
-    if (isLoading) return 'Traitement en cours...';
+    if (!selectedActivityId) return t('partner_boost_disabled_activity');
+    if (!selectedCity) return t('partner_boost_disabled_city');
+    if (!selectedDuration) return t('partner_boost_disabled_duration');
+    if (isLoading) return t('partner_boost_disabled_loading');
     return null;
   };
   const disabledReason = getDisabledReason();
@@ -196,15 +198,17 @@ export default function PartnerBoostPage() {
       // activer un boost sans avoir payé. Toast informatif côté client,
       // refresh activeBoosts au prochain useEffect mount (load() relit boosts/).
       toast({
-        title: "Boost activé",
-        description: `Activation en cours (quelques secondes)… Le boost ${durations.find(d => d.value === duration)?.label || duration} sera visible dans /partner/dashboard.`,
+        title: t('partner_boost_toast_activated_title'),
+        description: t('partner_boost_toast_activation_pending', {
+          duration: durations.find(d => d.value === duration) ? t(durations.find(d => d.value === duration)!.labelKey) : (duration ?? ''),
+        }),
       });
 
       // Clean URL
       window.history.replaceState({}, '', '/partner/boost');
     } else if (status === 'cancel') {
       setPaymentStatus('cancel');
-      toast({ title: "Paiement annulé", description: "Le boost n'a pas été activé.", variant: "destructive" });
+      toast({ title: t('partner_boost_toast_payment_cancelled_title'), description: t('partner_boost_toast_payment_cancelled_desc'), variant: "destructive" });
       window.history.replaceState({}, '', '/partner/boost');
     }
   }, [searchParams, partnerId, user]);
@@ -240,8 +244,8 @@ export default function PartnerBoostPage() {
     } catch (err: any) {
       console.error('[Boost]', err);
       toast({
-        title: "Erreur",
-        description: err.message || "Impossible de lancer le paiement.",
+        title: t('partner_boost_error'),
+        description: err.message || t('partner_boost_payment_failed'),
         variant: "destructive",
       });
       setIsLoading(false);
@@ -276,33 +280,33 @@ export default function PartnerBoostPage() {
       if (!res.ok) {
         if (data.error === 'insufficient-credits') {
           toast({
-            title: 'Solde insuffisant',
-            description: `Tu as ${data.have} crédits, il en faut ${data.need}.`,
+            title: t('partner_boost_toast_insufficient_title'),
+            description: t('partner_boost_toast_insufficient_desc', { have: data.have, need: data.need }),
             variant: 'destructive',
           });
         } else if (data.error === 'already-boosted') {
           toast({
-            title: 'Boost déjà actif',
-            description: data.detail || 'Attends son expiration avant d\'en activer un autre.',
+            title: t('partner_boost_toast_already_title'),
+            description: data.detail || t('partner_boost_toast_already_desc'),
             variant: 'destructive',
           });
         } else {
-          throw new Error(data.detail || data.error || 'Erreur inconnue');
+          throw new Error(data.detail || data.error || t('partner_boost_unknown_error'));
         }
         setIsLoading(false);
         return;
       }
       toast({
-        title: 'Boost activé !',
-        description: `Solde restant : ${data.creditsRemaining} crédits.`,
+        title: t('partner_boost_toast_activated_excl'),
+        description: t('partner_boost_toast_remaining', { remaining: data.creditsRemaining }),
         className: 'bg-zinc-900 border-accent/40 text-white',
       });
       setPaymentStatus('success');
     } catch (err: any) {
       console.error('[BoostCredits]', err);
       toast({
-        title: 'Erreur',
-        description: err.message || 'Impossible d\'activer le boost.',
+        title: t('partner_boost_error'),
+        description: err.message || t('partner_boost_activate_failed'),
         variant: 'destructive',
       });
       setIsLoading(false);
@@ -327,13 +331,13 @@ export default function PartnerBoostPage() {
           <div className="w-20 h-20 rounded-full bg-green-500/10 border border-green-500/20 flex items-center justify-center mb-6">
             <CheckCircle className="h-10 w-10 text-green-400" />
           </div>
-          <h2 className="text-2xl font-extralight text-white mb-2">Boost activé !</h2>
-          <p className="text-white/40 font-light mb-8">Votre visibilité est maintenant boostée. Les utilisateurs verront votre offre en priorité.</p>
+          <h2 className="text-2xl font-extralight text-white mb-2">{t('partner_boost_success_title')}</h2>
+          <p className="text-white/40 font-light mb-8">{t('partner_boost_success_desc')}</p>
           <Button
             onClick={() => setPaymentStatus(null)}
             className="bg-accent hover:bg-accent/80 text-white rounded-full h-12 px-8 font-light"
           >
-            Configurer un autre boost
+            {t('partner_boost_success_cta')}
           </Button>
         </div>
       </div>
@@ -349,11 +353,11 @@ export default function PartnerBoostPage() {
             <Rocket className="h-5 w-5 text-accent" />
           </div>
           <h1 className="text-2xl md:text-3xl font-extralight tracking-tight">
-            Booster ma visibilité
+            {t('partner_boost_header_title')}
           </h1>
         </div>
         <p className="text-white/40 font-light mt-1">
-          Mettez vos offres en avant auprès des utilisateurs qui matchent.
+          {t('partner_boost_header_subtitle')}
         </p>
       </div>
 
@@ -361,7 +365,7 @@ export default function PartnerBoostPage() {
       {paymentStatus === 'cancel' && (
         <div className="flex items-center gap-3 p-4 bg-red-500/5 border border-red-500/10 rounded-xl">
           <XCircle className="h-5 w-5 text-red-400 flex-shrink-0" />
-          <p className="text-sm text-red-400/80 font-light">Le paiement a été annulé. Vous pouvez réessayer quand vous voulez.</p>
+          <p className="text-sm text-red-400/80 font-light">{t('partner_boost_cancel_banner')}</p>
           <button onClick={() => setPaymentStatus(null)} className="text-xs text-white/30 hover:text-white/60 ml-auto">✕</button>
         </div>
       )}
@@ -372,7 +376,7 @@ export default function PartnerBoostPage() {
         <div className="md:col-span-3 space-y-6">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-6">
             <h3 className="text-sm text-accent uppercase tracking-[0.2em] font-light">
-              Configurer votre Boost
+              {t('partner_boost_configure_title')}
             </h3>
 
             {/* BUG #69 — Activity selector. Le partenaire DOIT choisir QUELLE
@@ -382,16 +386,16 @@ export default function PartnerBoostPage() {
                 htmlFor="boost-activity-select"
                 className="text-xs text-white/30 uppercase tracking-wider font-light flex items-center gap-1.5"
               >
-                <ListChecks className="h-3 w-3" /> Activité à booster
+                <ListChecks className="h-3 w-3" /> {t('partner_boost_activity_label')}
               </label>
               {partnerActivities.length === 0 ? (
                 <div className="rounded-xl border border-amber-400/30 bg-amber-500/[0.05] p-4">
                   <p className="text-sm text-amber-300/90 font-light">
-                    Aucune activité active. Crée d&apos;abord une activité dans{' '}
+                    {t('partner_boost_no_activities_pre')}{' '}
                     <a href="/partner/offers" className="text-accent underline">
-                      Mes Offres
+                      {t('partner_boost_no_activities_link')}
                     </a>
-                    {' '}avant de pouvoir la booster.
+                    {' '}{t('partner_boost_no_activities_post')}
                   </p>
                 </div>
               ) : (
@@ -401,7 +405,7 @@ export default function PartnerBoostPage() {
                   onChange={(e) => setSelectedActivityId(e.target.value)}
                   className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-3 text-sm font-light focus:outline-none focus:border-accent/40"
                 >
-                  <option value="">— Choisis l&apos;activité —</option>
+                  <option value="">{t('partner_boost_activity_choose_option')}</option>
                   {partnerActivities.map((a) => (
                     <option key={a.id} value={a.id}>
                       {a.name}
@@ -416,7 +420,7 @@ export default function PartnerBoostPage() {
             {/* Location selection */}
             <div className="space-y-3">
               <label className="text-xs text-white/30 uppercase tracking-wider font-light flex items-center gap-1.5">
-                <MapPin className="h-3 w-3" /> Ville ciblée
+                <MapPin className="h-3 w-3" /> {t('partner_boost_target_city_label')}
               </label>
 
               {selectedCity && (
@@ -429,7 +433,7 @@ export default function PartnerBoostPage() {
                     onClick={resetLocation}
                     className="text-xs text-white/30 hover:text-white/60 underline font-light transition"
                   >
-                    Changer
+                    {t('partner_boost_change_btn')}
                   </button>
                 </div>
               )}
@@ -441,14 +445,14 @@ export default function PartnerBoostPage() {
                     className="flex items-center justify-center gap-2 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white/70 transition"
                   >
                     <span className="text-lg">🇨🇭</span>
-                    <span className="text-sm font-light">Suisse</span>
+                    <span className="text-sm font-light">{t('partner_boost_swiss')}</span>
                   </button>
                   <button
                     onClick={() => setLocationMode('international-country')}
                     className="flex items-center justify-center gap-2 p-4 rounded-xl border border-white/5 bg-white/5 hover:bg-white/10 text-white/50 hover:text-white/70 transition"
                   >
                     <Globe className="h-5 w-5" />
-                    <span className="text-sm font-light">International</span>
+                    <span className="text-sm font-light">{t('partner_boost_international')}</span>
                   </button>
                 </div>
               )}
@@ -459,7 +463,7 @@ export default function PartnerBoostPage() {
                     onClick={() => setLocationMode('choose')}
                     className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 font-light transition"
                   >
-                    <ChevronLeft className="h-3 w-3" /> Retour
+                    <ChevronLeft className="h-3 w-3" /> {t('partner_boost_back')}
                   </button>
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {SWISS_CITIES.map(city => (
@@ -481,7 +485,7 @@ export default function PartnerBoostPage() {
                     onClick={() => setLocationMode('choose')}
                     className="flex items-center gap-1 text-xs text-white/30 hover:text-white/60 font-light transition"
                   >
-                    <ChevronLeft className="h-3 w-3" /> Retour
+                    <ChevronLeft className="h-3 w-3" /> {t('partner_boost_back')}
                   </button>
                   <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                     {Object.keys(INTERNATIONAL_COUNTRIES).map(country => (
@@ -526,7 +530,7 @@ export default function PartnerBoostPage() {
             {/* Duration selection */}
             <div className="space-y-3">
               <label className="text-xs text-white/30 uppercase tracking-wider font-light flex items-center gap-1.5">
-                <Clock className="h-3 w-3" /> Durée du boost
+                <Clock className="h-3 w-3" /> {t('partner_boost_duration_label')}
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 {durations.map(d => (
@@ -540,7 +544,7 @@ export default function PartnerBoostPage() {
                     }`}
                   >
                     <p className={`text-sm font-light ${selectedDuration === d.value ? 'text-accent' : 'text-white/50'}`}>
-                      {d.label}
+                      {t(d.labelKey)}
                     </p>
                     <p className={`text-2xl font-extralight mt-1 ${selectedDuration === d.value ? 'text-white' : 'text-white/30'}`}>
                       {d.price} <span className="text-xs">CHF</span>
@@ -553,9 +557,9 @@ export default function PartnerBoostPage() {
             {/* Phase 9.5 c29b BUG FF — Méthode de paiement (Stripe ou Crédits Spordate) */}
             <div className="border-t border-white/5 pt-6 space-y-3">
               <label className="text-xs text-white/30 uppercase tracking-wider font-light">
-                Méthode de paiement
+                {t('partner_boost_payment_method_label')}
               </label>
-              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Méthode de paiement">
+              <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('partner_boost_payment_method_label')}>
                 <button
                   type="button"
                   role="radio"
@@ -568,7 +572,7 @@ export default function PartnerBoostPage() {
                   }`}
                 >
                   <CreditCard className="h-4 w-4" />
-                  Carte / TWINT
+                  {t('partner_boost_pay_card')}
                 </button>
                 <button
                   type="button"
@@ -582,12 +586,12 @@ export default function PartnerBoostPage() {
                   }`}
                 >
                   <Coins className="h-4 w-4" />
-                  Crédits Spordateur
+                  {t('partner_boost_pay_credits')}
                 </button>
               </div>
               {paymentMethod === 'credits' && (
                 <p className="text-[11px] text-white/40 font-light pl-1">
-                  Solde : <span className="text-white">{credits}</span> crédits
+                  {t('partner_boost_balance_label')} <span className="text-white">{credits}</span> {t('partner_boost_credits_unit')}
                 </p>
               )}
             </div>
@@ -597,7 +601,7 @@ export default function PartnerBoostPage() {
               {paymentMethod === 'stripe' ? (
                 <>
                   <div className="flex items-center justify-between">
-                    <span className="text-white/40 font-light">Prix du boost</span>
+                    <span className="text-white/40 font-light">{t('partner_boost_price_label')}</span>
                     <span className="text-3xl font-extralight text-white">
                       {currentPrice} <span className="text-sm text-white/30">CHF</span>
                     </span>
@@ -612,9 +616,9 @@ export default function PartnerBoostPage() {
                     }`}
                   >
                     {isLoading ? (
-                      <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Redirection vers Stripe...</>
+                      <><Loader2 className="animate-spin mr-2 h-5 w-5" /> {t('partner_boost_stripe_redirect')}</>
                     ) : (
-                      <><Zap className="mr-2 h-5 w-5" /> Payer et activer</>
+                      <><Zap className="mr-2 h-5 w-5" /> {t('partner_boost_pay_and_activate')}</>
                     )}
                   </Button>
                   {/* Phase 9.5 c32 — raison contextuelle si bouton désactivé */}
@@ -624,16 +628,16 @@ export default function PartnerBoostPage() {
                     </p>
                   )}
                   <p className="mt-3 text-center text-[11px] text-zinc-500">
-                    Visa · Mastercard · TWINT
+                    {t('partner_boost_pay_brands')}
                   </p>
                 </>
               ) : (
                 <>
                   <div className="flex items-center justify-between">
-                    <span className="text-white/40 font-light">Coût en crédits</span>
+                    <span className="text-white/40 font-light">{t('partner_boost_credits_cost_label')}</span>
                     <div className="text-right">
                       <span className="text-3xl font-extralight text-white">
-                        {currentCreditCost} <span className="text-sm text-white/30">crédits</span>
+                        {currentCreditCost} <span className="text-sm text-white/30">{t('partner_boost_credits_unit')}</span>
                       </span>
                       <p className="text-[11px] text-white/30 font-light mt-0.5">
                         ≈ {(currentCreditCost * CHF_PER_CREDIT).toFixed(2)} CHF
@@ -645,7 +649,7 @@ export default function PartnerBoostPage() {
                       onClick={() => router.push('/payment')}
                       className="w-full rounded-full h-14 text-base font-semibold bg-white/5 hover:bg-white/10 text-white/60 border border-white/10"
                     >
-                      Solde insuffisant — Recharger
+                      {t('partner_boost_recharge_cta')}
                     </Button>
                   ) : (
                     <Button
@@ -658,9 +662,9 @@ export default function PartnerBoostPage() {
                       }`}
                     >
                       {isLoading ? (
-                        <><Loader2 className="animate-spin mr-2 h-5 w-5" /> Activation...</>
+                        <><Loader2 className="animate-spin mr-2 h-5 w-5" /> {t('partner_boost_activating')}</>
                       ) : (
-                        <><Coins className="mr-2 h-5 w-5" /> Activer avec mes crédits</>
+                        <><Coins className="mr-2 h-5 w-5" /> {t('partner_boost_activate_with_credits')}</>
                       )}
                     </Button>
                   )}
@@ -674,7 +678,7 @@ export default function PartnerBoostPage() {
                     </p>
                   )}
                   <p className="mt-3 text-center text-[11px] text-zinc-500">
-                    Débit instantané · pas de redirection
+                    {t('partner_boost_instant_debit')}
                   </p>
                 </>
               )}
@@ -686,11 +690,10 @@ export default function PartnerBoostPage() {
         <div className="md:col-span-2 space-y-6">
           <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-5">
             <h3 className="text-sm text-accent uppercase tracking-[0.2em] font-light">
-              Comment ça marche ?
+              {t('partner_boost_how_title')}
             </h3>
             <p className="text-white/40 font-light text-sm leading-relaxed">
-              Un Boost place votre activité dans la fenêtre &quot;IT&apos;S A MATCH&quot; des utilisateurs
-              qui correspondent à votre offre. C&apos;est le meilleur moyen de transformer un match en réservation.
+              {t('partner_boost_how_desc')}
             </p>
 
             <div className="space-y-4 pt-2">
@@ -699,8 +702,8 @@ export default function PartnerBoostPage() {
                   <Eye className="h-4 w-4 text-accent" />
                 </div>
                 <div>
-                  <p className="text-sm text-white/70 font-light">Visibilité x10</p>
-                  <p className="text-xs text-white/30 font-light">Apparaissez en priorité dans les résultats</p>
+                  <p className="text-sm text-white/70 font-light">{t('partner_boost_feat_visibility_title')}</p>
+                  <p className="text-xs text-white/30 font-light">{t('partner_boost_feat_visibility_desc')}</p>
                 </div>
               </div>
 
@@ -709,8 +712,8 @@ export default function PartnerBoostPage() {
                   <MapPin className="h-4 w-4 text-accent" />
                 </div>
                 <div>
-                  <p className="text-sm text-white/70 font-light">Ciblage précis</p>
-                  <p className="text-xs text-white/30 font-light">Touchez les utilisateurs de votre ville</p>
+                  <p className="text-sm text-white/70 font-light">{t('partner_boost_feat_targeting_title')}</p>
+                  <p className="text-xs text-white/30 font-light">{t('partner_boost_feat_targeting_desc')}</p>
                 </div>
               </div>
 
@@ -719,8 +722,8 @@ export default function PartnerBoostPage() {
                   <Users className="h-4 w-4 text-accent" />
                 </div>
                 <div>
-                  <p className="text-sm text-white/70 font-light">Badge &quot;Recommandé&quot;</p>
-                  <p className="text-xs text-white/30 font-light">Votre offre se démarque visuellement</p>
+                  <p className="text-sm text-white/70 font-light">{t('partner_boost_feat_badge_title')}</p>
+                  <p className="text-xs text-white/30 font-light">{t('partner_boost_feat_badge_desc')}</p>
                 </div>
               </div>
 
@@ -729,8 +732,8 @@ export default function PartnerBoostPage() {
                   <TrendingUp className="h-4 w-4 text-accent" />
                 </div>
                 <div>
-                  <p className="text-sm text-white/70 font-light">Plus de réservations</p>
-                  <p className="text-xs text-white/30 font-light">Convertissez les matchs en clients</p>
+                  <p className="text-sm text-white/70 font-light">{t('partner_boost_feat_bookings_title')}</p>
+                  <p className="text-xs text-white/30 font-light">{t('partner_boost_feat_bookings_desc')}</p>
                 </div>
               </div>
             </div>
@@ -738,26 +741,27 @@ export default function PartnerBoostPage() {
 
           {/* Active boosts */}
           <div className="bg-white/5 border border-white/10 rounded-2xl p-6">
-            <h3 className="text-sm text-white/30 uppercase tracking-wider font-light mb-4">Boosts actifs</h3>
+            <h3 className="text-sm text-white/30 uppercase tracking-wider font-light mb-4">{t('partner_boost_active_title')}</h3>
             {activeBoosts.length > 0 ? (
               <div className="space-y-3">
                 {activeBoosts.map(b => {
                   // BUG #69 — Map activityId → nom (résolu via partnerActivities chargées au mount).
                   // Si activityId absent (boost legacy avant fix #69) → label spécifique.
                   const actName = b.activityId
-                    ? partnerActivities.find(a => a.id === b.activityId)?.name || 'Activité supprimée'
-                    : 'Toutes les activités (legacy)';
+                    ? partnerActivities.find(a => a.id === b.activityId)?.name || t('partner_boost_deleted_activity')
+                    : t('partner_boost_all_activities_legacy');
+                  const matchedDuration = durations.find(d => d.value === b.duration);
                   return (
                     <div key={b.id} className="flex items-center gap-3 p-3 bg-accent/5 border border-accent/10 rounded-xl">
                       <Zap className="h-4 w-4 text-accent flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-white/80 font-light truncate" title={actName}>{actName}</p>
                         <p className="text-xs text-white/50 font-light">
-                          {b.city} · {durations.find(d => d.value === b.duration)?.label || b.duration}
+                          {b.city} · {matchedDuration ? t(matchedDuration.labelKey) : b.duration}
                         </p>
                         {b.expiresAt && (
                           <p className="text-[10px] text-white/30 font-light">
-                            Expire {new Date(b.expiresAt.seconds ? b.expiresAt.seconds * 1000 : b.expiresAt).toLocaleDateString('fr-CH')}
+                            {t('partner_boost_expire_prefix')} {new Date(b.expiresAt.seconds ? b.expiresAt.seconds * 1000 : b.expiresAt).toLocaleDateString('fr-CH')}
                           </p>
                         )}
                       </div>
@@ -771,7 +775,7 @@ export default function PartnerBoostPage() {
                 <div className="w-12 h-12 rounded-full bg-white/5 border border-white/5 flex items-center justify-center mb-3">
                   <Rocket className="h-5 w-5 text-white/15" />
                 </div>
-                <p className="text-white/25 font-light text-sm">Aucun boost actif</p>
+                <p className="text-white/25 font-light text-sm">{t('partner_boost_no_active')}</p>
               </div>
             )}
           </div>

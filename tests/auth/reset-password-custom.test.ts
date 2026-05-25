@@ -39,9 +39,9 @@ const mockAdminAuth = {
   },
   getUserByEmail: async (email: string) => {
     if (email === 'displayname@test.local') {
-      return { displayName: 'Marie Test' };
+      return { displayName: 'Marie Test', uid: 'uid_displayname' };
     }
-    return { displayName: null };
+    return { displayName: null, uid: `uid_${email}` };
   },
 };
 

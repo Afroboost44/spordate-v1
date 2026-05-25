@@ -138,7 +138,8 @@ async function processBatch(opts: ProcessBatchOptions): Promise<BatchResult> {
           }
         }
 
-        const userEmail = userSnap.data()?.email as string | undefined;
+        const userData = userSnap.data();
+        const userEmail = userData?.email as string | undefined;
         if (!userEmail) {
           if (!opts.dryRun) {
             await bdoc.ref.update({ [opts.flagField]: true });
@@ -146,11 +147,16 @@ async function processBatch(opts: ProcessBatchOptions): Promise<BatchResult> {
           skipped++;
           continue;
         }
-        const userName = (userSnap.data()?.displayName as string | undefined) || '';
+        const userName = (userData?.displayName as string | undefined) || '';
+        // Fix #156/#157 i18n — détermine la langue depuis le snapshot user déjà lu
+        const { pickUserLang } = await import('@/lib/i18n/getUserLang');
+        const userLang = pickUserLang(userData);
+        const sessionFallback = userLang === 'en' ? 'your session' : userLang === 'de' ? 'deine Session' : 'ta session';
+        const partnerFallback = userLang === 'en' ? 'the partner' : userLang === 'de' ? 'der/die Partner:in' : 'le partenaire';
         const activityTitle =
-          (activitySnap?.data()?.title as string | undefined) || booking.sport || 'ta session';
+          (activitySnap?.data()?.title as string | undefined) || booking.sport || sessionFallback;
         const partnerName =
-          (partnerSnap?.data()?.displayName as string | undefined) || 'le partenaire';
+          (partnerSnap?.data()?.displayName as string | undefined) || partnerFallback;
         const sessionAddress =
           (activitySnap?.data()?.address as string | undefined) ||
           (activitySnap?.data()?.city as string | undefined) ||
@@ -159,7 +165,7 @@ async function processBatch(opts: ProcessBatchOptions): Promise<BatchResult> {
         const sessionLink = booking.sessionId
           ? `${baseUrl}/sessions/${booking.sessionId}`
           : `${baseUrl}/dashboard`;
-        const sessionDateStr = formatSessionDateFR(booking.sessionDate);
+        const sessionDateStr = formatSessionDateByLang(booking.sessionDate, userLang);
 
         if (!opts.dryRun) {
           // Phase 9 SC3 c2/5 — push-first, email-fallback (Q3=B)
@@ -194,7 +200,7 @@ async function processBatch(opts: ProcessBatchOptions): Promise<BatchResult> {
             }
           }
           if (!pushDelivered) {
-            // Fallback email (legacy comportement)
+            // Fallback email (legacy comportement) — i18n propagé via userLang
             await sendEmail({
               to: userEmail,
               templateName: opts.templateName,
@@ -206,6 +212,7 @@ async function processBatch(opts: ProcessBatchOptions): Promise<BatchResult> {
                 sessionAddress,
                 sessionLink,
               },
+              lang: userLang,
             });
           }
           // Flag idempotency (cohérent SC5 c2/5 — anti-double-reminder même si fail)
@@ -232,13 +239,31 @@ async function processBatch(opts: ProcessBatchOptions): Promise<BatchResult> {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function formatSessionDateFR(ts: any): string {
+  return formatSessionDateByLang(ts, 'fr');
+}
+
+/** Fix #156/#157 i18n — variante localisée (fr|en|de) du format date courte cohérent SuggestionMessage. */
+function formatSessionDateByLang(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  ts: any,
+  lang: 'fr' | 'en' | 'de',
+): string {
   if (!ts || typeof ts.toMillis !== 'function') return '';
   const date = new Date(ts.toMillis());
-  const days = ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'];
-  const months = ['jan', 'fév', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'];
+  const dictDays: Record<'fr' | 'en' | 'de', string[]> = {
+    fr: ['Dim', 'Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam'],
+    en: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    de: ['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'],
+  };
+  const dictMonths: Record<'fr' | 'en' | 'de', string[]> = {
+    fr: ['jan', 'fév', 'mars', 'avr', 'mai', 'juin', 'juil', 'août', 'sept', 'oct', 'nov', 'déc'],
+    en: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'],
+    de: ['Jan', 'Feb', 'März', 'Apr', 'Mai', 'Juni', 'Juli', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'],
+  };
   const hours = date.getHours().toString().padStart(2, '0');
   const minutes = date.getMinutes().toString().padStart(2, '0');
-  return `${days[date.getDay()]} ${date.getDate()} ${months[date.getMonth()]} · ${hours}h${minutes !== '00' ? minutes : ''}`;
+  const sep = lang === 'fr' ? 'h' : ':';
+  return `${dictDays[lang][date.getDay()]} ${date.getDate()} ${dictMonths[lang][date.getMonth()]} · ${hours}${sep}${minutes !== '00' ? minutes : (lang === 'fr' ? '' : '00')}`;
 }
 
 export async function POST(req: NextRequest) {

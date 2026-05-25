@@ -2,10 +2,12 @@
  * BUG #116 — Helper "fire-and-forget" pour notifier un utilisateur côté serveur.
  *
  * Pipeline :
- *   1. Lit users/{uid}.fcmToken + pushNotificationsEnabled depuis Firestore Admin
+ *   1. Lit users/{uid}.fcmToken + pushNotificationsEnabled + language depuis Firestore Admin
  *   2. Skip si toggle off ou pas de token
- *   3. Appelle sendPushNotification (FCM)
- *   4. Cleanup automatique si token-not-registered/token-invalid (deleteField)
+ *   3. Si messageKey fourni → traduit via tPush(lang, key, params) en utilisant
+ *      la `language` lue depuis le user doc (fallback 'fr')
+ *   4. Appelle sendPushNotification (FCM)
+ *   5. Cleanup automatique si token-not-registered/token-invalid (deleteField)
  *
  * Best-effort : ne throw JAMAIS, retourne juste un résultat. Les appelants
  * (match mutual, chat send, booking webhook, etc.) peuvent appeler en
@@ -17,19 +19,44 @@
  *   - Like reçu
  *   - Activity invite reçue
  *   - Booking confirmé (déjà fait via webhook Stripe, à compléter)
+ *
+ * Fix Push i18n — Deux signatures supportées :
+ *   1. Legacy (title/body fournis directement, pas de traduction) :
+ *        notifyUser({ uid, title: '...', body: '...' })
+ *   2. Recommandée (messageKey + params, traduit selon users.language) :
+ *        notifyUser({ uid, messageKey: 'chat_new_message', params: { senderName, preview } })
  */
 
 import { sendPushNotification } from './sendPushNotification';
+import { coerceLang, tPush, type MessageKey } from '@/lib/i18n/serverTranslations';
 
-interface NotifyUserOptions {
+interface NotifyUserOptionsBase {
   uid: string;
-  title: string;
-  body: string;
   /** URL de redirection au click sur la notif (relatif ou absolu). */
   clickUrl?: string;
   /** Data custom (chatId, matchId, etc.) accessible dans le SW background handler. */
   data?: Record<string, string>;
 }
+
+interface NotifyUserOptionsLegacy extends NotifyUserOptionsBase {
+  /** Mode legacy : titre brut (pas traduit). */
+  title: string;
+  /** Mode legacy : body brut (pas traduit). */
+  body: string;
+  messageKey?: never;
+  params?: never;
+}
+
+interface NotifyUserOptionsI18n extends NotifyUserOptionsBase {
+  /** Mode i18n : clé de message, traduit selon users.language au moment de l'envoi. */
+  messageKey: MessageKey;
+  /** Params interpolés dans le template (ex: { senderName, preview }). */
+  params?: Record<string, string | number | undefined>;
+  title?: never;
+  body?: never;
+}
+
+export type NotifyUserOptions = NotifyUserOptionsLegacy | NotifyUserOptionsI18n;
 
 interface NotifyUserResult {
   ok: boolean;
@@ -47,8 +74,15 @@ function getBaseUrl(): string {
 }
 
 export async function notifyUser(opts: NotifyUserOptions): Promise<NotifyUserResult> {
-  const { uid, title, body, clickUrl, data } = opts;
-  if (!uid || !title || !body) return { ok: false, reason: 'no-uid' };
+  const { uid, clickUrl, data } = opts;
+  if (!uid) return { ok: false, reason: 'no-uid' };
+
+  // Validation early : un seul mode doit être fourni.
+  const hasLegacy = typeof opts.title === 'string' && typeof opts.body === 'string';
+  const hasI18n = typeof opts.messageKey === 'string';
+  if (!hasLegacy && !hasI18n) {
+    return { ok: false, reason: 'no-uid', detail: 'missing title/body or messageKey' };
+  }
 
   try {
     // Lazy init Admin SDK (cohérent avec sendPushNotification.ts qui le fait déjà)
@@ -74,6 +108,21 @@ export async function notifyUser(opts: NotifyUserOptions): Promise<NotifyUserRes
     const enabled = data_.pushNotificationsEnabled !== false; // default true
     if (!token) return { ok: false, reason: 'no-token' };
     if (!enabled) return { ok: false, reason: 'opt-out' };
+
+    // Fix Push i18n — résolution title/body selon le mode.
+    let title: string;
+    let body: string;
+    if (hasI18n) {
+      const lang = coerceLang(data_.language);
+      const tpl = tPush(lang, opts.messageKey as MessageKey, opts.params);
+      title = tpl.title;
+      body = tpl.body;
+    } else {
+      title = opts.title as string;
+      body = opts.body as string;
+    }
+
+    if (!title || !body) return { ok: false, reason: 'no-uid', detail: 'empty title/body after render' };
 
     // Build absolute URL pour clickUrl (webpush fcm_options.link exige absolu)
     const fullClickUrl = clickUrl
@@ -107,7 +156,7 @@ export async function notifyUser(opts: NotifyUserOptions): Promise<NotifyUserRes
     return { ok: true };
   } catch (err) {
     const detail = err instanceof Error ? err.message : String(err);
-    console.warn('[notifyUser] error', { uid, title, detail });
+    console.warn('[notifyUser] error', { uid, detail });
     return { ok: false, reason: 'db-error', detail };
   }
 }

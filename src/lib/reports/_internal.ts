@@ -323,6 +323,9 @@ export async function isAdminRole(userId: string): Promise<boolean> {
 /**
  * Contexte minimal pour wirer sendEmail Phase 7 sub-chantier 3 commit 5/5.
  * Best-effort : tous les fetches try/catch, retournent valeurs par défaut si fail.
+ *
+ * Fix #156/#157 i18n : ajout `lang` pour propager la langue du destinataire
+ * (fr|en|de) jusqu'à `sendEmail()`. Default 'fr' si user introuvable / langue absente.
  */
 export interface ReportEmailContext {
   /** Email du user à notifier (null si introuvable, dans ce cas pas d'email envoyé). */
@@ -331,6 +334,8 @@ export interface ReportEmailContext {
   displayName: string;
   /** Titre activity associée (fallback ''). */
   sessionTitle: string;
+  /** Langue destinataire (default 'fr'). */
+  lang: 'fr' | 'en' | 'de';
 }
 
 export async function fetchReportEmailContext(opts: {
@@ -341,6 +346,7 @@ export async function fetchReportEmailContext(opts: {
   let email: string | null = null;
   let displayName = '';
   let sessionTitle = '';
+  let lang: 'fr' | 'en' | 'de' = 'fr';
 
   if (opts.userId) {
     try {
@@ -349,6 +355,8 @@ export async function fetchReportEmailContext(opts: {
         const data = userSnap.data() as UserProfile;
         email = data.email ?? null;
         displayName = data.displayName ?? '';
+        const rawLang = (data as { language?: string }).language;
+        if (rawLang === 'fr' || rawLang === 'en' || rawLang === 'de') lang = rawLang;
       }
     } catch (err) {
       console.warn('[fetchReportEmailContext] user fetch failed (non-blocking)', {
@@ -372,7 +380,7 @@ export async function fetchReportEmailContext(opts: {
     }
   }
 
-  return { email, displayName, sessionTitle };
+  return { email, displayName, sessionTitle, lang };
 }
 
 /**
@@ -389,6 +397,21 @@ export function formatDateFR(ts: Timestamp | undefined): string {
   });
 }
 
+/**
+ * Fix #156/#157 i18n — Format Timestamp → string localisé selon `lang`.
+ * Exemple FR : '12 mai 2026' ; EN : '12 May 2026' ; DE : '12. Mai 2026'.
+ */
+export function formatDateByLang(ts: Timestamp | undefined, lang: 'fr' | 'en' | 'de'): string {
+  if (!ts) return '';
+  const date = ts.toDate();
+  const localeMap = { fr: 'fr-CH', en: 'en-GB', de: 'de-CH' } as const;
+  return date.toLocaleDateString(localeMap[lang], {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
 /** Labels catégories pour template reportSubmitted (cohérent ReportUserDialog). */
 export const REPORT_CATEGORY_LABELS: Record<string, string> = {
   harassment_sexuel: 'Harcèlement sexuel',
@@ -397,6 +420,31 @@ export const REPORT_CATEGORY_LABELS: Record<string, string> = {
   substance_etat_problematique: 'Substances / état problématique',
   no_show: 'No-show',
   autre: 'Autre',
+};
+
+/**
+ * Fix #156/#157 i18n — labels catégories localisés (FR/EN/DE) pour le template
+ * reportSubmitted. Le label est passé en data au template, on le localise donc côté
+ * appelant en fonction de `ctx.lang`.
+ */
+export const REPORT_CATEGORY_LABELS_BY_LANG: Record<'fr' | 'en' | 'de', Record<string, string>> = {
+  fr: REPORT_CATEGORY_LABELS,
+  en: {
+    harassment_sexuel: 'Sexual harassment',
+    comportement_agressif: 'Aggressive behaviour',
+    fake_profile: 'Fake profile',
+    substance_etat_problematique: 'Substances / problematic state',
+    no_show: 'No-show',
+    autre: 'Other',
+  },
+  de: {
+    harassment_sexuel: 'Sexuelle Belästigung',
+    comportement_agressif: 'Aggressives Verhalten',
+    fake_profile: 'Fake-Profil',
+    substance_etat_problematique: 'Substanzen / problematischer Zustand',
+    no_show: 'No-Show',
+    autre: 'Anderes',
+  },
 };
 
 /** Email contact admin (cohérent doctrine §F + CGU). */

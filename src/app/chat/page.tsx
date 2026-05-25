@@ -14,6 +14,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { cn } from '@/lib/utils';
 import { AuthGuard } from '@/components/auth/AuthGuard';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { useCredits } from '@/hooks/useCredits';
 import BackButton from '@/components/BackButton';
 import { useToast } from "@/hooks/use-toast";
@@ -63,7 +64,7 @@ import { getBookingPriceCHF } from '@/lib/booking/price';
 import type { ActivityInviteMode } from '@/types/firestore';
 import { ReportButton } from '@/components/reports/ReportButton';
 import type { Match, ChatMessage, UserProfile } from '@/types/firestore';
-import { Timestamp, doc, getDoc } from 'firebase/firestore';
+import { Timestamp, doc, getDoc, onSnapshot } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 
 // ——— Types ———
@@ -286,6 +287,7 @@ function ChatWindow({
   const router = useRouter();
   const { toast } = useToast();
   const { user } = useAuth(); // BUG #36 C3 — pour getIdToken Mode Duo
+  const { t } = useLanguage();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [sending, setSending] = useState(false);
@@ -447,19 +449,17 @@ function ChatWindow({
       // 'no-future-session' = activité sans session programmée (cas edge race
       // condition après le pré-filtre du modal — défensif).
       const msg = err instanceof Error ? err.message : String(err);
-      let title = 'Erreur';
-      let description = "Impossible d'envoyer l'invitation. Réessaie.";
+      let title = t('common_error');
+      let description = t('chat_invite_send_error');
       if (msg === 'no-future-session') {
-        title = 'Pas de session future';
-        description =
-          "Cette activité n'a plus de session prévue. Demande au partenaire d'en programmer une nouvelle.";
+        title = t('chat_no_future_session_title');
+        description = t('chat_no_future_session_desc');
       } else if (msg === 'session-not-bookable') {
-        title = 'Session non réservable';
-        description =
-          "La prochaine session est complète ou annulée. Choisis une autre activité.";
+        title = t('chat_session_not_bookable_title');
+        description = t('chat_session_not_bookable_desc');
       } else if (msg === 'session-no-pricing') {
-        title = 'Tarification manquante';
-        description = "Cette activité n'a pas de tarification configurée.";
+        title = t('chat_no_pricing_title');
+        description = t('chat_no_pricing_desc');
       }
       toast({
         title,
@@ -690,7 +690,7 @@ function ChatWindow({
         {!isLocked && (
           <Link
             href="/payment"
-            title="1 crédit consommé par message texte. Top-up via /payment."
+            title={t('chat_message_cost_title')}
             className={cn(
               'flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-light flex-shrink-0 transition-colors',
               insufficientCredits
@@ -801,7 +801,7 @@ function ChatWindow({
             <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center mx-auto mb-5">
               <Lock className="h-7 w-7 text-gray-600" />
             </div>
-            <h3 className="text-lg text-white font-light mb-2">Chat verrouillé</h3>
+            <h3 className="text-lg text-white font-light mb-2">{t('chat_locked')}</h3>
             <p className="text-sm text-gray-500 font-light mb-6">
               Réservez une activité avec {otherUser.displayName} pour débloquer la conversation.
             </p>
@@ -948,7 +948,7 @@ function ChatWindow({
                 variant="outline"
                 onClick={handleOpenActivitySelector}
                 disabled={sending || sendingInvite}
-                aria-label="Inviter à une activité"
+                aria-label={t('chat_invite_to_activity_aria')}
                 className="h-10 w-10 rounded-xl bg-zinc-900 border-zinc-800 text-accent hover:bg-accent/10 hover:border-accent/40 disabled:opacity-50 flex-shrink-0"
               >
                 <Calendar className="h-4 w-4" />
@@ -1028,12 +1028,14 @@ function ChatWindow({
 
 // ——— Empty State (no conversation selected) ———
 function EmptyChat() {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { t } = useLanguage();
   return (
     <div className="flex flex-col items-center justify-center h-full text-center px-6">
       <div className="w-16 h-16 rounded-full bg-zinc-900 flex items-center justify-center mb-5">
         <MessageCircle className="h-7 w-7 text-gray-700" />
       </div>
-      <p className="text-gray-400 font-light">Sélectionnez une conversation</p>
+      <p className="text-gray-400 font-light">{t('chat_select_conversation')}</p>
       <p className="text-sm text-gray-600 font-light mt-1">
         Choisissez un match pour commencer à discuter
       </p>
@@ -1056,6 +1058,7 @@ function ChatPageContent() {
   // Mobile: show list or chat
   const [showMobileChat, setShowMobileChat] = useState(false);
 
+  const { t } = useLanguage();
   const currentUserId = user?.uid || '';
 
   // Handle post-payment redirect: auto-select the match and unlock chat
@@ -1217,6 +1220,116 @@ function ChatPageContent() {
   useEffect(() => {
     loadConversations();
   }, [currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fix #147 — Realtime subscription sur matches.
+  // Avant : loadConversations() (getDocs one-shot) ne tournait qu'à mount.
+  //         Si A créait un match avec B pendant que B était sur /chat, B voyait
+  //         "Pas encore de conversation" jusqu'au refresh manuel.
+  // Maintenant : onSnapshot sur la collection matches où userIds array-contains B.
+  //              Tout nouveau match (mutual ou direct-paid) ou tout match passant
+  //              chatUnlocked false→true déclenche un re-render IMMÉDIAT chez B.
+  // Anti-régression : préserve loadConversations() au mount initial pour le 1er
+  // remplissage (notamment lecture chats/{matchId}.lastMessage + unreadCount qui
+  // ne sont pas dans le doc match). L'onSnapshot ne fait que TRIGGER une
+  // re-fetch quand la liste de matches change — il ne remplace pas loadConversations.
+  useEffect(() => {
+    if (!currentUserId || !db) return;
+    let cancelled = false;
+    let unsubscribe: (() => void) | null = null;
+    (async () => {
+      try {
+        const { collection, query, where, onSnapshot: onSnap } = await import('firebase/firestore');
+        if (cancelled || !db) return;
+        const q = query(
+          collection(db, 'matches'),
+          where('userIds', 'array-contains', currentUserId),
+        );
+        let firstSnapshotSkipped = false;
+        unsubscribe = onSnap(
+          q,
+          () => {
+            // On skip le tout 1er snapshot (initial fetch déjà couvert par
+            // loadConversations()). Les suivants = updates → re-fetch list.
+            if (!firstSnapshotSkipped) {
+              firstSnapshotSkipped = true;
+              return;
+            }
+            loadConversations();
+          },
+          (err) => {
+            // Silent : si rules block ou index manquant, on garde le comportement
+            // initial (getDocs one-shot) sans casser l'UX.
+            console.warn('[Chat] realtime matches subscription error (silent)', err);
+          },
+        );
+      } catch (err) {
+        console.warn('[Chat] realtime matches setup failed (silent)', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (unsubscribe) unsubscribe();
+    };
+  }, [currentUserId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Fix #136 — Subscriptions onSnapshot temps réel sur chaque chat doc.
+  // Quand l'autre user envoie un message pendant que je suis sur la liste,
+  // le badge unread + lastMessage + lastMessageAt apparaissent INSTANTANÉMENT
+  // sans avoir à refresh la page. Charte UX Tinder/Bumble/WhatsApp.
+  useEffect(() => {
+    if (!currentUserId || !db || conversations.length === 0) return;
+
+    const unsubscribes: Array<() => void> = [];
+    for (const conv of conversations) {
+      const matchId = conv.match.matchId;
+      try {
+        const unsub = onSnapshot(
+          doc(db, 'chats', matchId),
+          (snap) => {
+            if (!snap.exists()) return;
+            const chatData = snap.data();
+            const unreadMap = chatData.unreadCount as Record<string, number> | undefined;
+            const newUnread = unreadMap?.[currentUserId] ?? 0;
+            const newLastMessage = (chatData.lastMessage as string | undefined) ?? '';
+            const lastTs = chatData.lastMessageAt;
+            const newLastMessageAt =
+              lastTs instanceof Timestamp ? lastTs.toDate() : conv.lastMessageAt;
+
+            // Update conversation in state if anything changed
+            setConversations((prev) =>
+              prev.map((c) =>
+                c.match.matchId === matchId
+                  ? {
+                      ...c,
+                      unreadCount: newUnread,
+                      lastMessage: newLastMessage,
+                      lastMessageAt: newLastMessageAt,
+                    }
+                  : c,
+              ),
+            );
+          },
+          (err) => {
+            console.warn('[Chat] onSnapshot chat error (silent)', { matchId, err });
+          },
+        );
+        unsubscribes.push(unsub);
+      } catch (err) {
+        console.warn('[Chat] subscription setup failed (silent)', { matchId, err });
+      }
+    }
+
+    return () => {
+      unsubscribes.forEach((unsub) => {
+        try {
+          unsub();
+        } catch (err) {
+          console.warn('[Chat] unsub error (silent)', err);
+        }
+      });
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentUserId, conversations.length]);
 
   const selectedConvo = conversations.find((c) => c.match.matchId === selectedMatchId);
 

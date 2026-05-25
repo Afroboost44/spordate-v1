@@ -99,29 +99,181 @@ function resizeToSquare(
 }
 
 /**
- * Convertit une image en monochrome blanc (silhouette).
- * Pour chaque pixel : si alpha > 128 alors RGB=(255,255,255) alpha=255, sinon transparent.
- * Approximation : ne preserve pas les nuances. Si l'admin veut un vrai monochrome
- * propre, il peut le téléverser manuellement plus tard (override).
+ * Convertit une image en monochrome blanc (silhouette pour Android adaptive icon).
+ *
+ * Fix #146 / #148 / #150 — Algorithme universel basé sur l'histogramme.
+ *
+ * Stratégie (3 phases) :
+ *  1. Si une majorité significative de pixels est transparente (alpha<128) :
+ *     mode TRANSPARENCE → silhouette = pixels alpha>128 → blanc, sinon
+ *     transparent. (logo isolé sur fond transparent.)
+ *
+ *  2. Sinon (image globalement opaque) → mode HISTOGRAMME :
+ *     - On quantifie chaque pixel sur 16 niveaux par canal (4096 buckets).
+ *     - La couleur la plus fréquente = couleur de fond (par construction :
+ *       un logo a beaucoup plus de pixels de fond que de logo).
+ *     - On classe chaque pixel selon sa distance Euclidienne au fond.
+ *       Distance > seuil → logo (blanc). Sinon → fond (transparent).
+ *
+ *  Pourquoi l'histogramme bat l'échantillonnage coins :
+ *   - Indépendant de la composition (logo qui touche un coin, anti-aliasing,
+ *     gradients de bord… : tout est neutralisé puisqu'on regarde la TOTALITÉ
+ *     des pixels et qu'on prend le mode statistique).
+ *   - Fonctionne sur fond noir, blanc, gris, coloré, et même semi-transparent
+ *     opaque (cas où alpha n'est pas strictement 255 partout).
+ *   - Pas de carré blanc plein : si tout est de la même couleur, le mode est
+ *     unique → distance=0 → tout transparent → silhouette vide (correct).
  */
+// Fix #154 — Filet de sécurité : seuil maximum de pixels "logo" acceptable.
+// Un logo normal occupe 20-50% de la surface ; au-delà de 80%, l'algorithme
+// s'est trompé sur la détection du fond (= carré quasi plein cassé).
+const MAX_LOGO_RATIO = 0.8;
+
+/**
+ * Applique un mode donné (alpha ou distance) au data array. Retourne le
+ * ratio de pixels devenus blancs (= % "logo") pour permettre au caller
+ * de juger si le résultat est cohérent.
+ */
+function applyMonochromeMode(
+  data: Uint8ClampedArray,
+  totalPixels: number,
+  mode: 'alpha' | 'distance',
+  bg?: { r: number; g: number; b: number },
+): number {
+  const DIST_THRESHOLD_SQ = 60 * 60;
+  let whitePixels = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    let isLogoPixel: boolean;
+    if (mode === 'alpha') {
+      isLogoPixel = data[i + 3] > 128;
+    } else {
+      const dr = data[i] - bg!.r;
+      const dg = data[i + 1] - bg!.g;
+      const db = data[i + 2] - bg!.b;
+      isLogoPixel = data[i + 3] > 128 && (dr * dr + dg * dg + db * db) > DIST_THRESHOLD_SQ;
+    }
+    if (isLogoPixel) {
+      data[i] = 255;
+      data[i + 1] = 255;
+      data[i + 2] = 255;
+      data[i + 3] = 255;
+      whitePixels++;
+    } else {
+      data[i + 3] = 0;
+    }
+  }
+  return whitePixels / totalPixels;
+}
+
 function makeMonochromeWhite(srcCanvas: HTMLCanvasElement): HTMLCanvasElement {
   const ctx = srcCanvas.getContext('2d');
   if (!ctx) throw new Error('Canvas 2D context unavailable');
   const { width, height } = srcCanvas;
-  const imageData = ctx.getImageData(0, 0, width, height);
-  const data = imageData.data;
-  for (let i = 0; i < data.length; i += 4) {
-    const alpha = data[i + 3];
-    if (alpha > 128) {
-      data[i] = 255; // R
-      data[i + 1] = 255; // G
-      data[i + 2] = 255; // B
-      data[i + 3] = 255;
-    } else {
-      data[i + 3] = 0; // transparent
-    }
+  const totalPixels = width * height;
+
+  // On lit l'image originale une seule fois, et on garde une COPIE pour
+  // pouvoir retenter avec un autre mode si le 1er résultat est cassé.
+  const originalImageData = ctx.getImageData(0, 0, width, height);
+  const originalData = new Uint8ClampedArray(originalImageData.data);
+
+  // ── Phase 1 : décider du mode initial selon le ratio de transparence.
+  let transparentCount = 0;
+  for (let i = 3; i < originalData.length; i += 4) {
+    if (originalData[i] < 128) transparentCount++;
   }
-  ctx.putImageData(imageData, 0, 0);
+  const transparentRatio = transparentCount / totalPixels;
+  const initialMode: 'alpha' | 'distance' = transparentRatio >= 0.05 ? 'alpha' : 'distance';
+
+  // ── Phase 2 : si mode 'distance', calcule la couleur de fond via histogramme.
+  let bgColor: { r: number; g: number; b: number } | undefined;
+  if (initialMode === 'distance') {
+    const histogram = new Map<number, number>();
+    for (let i = 0; i < originalData.length; i += 4) {
+      if (originalData[i + 3] < 128) continue;
+      const qR = originalData[i] >> 4;
+      const qG = originalData[i + 1] >> 4;
+      const qB = originalData[i + 2] >> 4;
+      const bucket = (qR << 8) | (qG << 4) | qB;
+      histogram.set(bucket, (histogram.get(bucket) ?? 0) + 1);
+    }
+    let bestBucket = 0;
+    let bestCount = -1;
+    for (const [bucket, count] of histogram) {
+      if (count > bestCount) { bestCount = count; bestBucket = bucket; }
+    }
+    bgColor = {
+      r: ((bestBucket >> 8) & 0xf) * 16 + 8,
+      g: ((bestBucket >> 4) & 0xf) * 16 + 8,
+      b: (bestBucket & 0xf) * 16 + 8,
+    };
+  }
+
+  // ── Phase 3 : appliquer le mode initial sur une COPIE.
+  const workingData = new Uint8ClampedArray(originalData);
+  let ratio = applyMonochromeMode(workingData, totalPixels, initialMode, bgColor);
+
+  // ── Phase 4 : filet de sécurité. Si ratio > 80% = carré blanc plein détecté.
+  // On retente avec l'AUTRE mode pour voir si ça donne un résultat plus
+  // crédible. Si même le fallback échoue, on retourne un canvas vide
+  // (silhouette vide, mieux que carré blanc cassé qui pollue le UI).
+  if (ratio > MAX_LOGO_RATIO) {
+    if (typeof console !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.warn(
+        `[makeMonochromeWhite] mode ${initialMode} a produit ${(ratio * 100).toFixed(0)}% de blanc — fallback`,
+      );
+    }
+    // Réinitialise et essaye l'autre mode
+    const fallbackData = new Uint8ClampedArray(originalData);
+    const fallbackMode: 'alpha' | 'distance' = initialMode === 'alpha' ? 'distance' : 'alpha';
+    // Si on bascule vers 'distance' sans avoir calculé bgColor, on le fait.
+    if (fallbackMode === 'distance' && !bgColor) {
+      const histogram = new Map<number, number>();
+      for (let i = 0; i < originalData.length; i += 4) {
+        if (originalData[i + 3] < 128) continue;
+        const qR = originalData[i] >> 4;
+        const qG = originalData[i + 1] >> 4;
+        const qB = originalData[i + 2] >> 4;
+        const bucket = (qR << 8) | (qG << 4) | qB;
+        histogram.set(bucket, (histogram.get(bucket) ?? 0) + 1);
+      }
+      let bestBucket = 0;
+      let bestCount = -1;
+      for (const [bucket, count] of histogram) {
+        if (count > bestCount) { bestCount = count; bestBucket = bucket; }
+      }
+      bgColor = {
+        r: ((bestBucket >> 8) & 0xf) * 16 + 8,
+        g: ((bestBucket >> 4) & 0xf) * 16 + 8,
+        b: (bestBucket & 0xf) * 16 + 8,
+      };
+    }
+    const fallbackRatio = applyMonochromeMode(fallbackData, totalPixels, fallbackMode, bgColor);
+    if (fallbackRatio <= MAX_LOGO_RATIO) {
+      // Le fallback marche → on l'utilise.
+      const finalImageData = new ImageData(fallbackData, width, height);
+      ctx.putImageData(finalImageData, 0, 0);
+      return srcCanvas;
+    }
+    // Les 2 modes ratent → on rend un canvas TOTALEMENT transparent (plutôt
+    // qu'un carré blanc plein). L'admin verra un slot vide et saura qu'il
+    // doit changer son logo source.
+    if (typeof console !== 'undefined') {
+      // eslint-disable-next-line no-console
+      console.error(
+        `[makeMonochromeWhite] FALLBACK alpha=${fallbackRatio.toFixed(2)} distance=${ratio.toFixed(2)} — silhouette vide (logo source incompatible)`,
+      );
+    }
+    const emptyData = new Uint8ClampedArray(originalData.length);
+    // emptyData est déjà rempli de 0 (= transparent partout). On le pousse tel quel.
+    const emptyImageData = new ImageData(emptyData, width, height);
+    ctx.putImageData(emptyImageData, 0, 0);
+    return srcCanvas;
+  }
+
+  // Cas nominal : le mode initial a produit un résultat cohérent.
+  const finalImageData = new ImageData(workingData, width, height);
+  ctx.putImageData(finalImageData, 0, 0);
   return srcCanvas;
 }
 
@@ -143,25 +295,37 @@ function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
  * Le caller charge le File via loadImageFromFile() puis appelle generateAll(img).
  */
 export async function generateAllLogos(srcImg: HTMLImageElement): Promise<GeneratedLogoSet> {
-  // Standard (any) — sans padding, transparent
+  // Favicons 16/32 — RESTENT transparents (s'affichent dans l'onglet navigateur
+  // sur un fond souvent clair, la transparence donne le meilleur rendu).
   const c16 = resizeToSquare(srcImg, 16);
   const c32 = resizeToSquare(srcImg, 32);
-  const c192 = resizeToSquare(srcImg, 192);
-  const c512 = resizeToSquare(srcImg, 512);
 
-  // Maskable — padding 20% pour safe-zone Android
-  const cMaskable192 = resizeToSquare(srcImg, 192, { padding: 0.1 });
-  const cMaskable512 = resizeToSquare(srcImg, 512, { padding: 0.1 });
+  // PWA standard 192/512 — fond NOIR + petit padding 5% pour ne pas coller aux bords.
+  // Charte Spordateur = fond noir partout, l'icône doit matcher l'identité de l'app
+  // sur le home screen mobile (sans cela, Android/iOS affiche du blanc autour).
+  const c192 = resizeToSquare(srcImg, 192, { bg: 'black', padding: 0.08 });
+  const c512 = resizeToSquare(srcImg, 512, { bg: 'black', padding: 0.08 });
 
-  // Apple touch 180×180 — pas de padding (iOS appose son propre arrondi)
-  const cApple180 = resizeToSquare(srcImg, 180);
+  // Maskable 192/512 — fond NOIR + padding 12% pour safe-zone Android adaptive
+  // icon (le système crop les bords selon la forme du device : cercle, squircle,
+  // carré arrondi…). Padding plus large que standard car le crop peut être
+  // jusqu'à ~20%.
+  const cMaskable192 = resizeToSquare(srcImg, 192, { bg: 'black', padding: 0.15 });
+  const cMaskable512 = resizeToSquare(srcImg, 512, { bg: 'black', padding: 0.15 });
 
-  // Monochrome 512 — silhouette blanche
+  // Apple Touch 180×180 — fond NOIR + petit padding (iOS appose son propre
+  // arrondi de coins). Sans fond noir, le rendu sur home screen iOS montre
+  // du blanc/transparence moche.
+  const cApple180 = resizeToSquare(srcImg, 180, { bg: 'black', padding: 0.08 });
+
+  // Monochrome 512 — silhouette blanche, fond transparent (Android monochrome
+  // adaptive icon : le système applique sa propre couleur de fond dynamique).
   const cMono512 = resizeToSquare(srcImg, 512);
   makeMonochromeWhite(cMono512);
 
-  // Splash 1024×1024 — logo centré 50% sur fond noir
-  const cSplash = resizeToSquare(srcImg, 1024, { bg: 'black', padding: 0.25 });
+  // Splash 1024×1024 — logo plus visible (padding 15% = logo occupe 70% du canvas)
+  // sur fond noir cohérent app PWA standalone.
+  const cSplash = resizeToSquare(srcImg, 1024, { bg: 'black', padding: 0.15 });
 
   const [icon16, icon32, icon192, icon512, maskable192, maskable512, appleTouch180, monochrome512, splash1024] =
     await Promise.all([

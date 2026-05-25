@@ -26,7 +26,11 @@ const AvatarImage = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
-    className={cn("aspect-square h-full w-full", className)}
+    // Fix #137 — object-cover obligatoire pour éviter la déformation des photos
+    // non-carrées (ex. avatars Google OAuth qui sont souvent ratio non-1:1).
+    // Sans object-cover, Radix Avatar applique object-fit:fill par défaut →
+    // l'image est étirée et apparait floue/déformée dans le cercle.
+    className={cn("aspect-square h-full w-full object-cover", className)}
     {...props}
   />
 ))
