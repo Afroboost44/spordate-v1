@@ -120,6 +120,9 @@ function firestoreProfileToCard(user: UserProfile, index: number) {
 export default function DiscoveryPage() {
   const { t } = useLanguage();
   const [profiles, setProfiles] = useState(fallbackProfiles);
+  // Fix #176 — Compteur de refresh : incrémenter force le re-fetch Firestore
+  // dans le useEffect loadFirestoreProfiles. Utilisé par resetProfiles().
+  const [refreshTick, setRefreshTick] = useState(0);
   const [currentIndex, setCurrentIndex] = useState(0);
   // Phase 9.5 c38b CH5 — isMatch state retiré (modal "Tu veux rencontrer X" supprimée)
   const [showPaymentModal, setShowPaymentModal] = useState(false);
@@ -344,7 +347,10 @@ export default function DiscoveryPage() {
     };
 
     loadFirestoreProfiles();
-  }, [user, userProfile]);
+    // Fix #176 — Le compteur refreshTick permet à resetProfiles() de
+    // re-déclencher le chargement Firestore (Recommencer = vrai reload des
+    // profils, pas juste reset au tableau vide fallback).
+  }, [user, userProfile, refreshTick]);
 
   // Load partners function (extracted for reuse)
   // Phase 9.5 c23 BUG V — pas de fallback DEFAULT_PARTNERS si Firestore vide.
@@ -687,9 +693,17 @@ export default function DiscoveryPage() {
     }
   };
 
+  // Fix #176 — Recommencer = vrai reload depuis Firestore (avant : juste reset
+  // au tableau vide fallback → user bloqué sur "Plus de profils"). Maintenant on :
+  //  1. Reset l'index à 0
+  //  2. Vide les profiles pour montrer le loader
+  //  3. Set loadingProfiles=true (skeleton)
+  //  4. Bump refreshTick → useEffect loadFirestoreProfiles re-fetch tout
   const resetProfiles = () => {
     setCurrentIndex(0);
-    setProfiles(fallbackProfiles);
+    setProfiles([]);
+    setLoadingProfiles(true);
+    setRefreshTick((t) => t + 1);
   }
 
   // Phase 9.5 c38b CH5 — closeMatchModal retiré (modal supprimée)

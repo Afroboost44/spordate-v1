@@ -371,6 +371,14 @@ export interface Activity {
   title: string;
   sport: string;
   description: string;
+  /** Fix #177 — Traductions optionnelles EN + DE du titre et de la description.
+   *  Saisies par le partenaire dans la modal d'édition (tabs FR/EN/DE).
+   *  Si absentes ou champ vide → fallback automatique sur title/description FR.
+   *  Lecture via helper getActivityTitleLocalized() / getActivityDescriptionLocalized(). */
+  translations?: {
+    en?: { title?: string; description?: string };
+    de?: { title?: string; description?: string };
+  };
   partnerId: string;
   partnerName: string;
   city: string;

@@ -286,6 +286,14 @@ export default function PartnerOffersPage() {
 
   const [formName, setFormName] = useState('');
   const [formDesc, setFormDesc] = useState('');
+  // Fix #177 — Traductions optionnelles EN + DE pour titre + description.
+  // Tabs FR/EN/DE dans l'étape 1 de la modal. Sauvegardé dans
+  // activities/{id}.translations.{en,de}.{title,description}.
+  const [formNameEn, setFormNameEn] = useState('');
+  const [formDescEn, setFormDescEn] = useState('');
+  const [formNameDe, setFormNameDe] = useState('');
+  const [formDescDe, setFormDescDe] = useState('');
+  const [formLangTab, setFormLangTab] = useState<'fr' | 'en' | 'de'>('fr');
   const [formSport, setFormSport] = useState('');
   // BUG #53 — flag "sport personnalisé" : true si user a choisi "Autre" dans
   // le select. Permet d'afficher l'input texte libre + de re-sélectionner
@@ -449,6 +457,8 @@ export default function PartnerOffersPage() {
     setFormStep(1); // BUG #53 — toujours revenir à l'étape 1 au reset
     setUseCustomSport(false); // BUG #53 — reset flag custom sport
     setFormName(''); setFormDesc(''); setFormSport(''); setFormPrice(''); setFormDuration('60');
+    // Fix #177 — Reset traductions à chaque nouveau formulaire
+    setFormNameEn(''); setFormDescEn(''); setFormNameDe(''); setFormDescDe(''); setFormLangTab('fr');
     setFormCity(''); setFormAddress(''); setFormSchedule(''); setFormMax('10'); setFormImages(['', '', '']);
     setFormMediaItems([]);
     setFormAudienceType('all');
@@ -508,6 +518,12 @@ export default function PartnerOffersPage() {
 
   const openEdit = (act: Activity) => {
     setEditing(act); setFormName(act.name); setFormDesc(act.description || ''); setFormSport(act.sport);
+    // Fix #177 — Pré-remplir les traductions existantes (act.translations) si présentes.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const tr = (act as any).translations || {};
+    setFormNameEn(tr.en?.title || ''); setFormDescEn(tr.en?.description || '');
+    setFormNameDe(tr.de?.title || ''); setFormDescDe(tr.de?.description || '');
+    setFormLangTab('fr');
     setFormStep(1); // BUG #53 — toujours ouvrir édition à l'étape 1
     setUseCustomSport(act.sport !== '' && !SPORTS.includes(act.sport)); // BUG #53 — custom sport si sport pas dans liste
     setFormPrice(String(act.price)); setFormDuration(String(act.duration || 60)); setFormCity(act.city);
@@ -661,6 +677,23 @@ export default function PartnerOffersPage() {
       }
       if (storeOfferToSave) {
         data.storeOffer = storeOfferToSave;
+      }
+      // Fix #177 — Sauvegarde des traductions EN + DE si saisies par le partenaire.
+      // Structure : translations: { en: { title, description }, de: { title, description } }
+      // Champs vides ignorés (= seulement les langues réellement traduites sont stockées).
+      const translations: Record<string, Record<string, string>> = {};
+      if (formNameEn.trim() || formDescEn.trim()) {
+        translations.en = {};
+        if (formNameEn.trim()) translations.en.title = formNameEn.trim();
+        if (formDescEn.trim()) translations.en.description = formDescEn.trim();
+      }
+      if (formNameDe.trim() || formDescDe.trim()) {
+        translations.de = {};
+        if (formNameDe.trim()) translations.de.title = formNameDe.trim();
+        if (formDescDe.trim()) translations.de.description = formDescDe.trim();
+      }
+      if (Object.keys(translations).length > 0) {
+        data.translations = translations;
       }
       if (editing) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -929,9 +962,41 @@ export default function PartnerOffersPage() {
               {/* === ÉTAPE 1 : Bases (Nom, Sport, Description) === */}
               {formStep === 1 && (
                 <>
+                  {/* Fix #177 — Tabs FR/EN/DE pour saisir les traductions du titre
+                      et de la description. FR = champs principaux (obligatoires).
+                      EN + DE = optionnels, fallback FR si vide. */}
+                  <div className="flex items-center gap-1 mb-1">
+                    {(['fr', 'en', 'de'] as const).map(lng => (
+                      <button
+                        key={lng}
+                        type="button"
+                        onClick={() => setFormLangTab(lng)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-medium uppercase tracking-wider transition ${
+                          formLangTab === lng
+                            ? 'bg-accent text-white'
+                            : 'bg-white/5 text-white/40 hover:text-white/70 hover:bg-white/10'
+                        }`}
+                      >
+                        {lng === 'fr' ? '🇫🇷 FR' : lng === 'en' ? '🇬🇧 EN' : '🇩🇪 DE'}
+                      </button>
+                    ))}
+                    {formLangTab !== 'fr' && (
+                      <span className="ml-2 text-[10px] text-white/30">
+                        {t('partner_offers_translation_optional_hint')}
+                      </span>
+                    )}
+                  </div>
                   <div className="grid gap-2">
                     <Label className="text-white/50">{t('partner_offers_field_name')}</Label>
-                    <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder={t('partner_offers_field_name_placeholder')} className="bg-[#1A1A1A] border-white/10 h-12" />
+                    {formLangTab === 'fr' && (
+                      <Input value={formName} onChange={e => setFormName(e.target.value)} placeholder={t('partner_offers_field_name_placeholder')} className="bg-[#1A1A1A] border-white/10 h-12" />
+                    )}
+                    {formLangTab === 'en' && (
+                      <Input value={formNameEn} onChange={e => setFormNameEn(e.target.value)} placeholder="Ex: Silent Afroboost" className="bg-[#1A1A1A] border-white/10 h-12" />
+                    )}
+                    {formLangTab === 'de' && (
+                      <Input value={formNameDe} onChange={e => setFormNameDe(e.target.value)} placeholder="Bsp: Silent Afroboost" className="bg-[#1A1A1A] border-white/10 h-12" />
+                    )}
                   </div>
                   <div className="grid gap-2">
                     <Label className="text-white/50">{t('partner_offers_field_sport')}</Label>
@@ -974,7 +1039,16 @@ export default function PartnerOffersPage() {
                   </div>
                   <div className="grid gap-2">
                     <Label className="text-white/50">{t('partner_offers_field_description')}</Label>
-                    <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder={t('partner_offers_field_description_placeholder')} className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
+                    {/* Fix #177 — Description : même tabs FR/EN/DE que pour le nom. */}
+                    {formLangTab === 'fr' && (
+                      <textarea value={formDesc} onChange={e => setFormDesc(e.target.value)} placeholder={t('partner_offers_field_description_placeholder')} className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
+                    )}
+                    {formLangTab === 'en' && (
+                      <textarea value={formDescEn} onChange={e => setFormDescEn(e.target.value)} placeholder="English description (optional — fallback to French if empty)" className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
+                    )}
+                    {formLangTab === 'de' && (
+                      <textarea value={formDescDe} onChange={e => setFormDescDe(e.target.value)} placeholder="Deutsche Beschreibung (optional — Fallback auf Französisch wenn leer)" className="bg-[#1A1A1A] border border-white/10 rounded-md px-3 py-2 text-sm text-white min-h-[120px] resize-none focus:outline-none focus:ring-1 focus:ring-accent" />
+                    )}
                   </div>
                 </>
               )}

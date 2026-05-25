@@ -412,6 +412,7 @@ const defaultTranslations: any = {
     extras_smoking_label: "Tabac",
     extras_cannabis_label: "Cannabis",
     extras_drugs_label: "Autres drogues",
+    partner_offers_translation_optional_hint: "Optionnel — fallback FR si vide",
     // VoicePromptRecorder — modal accroche vocale (#164 i18n)
     voice_prompt_title: "Accroche vocale",
     voice_prompt_description: "Une voix dit plus qu'un texte. Choisis une question et enregistre ta réponse (max {max}s).",
@@ -1828,6 +1829,7 @@ invited_banner_title: "Invitation acceptée 🎉",
     extras_smoking_label: "Tobacco",
     extras_cannabis_label: "Cannabis",
     extras_drugs_label: "Other drugs",
+    partner_offers_translation_optional_hint: "Optional — fallback to French if empty",
     // VoicePromptRecorder — voice prompt modal (#164 i18n)
     voice_prompt_title: "Voice prompt",
     voice_prompt_description: "A voice says more than text. Pick a question and record your answer (max {max}s).",
@@ -3243,6 +3245,7 @@ invited_banner_title: "Invitation accepted 🎉",
     extras_smoking_label: "Tabak",
     extras_cannabis_label: "Cannabis",
     extras_drugs_label: "Andere Drogen",
+    partner_offers_translation_optional_hint: "Optional — Fallback auf Französisch wenn leer",
     // VoicePromptRecorder — Voice-Prompt Modal (#164 i18n)
     voice_prompt_title: "Sprachprompt",
     voice_prompt_description: "Eine Stimme sagt mehr als Text. Wähle eine Frage und nimm deine Antwort auf (max. {max}s).",
