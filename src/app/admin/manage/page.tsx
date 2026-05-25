@@ -459,6 +459,37 @@ export default function AdminManagePage() {
     setPartners(partners.map(p => p.partnerId === pid ? { ...p, [field]: !cur } : p));
     toast({ title: 'Mis à jour' });
   };
+
+  // Fix #171 — Suppression d'un partenaire depuis le dashboard admin.
+  // Supprime le doc Firestore partners/{pid} (cascade des activités/sessions
+  // n'est PAS effectuée ici — laissée à la responsabilité de l'admin, car
+  // contrairement à un user fantôme, les activités/sessions peuvent garder
+  // une valeur historique même partner deleted). Confirmation explicite
+  // pour éviter la suppression accidentelle.
+  const deletePartner = async (pid: string, name: string) => {
+    if (!db) return;
+    if (!confirm(
+      `Supprimer le partenaire « ${name} » ?\n\n` +
+      `⚠️ Cette action :\n` +
+      `• Supprime le profil partenaire de la base\n` +
+      `• Retire l'accès au portail partenaire (login impossible)\n` +
+      `• Les activités/sessions historiques sont CONSERVÉES\n` +
+      `• Le compte utilisateur associé reste actif (sa role users/{uid}.role)\n\n` +
+      `Action irréversible côté partner doc. Continuer ?`
+    )) return;
+    try {
+      await deleteDoc(doc(db, 'partners', pid));
+      setPartners(partners.filter(p => p.partnerId !== pid));
+      toast({ title: 'Partenaire supprimé', description: name });
+    } catch (err) {
+      console.error('[deletePartner] failed', err);
+      toast({
+        variant: 'destructive',
+        title: 'Suppression impossible',
+        description: err instanceof Error ? err.message : 'Erreur Firestore',
+      });
+    }
+  };
   const adjustCredits = async (add: boolean) => {
     if (!db) return;
     // BUG #12 — validation explicite + try/catch (avant : silent fail sur
@@ -776,7 +807,7 @@ export default function AdminManagePage() {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-sm text-white truncate">{u.displayName || 'Sans nom'}</span>
-                      <Badge className={`text-[9px] ${u.role === 'admin' ? 'bg-red-500/10 text-red-400' : u.role === 'creator' ? 'bg-amber-500/10 text-amber-400' : 'bg-white/5 text-white/30'}`}>{u.role || 'user'}</Badge>
+                      <Badge className={`text-[9px] ${u.role === 'admin' ? 'bg-red-500/10 text-red-400' : u.role === 'creator' ? 'bg-amber-500/10 text-amber-400' : u.role === 'partner' ? 'bg-accent/10 text-accent' : 'bg-white/5 text-white/30'}`}>{u.role || 'user'}</Badge>
                       {u.isPremium && <Badge className="text-[9px] bg-accent/10 text-accent">Premium</Badge>}
                     </div>
                     <p className="text-[11px] text-white/25 truncate">{u.email} · {u.city || '?'} · {u.credits || 0} crédits</p>
@@ -786,7 +817,11 @@ export default function AdminManagePage() {
                       {u.isVisible !== false ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
                     </button>
                     <select value={u.role || 'user'} onChange={e => changeUserRole(u.uid, e.target.value)} className="bg-black border border-white/10 rounded text-[10px] text-white/50 px-1.5 h-7">
-                      <option value="user">User</option><option value="creator">Creator</option><option value="admin">Admin</option>
+                      {/* Fix #171 — ajout "Partner" : role déjà supporté par le système
+                          (cf. /partner/register flow) mais n'était pas exposé manuellement
+                          dans le dropdown admin. Permet de promote un user en partner sans
+                          passer par le formulaire d'inscription partenaire. */}
+                      <option value="user">User</option><option value="creator">Creator</option><option value="partner">Partner</option><option value="admin">Admin</option>
                     </select>
                     <button
                       onClick={() => openCommissionModal(u)}
@@ -1089,6 +1124,16 @@ export default function AdminManagePage() {
                     <div className="flex items-center gap-3">
                       <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">{t('admin_manage_partner_switch_visible')}</span><Switch checked={p.isActive} onCheckedChange={() => togglePartner(p.partnerId, 'isActive', p.isActive)} /></div>
                       <div className="flex items-center gap-1"><span className="text-[10px] text-white/20">{t('admin_manage_partner_switch_approved')}</span><Switch checked={p.isApproved} onCheckedChange={() => togglePartner(p.partnerId, 'isApproved', p.isApproved)} /></div>
+                      {/* Fix #171 — bouton suppression partenaire. Confirm dialog via deletePartner(). */}
+                      <button
+                        type="button"
+                        onClick={() => deletePartner(p.partnerId, p.name)}
+                        title="Supprimer ce partenaire"
+                        aria-label="Supprimer ce partenaire"
+                        className="w-8 h-8 rounded flex items-center justify-center text-red-400/40 hover:text-red-400 hover:bg-red-500/10 transition flex-shrink-0"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </CardContent>
                 </Card>
