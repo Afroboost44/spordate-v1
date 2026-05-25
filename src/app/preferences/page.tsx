@@ -52,6 +52,24 @@ import {
 type Prefs = NonNullable<UserProfile['matchingPreferences']>;
 const UNSET = '__any__';
 
+// Fix #173 — Liste des pays disponibles pour le filtre matching. Noms propres
+// (ne nécessitent pas de traduction, restent identiques FR/EN/DE).
+// Cohérent avec partners/page.tsx COUNTRIES (même set africain + européen).
+const COUNTRY_OPTIONS = [
+  'Suisse',
+  'France',
+  'Belgique',
+  'Canada',
+  'Côte d\'Ivoire',
+  'Sénégal',
+  'Cameroun',
+  'RD Congo',
+  'Maroc',
+  'Guinée',
+  'Mali',
+  'Burkina Faso',
+];
+
 export default function PreferencesPage() {
   const router = useRouter();
   const { user, userProfile } = useAuth();
@@ -168,16 +186,46 @@ export default function PreferencesPage() {
                 </div>
               </div>
 
+              {/* Fix #173 — Pays (filtre Discovery, juste au-dessus du quartier).
+                  Stocké dans matchingPreferences.country. UNSET ('__any__') =
+                  pas de filtre = match international ouvert. */}
+              <div className="flex flex-col gap-2">
+                <Label className="text-xs uppercase tracking-wider text-white/60 flex items-center gap-1.5">
+                  <MapPin className="h-3 w-3" /> {t('preferences_country_label')}
+                </Label>
+                <Select
+                  value={prefs.country ?? UNSET}
+                  onValueChange={(v) => update('country', v === UNSET ? undefined : v)}
+                >
+                  <SelectTrigger className="bg-zinc-900/60 border-white/10 text-white h-11">
+                    <SelectValue placeholder={t('preferences_country_placeholder')} />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#0F0F0F] border-white/15 text-white max-h-[60vh]">
+                    <SelectItem value={UNSET} className="text-white focus:bg-accent/20 focus:text-white">
+                      {t('preferences_country_any')}
+                    </SelectItem>
+                    {COUNTRY_OPTIONS.map((c) => (
+                      <SelectItem key={c} value={c} className="text-white focus:bg-accent/20 focus:text-white">
+                        {c}
+                      </SelectItem>
+                    ))}
+                    <SelectItem value="Autre" className="text-white focus:bg-accent/20 focus:text-white">
+                      {t('preferences_country_other')}
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
               {/* Quartier */}
               <div className="flex flex-col gap-2">
                 <Label htmlFor="neighborhood" className="text-xs uppercase tracking-wider text-white/60 flex items-center gap-1.5">
-                  <MapPin className="h-3 w-3" /> Mon quartier / ville
+                  <MapPin className="h-3 w-3" /> {t('preferences_neighborhood_label')}
                 </Label>
                 <Input
                   id="neighborhood"
                   value={prefs.neighborhood ?? ''}
                   onChange={(e) => update('neighborhood', e.target.value)}
-                  placeholder="Ex: Lausanne, Renens"
+                  placeholder={t('preferences_neighborhood_placeholder')}
                   className="bg-zinc-900/60 border-white/10 text-white"
                 />
               </div>

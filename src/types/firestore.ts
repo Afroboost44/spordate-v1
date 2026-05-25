@@ -158,6 +158,10 @@ export interface UserProfile {
   matchingPreferences?: {
     /** Genre(s) recherché(s). */
     interestedIn?: 'male' | 'female' | 'both';
+    /** Fix #173 — Pays préféré (filtre Discovery). 'CH' = Suisse, sinon nom du
+     *  pays (ex: 'France', 'Sénégal'). Optionnel : si absent, pas de filtrage
+     *  par pays (match international). */
+    country?: string;
     /** Quartier / ville préférée (texte libre). */
     neighborhood?: string;
     /** Distance maximale en km (slider 1-200, default 50). */
