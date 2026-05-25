@@ -5,14 +5,30 @@ import { usePathname } from 'next/navigation';
 import { Home, Dumbbell, MessageCircle, User } from 'lucide-react';
 import { useFeatureFlags } from '@/lib/site/useFeatureFlags';
 
+// Fix #194 — Icône Rencontres remplacée par le logo Spordateur SVG blanc
+// (charte v4 demandée par l'utilisateur). Rendu via composant inline pour
+// supporter la même API que les Lucide icons (className h-6 w-6, etc.).
+function DiscoveryIcon({ className }: { className?: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/spordateur-logo-v4.svg"
+      alt=""
+      aria-hidden="true"
+      className={className}
+      style={{ objectFit: 'contain', filter: 'brightness(0) invert(1)' }}
+    />
+  );
+}
+
 interface NavItem {
   href: string;
-  icon: typeof Home;
+  icon: typeof Home | typeof DiscoveryIcon;
   label: string;
 }
 
 const ACTIVITIES_ITEM: NavItem = { href: '/activities', icon: Dumbbell, label: 'Activités' };
-const DISCOVERY_ITEM: NavItem = { href: '/discovery', icon: Home, label: 'Rencontres' };
+const DISCOVERY_ITEM: NavItem = { href: '/discovery', icon: DiscoveryIcon, label: 'Rencontres' };
 const CHAT_ITEM: NavItem = { href: '/chat', icon: MessageCircle, label: 'Messages' };
 const PROFILE_ITEM: NavItem = { href: '/profile', icon: User, label: 'Profil' };
 

@@ -14,8 +14,9 @@
 
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { doc, getDoc } from 'firebase/firestore';
 import { Calendar, Check, X, Loader2, MapPin, Sparkles } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import {
@@ -28,6 +29,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import { db } from '@/lib/firebase';
+import { getActivityThumbnailChain } from '@/lib/activities/getActivityThumbnail';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
 import { formatNextSessionLabel, resolveInviteCardView } from '@/lib/chat/inviteView';
 import { acceptActivityInvite, declineActivityInvite } from '@/services/activityInvite';
@@ -49,7 +52,51 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
 
   const view = resolveInviteCardView(msg, currentUserId);
   const invite = msg.invite;
+
+  // Fix #194 bug B — la card invite affichait un rectangle rose vide quand
+  // `invite.activityImageUrl` (snapshot dénormalisé créé au moment de l'envoi)
+  // était absent ou cassé. Solution : on fetch l'activité fraîche depuis
+  // Firestore via `invite.activityId` et on utilise le helper centralisé
+  // getActivityThumbnailChain (#146) pour résoudre toutes les sources possibles
+  // (thumbnailUrl, mediaItems, imageUrl legacy, etc.). Le snapshot reste utilisé
+  // comme premier candidat — ça évite le flash placeholder pendant le fetch.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [activityDoc, setActivityDoc] = useState<Record<string, any> | null>(null);
+  const [thumbIndex, setThumbIndex] = useState(0);
+  const activityId = invite?.activityId;
+  useEffect(() => {
+    if (!activityId || !db) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDoc(doc(db!, 'activities', activityId));
+        if (cancelled || !snap.exists()) return;
+        setActivityDoc(snap.data() as Record<string, unknown>);
+      } catch (err) {
+        console.warn('[ActivityInviteMessage] failed to fetch activity for thumbnail', err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activityId]);
+
   if (!invite) return null;
+
+  // Construction chaîne de fallback :
+  //   1. snapshot dénormalisé (activityImageUrl) — instantané, pas de flash
+  //   2. chaîne complète du helper appliquée au doc Firestore fraîchement
+  //      fetché (thumbnailUrl → mediaItems image → mediaItems video thumb →
+  //      imageUrl legacy → scan champs string).
+  // Le `<img onError>` walk vers thumbIndex+1 quand une URL renvoie 404.
+  const thumbCandidates: string[] = [];
+  if (invite.activityImageUrl) thumbCandidates.push(invite.activityImageUrl);
+  if (activityDoc) {
+    for (const url of getActivityThumbnailChain(activityDoc)) {
+      if (!thumbCandidates.includes(url)) thumbCandidates.push(url);
+    }
+  }
+  const thumbUrl = thumbCandidates[thumbIndex] ?? null;
 
   const sessionLabel = formatNextSessionLabel(invite.nextSessionAt ?? null);
   const isDuoSponsored = invite.inviteMode === 'duo' && !!msg.sponsorPaidAt;
@@ -124,13 +171,18 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
     <div
       className={`max-w-sm w-full ${view.isSender ? 'ml-auto' : 'mr-auto'} bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden`}
     >
-      {/* Header : image */}
-      {invite.activityImageUrl ? (
+      {/* Header : image (Fix #194 bug B — chaîne fallback complète via helper #146) */}
+      {thumbUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
-          src={resolveMediaImageSrc(invite.activityImageUrl)}
+          src={resolveMediaImageSrc(thumbUrl)}
           alt=""
           className="w-full h-28 object-cover"
+          onError={() => {
+            if (thumbIndex < thumbCandidates.length - 1) {
+              setThumbIndex(thumbIndex + 1);
+            }
+          }}
         />
       ) : (
         <div className="w-full h-28 bg-gradient-to-br from-accent to-[#E91E63] flex items-center justify-center">

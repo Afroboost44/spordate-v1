@@ -79,18 +79,42 @@ function relativeTime(
 function clickUrlFromData(notif: Notification): string | null {
   const d = notif.data || {};
   if (d.clickUrl) return d.clickUrl;
+  // Cast string pour autoriser comparaison avec types de notifs créés runtime
+  // (ex: 'invite_received', 'activity_invite', 'invite_accepted') qui ne sont
+  // pas listés dans le union NotificationType de types/firestore.ts. Les notifs
+  // Firestore stockent des string types arbitraires côté serveur (cf.
+  // services/activityInvite.ts, /api/invites/route.ts, webhooks/stripe/handler.ts).
+  const type = notif.type as string;
   // Fix #175 — Notifications "message" et "match" : ouvrir directement la conversation
   // dans /chat?match=ID. Avant : matchId renvoyait vers /discovery (perdu).
   // Maintenant : l'utilisateur arrive direct sur le chat sélectionné.
   // chatId === matchId pour les notifications chat (cf. services/firestore.ts:874).
-  if (notif.type === 'message' && (d.chatId || d.matchId)) {
+  if (type === 'message' && (d.chatId || d.matchId)) {
     return `/chat?match=${d.chatId || d.matchId}`;
   }
-  if (notif.type === 'match' && d.matchId) {
+  if (type === 'match' && d.matchId) {
     return `/chat?match=${d.matchId}`;
   }
+  // Fix #194 bug C — Notifications "Bassi t'invite à <activity>" cliquables.
+  // Routage par type (data shape diffère selon l'émetteur, cf. notifs créées par
+  // /api/invites/route.ts, services/activityInvite.ts, webhooks/stripe/handler.ts,
+  // /api/invites/[id]/accept-gift/route.ts).
+  if (type === 'invite_received' && d.inviteId) {
+    return `/invite/${d.inviteId}`;
+  }
+  if (type === 'invite_accepted') {
+    if (d.bookingId) return `/sessions/${d.bookingId}`;
+    if (d.sessionId) return `/sessions/${d.sessionId}`;
+    if (d.inviteId) return `/invite/${d.inviteId}`;
+  }
+  if (type === 'activity_invite' || type === 'activity_invite_reply') {
+    if (d.matchId) return `/chat?match=${d.matchId}`;
+    if (d.activityId) return `/activities/${d.activityId}`;
+  }
+  if (d.inviteId) return `/invite/${d.inviteId}`;
   if (d.activityId) return `/activities/${d.activityId}`;
   if (d.bookingId) return `/sessions/${d.bookingId}`;
+  if (d.sessionId) return `/sessions/${d.sessionId}`;
   if (d.matchId) return `/chat?match=${d.matchId}`;
   return null;
 }

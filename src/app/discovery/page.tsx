@@ -1733,7 +1733,7 @@ END:VCALENDAR`;
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
-                    src="/spordateur-logo-v3.svg"
+                    src="/spordateur-logo-v4.svg"
                     alt=""
                     className="h-8 w-8 object-contain"
                     aria-hidden="true"
