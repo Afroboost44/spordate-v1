@@ -1722,14 +1722,17 @@ END:VCALENDAR`;
                 >
                   <X size={22} />
                 </button>
-                {/* Fix #188 — Bouton Like : icône SpordateurLogo (brand, cœur+flèche
-                    blanc) au lieu du Heart générique. Cercle accent/30 conservé. */}
+                {/* Fix #188 + #190 — Bouton Like : logo Spordateur brand BLANC
+                    direct (mode bare = pas de wrapper cercle noir, le logo PNG
+                    blanc s'affiche directement sur le cercle accent rose).
+                    Taille augmentée (h-7 w-7) pour bonne visibilité comme
+                    demandé sur le screenshot de référence. */}
                 <button
                   onClick={handleLike}
                   aria-label="Like"
                   className="w-12 h-12 rounded-full bg-accent/30 backdrop-blur-md border border-accent/40 flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
                 >
-                  <SpordateurLogo className="h-6 w-6 text-white" />
+                  <SpordateurLogo bare className="h-7 w-7" />
                 </button>
                 {/* Phase 9.5 c38b CH1 — 3e bouton : Chat direct payant (5 crédits) */}
                 <button

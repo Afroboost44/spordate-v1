@@ -23,7 +23,9 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
-import { createInvite, InviteError } from '@/lib/invites/service';
+import { createInvite, InviteError, makeInviteDocId, INVITE_TTL_MS, PRE_SESSION_BUFFER_MS, INVITE_MESSAGE_MAX_LEN } from '@/lib/invites/service';
+import { computeSplitAmounts, SplitMathError } from '@/lib/invites/splitMath';
+import { Timestamp as AdminTimestamp } from 'firebase-admin/firestore';
 import { sendEmail } from '@/lib/email/sendEmail';
 import type { Timestamp } from 'firebase-admin/firestore';
 import { getAdminDb } from '@/lib/firebase/admin';
@@ -135,16 +137,70 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const inviteId = await createInvite({
-      fromUserId,
-      toUserId: body.toUserId,
-      activityId: body.activityId,
-      sessionId: body.sessionId,
-      message,
-      mode,
-      splitInviterRatio,
-      totalCents,
-    });
+    // Fix #191 — Avant : createInvite() utilisait firebase/firestore (client SDK)
+    // sans auth → Firestore rules bloquaient avec PERMISSION_DENIED. Maintenant :
+    // write inline via Admin SDK (bypass rules car server trusted, déjà validé
+    // par verifyAuth + checks logiques). Validation reproduite ici fidèle au
+    // service original.
+    let inviteId: string;
+    try {
+      if (!body.toUserId || !body.activityId || !body.sessionId) {
+        throw new InviteError('invalid-input', 'fromUserId, toUserId, activityId, sessionId requis');
+      }
+      if (fromUserId === body.toUserId) {
+        throw new InviteError('self-invite-forbidden', 'Cannot invite yourself');
+      }
+      const adminDb = await getAdminDb();
+      const sessionDoc = await adminDb.collection('sessions').doc(body.sessionId).get();
+      if (!sessionDoc.exists) {
+        throw new InviteError('session-not-found', `Session ${body.sessionId} introuvable`);
+      }
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const sessionData = sessionDoc.data() as any;
+      const sessionStartMs = sessionData?.startAt?.toMillis?.() ?? 0;
+      const nowMs = Date.now();
+      const sevenDaysMs = nowMs + INVITE_TTL_MS;
+      const oneHourBeforeMs = sessionStartMs - PRE_SESSION_BUFFER_MS;
+      const expiresAtMs = Math.min(sevenDaysMs, oneHourBeforeMs);
+      if (expiresAtMs <= nowMs) {
+        throw new InviteError('session-too-soon', `Session démarre dans <1h, invite impossible`);
+      }
+      inviteId = makeInviteDocId(fromUserId, body.toUserId, body.sessionId);
+      const expiresAt = AdminTimestamp.fromMillis(expiresAtMs);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const payload: Record<string, any> = {
+        inviteId,
+        fromUserId,
+        toUserId: body.toUserId,
+        activityId: body.activityId,
+        sessionId: body.sessionId,
+        status: 'pending',
+        expiresAt,
+        createdAt: AdminTimestamp.now(),
+      };
+      if (message) payload.message = message.slice(0, INVITE_MESSAGE_MAX_LEN);
+      if (mode !== 'individual') {
+        if (!totalCents || totalCents <= 0) {
+          throw new InviteError('invalid-total-cents', 'totalCents requis pour mode Split/Gift');
+        }
+        try {
+          const splitAmounts = computeSplitAmounts({ totalCents, mode, splitInviterRatio });
+          payload.mode = mode;
+          payload.splitInviterAmountCents = splitAmounts.inviterCents;
+          payload.splitInviteeAmountCents = splitAmounts.inviteeCents;
+        } catch (err) {
+          if (err instanceof SplitMathError) {
+            throw new InviteError('invalid-split-ratio', err.message);
+          }
+          throw err;
+        }
+      }
+      await adminDb.collection('invites').doc(inviteId).set(payload);
+    } catch (err) {
+      if (err instanceof InviteError) throw err;
+      console.error('[/api/invites] Admin SDK write failed', err);
+      throw new InviteError('invalid-input', err instanceof Error ? err.message : String(err));
+    }
 
     // 4-5. Best-effort sendEmail + createNotification in-app (Phase 8 SC4 commit 4/6)
     // Q5=C both notifications. Failure non-bloquant (cohérent pattern Phase 7 wires).

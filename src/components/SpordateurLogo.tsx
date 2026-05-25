@@ -23,11 +23,16 @@ interface SpordateurLogoProps {
   className?: string;
   /** Label aria pour a11y. */
   ariaLabel?: string;
+  /** Fix #190 — Si true : rend le logo SANS le wrapper cercle noir (cas
+   *  où le logo est déjà sur un fond coloré, ex: bouton Like rose). Le PNG
+   *  uploadé est rendu en object-contain à 100% sur le className parent. */
+  bare?: boolean;
 }
 
 export function SpordateurLogo({
   className = 'h-7 w-7 text-accent',
   ariaLabel = 'Spordateur',
+  bare = false,
 }: SpordateurLogoProps) {
   const brand = useBrandLogos();
   const imageUrl = getBestLogoUrl(brand);
@@ -38,7 +43,23 @@ export function SpordateurLogo({
   // Le className parent (h-7 w-7, h-10 w-10, h-24 w-24...) sert à dimensionner
   // le wrapper. L'image est en object-contain à 75% pour laisser une marge
   // visuelle propre (le logo ne touche pas les bords du cercle).
+  //
+  // Fix #190 — Mode bare : pas de wrapper cercle noir (le logo s'affiche sur
+  // le fond du parent qui peut déjà être coloré, ex: bouton Like rose).
   if (imageUrl) {
+    if (bare) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageUrl}
+          alt=""
+          className={className}
+          style={{ objectFit: 'contain' }}
+          role="img"
+          aria-label={ariaLabel}
+        />
+      );
+    }
     return (
       <span
         className={`${className} inline-flex items-center justify-center bg-black rounded-full overflow-hidden`}
