@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { X, Heart, MapPin, Undo2, Zap, Lock, CheckCircle, RefreshCcw, Handshake, Share2, CreditCard, Check, Ticket, Loader2, Building2, Navigation, Clock, Users, Calendar, MessageCircle, Send, ChevronRight, Download, Gift, BadgeCheck } from 'lucide-react';
+import { X, Heart, MapPin, Undo2, Zap, Lock, CheckCircle, RefreshCcw, Handshake, Share2, CreditCard, Check, Ticket, Loader2, Building2, Navigation, Clock, Users, Calendar, MessageCircle, Send, ChevronRight, Download, Gift, BadgeCheck, Info } from 'lucide-react';
 // Using regular img tags instead of next/image for external URLs reliability
 import { Badge } from "@/components/ui/badge";
 import { PlaceHolderImages } from '@/lib/placeholder-images';
@@ -2533,9 +2533,13 @@ END:VCALENDAR`;
                       // (chaîne unifiée : thumbnailUrl → mediaItems image → video
                       // thumb → imageUrl legacy). Plus jamais de carré rose Zap.
                       const thumb = getActivityThumbnail(a);
+                      // Fix #172 — Wrap dans un div flex pour permettre le bouton
+                      // Découvrir secondaire à droite (pattern cohérent avec
+                      // ActivitySelectorModal). Main button = liste activités en
+                      // contexte ; Découvrir = détail direct /activities/[id].
                       return (
+                        <div key={navId} className="flex items-stretch gap-2 rounded-xl bg-white/5 border border-white/10 hover:border-accent/40 hover:bg-accent/5 transition">
                         <button
-                          key={navId}
                           type="button"
                           onClick={() => {
                             // BUG #20 — direction modifiée : la modal renvoie vers la
@@ -2547,7 +2551,7 @@ END:VCALENDAR`;
                             setShowWherePracticeModal(false);
                             router.push(buildActivityListUrl(navId));
                           }}
-                          className="text-left p-3 rounded-xl bg-white/5 border border-white/10 hover:border-accent/40 hover:bg-accent/5 transition active:scale-[0.98]"
+                          className="flex-1 text-left p-3 active:scale-[0.98] transition"
                         >
                           <div className="flex items-start gap-3">
                             {thumb ? (
@@ -2594,9 +2598,25 @@ END:VCALENDAR`;
                                 return <p className="text-[11px] text-accent mt-0.5">{effective} CHF</p>;
                               })()}
                             </div>
-                            <ChevronRight className="h-4 w-4 text-white/20 flex-shrink-0 mt-1" />
                           </div>
                         </button>
+                        {/* Fix #172 — Bouton "Découvrir" : ouvre la fiche détail
+                            /activities/[id] (pattern cohérent ActivitySelectorModal).
+                            Le ChevronRight est retiré du main button — c'est ce
+                            bouton qui sert maintenant de hint visuel "voir plus". */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowWherePracticeModal(false);
+                            router.push(`/activities/${navId}`);
+                          }}
+                          className="flex-shrink-0 px-2.5 rounded-r-xl text-[11px] text-white/60 hover:text-white hover:bg-white/5 flex items-center gap-1 transition border-l border-white/10"
+                          aria-label={t('activity_selector_aria_discover', { title: a.title || a.name || 'Activité' })}
+                        >
+                          <Info className="h-3.5 w-3.5" />
+                          {t('activity_selector_discover')}
+                        </button>
+                        </div>
                       );
                     })}
                   </div>
