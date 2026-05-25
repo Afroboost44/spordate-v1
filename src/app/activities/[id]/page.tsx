@@ -40,6 +40,7 @@ import { ReviewsList } from '@/components/reviews/ReviewsList';
 import { ReviewTrigger } from '@/components/reviews/ReviewTrigger';
 import { ActivityInviteSection } from '@/components/activities/ActivityInviteSection';
 import { InvitedActivityBanner } from '@/components/activities/InvitedActivityBanner';
+import { LocalizedActivityTitle, LocalizedActivityDescription } from '@/components/activities/LocalizedActivityText';
 import { BackToChatLink } from '@/components/activities/BackToChatLink';
 
 interface PageProps {
@@ -136,7 +137,8 @@ export default async function ActivityDetailPage({ params, searchParams }: PageP
           </span>
           <div className="flex items-start justify-between gap-4">
             <h1 className="text-3xl sm:text-4xl text-white font-light leading-tight flex-1">
-              {activity.title}
+              {/* Fix #181 — Titre localisé selon user.language (fallback FR si vide) */}
+              <LocalizedActivityTitle activity={activity} />
             </h1>
             {/* Phase 9.5 c10.B — ShareButton sur page détail (Like + Comment via SocialBar 10.D) */}
             <ShareButton
@@ -186,9 +188,8 @@ export default async function ActivityDetailPage({ params, searchParams }: PageP
             >
               À propos
             </h2>
-            <p className="text-base text-white/80 font-light leading-relaxed whitespace-pre-line">
-              {activity.description}
-            </p>
+            {/* Fix #181 — Description localisée selon user.language (fallback FR) */}
+            <LocalizedActivityDescription activity={activity} />
           </section>
         )}
 
