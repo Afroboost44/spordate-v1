@@ -259,27 +259,26 @@ export default function DiscoveryPage() {
             console.warn('[Discovery] swiped filter failed (non-blocking, all profiles shown):', err);
           }
         } else {
-          // Bypass actif : exclure uniquement les likes (matchés déjà en chat).
-          try {
-            const likesSnap = await getDocs(
-              query(collection(db, 'likes'), where('fromUid', '==', user.uid)),
-            );
-            const likedUids = new Set(
-              likesSnap.docs.map((d) => (d.data() as { toUid?: string }).toUid).filter(Boolean) as string[],
-            );
-            if (likedUids.size > 0) {
-              visibleUsers = visibleUsers.filter((u) => !likedUids.has(u.uid));
-              console.log(`[Discovery] Recommencer : excluded only ${likedUids.size} liked profiles`);
-            }
-          } catch (err) {
-            console.warn('[Discovery] bypass likes filter failed:', err);
-          }
+          // Fix #184 — Recommencer = bypass TOTAL des filtres swipe + likes.
+          // Avant : on filtrait quand même les likes "matchés déjà en chat".
+          // Mais l'user veut VRAIMENT voir tout le monde (cas du screenshot :
+          // 5 users dans le système, seuls Davelove visible après Restart car
+          // 4 autres déjà likés). On ramène TOUT (sauf self + blocked) — les
+          // matches existants ne sont pas dupliqués (likes idempotents par
+          // contrainte d'unicité fromUid+toUid côté Firestore rules).
+          console.log('[Discovery] Recommencer : bypass total — show all profiles');
         }
 
         // Phase 9.5 c21 — filter par opt-in partners si discoveryMode='participants-only'.
         // Query batch bookings confirmés → activities → partners.includeInDiscovery → set userIds
         // éligibles. Pas appliqué si mode='open-to-all' (legacy comportement préservé).
-        if (discoveryMode === 'participants-only') {
+        // Fix #184 — Bypass total quand Recommencer cliqué : on skip aussi ce filtre
+        // pour ramener absolument tous les profils du système (sauf self + blocked).
+        // Fix #185 — Admin voit TOUJOURS tout le monde (mode QA / modération).
+        // Le filter participants-only ne s'applique qu'aux users normaux et partenaires.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const isAdminUser = (userProfile as any)?.role === 'admin';
+        if (discoveryMode === 'participants-only' && !bypassSwipeFilter && !isAdminUser) {
           try {
             const fbDb = db;
             const bookingsSnap = await getDocs(
