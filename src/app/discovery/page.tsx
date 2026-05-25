@@ -1534,11 +1534,12 @@ END:VCALENDAR`;
           (act) => act.partnerId === (currentProfile as any).firestoreUid,
         );
         if (owned.length > 0) return owned;
-        // Fallback : toutes les activités actives (isActive !== false).
-        return realActivities.filter(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (act: any) => act.isActive !== false,
-        );
+        // Fix #183 — Fallback corrigé : on retourne SEULEMENT les activités
+        // boostées (= visibleActivities). Avant : on retournait realActivities
+        // filtré uniquement par isActive, ce qui faisait apparaître des comptes
+        // non-boostés (ex: Studio Zen visible alors que pas boosté). Les activités
+        // non-boostées ne doivent JAMAIS apparaître dans le booking modal.
+        return visibleActivities;
       })()
     : [];
 

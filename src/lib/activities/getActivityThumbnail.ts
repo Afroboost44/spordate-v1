@@ -78,16 +78,24 @@ export function getActivityThumbnailChain(activity: AnyActivity | null | undefin
       ? activity.mediaUrls
       : [];
 
-  // Cherche d'abord une vraie image (priorité sur les vidéos)
-  const firstImage = mediaItems.find(
-    (m: AnyActivity) => m && m.type === 'image' && typeof m.url === 'string' && m.url,
-  );
-  if (firstImage) {
-    chain.push(firstImage.url);
+  // Fix #183 — Cherche une image. Avant : exigeait strict `m.type === 'image'`,
+  // ce qui ratait les mediaUrls legacy qui sont des strings simples ou des
+  // objets sans `type`. Maintenant : on accepte aussi un string direct OU un
+  // objet sans type si l'URL est image-like (isImageUrl du mediaParser).
+  for (const m of mediaItems) {
+    if (!m) continue;
+    const url = typeof m === 'string' ? m : (m as AnyActivity).url;
+    const type = typeof m === 'object' ? (m as AnyActivity).type : undefined;
+    if (typeof url !== 'string' || !url) continue;
+    // Match : type explicite 'image' OU type absent + URL image-like
+    if (type === 'image' || (!type && isImageUrl(url))) {
+      if (!chain.includes(url)) chain.push(url);
+      break;
+    }
   }
 
   // Puis les vidéos (custom thumb d'abord, puis chaîne auto)
-  const firstVideo = mediaItems.find((m: AnyActivity) => m && m.type === 'video');
+  const firstVideo = mediaItems.find((m: AnyActivity) => m && typeof m === 'object' && m.type === 'video');
   if (firstVideo) {
     const videoChain = getVideoThumbnailChain(firstVideo);
     for (const url of videoChain) {
