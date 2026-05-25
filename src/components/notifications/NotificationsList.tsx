@@ -79,9 +79,19 @@ function relativeTime(
 function clickUrlFromData(notif: Notification): string | null {
   const d = notif.data || {};
   if (d.clickUrl) return d.clickUrl;
+  // Fix #175 — Notifications "message" et "match" : ouvrir directement la conversation
+  // dans /chat?match=ID. Avant : matchId renvoyait vers /discovery (perdu).
+  // Maintenant : l'utilisateur arrive direct sur le chat sélectionné.
+  // chatId === matchId pour les notifications chat (cf. services/firestore.ts:874).
+  if (notif.type === 'message' && (d.chatId || d.matchId)) {
+    return `/chat?match=${d.chatId || d.matchId}`;
+  }
+  if (notif.type === 'match' && d.matchId) {
+    return `/chat?match=${d.matchId}`;
+  }
   if (d.activityId) return `/activities/${d.activityId}`;
   if (d.bookingId) return `/sessions/${d.bookingId}`;
-  if (d.matchId) return '/discovery';
+  if (d.matchId) return `/chat?match=${d.matchId}`;
   return null;
 }
 
