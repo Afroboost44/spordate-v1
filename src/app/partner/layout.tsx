@@ -5,14 +5,18 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard, Building, LogOut, Wallet, Loader2,
-  ShieldAlert, Rocket, Menu, X, Compass, Home
+  ShieldAlert, Rocket, Menu, X, Compass, Home, Languages
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useAuth } from '@/context/AuthContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { collection, query, where, getDocs, limit } from 'firebase/firestore';
 import { SpordateurLogo } from '@/components/SpordateurLogo';
+import { NotificationBadge } from '@/components/notifications/NotificationBadge';
 
 interface PartnerData {
   partnerId: string;
@@ -26,7 +30,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading: authLoading, logout } = useAuth();
-  const { t } = useLanguage();
+  const { t, setLanguage } = useLanguage();
   const isAuthPage = pathname.includes('/login') || pathname.includes('/register');
   const [checking, setChecking] = useState(true);
   const [partner, setPartner] = useState<PartnerData | null>(null);
@@ -134,18 +138,34 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
             ))}
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2">
+            {/* Fix #180 — Cloche notifications (badge unread géré par le composant) */}
+            <NotificationBadge />
+            {/* Fix #180 — Toggle langue FR/EN/DE — partenaire peut switcher comme un user normal */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-9 w-9 text-white/40 hover:text-white/70 hover:bg-white/5">
+                  <Languages className="h-4 w-4" />
+                  <span className="sr-only">{t('partner_layout_change_lang')}</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="bg-[#0F0F0F] border-white/15 text-white">
+                <DropdownMenuItem className="cursor-pointer hover:bg-accent/20 focus:bg-accent/20" onClick={() => setLanguage('fr')}>Français</DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer hover:bg-accent/20 focus:bg-accent/20" onClick={() => setLanguage('en')}>English</DropdownMenuItem>
+                <DropdownMenuItem className="cursor-pointer hover:bg-accent/20 focus:bg-accent/20" onClick={() => setLanguage('de')}>Deutsch</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
             <Link href="/activities" className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
               <Compass className="h-4 w-4" />
-              <span className="hidden md:inline">{t('partner_layout_activities')}</span>
+              <span className="hidden lg:inline">{t('partner_layout_activities')}</span>
             </Link>
             <Link href="/" className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
               <Home className="h-4 w-4" />
-              <span className="hidden md:inline">{t('partner_layout_home')}</span>
+              <span className="hidden lg:inline">{t('partner_layout_home')}</span>
             </Link>
             <button onClick={() => { logout(); router.push('/'); }} className="text-white/30 hover:text-white/50 transition flex items-center gap-2 text-sm font-light px-3 py-2 rounded-full hover:bg-white/5">
               <LogOut className="h-4 w-4" />
-              <span className="hidden md:inline">{t('partner_layout_logout')}</span>
+              <span className="hidden lg:inline">{t('partner_layout_logout')}</span>
             </button>
           </div>
         </div>
