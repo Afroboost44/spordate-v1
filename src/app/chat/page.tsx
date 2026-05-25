@@ -1244,21 +1244,24 @@ function ChatPageContent() {
           collection(db, 'matches'),
           where('userIds', 'array-contains', currentUserId),
         );
-        let firstSnapshotSkipped = false;
+        // Fix #198 — Avant : on skippait la 1ère snapshot pour éviter un
+        // double-fetch (loadConversations() au mount + onSnap initial). MAIS
+        // ça créait un bug critique quand un match était écrit par /api/chat/
+        // unlock-direct juste avant l'arrivée sur /chat?match=X :
+        //   t0  : Admin SDK écrit match en Firestore
+        //   t1  : router.push(/chat?match=X)
+        //   t2  : loadConversations() query — propagation pas encore arrivée → 0 résultats
+        //   t3  : onSnap subscribe — propagation arrivée → snapshot contient le match
+        //   t4  : firstSnapshotSkipped=true → SKIP → loadConversations PAS re-run
+        //   t∞  : "Pas encore de conversations" alors que match existe en Firestore
+        // Désormais : on re-fetch sur CHAQUE snapshot. Coût négligeable (1 query
+        // de quelques docs) face au bug critique évité.
         unsubscribe = onSnap(
           q,
           () => {
-            // On skip le tout 1er snapshot (initial fetch déjà couvert par
-            // loadConversations()). Les suivants = updates → re-fetch list.
-            if (!firstSnapshotSkipped) {
-              firstSnapshotSkipped = true;
-              return;
-            }
             loadConversations();
           },
           (err) => {
-            // Silent : si rules block ou index manquant, on garde le comportement
-            // initial (getDocs one-shot) sans casser l'UX.
             console.warn('[Chat] realtime matches subscription error (silent)', err);
           },
         );

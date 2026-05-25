@@ -740,13 +740,16 @@ export default function DiscoveryPage() {
           description: `Tu peux maintenant discuter avec ${currentProfile.name.split(',')[0]}.`,
           className: 'bg-zinc-900 border-accent/40 text-white',
         });
-        // Fix #187 — Délai court avant push pour laisser Firestore propager
-        // le doc chats/{matchId} (eventual consistency) → la sidebar liste de
-        // /chat trouve la conv dès le premier load. Sans délai, parfois la
-        // page chat ouvrait l'état vide "Pas encore de conversations".
+        // Fix #187 + #198 — Délai avant push pour laisser Firestore propager
+        // le doc chats/{matchId} + matches/{matchId} (eventual consistency
+        // entre Admin SDK write côté server et Web SDK read côté client).
+        // 400ms n'était pas assez sous charge → bumped à 1000ms (perceptible
+        // mais évite le bug "Pas encore de conversations" malgré succès API).
+        // Le vrai fix de race condition est dans /chat page (removal du
+        // firstSnapshotSkipped), ceci n'est qu'un belt-and-suspenders.
         setTimeout(() => {
           router.push(`/chat?match=${data.matchId}`);
-        }, 400);
+        }, 1000);
       } else if (data.error === 'insufficient-credits') {
         toast({
           title: 'Solde insuffisant',
