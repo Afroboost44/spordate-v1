@@ -1722,22 +1722,23 @@ END:VCALENDAR`;
                 >
                   <X size={22} />
                 </button>
+                {/* Fix #188 — Bouton Like : icône SpordateurLogo (brand, cœur+flèche
+                    blanc) au lieu du Heart générique. Cercle accent/30 conservé. */}
                 <button
                   onClick={handleLike}
                   aria-label="Like"
                   className="w-12 h-12 rounded-full bg-accent/30 backdrop-blur-md border border-accent/40 flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
                 >
-                  <Heart size={20} fill="currentColor" />
+                  <SpordateurLogo className="h-6 w-6 text-white" />
                 </button>
-                {/* Phase 9.5 c38b CH1 — 3e bouton : Chat direct payant (5 crédits)
-                    Fix #187 — Icône remplacée par SpordateurLogo (cœur+flèche brand) */}
+                {/* Phase 9.5 c38b CH1 — 3e bouton : Chat direct payant (5 crédits) */}
                 <button
                   onClick={handleDirectChat}
                   aria-label={`${t('discovery_direct_chat_button')} — ${t('discovery_direct_chat_cost')}`}
                   title={`${t('discovery_direct_chat_button')} — ${t('discovery_direct_chat_cost')}`}
                   className="w-12 h-12 rounded-full bg-accent backdrop-blur-md border border-accent flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
                 >
-                  <SpordateurLogo className="h-5 w-5" />
+                  <MessageCircle size={20} />
                 </button>
               </div>
             </div>
