@@ -151,6 +151,38 @@ pas converties en t().
 **Anti-pattern** : laisser une nouvelle string FR hardcodée "pour faire vite".
 Le test scanner casse, le déploiement est bloqué.
 
+## 9.ter Règle miniature activité (Fix #203 — anti-régression durable)
+
+**RÈGLE DURE** : pour résoudre la miniature d'une activité **N'IMPORTE OÙ** dans
+le code (card listing, modal sélecteur, invite chat, "Où pratiquer", reservation,
+session, partner offers preview…), on utilise **TOUJOURS** :
+
+```ts
+import { getActivityThumbnail, getActivityThumbnailChain } from '@/lib/activities/getActivityThumbnail';
+
+// ✅ BON — passe l'activité COMPLÈTE
+const thumb = getActivityThumbnail(activity);
+const chain = getActivityThumbnailChain(activity);  // pour <img onError> walk
+```
+
+**INTERDIT** : cherry-pick de champs au moment de l'appel :
+
+```ts
+// ❌ MAUVAIS — bug récurrent #146, #155, #186, #203
+getActivityThumbnail({ thumbnailUrl: a.thumbnailUrl, mediaItems: a.mediaUrls, ... })
+```
+
+Le helper scan **TOUS** les champs possibles de l'objet (thumbnailUrl, images[],
+mediaItems[] image/video, mediaUrls[] legacy, imageUrl, posterUrl, coverImage,
+scan exhaustif hosts connus). Cherry-pick = perte de données = bug visuel.
+
+**Test anti-régression** : `tests/admin/activity-thumbnail-call-sites.test.js`
+scanne tous les fichiers et casse le build si quelqu'un réintroduit un
+cherry-pick `getActivityThumbnail({...})` avec littéral d'objet.
+
+**Anti-pattern à ne jamais faire** : « je vais juste extraire les 3 champs dont
+j'ai besoin parce que je connais le type ». **Non**. Tu passes l'activité, point.
+
 ## 10. Troubleshooting Git Auth
 
 **Pattern récurrent** : sur cette machine, le compte gh actif drift régulièrement vers

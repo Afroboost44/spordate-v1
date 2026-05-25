@@ -219,14 +219,13 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
               // mediaItems image → video thumbnail → imageUrl legacy si image-like).
               // Plus de copie-coller de chain entre composants. Plus de "thumbnailUrl
               // qui revient à zéro à chaque refactor".
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              const aLoose = a as any;
-              const imageUrl = getActivityThumbnail({
-                thumbnailUrl: aLoose.thumbnailUrl,
-                images: aLoose.images,
-                mediaItems: aLoose.mediaUrls,
-                imageUrl: aLoose.imageUrl,
-              }) || '';
+              //
+              // Fix #203 + CLAUDE.md §11 — RÈGLE DURE : on passe TOUJOURS l'activité
+              // COMPLÈTE au helper. JAMAIS de cherry-pick { thumbnailUrl, mediaItems...}.
+              // Le helper scan TOUS les champs (mediaItems, mediaUrls, images, imageUrl,
+              // thumbnailUrl, posterUrl, coverImage, scan exhaustif champs string).
+              // Cherry-pick = bug récurrent — la miniature qui marche partout sauf ici.
+              const imageUrl = getActivityThumbnail(a) || '';
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const aName = (a as any).name as string | undefined;
               const cardTitle = displayActivityTitle({ title: a.title, name: aName, sport: a.sport, city: a.city });
