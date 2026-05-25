@@ -41,7 +41,7 @@ import { isFirebaseConfigured, getMissingConfig, db } from "@/lib/firebase";
 import { ConfigErrorScreen } from "@/components/ConfigErrorScreen";
 import { useAuth } from "@/context/AuthContext";
 import { resolveActiveReferralCode } from "@/lib/referral/refStorage";
-import { collection, query, where, getDocs, getDoc, doc, setDoc, serverTimestamp, limit as firestoreLimit, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, setDoc, deleteDoc, serverTimestamp, limit as firestoreLimit, orderBy, Timestamp } from 'firebase/firestore';
 import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { groupBoostedActivitiesByCity } from '@/lib/discovery/whereToPractice';
@@ -726,16 +726,33 @@ export default function DiscoveryPage() {
     }
   };
 
-  // Fix #176 + #179 — Recommencer = vrai reload depuis Firestore qui ramène
-  // aussi les profils déjà passés (bypassSwipeFilter=true). Sinon le filter
-  // BUG #25 exclurait tout le monde et l'écran "Plus de profils" reviendrait
-  // immédiatement après le reload. Le flag bypass est lu UNE FOIS au prochain
-  // load puis remis à false (dans le finally du useEffect).
-  const resetProfiles = () => {
+  // Fix #176 + #179 + #182 — Recommencer = supprime physiquement les passes
+  // Firestore du user PUIS re-fetch. C'est l'approche Tinder/Hinge : "start over"
+  // = "oublier mes refus précédents". Plus simple et plus robuste que les
+  // précédentes versions (refreshTick + bypass state) qui avaient une race
+  // condition entre les setState batchés. La fonction est async et délète
+  // d'abord en Firestore avant de déclencher le re-fetch — donc le reload
+  // suivant trouve VRAIMENT les profils libérés.
+  const resetProfiles = async () => {
     setCurrentIndex(0);
     setProfiles([]);
     setLoadingProfiles(true);
-    setBypassSwipeFilter(true);
+    if (user && db) {
+      try {
+        // Supprime tous les passes du user en parallèle (batch pourrait être
+        // mieux pour gros volumes, mais Firestore Web SDK delete simple suffit
+        // ici — typiquement < 100 passes par user).
+        const passesSnap = await getDocs(
+          query(collection(db, 'passes'), where('fromUid', '==', user.uid)),
+        );
+        await Promise.all(passesSnap.docs.map((d) => deleteDoc(d.ref)));
+        console.log(`[Discovery] Recommencer : ${passesSnap.size} passes supprimés`);
+      } catch (err) {
+        console.warn('[Discovery] Recommencer : échec delete passes (continue quand même)', err);
+      }
+    }
+    // Déclenche le re-fetch via le useEffect deps refreshTick
+    setBypassSwipeFilter(true); // ceinture+bretelles : si delete échoue, bypass évite quand même filter
     setRefreshTick((t) => t + 1);
   }
 

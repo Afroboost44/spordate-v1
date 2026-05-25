@@ -50,21 +50,32 @@ const stripped = src
   else fail('CASE 2 — bypassSwipeFilter manquant — Recommencer va re-filtrer les passes !');
 }
 
-// CASE 3 — resetProfiles bump refreshTick ET set bypassSwipeFilter=true
+// CASE 3 — resetProfiles bump refreshTick + set bypassSwipeFilter + delete passes
+// (#182 — hard-delete = approche Tinder, fix robuste contre la race condition
+// précédente).
 {
-  const resetBody = stripped.match(/const\s+resetProfiles\s*=\s*\(\s*\)\s*=>\s*\{[\s\S]*?\n\s{2}\}/);
+  const resetBody = stripped.match(/const\s+resetProfiles\s*=\s*async\s*\(\s*\)\s*=>\s*\{[\s\S]*?setRefreshTick[^\n]+\n\s{2}\}/);
   if (!resetBody) {
-    fail('CASE 3 — resetProfiles introuvable');
+    fail('CASE 3 — resetProfiles async introuvable');
   } else {
     const body = resetBody[0];
     const bumpsTick = /setRefreshTick\(/.test(body);
     const setsBypass = /setBypassSwipeFilter\(true\)/.test(body);
-    if (bumpsTick && setsBypass) {
-      ok('CASE 3 — resetProfiles bump refreshTick + set bypassSwipeFilter');
+    const deletesPasses = /deleteDoc\(.*\.ref\)|deleteDoc\(/.test(body)
+      && /collection\(db,\s*['"]passes['"]\)/.test(body);
+    if (bumpsTick && setsBypass && deletesPasses) {
+      ok('CASE 3 — resetProfiles : bump tick + bypass + DELETE passes Firestore');
     } else {
-      fail('CASE 3 — resetProfiles incomplet', { bumpsTick, setsBypass });
+      fail('CASE 3 — resetProfiles incomplet', { bumpsTick, setsBypass, deletesPasses });
     }
   }
+}
+
+// CASE 3b — resetProfiles est bien câblé sur l'onClick du bouton Recommencer
+{
+  const hasOnClick = /onClick=\{resetProfiles\}/.test(stripped);
+  if (hasOnClick) ok('CASE 3b — Bouton Recommencer câblé à onClick={resetProfiles}');
+  else fail('CASE 3b — Aucun bouton onClick={resetProfiles} trouvé');
 }
 
 // CASE 4 — useEffect a refreshTick dans deps
