@@ -1722,17 +1722,22 @@ END:VCALENDAR`;
                 >
                   <X size={22} />
                 </button>
-                {/* Fix #192 — Bouton Like : logo Spordateur brand (PNG admin)
-                    en mode bare + mix-blend-mode: screen. Le fond noir du PNG
-                    devient transparent → logo blanc directement visible sur
-                    le cercle rose accent plein. Match l'image de référence
-                    envoyée par Bassi. */}
+                {/* Fix #193 — Bouton Like : SVG statique blanc transparent
+                    fourni par Bassi (public/spordateur-logo-white.svg). On
+                    abandonne le PNG admin qui avait fond noir. SVG = transparent
+                    natif, blanc pur, scalable sans perte. */}
                 <button
                   onClick={handleLike}
                   aria-label="Like"
                   className="w-12 h-12 rounded-full bg-accent backdrop-blur-md border border-accent flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
                 >
-                  <SpordateurLogo bare className="h-8 w-8" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/spordateur-logo-v3.svg"
+                    alt=""
+                    className="h-8 w-8 object-contain"
+                    aria-hidden="true"
+                  />
                 </button>
                 {/* Phase 9.5 c38b CH1 — 3e bouton : Chat direct payant (5 crédits) */}
                 <button
