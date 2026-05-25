@@ -667,9 +667,47 @@ export default function DiscoveryPage() {
   // Server-side via /api/chat/unlock-direct (Bearer + runTransaction atomic).
   const DIRECT_CHAT_COST = 5;
   const handleDirectChat = async () => {
-    if (!user || !db || !currentProfile) return;
+    // Fix #198 — Remplace les silent-returns par des toasts diagnostiques
+    // visibles. Avant : si user/db/currentProfile manquait OU firestoreUid
+    // absent OU targetUid === self, le clic ne déclenchait RIEN (pas de toast,
+    // pas de débit, page chat vide après navigation manuelle). Désormais chaque
+    // branche d'échec montre la cause précise. Permet au moins de diagnostiquer.
+    if (!user) {
+      toast({ title: 'Erreur', description: 'Tu dois être connecté(e).', variant: 'destructive' });
+      console.warn('[handleDirectChat] guard: user is null');
+      return;
+    }
+    if (!db) {
+      toast({ title: 'Erreur', description: 'Firestore non initialisé. Recharge la page.', variant: 'destructive' });
+      console.warn('[handleDirectChat] guard: db is null');
+      return;
+    }
+    if (!currentProfile) {
+      toast({ title: 'Erreur', description: 'Aucun profil affiché.', variant: 'destructive' });
+      console.warn('[handleDirectChat] guard: currentProfile is null');
+      return;
+    }
     const targetUid = (currentProfile as any).firestoreUid as string | undefined;
-    if (!targetUid || typeof targetUid !== 'string' || targetUid === user.uid) return;
+    // eslint-disable-next-line no-console
+    console.info('[handleDirectChat] resolved targetUid=', targetUid, 'profile.name=', currentProfile.name);
+    if (!targetUid || typeof targetUid !== 'string') {
+      toast({
+        title: 'Profil non identifiable',
+        description: `Le profil "${currentProfile.name}" n'a pas d'UID Firestore. Impossible d'ouvrir le chat.`,
+        variant: 'destructive',
+      });
+      console.warn('[handleDirectChat] guard: targetUid missing on profile', currentProfile);
+      return;
+    }
+    if (targetUid === user.uid) {
+      toast({
+        title: 'Action impossible',
+        description: 'Tu ne peux pas t\'envoyer un message à toi-même.',
+        variant: 'destructive',
+      });
+      console.warn('[handleDirectChat] guard: targetUid equals current user uid');
+      return;
+    }
 
     // UX fast-feedback côté client (server re-check faisant autorité).
     if (creditCount < DIRECT_CHAT_COST) {
