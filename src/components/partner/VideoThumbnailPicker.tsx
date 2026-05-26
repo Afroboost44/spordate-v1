@@ -28,6 +28,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Loader2, Camera, Play, Pause } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/context/LanguageContext';
 
 interface VideoThumbnailPickerProps {
   open: boolean;
@@ -48,6 +49,7 @@ export function VideoThumbnailPicker({
   onThumbnailSaved,
 }: VideoThumbnailPickerProps) {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [duration, setDuration] = useState(0);
@@ -56,6 +58,10 @@ export function VideoThumbnailPicker({
   const [saving, setSaving] = useState(false);
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Fix UX — préchargement vidéo. `isVideoReady` passe à true sur onLoadedData
+  // (premier frame décodé, prêt à drawImage). Avant ça, on affiche un loader
+  // par-dessus la <video> et on désactive le bouton Capturer + le slider.
+  const [isVideoReady, setIsVideoReady] = useState(false);
 
   // Reset state quand modal s'ouvre/ferme
   useEffect(() => {
@@ -64,6 +70,7 @@ export function VideoThumbnailPicker({
       setCurrentTime(0);
       setSaving(false);
       setLoadError(null);
+      setIsVideoReady(false);
       if (blobUrl) {
         URL.revokeObjectURL(blobUrl);
         setBlobUrl(null);
@@ -83,6 +90,7 @@ export function VideoThumbnailPicker({
       return;
     }
     setLoadError(null);
+    setIsVideoReady(false);
     // Utilise l'URL proxy directement — pas de fetch+blob.
     const proxyUrl = `/api/proxy-video?url=${encodeURIComponent(videoUrl)}`;
     setBlobUrl(proxyUrl);
@@ -92,6 +100,17 @@ export function VideoThumbnailPicker({
     const v = videoRef.current;
     if (!v) return;
     setDuration(v.duration || 0);
+  };
+
+  // onLoadedData = premier frame décodé et drawable (HAVE_CURRENT_DATA).
+  // C'est l'instant où canvas.drawImage(v) renvoie une image valide → on
+  // active le slider + le bouton Capturer.
+  const handleLoadedData = () => {
+    setIsVideoReady(true);
+  };
+
+  const handleVideoError = () => {
+    setIsVideoReady(false);
   };
 
   const handleTimeUpdate = () => {
@@ -220,26 +239,40 @@ export function VideoThumbnailPicker({
                 ref={videoRef}
                 src={blobUrl}
                 playsInline
+                // preload=metadata : ne télécharge que durée + dimensions + 1er
+                // frame, pas la vidéo entière. Évite l'écran noir de 10s+ sur
+                // les vidéos lourdes (mp4 partner uploads).
+                preload="metadata"
                 onLoadedMetadata={handleLoadedMetadata}
+                onLoadedData={handleLoadedData}
+                onError={handleVideoError}
                 onTimeUpdate={handleTimeUpdate}
-                onClick={togglePlay}
+                onClick={isVideoReady ? togglePlay : undefined}
                 onEnded={() => setIsPlaying(false)}
                 className="w-full max-h-[400px] object-contain cursor-pointer"
               />
             )}
-            {/* Overlay play/pause au centre */}
-            <button
-              type="button"
-              onClick={togglePlay}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 rounded-full p-4 transition-colors"
-              aria-label={isPlaying ? 'Pause' : 'Lire'}
-            >
-              {isPlaying ? (
-                <Pause className="h-6 w-6 text-white" />
-              ) : (
-                <Play className="h-6 w-6 text-white" />
-              )}
-            </button>
+            {/* Loader chargement vidéo — visible tant que premier frame pas prêt */}
+            {blobUrl && !isVideoReady && !loadError && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/70 text-white/80 text-sm z-10">
+                <Loader2 className="h-5 w-5 mr-2 animate-spin" /> {t('video_loading')}
+              </div>
+            )}
+            {/* Overlay play/pause au centre — masqué tant que vidéo pas prête */}
+            {isVideoReady && (
+              <button
+                type="button"
+                onClick={togglePlay}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-black/60 hover:bg-black/80 rounded-full p-4 transition-colors"
+                aria-label={isPlaying ? 'Pause' : 'Lire'}
+              >
+                {isPlaying ? (
+                  <Pause className="h-6 w-6 text-white" />
+                ) : (
+                  <Play className="h-6 w-6 text-white" />
+                )}
+              </button>
+            )}
           </div>
 
           {/* Timeline scrub */}
@@ -255,8 +288,9 @@ export function VideoThumbnailPicker({
               step={0.1}
               value={currentTime}
               onChange={handleSeek}
-              className="w-full accent-accent"
-              disabled={!duration}
+              className="w-full accent-accent disabled:opacity-40 disabled:cursor-not-allowed"
+              disabled={!duration || !isVideoReady}
+              title={!isVideoReady ? 'Vidéo en cours de chargement' : undefined}
             />
           </div>
 
@@ -277,7 +311,8 @@ export function VideoThumbnailPicker({
           <Button
             type="button"
             onClick={handleCapture}
-            disabled={saving || !duration}
+            disabled={saving || !duration || !isVideoReady}
+            title={!isVideoReady ? 'Vidéo en cours de chargement' : undefined}
             className="bg-accent hover:bg-accent/90 text-white"
           >
             {saving ? (

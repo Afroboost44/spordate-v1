@@ -42,6 +42,7 @@ import { ActivityInviteSection } from '@/components/activities/ActivityInviteSec
 import { InvitedActivityBanner } from '@/components/activities/InvitedActivityBanner';
 import { LocalizedActivityTitle, LocalizedActivityDescription } from '@/components/activities/LocalizedActivityText';
 import { BackToChatLink } from '@/components/activities/BackToChatLink';
+import { AdminActivityActions } from '@/components/activities/AdminActivityActions';
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -168,6 +169,16 @@ export default async function ActivityDetailPage({ params, searchParams }: PageP
             )}
           </div>
         </header>
+
+        {/* Admin/Owner actions — boutons Modifier + Supprimer visibles seulement
+            pour admin ou propriétaire (silent return null sinon). Pour admin :
+            redirige vers /partner/offers?edit={id} (layout partner bypass
+            accessDenied si admin, page offers charge toutes les activités). */}
+        <AdminActivityActions
+          activityId={activity.activityId}
+          activityTitle={activity.title}
+          ownerPartnerId={activity.partnerId}
+        />
 
         {/* Phase 9.5 c4 — Media carousel (images + video embeds) */}
         {(() => {

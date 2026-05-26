@@ -29,13 +29,18 @@ interface PartnerData {
 export default function PartnerLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, userProfile, loading: authLoading, logout } = useAuth();
   const { t, setLanguage } = useLanguage();
   const isAuthPage = pathname.includes('/login') || pathname.includes('/register');
   const [checking, setChecking] = useState(true);
   const [partner, setPartner] = useState<PartnerData | null>(null);
   const [accessDenied, setAccessDenied] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Admin override : un admin peut accéder à /partner/* pour modérer ou
+  // modifier les offres de tous les partenaires (cf. firestore.rules
+  // /activities/{id} allow update/delete avec isAdmin() branch). Skip
+  // accessDenied + partner subscription gate dans ce cas.
+  const isAdmin = userProfile?.role === 'admin';
 
   const navLinks = [
     { href: "/partner/dashboard", label: t('partner_layout_nav_dashboard'), icon: <LayoutDashboard className="h-5 w-5" /> },
@@ -50,6 +55,10 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
     if (authLoading) return;
     if (!user) { router.push('/partner/login'); return; }
     if (!db || !isFirebaseConfigured) { setChecking(false); return; }
+
+    // Admin bypass : accès libre à /partner/* (modération + édition multi-tenant).
+    // On NE charge PAS de partner doc pour l'admin (il n'en a pas forcément un).
+    if (isAdmin) { setChecking(false); return; }
 
     const checkPartnerAccess = async () => {
       try {
@@ -69,7 +78,7 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
     };
 
     checkPartnerAccess();
-  }, [user, authLoading, router, isAuthPage]);
+  }, [user, authLoading, router, isAuthPage, isAdmin]);
 
   // Auth pages don't need access control
   if (isAuthPage) return <div className="min-h-screen bg-black">{children}</div>;
@@ -120,6 +129,9 @@ export default function PartnerLayout({ children }: { children: React.ReactNode 
             </Link>
             {partner && (
               <span className="text-xs text-white/30 font-light hidden md:block ml-4 border-l border-white/10 pl-4">{partner.name}</span>
+            )}
+            {isAdmin && !partner && (
+              <span className="text-[10px] uppercase tracking-wider hidden md:block ml-4 border-l border-white/10 pl-4 bg-red-500/10 text-red-400 px-2 py-0.5 rounded-full">{t('partner_layout_admin_badge')}</span>
             )}
           </div>
 

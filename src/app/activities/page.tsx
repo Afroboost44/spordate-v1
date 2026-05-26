@@ -210,6 +210,52 @@ function CardVideoEmbed({ item }: { item: MediaItem }) {
 }
 
 /**
+ * BUG #220 — <video> fullscreen avec détection ratio dynamique + son activé.
+ *
+ * - Détecte le ratio réel via onLoadedMetadata (videoWidth / videoHeight).
+ *   landscape (>1.1) : aspect-video, bandes noires haut/bas sur écran portrait.
+ *   portrait  (<0.9) : aspect-[9/16], bandes noires latérales sur PC.
+ *   square        : aspect-square.
+ * - object-contain (JAMAIS cover en fullscreen — pas de crop, l'user a demandé
+ *   le plein écran, on lui montre la vidéo entière dans son ratio natif).
+ * - Pas de `muted` : l'ouverture du fullscreen est un user-gesture (clic
+ *   Maximize2), la plupart des navigateurs autorisent l'autoplay sonore.
+ *   Si Safari strict bloque, `controls` permet à l'user de cliquer play.
+ */
+function FullscreenVideo({ src, autoPlay }: { src: string; autoPlay: boolean }) {
+  const [ratio, setRatio] = useState<'landscape' | 'portrait' | 'square'>('landscape');
+  const handleLoaded = (e: React.SyntheticEvent<HTMLVideoElement>) => {
+    const v = e.currentTarget;
+    if (!v.videoWidth || !v.videoHeight) return;
+    const r = v.videoWidth / v.videoHeight;
+    if (r > 1.1) setRatio('landscape');
+    else if (r < 0.9) setRatio('portrait');
+    else setRatio('square');
+  };
+  // Sur PC (large) : on laisse l'aspect-ratio contraindre la taille (bandes
+  // noires gérées par le bg-black du parent). Sur mobile (max-w-full), une
+  // vidéo 16:9 prend toute la largeur avec bandes haut/bas, une vidéo 9:16
+  // prend toute la hauteur avec bandes latérales. object-contain garantit
+  // qu'aucun crop n'est appliqué.
+  const aspectClass =
+    ratio === 'portrait'
+      ? 'aspect-[9/16] max-h-[100vh] max-w-full'
+      : ratio === 'square'
+        ? 'aspect-square max-h-[100vh] max-w-full'
+        : 'aspect-video max-w-[100vw] max-h-[100vh]';
+  return (
+    <video
+      src={src}
+      controls
+      autoPlay={autoPlay}
+      playsInline
+      onLoadedMetadata={handleLoaded}
+      className={`${aspectClass} object-contain bg-black`}
+    />
+  );
+}
+
+/**
  * BUG #52 v3 — Lightbox plein écran SWIPABLE (Browser Fullscreen API + scroll-snap).
  *
  * Affiche TOUS les items du carousel en horizontal scroll-snap → l'user peut
@@ -330,14 +376,11 @@ function FullscreenLightbox({
             {item.type === 'video' ? (
               // BUG #60 — Idem CardMediaSlide : upload partner sans extension
               // dans le path → fallback iframe inutile. <video> direct si upload.
+              // BUG #220 — FullscreenVideo détecte le ratio (16:9 vs 9:16 vs
+              // 1:1) via onLoadedMetadata et applique object-contain (jamais
+              // cover) + son activé par défaut (pas de muted hardcodé).
               item.source === 'upload' || isStorageVideoUrl(item.url) ? (
-                <video
-                  src={item.url}
-                  controls
-                  autoPlay={i === currentIndex}
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
+                <FullscreenVideo src={item.url} autoPlay={i === currentIndex} />
               ) : (
                 <div className="w-full h-full relative">
                   <CardVideoEmbed item={item} />

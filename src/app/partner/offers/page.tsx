@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, FormEvent } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -269,8 +270,14 @@ function PartnerCardMedia({ act }: { act: Activity }) {
 }
 
 export default function PartnerOffersPage() {
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const { toast } = useToast();
+  // Admin override : si l'utilisateur connecté est admin, on charge TOUTES les
+  // activités (pas le filtre `partnerId == user.uid`). Le admin peut alors
+  // éditer/supprimer/dupliquer/toggle n'importe quelle activité du site.
+  // Cohérent avec firestore.rules /activities/{id} ligne ~227 où update/delete
+  // sont déjà gated par `(partnerId == auth.uid) || isAdmin()`.
+  const isAdmin = userProfile?.role === 'admin';
 
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
@@ -334,11 +341,18 @@ export default function PartnerOffersPage() {
   const [createSessionModalOpen, setCreateSessionModalOpen] = useState(false);
   const [sessionsRefreshTick, setSessionsRefreshTick] = useState(0);
   const { t } = useLanguage();
+  // Admin deep-link : `?edit=<activityId>` ouvre directement le modal d'édition.
+  // Utilisé par AdminActivityActions sur /activities/[id] pour amener l'admin
+  // ici en un clic. Appliqué une fois quand activities sont chargées.
+  const searchParams = useSearchParams();
+  const editTargetId = searchParams?.get('edit') || null;
+  const [autoEditApplied, setAutoEditApplied] = useState(false);
 
   useEffect(() => {
     if (!user || !db || !isFirebaseConfigured) { setLoading(false); return; }
     loadActivities();
-  }, [user]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, isAdmin]);
 
   // BUG #57 — Fetch du Partner doc une fois au mount pour récupérer
   // partner.type (gate conditionnel "Cadre & Ambiance" en étape 3).
@@ -440,12 +454,18 @@ export default function PartnerOffersPage() {
     try {
       let snap;
       try {
-        const q = query(collection(db, 'activities'), where('partnerId', '==', user.uid), orderBy('createdAt', 'desc'));
+        // Admin : pas de filtre partnerId → charge toutes les activités du site.
+        // Partner : filtre habituel par owner.
+        const q = isAdmin
+          ? query(collection(db, 'activities'), orderBy('createdAt', 'desc'))
+          : query(collection(db, 'activities'), where('partnerId', '==', user.uid), orderBy('createdAt', 'desc'));
         snap = await getDocs(q);
       } catch {
         // Index might not be ready, retry without orderBy
         console.warn('[Partner] Index not ready, fetching without orderBy');
-        const q = query(collection(db, 'activities'), where('partnerId', '==', user.uid));
+        const q = isAdmin
+          ? query(collection(db, 'activities'))
+          : query(collection(db, 'activities'), where('partnerId', '==', user.uid));
         snap = await getDocs(q);
       }
       setActivities(snap.docs.map(d => ({ ...d.data(), activityId: d.id } as Activity)));
@@ -513,6 +533,20 @@ export default function PartnerOffersPage() {
   const handleStepPrev = () => {
     if (formStep > 1) setFormStep((s) => (s - 1) as 1 | 2 | 3);
   };
+
+  // Admin deep-link `?edit=<id>` — quand les activités sont chargées, si l'URL
+  // contient `?edit=<id>` et qu'une activité matche, on ouvre automatiquement
+  // le modal d'édition. One-shot (autoEditApplied flag).
+  useEffect(() => {
+    if (autoEditApplied) return;
+    if (loading) return;
+    if (!editTargetId) return;
+    const target = activities.find(a => a.activityId === editTargetId);
+    if (!target) return;
+    setAutoEditApplied(true);
+    openEdit(target);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, activities, editTargetId, autoEditApplied]);
 
   const openCreate = () => { setEditing(null); resetForm(); setOpen(true); };
 
@@ -668,9 +702,18 @@ export default function PartnerOffersPage() {
         scheduledAt: scheduledAtValue,
         // Phase 9.5 c31 BUG HH — défaut tiers (vide = fallback c29a auto)
         defaultPricingTiers: pricingTiersPayload,
-        // BUG #57 — denorm partnerType + venueDetails (si applicable)
-        partnerType: partnerData?.type ?? null,
-        partnerId: user.uid, isActive: true, updatedAt: serverTimestamp(),
+        // BUG #57 — denorm partnerType + venueDetails (si applicable).
+        // Admin override : si admin édite une activité dont il n'est PAS owner,
+        // on ne doit PAS réécraser partnerId/partnerType avec ses propres
+        // valeurs (sinon transfert involontaire de propriété + perte du type
+        // partner d'origine). On préserve les valeurs existantes de l'activité.
+        partnerType: (editing && isAdmin && editing.partnerId !== user.uid)
+          ? (editing.partnerType ?? null)
+          : (partnerData?.type ?? null),
+        partnerId: (editing && isAdmin && editing.partnerId !== user.uid)
+          ? editing.partnerId
+          : user.uid,
+        isActive: true, updatedAt: serverTimestamp(),
       };
       if (venueDetailsToSave) {
         data.venueDetails = venueDetailsToSave;
@@ -870,9 +913,16 @@ export default function PartnerOffersPage() {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <h3 className="text-white font-medium">{act.name}</h3>
-                    <Badge className={`mt-1 text-xs ${act.isActive ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-white/5 text-white/30 border-white/10'}`}>
-                      {act.isActive ? t('partner_offers_active') : t('partner_offers_inactive')}
-                    </Badge>
+                    <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                      <Badge className={`text-xs ${act.isActive ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-white/5 text-white/30 border-white/10'}`}>
+                        {act.isActive ? t('partner_offers_active') : t('partner_offers_inactive')}
+                      </Badge>
+                      {isAdmin && user && act.partnerId !== user.uid && (
+                        <Badge className="text-[9px] bg-red-500/10 text-red-400 border-red-500/20 uppercase tracking-wider">
+                          {t('partner_offers_admin_other_owner_badge')}
+                        </Badge>
+                      )}
+                    </div>
                   </div>
                   <Switch checked={act.isActive} onCheckedChange={() => handleToggleActive(act)} />
                 </div>
