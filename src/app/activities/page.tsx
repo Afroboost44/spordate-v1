@@ -539,19 +539,18 @@ function ActivityCardComponent({
             <Info className="h-3 w-3 opacity-80" />
             <span>{t('activities_see_detail')}</span>
           </Link>
-          {/* BUG #52 / Fix Bassi — bouton "Plein écran" en haut-droite,
-              icône uniquement (square compact) pour éviter le chevauchement
-              avec le badge "Déjà réservée". right-12 laisse la place au
-              volume toggle du CardVideoEmbed (right-2). Quand
-              existingBookingId, badge "Déjà réservée" prend right-3 →
-              on décale Plein écran à right-[6rem] (gap visuel suffisant). */}
+          {/* BUG #52 v2 / Fix Bassi — bouton "Plein écran" déplacé en bas-droite
+              de l'image (au-dessus du counter "X/Y" et des dots qui sont en
+              bottom-2). Plus aucun chevauchement possible avec le badge
+              "Déjà réservée" qui reste seul en top-right. bottom-12 = 3rem du
+              bas pour rester au-dessus du bandeau "Voir détail" (bottom-2)
+              et du counter (bottom-2 right-2). */}
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); e.preventDefault(); setFullscreenStartIndex(currentSlide); }}
-            className="absolute top-3 z-10 inline-flex items-center justify-center h-7 w-7 p-0 bg-black/60 backdrop-blur-sm text-white rounded-full hover:bg-black/80 transition-colors"
+            className="absolute bottom-12 right-3 z-10 inline-flex items-center justify-center h-7 w-7 p-0 bg-black/60 backdrop-blur-sm text-white rounded-full hover:bg-black/80 transition-colors"
             aria-label={t('activities_display_fullscreen_aria')}
             title={t('activities_fullscreen')}
-            style={{ right: existingBookingId ? '6rem' : '3rem' }}
           >
             <Maximize2 className="h-4 w-4" />
           </button>
