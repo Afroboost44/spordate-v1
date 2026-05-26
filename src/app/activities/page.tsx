@@ -210,20 +210,145 @@ function CardVideoEmbed({ item }: { item: MediaItem }) {
 }
 
 /**
- * BUG #220 — <video> fullscreen avec détection ratio dynamique + son activé.
+ * BUG #220 + Mobile UX Instagram/TikTok — <video> fullscreen ratio-aware.
  *
- * - Détecte le ratio réel via onLoadedMetadata (videoWidth / videoHeight).
- *   landscape (>1.1) : aspect-video, bandes noires haut/bas sur écran portrait.
- *   portrait  (<0.9) : aspect-[9/16], bandes noires latérales sur PC.
- *   square        : aspect-square.
- * - object-contain (JAMAIS cover en fullscreen — pas de crop, l'user a demandé
- *   le plein écran, on lui montre la vidéo entière dans son ratio natif).
- * - Pas de `muted` : l'ouverture du fullscreen est un user-gesture (clic
- *   Maximize2), la plupart des navigateurs autorisent l'autoplay sonore.
- *   Si Safari strict bloque, `controls` permet à l'user de cliquer play.
+ * Desktop (>768px) :
+ *  - Comportement historique : object-contain + bandes noires + controls
+ *    HTML5 natifs. Aucune régression sur le ratio dynamique.
+ *
+ * Mobile (≤768px) :
+ *  - Vidéo 9:16 (portrait) : object-cover + w-screen/h-screen pour remplir
+ *    100% de l'écran (UX Reels/TikTok). Tente requestFullscreen() natif
+ *    pour cacher la barre d'URL.
+ *  - Vidéo 16:9 (landscape) : tente screen.orientation.lock('landscape').
+ *    Si l'API n'existe pas / throw (Safari iOS) → overlay 5s avec hint
+ *    "Tourne ton téléphone pour le plein écran" (i18n FR/EN/DE).
+ *  - Controls overlay custom (✕ close + 🔊 mute) avec aria-label + title,
+ *    toujours visibles (bg-black/50 backdrop-blur) au lieu des controls
+ *    HTML5 natifs.
+ *
+ * Cleanup au unmount :
+ *  - Sortie fullscreen natif si activé.
+ *  - Déverrouille screen.orientation si lockée.
+ *  - Remove resize listener (matchMedia).
  */
-function FullscreenVideo({ src, autoPlay }: { src: string; autoPlay: boolean }) {
+function FullscreenVideo({
+  src,
+  autoPlay,
+  onClose,
+}: {
+  src: string;
+  autoPlay: boolean;
+  onClose?: () => void;
+}) {
+  const { t } = useLanguage();
+  const videoRef = useRef<HTMLVideoElement>(null);
   const [ratio, setRatio] = useState<'landscape' | 'portrait' | 'square'>('landscape');
+  const [isMobile, setIsMobile] = useState<boolean>(false);
+  const [muted, setMuted] = useState<boolean>(false);
+  const [showRotateHint, setShowRotateHint] = useState<boolean>(false);
+  // Refs pour cleanup : on doit savoir si on a verrouillé l'orientation
+  // ou demandé un fullscreen natif côté <video>, pour défaire au unmount
+  // sans casser d'autres écrans déjà fullscreen.
+  const didLockOrientation = useRef(false);
+  const didRequestFullscreen = useRef(false);
+  const rotateHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Détection mobile via matchMedia, mise à jour live si rotation/resize.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 768px)');
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
+
+  // Détecte Safari iOS où Screen Orientation Lock API est bloquée.
+  const isSafariIOS = (): boolean => {
+    if (typeof navigator === 'undefined' || typeof window === 'undefined') return false;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ms = (window as any).MSStream;
+    return /iPad|iPhone|iPod/.test(navigator.userAgent) && !ms;
+  };
+
+  // Applique le comportement orientation/fullscreen quand on connaît le ratio
+  // ET qu'on est en mobile. Idempotent : si déjà fait, ne refait pas.
+  useEffect(() => {
+    if (!isMobile) return;
+    if (typeof window === 'undefined') return;
+
+    // Vidéo 9:16 (portrait) → fullscreen natif si possible.
+    if (ratio === 'portrait') {
+      const v = videoRef.current;
+      if (v && !document.fullscreenElement && !didRequestFullscreen.current) {
+        const req = (v.requestFullscreen?.bind(v))
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ?? ((v as any).webkitEnterFullscreen?.bind(v) as (() => Promise<void>) | undefined);
+        if (req) {
+          try {
+            const p = req();
+            if (p && typeof (p as Promise<void>).then === 'function') {
+              (p as Promise<void>).then(() => { didRequestFullscreen.current = true; }).catch(() => undefined);
+            } else {
+              didRequestFullscreen.current = true;
+            }
+          } catch {
+            /* silent */
+          }
+        }
+      }
+    }
+
+    // Vidéo 16:9 (landscape) → orientation lock landscape, fallback hint.
+    if (ratio === 'landscape') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const orient = (screen as any).orientation;
+      const canLock = orient && typeof orient.lock === 'function' && !isSafariIOS();
+      if (canLock) {
+        try {
+          const p = orient.lock('landscape');
+          if (p && typeof p.then === 'function') {
+            p.then(() => { didLockOrientation.current = true; }).catch(() => {
+              // Lock refusé runtime → afficher le hint.
+              setShowRotateHint(true);
+              rotateHintTimerRef.current = setTimeout(() => setShowRotateHint(false), 5000);
+            });
+          } else {
+            didLockOrientation.current = true;
+          }
+        } catch {
+          setShowRotateHint(true);
+          rotateHintTimerRef.current = setTimeout(() => setShowRotateHint(false), 5000);
+        }
+      } else {
+        // Safari iOS ou API absente → hint visuel 5s.
+        setShowRotateHint(true);
+        rotateHintTimerRef.current = setTimeout(() => setShowRotateHint(false), 5000);
+      }
+    }
+  }, [isMobile, ratio]);
+
+  // Cleanup global au unmount du composant.
+  useEffect(() => {
+    return () => {
+      if (rotateHintTimerRef.current) clearTimeout(rotateHintTimerRef.current);
+      if (didLockOrientation.current) {
+        try {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (screen as any).orientation?.unlock?.();
+        } catch {
+          /* silent */
+        }
+        didLockOrientation.current = false;
+      }
+      if (didRequestFullscreen.current && typeof document !== 'undefined' && document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => undefined);
+        didRequestFullscreen.current = false;
+      }
+    };
+  }, []);
+
   const handleLoaded = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
     if (!v.videoWidth || !v.videoHeight) return;
@@ -232,26 +357,103 @@ function FullscreenVideo({ src, autoPlay }: { src: string; autoPlay: boolean }) 
     else if (r < 0.9) setRatio('portrait');
     else setRatio('square');
   };
-  // Sur PC (large) : on laisse l'aspect-ratio contraindre la taille (bandes
-  // noires gérées par le bg-black du parent). Sur mobile (max-w-full), une
-  // vidéo 16:9 prend toute la largeur avec bandes haut/bas, une vidéo 9:16
-  // prend toute la hauteur avec bandes latérales. object-contain garantit
-  // qu'aucun crop n'est appliqué.
-  const aspectClass =
-    ratio === 'portrait'
-      ? 'aspect-[9/16] max-h-[100vh] max-w-full'
-      : ratio === 'square'
-        ? 'aspect-square max-h-[100vh] max-w-full'
-        : 'aspect-video max-w-[100vw] max-h-[100vh]';
+
+  const handleClose = () => {
+    if (didLockOrientation.current) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (screen as any).orientation?.unlock?.();
+      } catch {
+        /* silent */
+      }
+      didLockOrientation.current = false;
+    }
+    if (didRequestFullscreen.current && typeof document !== 'undefined' && document.fullscreenElement) {
+      document.exitFullscreen?.().catch(() => undefined);
+      didRequestFullscreen.current = false;
+    }
+    onClose?.();
+  };
+
+  const handleToggleMute = () => {
+    setMuted((m) => !m);
+  };
+
+  // Classes ratio-aware.
+  // Mobile + 9:16 → remplir tout l'écran (object-cover, w/h screen).
+  // Mobile + 16:9 → on garde object-contain (l'orientation lock fera le job).
+  // Desktop → comportement historique (aspect-ratio + object-contain).
+  const useMobileFill = isMobile && ratio === 'portrait';
+  const videoClass = useMobileFill
+    ? 'w-screen h-screen object-cover bg-black'
+    : (() => {
+        const aspectClass =
+          ratio === 'portrait'
+            ? 'aspect-[9/16] max-h-[100vh] max-w-full'
+            : ratio === 'square'
+              ? 'aspect-square max-h-[100vh] max-w-full'
+              : 'aspect-video max-w-[100vw] max-h-[100vh]';
+        return `${aspectClass} object-contain bg-black`;
+      })();
+
+  // Sur mobile : on supprime les controls HTML5 natifs au profit d'un overlay
+  // custom (✕ + mute) toujours visible. Sur desktop : controls natifs comme
+  // avant + bouton ✕ du parent FullscreenLightbox.
+  const showNativeControls = !isMobile;
+
   return (
-    <video
-      src={src}
-      controls
-      autoPlay={autoPlay}
-      playsInline
-      onLoadedMetadata={handleLoaded}
-      className={`${aspectClass} object-contain bg-black`}
-    />
+    <div className={isMobile ? 'fixed inset-0 z-[105] flex items-center justify-center bg-black' : 'relative'}>
+      <video
+        ref={videoRef}
+        src={src}
+        controls={showNativeControls}
+        autoPlay={autoPlay}
+        playsInline
+        muted={muted}
+        onLoadedMetadata={handleLoaded}
+        className={videoClass}
+      />
+
+      {isMobile && (
+        <>
+          {/* Bouton ✕ close en haut-droite */}
+          <button
+            type="button"
+            onClick={handleClose}
+            aria-label={t('fullscreen_close')}
+            title={t('fullscreen_close')}
+            className="absolute top-4 right-4 z-30 p-3 rounded-full bg-black/50 backdrop-blur text-white hover:bg-black/70 transition-colors"
+          >
+            <X className="h-6 w-6" aria-hidden="true" />
+          </button>
+
+          {/* Bouton mute toggle en bas-droite */}
+          <button
+            type="button"
+            onClick={handleToggleMute}
+            aria-label={muted ? t('fullscreen_unmute') : t('fullscreen_mute')}
+            title={muted ? t('fullscreen_unmute') : t('fullscreen_mute')}
+            className="absolute bottom-6 right-4 z-30 p-3 rounded-full bg-black/50 backdrop-blur text-white hover:bg-black/70 transition-colors"
+          >
+            {muted ? (
+              <VolumeX className="h-6 w-6" aria-hidden="true" />
+            ) : (
+              <Volume2 className="h-6 w-6" aria-hidden="true" />
+            )}
+          </button>
+
+          {/* Overlay hint "tourne ton téléphone" pour Safari iOS sur 16:9 */}
+          {showRotateHint && (
+            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center justify-center px-6 pointer-events-none">
+              <div className="bg-black/70 backdrop-blur text-white text-sm md:text-base px-4 py-3 rounded-xl flex items-center gap-2 text-center">
+                <Maximize2 className="h-5 w-5 rotate-90" aria-hidden="true" />
+                <span>{t('fullscreen_rotate_phone_hint')}</span>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </div>
   );
 }
 
@@ -292,7 +494,14 @@ function FullscreenLightbox({
       }
     });
     // Landscape lock si l'item courant est vidéo. Reset à chaque scroll.
+    // UX mobile Instagram/TikTok : sur ≤768px on NE force PAS landscape ici
+    // car le ratio réel de la vidéo n'est pas encore connu — c'est le
+    // composant <FullscreenVideo> qui lock/unlock après detection du ratio
+    // (9:16 → fullscreen natif, 16:9 → landscape lock + fallback hint iOS).
+    // Sur desktop, on garde le lock historique (UX YouTube fullscreen).
+    const isMobileViewport = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
     const lockOrientationForCurrent = (idx: number) => {
+      if (isMobileViewport) return;
       const it = items[idx];
       if (!it) return;
       if (it.type === 'video' && screen.orientation && 'lock' in screen.orientation) {
@@ -380,7 +589,7 @@ function FullscreenLightbox({
               // 1:1) via onLoadedMetadata et applique object-contain (jamais
               // cover) + son activé par défaut (pas de muted hardcodé).
               item.source === 'upload' || isStorageVideoUrl(item.url) ? (
-                <FullscreenVideo src={item.url} autoPlay={i === currentIndex} />
+                <FullscreenVideo src={item.url} autoPlay={i === currentIndex} onClose={onClose} />
               ) : (
                 <div className="w-full h-full relative">
                   <CardVideoEmbed item={item} />
