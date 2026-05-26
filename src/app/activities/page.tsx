@@ -245,7 +245,15 @@ function FullscreenVideo({
   const videoRef = useRef<HTMLVideoElement>(null);
   const [ratio, setRatio] = useState<'landscape' | 'portrait' | 'square'>('landscape');
   const [isMobile, setIsMobile] = useState<boolean>(false);
-  const [muted, setMuted] = useState<boolean>(false);
+  // Démarrage muted=true sur mobile pour permettre l'autoplay (Chrome/Safari
+  // bloquent l'autoplay sonore par défaut). Sur desktop, controls natifs +
+  // user attention présente, donc autoplay sonore tolérable. Le state est
+  // calculé au mount en SSR-safe (window guard) pour éviter le toggle visible
+  // entre le premier paint et la première sync isMobile.
+  const [muted, setMuted] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia('(max-width: 768px)').matches;
+  });
   const [showRotateHint, setShowRotateHint] = useState<boolean>(false);
   // Refs pour cleanup : on doit savoir si on a verrouillé l'orientation
   // ou demandé un fullscreen natif côté <video>, pour défaire au unmount
@@ -278,26 +286,15 @@ function FullscreenVideo({
     if (!isMobile) return;
     if (typeof window === 'undefined') return;
 
-    // Vidéo 9:16 (portrait) → fullscreen natif si possible.
+    // Vidéo 9:16 (portrait) sur mobile → on NE FAIT RIEN d'autre que
+    // l'overlay fixed inset-0 + w-screen h-screen object-cover (déjà appliqué
+    // via la className dynamique). PAS de requestFullscreen() : sur Android,
+    // entrer en fullscreen natif côté <video> déclenche une rotation auto en
+    // landscape, ce qui retournerait la vidéo verticale (UX inverse de ce que
+    // veut Bassi : 9:16 doit RESTER portrait). UX cible = Reels/TikTok :
+    // vidéo verticale qui remplit l'écran portrait sans rotation.
     if (ratio === 'portrait') {
-      const v = videoRef.current;
-      if (v && !document.fullscreenElement && !didRequestFullscreen.current) {
-        const req = (v.requestFullscreen?.bind(v))
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          ?? ((v as any).webkitEnterFullscreen?.bind(v) as (() => Promise<void>) | undefined);
-        if (req) {
-          try {
-            const p = req();
-            if (p && typeof (p as Promise<void>).then === 'function') {
-              (p as Promise<void>).then(() => { didRequestFullscreen.current = true; }).catch(() => undefined);
-            } else {
-              didRequestFullscreen.current = true;
-            }
-          } catch {
-            /* silent */
-          }
-        }
-      }
+      // No-op : object-cover w-screen h-screen suffit pour "remplir l'écran".
     }
 
     // Vidéo 16:9 (landscape) → orientation lock landscape, fallback hint.
@@ -376,7 +373,21 @@ function FullscreenVideo({
   };
 
   const handleToggleMute = () => {
-    setMuted((m) => !m);
+    setMuted((m) => {
+      const next = !m;
+      const v = videoRef.current;
+      if (v) {
+        v.muted = next;
+        // Si on dé-mute, on tente play() au cas où l'autoplay sonore initial
+        // a été bloqué par le navigateur (Chrome/Safari refusent l'autoplay
+        // non-muted en arrière-plan, mais le clic ici est un user-gesture
+        // qui débloque la lecture sonore).
+        if (!next) {
+          v.play().catch(() => undefined);
+        }
+      }
+      return next;
+    });
   };
 
   // Classes ratio-aware.
