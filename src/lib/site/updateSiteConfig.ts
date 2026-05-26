@@ -89,4 +89,30 @@ export async function updateSiteConfig(partial: SiteConfigPartial): Promise<void
     // eslint-disable-next-line no-console
     console.log('[updateSiteConfig] saved keys:', Object.keys(partial));
   }
+
+  // Fix FOUC — purge le cache Next.js des Server fetches qui lisent
+  // settings/site (theme couleur, brand logos, site config strings).
+  // Sans cet appel, `unstable_cache({ revalidate: 60 })` côté server peut
+  // continuer à servir l'ancienne couleur / l'ancien hero pendant 60s,
+  // causant un flash visible sur le premier paint après save admin.
+  // Best-effort : si l'endpoint échoue, le cache se purge quand même au
+  // bout de 60s (TTL), donc on ne bloque pas le save.
+  if (typeof window !== 'undefined') {
+    try {
+      const { auth: clientAuth } = await import('@/lib/firebase');
+      const token = await clientAuth?.currentUser?.getIdToken();
+      if (token) {
+        // fire-and-forget : on n'attend pas la réponse pour ne pas ralentir
+        // le UX du save admin. Le revalidate est court (~50ms).
+        void fetch('/api/admin/site/revalidate', {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch(() => {
+          /* Silent — TTL 60s fallback. */
+        });
+      }
+    } catch {
+      /* Silent — cache se purgera via TTL 60s. */
+    }
+  }
 }

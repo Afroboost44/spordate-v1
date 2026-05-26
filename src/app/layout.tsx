@@ -86,6 +86,15 @@ export const viewport: Viewport = {
   maximumScale: 1,
 };
 
+// Fix FOUC — sans force-dynamic, Next.js peut figer le layout au build avec
+// les anciennes valeurs admin (theme couleur, brand logos) dans le HTML
+// statique. Avec force-dynamic, `getServerTheme()` + `getServerBrand()` sont
+// évalués à chaque request — leur cache 60s interne (unstable_cache, purgé
+// par /api/admin/site/revalidate après save admin) limite les reads
+// Firestore. Sans ça, le <style id="server-theme"> contiendrait la couleur
+// figée au build → FOUC garanti après save admin.
+export const dynamic = 'force-dynamic';
+
 export default async function RootLayout({
   children,
 }: Readonly<{
