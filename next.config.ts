@@ -2,6 +2,14 @@ import type {NextConfig} from 'next';
 
 const isExport = process.env.NEXT_OUTPUT === 'export';
 
+// Fix #204 — BUILD_ID injecté dans le client pour cache-busting du Service
+// Worker. Sans ça, le navigateur ré-évalue /sw.js seulement quand l'utilisateur
+// ferme totalement le browser, ce qui fait tourner l'app sur un SW v30 alors
+// que le nouveau bundle JS attend un SW v31 → client crash après quelques min.
+// PWARegister.tsx append `?v=${BUILD_ID}` au register() pour forcer le navigateur
+// à comparer un body de SW différent → updatefound déclenché → SKIP_WAITING.
+const BUILD_ID = process.env.BUILD_ID || String(Date.now());
+
 const nextConfig: NextConfig = {
   // Static export for GitHub Pages preview, sinon `standalone` pour Docker/Coolify
   // (output: 'standalone' produit .next/standalone autonome ~200 Mo vs ~1 Go,
@@ -30,7 +38,13 @@ const nextConfig: NextConfig = {
   env: {
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+    // Fix #204 — exposé côté client (NEXT_PUBLIC_) pour cache-bust du SW.
+    NEXT_PUBLIC_BUILD_ID: BUILD_ID,
   },
+  // Fix #204 — generateBuildId stable au sein d'un même build (sinon les
+  // .next chunks peuvent référencer 2 build IDs différents). En dev, Next.js
+  // gère lui-même un ID via HMR — ce hook n'est appelé qu'au build prod.
+  generateBuildId: async () => BUILD_ID,
   images: {
     unoptimized: isExport, // Required for static export
     remotePatterns: [

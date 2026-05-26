@@ -36,17 +36,144 @@ export default function PWARegister() {
   const [deviceType, setDeviceType] = useState<'ios' | 'android' | null>(null);
   const [hasNativePrompt, setHasNativePrompt] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
+  // Fix #204 — toast affiché 2s avant le reload auto quand le SW est mis à jour
+  const [showUpdateToast, setShowUpdateToast] = useState(false);
 
   useEffect(() => {
+    // Fix #204 — handles à nettoyer au unmount.
+    let updateInterval: number | null = null;
+    let controllerChangeHandler: (() => void) | null = null;
+
     if ('serviceWorker' in navigator) {
+      // Fix #204 — cache-bust du body /sw.js à chaque déploiement. Le
+      // navigateur ne ré-évalue le SW que si le BODY a changé ; sans query
+      // string distincte les déploiements rapides (même hash byte-à-byte
+      // possible) peuvent rater l'update. NEXT_PUBLIC_BUILD_ID est injecté
+      // par next.config.ts à chaque build.
+      const buildId = process.env.NEXT_PUBLIC_BUILD_ID || '';
+      const swUrl = buildId ? `/sw.js?v=${buildId}` : '/sw.js';
+
       navigator.serviceWorker
-        .register('/sw.js')
+        .register(swUrl)
         .then((reg) => {
-          console.log('[PWA] Service Worker registered:', reg.scope);
+          console.log('[PWA] Service Worker registered:', reg.scope, 'buildId=', buildId);
+
+          // Fix #204 — si un SW est déjà en attente au moment du register
+          // (page rouverte après update background), on l'active tout de suite.
+          if (reg.waiting && navigator.serviceWorker.controller) {
+            console.log('[PWA] SW déjà waiting au load → SKIP_WAITING');
+            reg.waiting.postMessage({ type: 'SKIP_WAITING' });
+          }
+
+          // Fix #204 — détection d'une nouvelle version pendant que la page
+          // est ouverte. updatefound fire dès que le navigateur download un
+          // nouveau /sw.js différent. On attend que son state passe à
+          // 'installed', puis on demande SKIP_WAITING pour activer la v+1
+          // immédiatement. controllerchange (plus bas) rechargera la page.
+          reg.addEventListener('updatefound', () => {
+            const newWorker = reg.installing;
+            if (!newWorker) return;
+            console.log('[PWA] updatefound — new SW installing');
+            newWorker.addEventListener('statechange', () => {
+              console.log('[PWA] new SW statechange:', newWorker.state);
+              if (
+                newWorker.state === 'installed' &&
+                navigator.serviceWorker.controller
+              ) {
+                // navigator.serviceWorker.controller existe → un ancien SW
+                // contrôlait déjà la page → c'est bien un UPDATE (pas un
+                // premier install). On force l'activation.
+                console.log('[PWA] new SW installed → SKIP_WAITING');
+                newWorker.postMessage({ type: 'SKIP_WAITING' });
+              }
+            });
+          });
+
+          // Fix #204 — check périodique pour détecter une nouvelle version
+          // sans dépendre du navigateur (qui ne check que sur navigation ou
+          // toutes les 24h). Toutes les 60s on demande au browser de re-fetch
+          // /sw.js → s'il a changé, updatefound fire.
+          updateInterval = window.setInterval(() => {
+            reg.update().catch((e) => {
+              console.log('[PWA] reg.update() failed (silent):', e);
+            });
+          }, 60_000);
         })
         .catch((err) => {
           console.log('[PWA] Service Worker registration failed:', err);
         });
+
+      // Fix #204 — controllerchange fire quand un NOUVEAU SW prend le contrôle
+      // de la page (suite à SKIP_WAITING + clients.claim côté SW). On affiche
+      // un toast 2s puis on reload pour repartir sur un bundle JS cohérent
+      // avec le nouveau SW (sinon mix vieux JS / nouveau cache = crash).
+      // Anti-boucle : flag local hasReloaded pour ne reload qu'UNE fois par
+      // chargement de page (sinon en théorie controllerchange pourrait refire
+      // si plusieurs updates rapides).
+      let hasReloaded = false;
+      // Fix #204 v2 — protections combinées contre les boucles de reload :
+      //  a) hasReloaded local : 1 seul reload par chargement de page.
+      //  b) sessionStorage 'pwa-reloaded' : 1 seul reload par session
+      //     navigateur. Si pour une raison X (SW mal activé, race condition)
+      //     on relande controllerchange immédiatement après reload, on
+      //     bloque définitivement jusqu'à fermeture de l'onglet.
+      //  c) Visibility-aware : si l'utilisateur regarde une vidéo en
+      //     background (document.hidden), on diffère le reload jusqu'au
+      //     prochain focus pour ne pas interrompre la lecture.
+      const scheduleReload = () => {
+        if (hasReloaded) return;
+        if (window.sessionStorage.getItem('pwa-reloaded') === '1') {
+          console.log('[PWA] controllerchange ignoré — déjà reloadé cette session');
+          return;
+        }
+        hasReloaded = true;
+        window.sessionStorage.setItem('pwa-reloaded', '1');
+        console.log('[PWA] controllerchange = SW update → reload in 2s');
+        setShowUpdateToast(true);
+
+        const doReload = () => {
+          if (document.hidden) {
+            // Onglet en arrière-plan : attendre le retour au foreground.
+            // Évite de couper une vidéo / musique en lecture background.
+            console.log('[PWA] doc hidden → reload différé jusqu\'au focus');
+            const onVisible = () => {
+              if (!document.hidden) {
+                document.removeEventListener('visibilitychange', onVisible);
+                window.location.reload();
+              }
+            };
+            document.addEventListener('visibilitychange', onVisible);
+            return;
+          }
+          window.location.reload();
+        };
+
+        window.setTimeout(doReload, 2000);
+      };
+
+      controllerChangeHandler = () => {
+        // Edge case : au tout premier install (jamais eu de controller avant),
+        // controllerchange fire aussi. On évite alors le reload — la page
+        // tourne déjà avec le bundle JS qui matche le SW fresh. On se base sur
+        // sessionStorage 'pwa-sw-seen' marqué au load si controller existait.
+        const isFirstInstall =
+          !window.sessionStorage.getItem('pwa-sw-seen');
+        window.sessionStorage.setItem('pwa-sw-seen', '1');
+        if (isFirstInstall) {
+          console.log('[PWA] controllerchange = first install → no reload');
+          return;
+        }
+        scheduleReload();
+      };
+      navigator.serviceWorker.addEventListener(
+        'controllerchange',
+        controllerChangeHandler
+      );
+
+      // Marquer la session comme "SW déjà vu" si controller existe au load.
+      if (navigator.serviceWorker.controller) {
+        window.sessionStorage.setItem('pwa-sw-seen', '1');
+      }
     }
 
     const isStandalone =
@@ -123,6 +250,18 @@ export default function PWARegister() {
 
     return () => {
       window.removeEventListener('beforeinstallprompt', handleBeforeInstall);
+      // Fix #204 v2 — nettoyer le controllerchange listener + l'interval
+      // d'update. Sans ça, en cas d'unmount/remount (HMR dev, route switch),
+      // on accumule des handlers qui pourraient déclencher plusieurs reloads.
+      if (controllerChangeHandler && 'serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener(
+          'controllerchange',
+          controllerChangeHandler,
+        );
+      }
+      if (updateInterval !== null) {
+        window.clearInterval(updateInterval);
+      }
     };
   }, []);
 
@@ -147,8 +286,43 @@ export default function PWARegister() {
     }
   };
 
+  // Fix #204 — toast "Nouvelle version" affiché en priorité 2s avant reload.
+  // Z-index 10000 > splash 9999 + banners 9998 pour passer par-dessus tout.
+  // Coexiste avec le rendu : on le wrappe dans un Fragment avec le contenu
+  // existant via showUpdateToast en condition AVANT les autres early-returns.
+  // Cas rare où le toast apparaît pendant un banner install : le toast prend
+  // visuellement le dessus (top du viewport) sans masquer le banner (bottom).
+  const updateToast = showUpdateToast ? (
+    <div
+      key="pwa-update-toast"
+      role="status"
+      aria-live="polite"
+      style={{
+        position: 'fixed',
+        top: 20,
+        left: '50%',
+        transform: 'translateX(-50%)',
+        zIndex: 10000,
+        background: 'rgba(0, 0, 0, 0.95)',
+        backdropFilter: 'blur(12px)',
+        color: 'white',
+        borderRadius: 12,
+        padding: '12px 20px',
+        fontSize: 14,
+        fontWeight: 500,
+        boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+        border: '1px solid rgb(var(--accent-color-rgb) / 0.3)',
+        maxWidth: '90vw',
+      }}
+    >
+      {t('pwa_new_version_reloading')}
+    </div>
+  ) : null;
+
   if (showSplash) {
     return (
+      <>
+      {updateToast}
       <div
         style={{
           position: 'fixed',
@@ -185,11 +359,14 @@ export default function PWARegister() {
         </p>
         <style>{`@keyframes splashFade { to { opacity: 0; pointer-events: none; } }`}</style>
       </div>
+      </>
     );
   }
 
   if (showInstall) {
     return (
+      <>
+      {updateToast}
       <div
         style={{
           position: 'fixed',
@@ -262,6 +439,7 @@ export default function PWARegister() {
           ×
         </button>
       </div>
+      </>
     );
   }
 
@@ -272,6 +450,8 @@ export default function PWARegister() {
     //  - Android Chrome sans event : icône menu ⋮ + instruction "Tap ⋮ → …"
     const isAndroidWithPrompt = deviceType === 'android' && hasNativePrompt;
     return (
+      <>
+      {updateToast}
       <div
         style={{
           position: 'fixed',
@@ -391,7 +571,14 @@ export default function PWARegister() {
           ×
         </button>
       </div>
+      </>
     );
+  }
+
+  // Fix #204 — si seul le toast d'update est actif (cas normal), on le rend
+  // sans autre bannière.
+  if (updateToast) {
+    return updateToast;
   }
 
   return null;

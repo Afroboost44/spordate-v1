@@ -67,6 +67,8 @@ const defaultTranslations: any = {
     pwa_install_title: "Installer Spordateur",
     pwa_install_subtitle: "Accès rapide depuis ton écran d'accueil",
     pwa_install_button: "Installer",
+    // Fix #204 — toast affiché 2s avant le reload auto quand un nouveau SW prend la main
+    pwa_new_version_reloading: "Nouvelle version disponible, rechargement…",
     // Phase 9.5 c46 BUG 4 — iOS Safari install banner (pas de beforeinstallprompt natif)
     pwa_ios_install_title: "Installer Spordateur",
     pwa_ios_install_step1: "Tap",
@@ -1810,6 +1812,8 @@ invited_banner_title: "Invitation acceptée 🎉",
     pwa_install_title: "Install Spordateur",
     pwa_install_subtitle: "Quick access from your home screen",
     pwa_install_button: "Install",
+    // Fix #204 — toast shown 2s before auto-reload when a new SW takes over
+    pwa_new_version_reloading: "New version available, reloading…",
     // Phase 9.5 c46 BUG 4 — iOS Safari install banner
     pwa_ios_install_title: "Install Spordateur",
     pwa_ios_install_step1: "Tap",
@@ -3533,6 +3537,8 @@ invited_banner_title: "Invitation accepted 🎉",
     pwa_install_title: "Spordateur installieren",
     pwa_install_subtitle: "Schneller Zugriff vom Startbildschirm",
     pwa_install_button: "Installieren",
+    // Fix #204 — Toast 2s vor dem automatischen Reload, wenn ein neuer SW übernimmt
+    pwa_new_version_reloading: "Neue Version verfügbar, wird neu geladen…",
     // Fix #149 — iOS Safari + Android Chrome install banner (manquaient en DE)
     pwa_ios_install_title: "Spordateur installieren",
     pwa_ios_install_step1: "Tippe",
