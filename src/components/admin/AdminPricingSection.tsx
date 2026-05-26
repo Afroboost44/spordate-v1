@@ -19,19 +19,31 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Loader2, Save, Coins, Heart, Zap, Building2 } from 'lucide-react';
+import { Loader2, Save, Coins, Heart, Zap, Building2, Wallet, Receipt } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useToast } from '@/hooks/use-toast';
+import { useLanguage } from '@/context/LanguageContext';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { DEFAULT_CHAT_PRICING } from '@/lib/pricing/chatPricing';
-import { DEFAULT_SITE_PRICING, sanitizeInt, sanitizeChf } from '@/lib/pricing/sitePricing';
+import {
+  DEFAULT_SITE_PRICING,
+  sanitizeInt,
+  sanitizeChf,
+  sanitizeVatEnabled,
+  sanitizeVatRate,
+  sanitizeVatMode,
+} from '@/lib/pricing/sitePricing';
+import { MIN_PAYOUT_CHF } from '@/lib/creators/limits';
 
 export function AdminPricingSection() {
   const { toast } = useToast();
+  const { t } = useLanguage();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -52,6 +64,20 @@ export function AdminPricingSection() {
   const [boostPartner24h, setBoostPartner24h] = useState<number>(DEFAULT_SITE_PRICING.boostPartner24hPriceCHF);
   const [boostPartner3d,  setBoostPartner3d]  = useState<number>(DEFAULT_SITE_PRICING.boostPartner3dPriceCHF);
   const [boostPartner7d,  setBoostPartner7d]  = useState<number>(DEFAULT_SITE_PRICING.boostPartner7dPriceCHF);
+
+  // ----- Payouts créateurs — seuil min retrait paramétrable (cf. limits.ts) -----
+  // Floor absolu MIN_PAYOUT_CHF (10) appliqué côté validatePayoutRequest, on autorise
+  // l'admin à entrer une valeur inférieure dans le champ pour clarté UX, mais
+  // au save on clamp >= MIN_PAYOUT_CHF pour éviter d'écrire une valeur que la
+  // règle Firestore + le serveur rejetteraient ensuite silencieusement.
+  const [minPayoutChf, setMinPayoutChf] = useState<number>(DEFAULT_SITE_PRICING.minPayoutCHF);
+
+  // ----- TVA Suisse (paramétrable admin, default OFF) -----
+  // Back-compat : si le doc settings/pricing n'a pas encore ces 3 champs,
+  // on reste sur les defaults (vatEnabled=false → aucun impact UI).
+  const [vatEnabled, setVatEnabled] = useState<boolean>(DEFAULT_SITE_PRICING.vatEnabled);
+  const [vatRate, setVatRate] = useState<number>(DEFAULT_SITE_PRICING.vatRate);
+  const [vatMode, setVatMode] = useState<'included' | 'added'>(DEFAULT_SITE_PRICING.vatMode);
 
   useEffect(() => {
     if (!db || !isFirebaseConfigured) {
@@ -77,6 +103,13 @@ export function AdminPricingSection() {
           if (typeof data.boostPartner24hPriceCHF === 'number' && data.boostPartner24hPriceCHF >= 0) setBoostPartner24h(data.boostPartner24hPriceCHF);
           if (typeof data.boostPartner3dPriceCHF  === 'number' && data.boostPartner3dPriceCHF  >= 0) setBoostPartner3d(data.boostPartner3dPriceCHF);
           if (typeof data.boostPartner7dPriceCHF  === 'number' && data.boostPartner7dPriceCHF  >= 0) setBoostPartner7d(data.boostPartner7dPriceCHF);
+          // Payouts — min retrait créateurs (champ optionnel pour back-compat).
+          if (typeof data.minPayoutCHF === 'number' && data.minPayoutCHF >= 0) setMinPayoutChf(data.minPayoutCHF);
+          // TVA — champs optionnels (back-compat : avant ajout TVA, ces clés
+          // n'existaient pas → on reste sur les defaults vatEnabled=false).
+          if (typeof data.vatEnabled === 'boolean') setVatEnabled(data.vatEnabled);
+          if (typeof data.vatRate === 'number' && data.vatRate >= 0 && data.vatRate <= 30) setVatRate(data.vatRate);
+          if (data.vatMode === 'included' || data.vatMode === 'added') setVatMode(data.vatMode);
         }
       } catch (err) {
         console.warn('[AdminPricing] read failed', err);
@@ -113,6 +146,17 @@ export function AdminPricingSection() {
           boostPartner24hPriceCHF: sanitizeChf(boostPartner24h, DEFAULT_SITE_PRICING.boostPartner24hPriceCHF),
           boostPartner3dPriceCHF:  sanitizeChf(boostPartner3d,  DEFAULT_SITE_PRICING.boostPartner3dPriceCHF),
           boostPartner7dPriceCHF:  sanitizeChf(boostPartner7d,  DEFAULT_SITE_PRICING.boostPartner7dPriceCHF),
+          // Clamp >= MIN_PAYOUT_CHF côté write — défense en profondeur cohérente
+          // avec firestore.rules + validatePayoutRequest. L'admin voit le champ
+          // accepter < 10 dans l'UI mais on persiste >= 10 minimum.
+          minPayoutCHF: Math.max(MIN_PAYOUT_CHF, sanitizeChf(minPayoutChf, DEFAULT_SITE_PRICING.minPayoutCHF)),
+          // TVA Suisse — sanitize via les helpers dédiés (boolean strict, taux
+          // 0-30%, mode whitelist). Si Bassi pousse une valeur invalide depuis
+          // la console, on retombe sur les defaults plutôt que de corrompre
+          // le calcul checkout.
+          vatEnabled: sanitizeVatEnabled(vatEnabled, DEFAULT_SITE_PRICING.vatEnabled),
+          vatRate:    sanitizeVatRate(vatRate,       DEFAULT_SITE_PRICING.vatRate),
+          vatMode:    sanitizeVatMode(vatMode,       DEFAULT_SITE_PRICING.vatMode),
           updatedAt: serverTimestamp(),
         },
         { merge: true },
@@ -301,6 +345,162 @@ export function AdminPricingSection() {
               disabled={saving}
               integerOnly={false}
             />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ============ Carte 5 : PAYOUTS — seuil min retrait créateurs ============ */}
+      <Card className="bg-[#0F0F0F] border-white/10 rounded-2xl transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/10">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white text-base">
+            <Wallet className="h-5 w-5 text-accent" />
+            {t('admin_manage_pricing_payouts_h')}
+          </CardTitle>
+          <p className="text-xs text-white/40 font-light mt-1">
+            {t('admin_manage_pricing_payouts_sub')}
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <NumberField
+              id="admin-min-payout-chf"
+              label={t('admin_manage_pricing_min_payout_label')}
+              defaultHint={t('admin_manage_pricing_min_payout_hint')}
+              value={minPayoutChf}
+              onChange={setMinPayoutChf}
+              disabled={saving}
+              integerOnly={false}
+            />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* ============ Carte 6 : TVA Suisse (paramétrable, default OFF) ============ */}
+      <Card className="bg-[#0F0F0F] border-white/10 rounded-2xl transition-all duration-200 hover:border-accent/40 hover:shadow-lg hover:shadow-accent/10">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-white text-base">
+            <Receipt className="h-5 w-5 text-accent" />
+            {t('admin_manage_pricing_vat_h')}
+          </CardTitle>
+          <p className="text-xs text-white/40 font-light mt-1">
+            {t('admin_manage_pricing_vat_sub')}
+          </p>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-5">
+            {/* Toggle ON/OFF */}
+            <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-zinc-900/40 border border-white/5">
+              <div className="flex flex-col gap-0.5">
+                <Label htmlFor="admin-vat-enabled" className="text-sm text-white cursor-pointer">
+                  {t('admin_manage_pricing_vat_toggle_label')}
+                </Label>
+                <p className="text-[11px] text-white/40">
+                  {vatEnabled
+                    ? t('admin_manage_pricing_vat_toggle_on_hint')
+                    : t('admin_manage_pricing_vat_toggle_off_hint')}
+                </p>
+              </div>
+              <Switch
+                id="admin-vat-enabled"
+                checked={vatEnabled}
+                onCheckedChange={setVatEnabled}
+                disabled={saving}
+              />
+            </div>
+
+            {/* Taux TVA */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="admin-vat-rate" className="text-xs uppercase tracking-wider text-white/60">
+                  {t('admin_manage_pricing_vat_rate_label')}
+                </Label>
+                <Input
+                  id="admin-vat-rate"
+                  type="number"
+                  inputMode="decimal"
+                  min={0}
+                  max={30}
+                  step={0.1}
+                  value={vatRate}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    const n = parseFloat(raw);
+                    if (!Number.isFinite(n) || n < 0) {
+                      setVatRate(0);
+                      return;
+                    }
+                    setVatRate(Math.min(30, Math.round(n * 10) / 10));
+                  }}
+                  disabled={saving || !vatEnabled}
+                  className="bg-zinc-900/60 border-white/10 text-white disabled:opacity-50"
+                />
+                <p className="text-[10px] text-white/40">
+                  {t('admin_manage_pricing_vat_rate_hint')}
+                </p>
+              </div>
+            </div>
+
+            {/* Mode TVA — radio group */}
+            <div className="flex flex-col gap-2">
+              <Label className="text-xs uppercase tracking-wider text-white/60">
+                {t('admin_manage_pricing_vat_mode_label')}
+              </Label>
+              <RadioGroup
+                value={vatMode}
+                onValueChange={(v) => {
+                  if (v === 'included' || v === 'added') setVatMode(v);
+                }}
+                disabled={saving || !vatEnabled}
+                className="gap-2"
+              >
+                <label
+                  htmlFor="admin-vat-mode-included"
+                  className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                    vatMode === 'included' ? 'border-accent/60 bg-accent/5' : 'border-white/10 bg-zinc-900/40 hover:border-white/20'
+                  } ${!vatEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <RadioGroupItem
+                    id="admin-vat-mode-included"
+                    value="included"
+                    className="mt-0.5 border-white/40 text-accent"
+                    disabled={saving || !vatEnabled}
+                  />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm text-white">
+                      {t('admin_manage_pricing_vat_mode_included_label')}
+                    </span>
+                    <span className="text-[11px] text-white/40">
+                      {t('admin_manage_pricing_vat_mode_included_desc')}
+                    </span>
+                  </div>
+                </label>
+                <label
+                  htmlFor="admin-vat-mode-added"
+                  className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition ${
+                    vatMode === 'added' ? 'border-accent/60 bg-accent/5' : 'border-white/10 bg-zinc-900/40 hover:border-white/20'
+                  } ${!vatEnabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  <RadioGroupItem
+                    id="admin-vat-mode-added"
+                    value="added"
+                    className="mt-0.5 border-white/40 text-accent"
+                    disabled={saving || !vatEnabled}
+                  />
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm text-white">
+                      {t('admin_manage_pricing_vat_mode_added_label')}
+                    </span>
+                    <span className="text-[11px] text-white/40">
+                      {t('admin_manage_pricing_vat_mode_added_desc')}
+                    </span>
+                  </div>
+                </label>
+              </RadioGroup>
+            </div>
+
+            <p className="text-[11px] text-white/40 leading-relaxed">
+              {t('admin_manage_pricing_vat_footer_hint')}
+            </p>
           </div>
         </CardContent>
       </Card>

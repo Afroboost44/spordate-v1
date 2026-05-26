@@ -18,6 +18,13 @@ import { createUser, getUser } from '@/services/firestore';
 import { readReferralCode, clearReferralCode } from '@/lib/referral/refStorage';
 import { isAdminEmail } from '@/lib/sports';
 import type { UserProfile } from '@/types/firestore';
+// Fix audit parrainage — toast non-bloquant si le code parrainage saisi
+// au signup est inconnu. On NE PEUT PAS utiliser useLanguage() ici car
+// AuthProvider wrap LanguageProvider dans layout.tsx → on lit
+// defaultTranslations + langue depuis localStorage directement.
+// `toast` est un module-level callable (cf. src/hooks/use-toast.ts L145).
+import { toast } from '@/hooks/use-toast';
+import { defaultTranslations } from '@/context/LanguageContext';
 
 interface AuthContextType {
   user: User | null;
@@ -36,6 +43,26 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+/**
+ * Helper i18n local — récupère la langue active depuis localStorage et lit
+ * la clé dans defaultTranslations (fallback FR). Indépendant de useLanguage()
+ * car AuthProvider est monté AU-DESSUS de LanguageProvider dans layout.tsx,
+ * donc useLanguage() retournerait null ici. Mirror du même algo que t() côté
+ * LanguageContext (cf. LanguageContext.tsx ligne 5087).
+ */
+function translateFromDefaults(key: string): string {
+  let lang = 'fr';
+  if (typeof window !== 'undefined') {
+    const stored = window.localStorage.getItem('spordate_lang');
+    if (stored === 'fr' || stored === 'en' || stored === 'de') lang = stored;
+  }
+  return (
+    defaultTranslations[lang]?.[key] ||
+    defaultTranslations['fr'][key] ||
+    key
+  );
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -53,20 +80,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // côté serveur lance processReferralSignup() qui crée le doc referrals
         // + incrémente creator.totalReferrals. Clear après pour éviter une
         // re-attribution si le user se déconnecte/reconnecte plus tard.
+        //
+        // Fix audit parrainage — createUser retourne maintenant un statut
+        // typé pour le traitement parrainage. Si le code est inconnu
+        // ('code-not-found'), on affiche un toast non-bloquant. Les autres
+        // statuts ('self-referral', 'cap-reached', 'no-code', 'ok') restent
+        // silencieux — déjà gérés côté logique métier, on n'embarrasse pas
+        // l'utilisateur avec un toast inutile.
         const referredBy = readReferralCode();
-        profile = await createUser({
+        const result = await createUser({
           uid: firebaseUser.uid,
           email: firebaseUser.email || '',
           displayName: firebaseUser.displayName || '',
           photoURL: firebaseUser.photoURL || '',
           referredBy: referredBy ?? '',
         });
+        profile = result.profile;
         if (referredBy) clearReferralCode();
         console.log(
           '[Auth] Profil Firestore créé pour',
           firebaseUser.email,
-          referredBy ? `(ref=${referredBy})` : '',
+          referredBy ? `(ref=${referredBy}, referralStatus=${result.referralStatus.status})` : '',
         );
+
+        if (result.referralStatus.status === 'code-not-found') {
+          // Toast info non-bloquant — l'inscription continue normalement.
+          toast({
+            title: translateFromDefaults('signup_referral_code_not_found_title'),
+            description: translateFromDefaults('signup_referral_code_not_found'),
+          });
+        }
       }
 
       // Phase 9.5 c9 — auto-promote admin si email matche allowlist + role !== admin.
@@ -143,25 +186,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const clearError = () => setError(null);
 
-  // Translate Firebase error codes to French.
+  // Translate Firebase error codes to localized message via translateFromDefaults().
   // Phase 9.5 hotfix : étendu avec 5 codes Google Sign-In + 2 silent cases (return null).
   // Caller skip setError si message === null (case: user a fermé popup volontairement).
+  // Fix #156/#157 — passe par t() pour FR/EN/DE au lieu de strings FR hardcodées.
   function getFirebaseErrorMessage(code: string): string | null {
     switch (code) {
       case 'auth/email-already-in-use':
-        return 'Cette adresse email est déjà utilisée.';
+        return translateFromDefaults('auth_email_already_registered');
       case 'auth/invalid-email':
         return 'Adresse email invalide.';
       case 'auth/weak-password':
         return 'Le mot de passe doit contenir au moins 6 caractères.';
       case 'auth/user-not-found':
-        return 'Aucun compte trouvé avec cet email.';
+        return translateFromDefaults('auth_email_not_found');
       case 'auth/wrong-password':
-        return 'Mot de passe incorrect.';
+        return translateFromDefaults('auth_password_incorrect');
       case 'auth/invalid-credential':
         return 'Email ou mot de passe incorrect.';
       case 'auth/too-many-requests':
-        return 'Trop de tentatives. Réessayez dans quelques minutes.';
+        return translateFromDefaults('auth_too_many_attempts');
       case 'auth/network-request-failed':
         return 'Erreur réseau. Vérifiez votre connexion internet.';
       // Phase 9.5 hotfix — Google Sign-In error codes étendus

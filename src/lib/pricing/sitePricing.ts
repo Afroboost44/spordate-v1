@@ -43,6 +43,32 @@ export const DEFAULT_SITE_PRICING = {
   boostPartner3dPriceCHF: 35,
   /** Prix CHF du Boost Partenaire 1 semaine (7 jours). */
   boostPartner7dPriceCHF: 50,
+
+  /**
+   * Montant minimum (CHF) qu'un creator doit avoir pour demander un retrait.
+   * Floor absolu : 10 CHF (cf. firestore.rules + `MIN_PAYOUT_CHF`). Bassi peut
+   * RELEVER ce seuil depuis /admin/manage > Tarifs, jamais le descendre.
+   */
+  minPayoutCHF: 10,
+
+  /**
+   * TVA Suisse — paramétrable admin (OFF par défaut).
+   * Quand activée, la TVA s'affiche sur le checkout, le wallet partenaire et
+   * (à terme) les emails de confirmation. Le calcul passe par
+   * `computeVat()` dans `@/lib/pricing/vat`.
+   *
+   * Pourquoi ces 3 champs :
+   *   - vatEnabled  : permet à Bassi d'activer/désactiver la TVA sans
+   *     redéployer (mais aussi de revenir en arrière si besoin).
+   *   - vatRate     : pourcentage (par défaut 7.7 pour le taux standard CH).
+   *     Clampé entre 0 et 30 pour éviter les fat-finger admin.
+   *   - vatMode     : 'included' = prix TTC affiché, on déduit le HT
+   *     (recommandé B2C Suisse — le client voit le prix final).
+   *     'added' = prix HT affiché, TVA en plus (B2B / cas particuliers).
+   */
+  vatEnabled: false,
+  vatRate: 7.7,
+  vatMode: 'included' as 'included' | 'added',
 } as const;
 
 export interface SitePricing {
@@ -54,6 +80,10 @@ export interface SitePricing {
   boostPartner24hPriceCHF: number;
   boostPartner3dPriceCHF: number;
   boostPartner7dPriceCHF: number;
+  minPayoutCHF: number;
+  vatEnabled: boolean;
+  vatRate: number;
+  vatMode: 'included' | 'added';
 }
 
 // =====================================================================
@@ -76,6 +106,10 @@ export async function getSitePricing(db: any): Promise<SitePricing> {
       boostPartner24hPriceCHF: sanitizeChf(data.boostPartner24hPriceCHF, DEFAULT_SITE_PRICING.boostPartner24hPriceCHF),
       boostPartner3dPriceCHF:  sanitizeChf(data.boostPartner3dPriceCHF,  DEFAULT_SITE_PRICING.boostPartner3dPriceCHF),
       boostPartner7dPriceCHF:  sanitizeChf(data.boostPartner7dPriceCHF,  DEFAULT_SITE_PRICING.boostPartner7dPriceCHF),
+      minPayoutCHF:            sanitizeChf(data.minPayoutCHF,            DEFAULT_SITE_PRICING.minPayoutCHF),
+      vatEnabled:              sanitizeVatEnabled(data.vatEnabled,       DEFAULT_SITE_PRICING.vatEnabled),
+      vatRate:                 sanitizeVatRate(data.vatRate,             DEFAULT_SITE_PRICING.vatRate),
+      vatMode:                 sanitizeVatMode(data.vatMode,             DEFAULT_SITE_PRICING.vatMode),
     };
   } catch (err) {
     console.warn('[sitePricing] read failed, using defaults', err);
@@ -100,4 +134,28 @@ export function sanitizeChf(raw: unknown, fallback: number): number {
   if (!Number.isFinite(n) || n < 0) return fallback;
   if (n > 9999) return fallback;
   return Math.round(n * 100) / 100;
+}
+
+/** Sanitize le toggle TVA : strict boolean, sinon fallback. */
+export function sanitizeVatEnabled(raw: unknown, fallback: boolean): boolean {
+  if (typeof raw === 'boolean') return raw;
+  return fallback;
+}
+
+/**
+ * Sanitize un taux TVA : pourcentage entre 0 et 30 (safety cap). Si invalide
+ * → fallback. On garde 1 décimale arrondie (ex: 7.7, 8.1, 25.0).
+ */
+export function sanitizeVatRate(raw: unknown, fallback: number): number {
+  const n = typeof raw === 'number' ? raw : parseFloat(String(raw));
+  if (!Number.isFinite(n) || n < 0 || n > 30) return fallback;
+  return Math.round(n * 10) / 10;
+}
+
+/** Sanitize le mode TVA : whitelist stricte. */
+export function sanitizeVatMode(
+  raw: unknown,
+  fallback: 'included' | 'added',
+): 'included' | 'added' {
+  return raw === 'included' || raw === 'added' ? raw : fallback;
 }

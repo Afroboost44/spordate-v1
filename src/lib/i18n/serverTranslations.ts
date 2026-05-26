@@ -23,14 +23,28 @@ export const DEFAULT_LANG: ServerLang = 'fr';
 
 /**
  * Liste des MessageKey supportées. Étendre ici quand on ajoute un nouvel event push.
- *  - chat_new_message  : "{senderName} t'a écrit" / preview
- *  - match_mutual      : "C'est un match !" — match mutuel détecté
- *  - test_push         : diagnostique /api/test-push
+ *  - chat_new_message              : "{senderName} t'a écrit" / preview
+ *  - match_mutual                  : "C'est un match !" — match mutuel détecté
+ *  - test_push                     : diagnostique /api/test-push
+ *  - referral_commission_received  : commission CHF reçue (creator ou invite)
+ *  - referral_free_class_creator   : N cours offerts via lien créateur
+ *  - referral_free_class_invite    : N cours offerts via parrainage user
+ *  - referral_commission_reversed  : commission CHF annulée suite à un refund Stripe
+ *  - referral_free_class_reversed_one / _other : N crédit(s) parrainage retirés
+ *    suite à un refund Stripe (mode free-class).
  */
 export type MessageKey =
   | 'chat_new_message'
   | 'match_mutual'
-  | 'test_push';
+  | 'test_push'
+  | 'referral_commission_received'
+  | 'referral_free_class_creator_one'
+  | 'referral_free_class_creator_other'
+  | 'referral_free_class_invite_one'
+  | 'referral_free_class_invite_other'
+  | 'referral_commission_reversed'
+  | 'referral_free_class_reversed_one'
+  | 'referral_free_class_reversed_other';
 
 export interface PushTemplate {
   title: string;
@@ -66,6 +80,38 @@ export const PUSH_TEMPLATES: Record<ServerLang, Record<MessageKey, PushTemplate>
       title: '🎉 Test Spordateur',
       body: 'Si tu lis ceci, les push fonctionnent. Tu peux fermer cette notif.',
     },
+    referral_commission_received: {
+      title: 'Commission reçue !',
+      body: '+{amount} CHF de commission sur un achat de ton filleul',
+    },
+    referral_free_class_creator_one: {
+      title: 'Cours offert reçu !',
+      body: '+{credits} cours offert via ton lien créateur',
+    },
+    referral_free_class_creator_other: {
+      title: '{credits} cours offerts reçus !',
+      body: '+{credits} cours offerts via ton lien créateur',
+    },
+    referral_free_class_invite_one: {
+      title: 'Cours offert reçu !',
+      body: '+{credits} cours offert — ton ami a fait un achat',
+    },
+    referral_free_class_invite_other: {
+      title: '{credits} cours offerts reçus !',
+      body: '+{credits} cours offerts — ton ami a fait un achat',
+    },
+    referral_commission_reversed: {
+      title: 'Commission annulée',
+      body: 'Une commission de {amount} CHF a été annulée suite à un remboursement client.',
+    },
+    referral_free_class_reversed_one: {
+      title: 'Crédit parrainage retiré',
+      body: '{credits} crédit parrainage a été retiré suite à un remboursement client.',
+    },
+    referral_free_class_reversed_other: {
+      title: 'Crédits parrainage retirés',
+      body: '{credits} crédits parrainage ont été retirés suite à un remboursement client.',
+    },
   },
   en: {
     chat_new_message: {
@@ -80,6 +126,38 @@ export const PUSH_TEMPLATES: Record<ServerLang, Record<MessageKey, PushTemplate>
       title: '🎉 Spordateur test',
       body: 'If you can read this, push notifications work. You can close this notification.',
     },
+    referral_commission_received: {
+      title: 'Commission received!',
+      body: '+{amount} CHF commission on a purchase by your referral',
+    },
+    referral_free_class_creator_one: {
+      title: 'Free class received!',
+      body: '+{credits} free class via your creator link',
+    },
+    referral_free_class_creator_other: {
+      title: '{credits} free classes received!',
+      body: '+{credits} free classes via your creator link',
+    },
+    referral_free_class_invite_one: {
+      title: 'Free class received!',
+      body: '+{credits} free class — your friend made a purchase',
+    },
+    referral_free_class_invite_other: {
+      title: '{credits} free classes received!',
+      body: '+{credits} free classes — your friend made a purchase',
+    },
+    referral_commission_reversed: {
+      title: 'Commission reversed',
+      body: 'A {amount} CHF commission was reversed due to a customer refund.',
+    },
+    referral_free_class_reversed_one: {
+      title: 'Referral credit removed',
+      body: '{credits} referral credit was removed due to a customer refund.',
+    },
+    referral_free_class_reversed_other: {
+      title: 'Referral credits removed',
+      body: '{credits} referral credits were removed due to a customer refund.',
+    },
   },
   de: {
     chat_new_message: {
@@ -93,6 +171,38 @@ export const PUSH_TEMPLATES: Record<ServerLang, Record<MessageKey, PushTemplate>
     test_push: {
       title: '🎉 Spordateur-Test',
       body: 'Wenn du dies lesen kannst, funktionieren die Push-Benachrichtigungen. Du kannst diese Mitteilung schliessen.',
+    },
+    referral_commission_received: {
+      title: 'Provision erhalten!',
+      body: '+{amount} CHF Provision für einen Kauf deines Empfohlenen',
+    },
+    referral_free_class_creator_one: {
+      title: 'Gratiskurs erhalten!',
+      body: '+{credits} Gratiskurs über deinen Creator-Link',
+    },
+    referral_free_class_creator_other: {
+      title: '{credits} Gratiskurse erhalten!',
+      body: '+{credits} Gratiskurse über deinen Creator-Link',
+    },
+    referral_free_class_invite_one: {
+      title: 'Gratiskurs erhalten!',
+      body: '+{credits} Gratiskurs — dein Freund hat einen Kauf getätigt',
+    },
+    referral_free_class_invite_other: {
+      title: '{credits} Gratiskurse erhalten!',
+      body: '+{credits} Gratiskurse — dein Freund hat einen Kauf getätigt',
+    },
+    referral_commission_reversed: {
+      title: 'Provision storniert',
+      body: 'Eine Provision von {amount} CHF wurde aufgrund einer Kundenrückerstattung storniert.',
+    },
+    referral_free_class_reversed_one: {
+      title: 'Empfehlungskredit entfernt',
+      body: '{credits} Empfehlungskredit wurde aufgrund einer Kundenrückerstattung entfernt.',
+    },
+    referral_free_class_reversed_other: {
+      title: 'Empfehlungskredite entfernt',
+      body: '{credits} Empfehlungskredite wurden aufgrund einer Kundenrückerstattung entfernt.',
     },
   },
 };

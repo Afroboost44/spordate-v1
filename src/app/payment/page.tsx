@@ -12,8 +12,9 @@ import { useLanguage } from '@/context/LanguageContext';
 import { resolveActiveReferralCode } from '@/lib/referral/refStorage';
 import Link from 'next/link';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
-import { collection, getDocs, doc, updateDoc, increment } from 'firebase/firestore';
 import BackButton from '@/components/BackButton';
+import { computeVat, type VatBreakdown } from '@/lib/pricing/vat';
+import { DEFAULT_SITE_PRICING, sanitizeVatEnabled, sanitizeVatRate, sanitizeVatMode } from '@/lib/pricing/sitePricing';
 
 interface CreditPackage {
   id: string;
@@ -110,6 +111,13 @@ export default function PaymentPage() {
   const [creditsVerified, setCreditsVerified] = useState(false);
   const [grantedCredits, setGrantedCredits] = useState(0);
   const [packages, setPackages] = useState<CreditPackage[]>([]);
+  // TVA Suisse — settings paramétrables admin (default OFF → aucun impact UI).
+  // Lus depuis settings/pricing en même temps que les packs pour économiser un round-trip.
+  const [vatSettings, setVatSettings] = useState<{ enabled: boolean; rate: number; mode: 'included' | 'added' }>({
+    enabled: DEFAULT_SITE_PRICING.vatEnabled,
+    rate: DEFAULT_SITE_PRICING.vatRate,
+    mode: DEFAULT_SITE_PRICING.vatMode,
+  });
 
   // Load pricing from Firestore (admin-editable) then build display packages
   useEffect(() => {
@@ -132,7 +140,8 @@ export default function PaymentPage() {
           const { doc: firestoreDoc, getDoc } = await import('firebase/firestore');
           const snap = await getDoc(firestoreDoc(db, 'settings', 'pricing'));
           if (snap.exists()) {
-            const packages = snap.data()?.packages as Record<string, any> || {};
+            const data = snap.data() || {};
+            const packages = (data?.packages as Record<string, any>) || {};
             for (const [id, pkg] of Object.entries(packages)) {
               if (pkg.type === 'one_time' && defaults[id]) {
                 defaults[id] = {
@@ -143,6 +152,12 @@ export default function PaymentPage() {
                 };
               }
             }
+            // TVA — back-compat : si les champs manquent → defaults OFF.
+            setVatSettings({
+              enabled: sanitizeVatEnabled(data.vatEnabled, DEFAULT_SITE_PRICING.vatEnabled),
+              rate: sanitizeVatRate(data.vatRate, DEFAULT_SITE_PRICING.vatRate),
+              mode: sanitizeVatMode(data.vatMode, DEFAULT_SITE_PRICING.vatMode),
+            });
           }
         } catch { /* use defaults */ }
       }
@@ -192,33 +207,52 @@ export default function PaymentPage() {
     if (status === 'success') {
       setPaymentSuccess(true);
       setShowConfetti(true);
-      // Verify payment and grant credits (fallback for webhook)
+      // Verify payment and grant credits (FALLBACK FILET DE SÉCURITÉ).
+      // Hardening sécurité : le grant passe désormais par /api/credits/grant
+      // (Firebase Admin SDK + transaction Firestore + idempotence sur
+      // transactions.stripeSessionId). Les Firestore rules bloquent toute
+      // écriture du champ `credits` depuis le client, donc un updateDoc
+      // direct ici échouerait.
+      //
+      // Le webhook /api/webhooks/stripe fait normalement le boulot dès
+      // checkout.session.completed. Si le webhook a tardé, l'endpoint
+      // /api/credits/grant force le grant manuellement. Idempotent : si déjà
+      // crédité (webhook arrivé entre temps), retourne alreadyGranted: true
+      // sans double-crédit.
       if (sessionId && user?.uid) {
         setVerifyingPayment(true);
-        fetch('/api/verify-payment', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sessionId, userId: user.uid }),
-        })
-          .then(res => res.json())
-          .then(async (data) => {
-            if (data.verified && data.credits > 0 && user?.uid && db) {
-              try {
-                const userRef = doc(db, 'users', user.uid);
-                await updateDoc(userRef, {
-                  credits: increment(data.credits),
-                  lastPaymentId: data.paymentIntent || data.sessionId,
-                  lastPaymentAt: new Date().toISOString(),
-                });
+        (async () => {
+          try {
+            const idToken = await user.getIdToken();
+            const res = await fetch('/api/credits/grant', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${idToken}`,
+              },
+              body: JSON.stringify({ sessionId }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (res.ok) {
+              if (data.alreadyGranted) {
+                // Webhook a déjà crédité avant notre appel — on tombe sur le
+                // fallback générique "vos crédits ont été ajoutés" (cf JSX
+                // ci-dessous : creditsVerified=false → t('payment_credits_added')).
+                // On ne connaît pas le nombre exact ici, mais le solde Firestore
+                // est à jour (onSnapshot useCredits l'a rafraîchi).
+              } else if (typeof data.granted === 'number' && data.granted > 0) {
                 setCreditsVerified(true);
-                setGrantedCredits(data.credits);
-              } catch (err) {
-                console.error('[Payment] Failed to write credits:', err);
+                setGrantedCredits(data.granted);
               }
+            } else {
+              console.error('[Payment] grant API error:', res.status, data);
             }
-          })
-          .catch(err => console.error('Verify payment error:', err))
-          .finally(() => setVerifyingPayment(false));
+          } catch (err) {
+            console.error('Verify payment error:', err);
+          } finally {
+            setVerifyingPayment(false);
+          }
+        })();
       }
     }
   }, [searchParams, user])
@@ -368,8 +402,12 @@ export default function PaymentPage() {
                 <p className="text-xs text-white/30 mb-5">{t(pkg.subtitle)}</p>
 
                 {/* Price */}
-                <div className="flex items-baseline gap-1 mb-5">
-                  <span className="text-4xl font-light text-white">{pkg.price}</span>
+                <div className="flex items-baseline gap-1 mb-2">
+                  <span className="text-4xl font-light text-white">
+                    {vatSettings.enabled && vatSettings.mode === 'added'
+                      ? computeVat(pkg.price, vatSettings).totalCHF.toFixed(2)
+                      : pkg.price}
+                  </span>
                   <span className="text-sm text-white/40">CHF</span>
                   {pkg.savings && (
                     <span className="ml-2 text-xs text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full">
@@ -377,6 +415,15 @@ export default function PaymentPage() {
                     </span>
                   )}
                 </div>
+
+                {/* TVA breakdown — affiché uniquement si vatEnabled (back-compat OFF par défaut). */}
+                {vatSettings.enabled ? (
+                  <VatBreakdownInline
+                    breakdown={computeVat(pkg.price, vatSettings)}
+                    t={t}
+                  />
+                ) : null}
+                <div className="mb-3" />
 
                 {/* Features */}
                 <div className="space-y-2.5 mb-6">
@@ -415,6 +462,17 @@ export default function PaymentPage() {
             <Lock className="h-3 w-3" />
             <span>{t('payment_secure_instant')}</span>
           </div>
+          {/* Notice TVA — global, affiché uniquement si vatEnabled. */}
+          {vatSettings.enabled ? (
+            <div className="flex items-center justify-center gap-2 text-[11px] text-white/30">
+              <span>
+                {t(
+                  vatSettings.mode === 'included' ? 'vat_notice_included' : 'vat_notice_added',
+                  { rate: vatSettings.rate.toString() },
+                )}
+              </span>
+            </div>
+          ) : null}
         </div>
 
         {/* Bonus section */}
@@ -429,6 +487,39 @@ export default function PaymentPage() {
             </CardContent>
           </Card>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sub-composant TVA — affiche la ventilation Sous-total / TVA / Total sous
+ * le prix d'un pack quand vatEnabled. En mode 'included' : on déduit le HT
+ * du TTC affiché. En mode 'added' : le TTC affiché EST déjà total, le HT
+ * est le prix marketing initial.
+ *
+ * Strings via t() — voir vat_breakdown_* dans LanguageContext.
+ */
+function VatBreakdownInline({
+  breakdown,
+  t,
+}: {
+  breakdown: VatBreakdown;
+  t: (key: string, params?: Record<string, string | number>) => string;
+}) {
+  return (
+    <div className="mb-3 flex flex-col gap-0.5 text-[11px] text-white/40">
+      <div className="flex items-center justify-between">
+        <span>{t('vat_breakdown_subtotal')}</span>
+        <span>{breakdown.subtotalCHF.toFixed(2)} CHF</span>
+      </div>
+      <div className="flex items-center justify-between">
+        <span>{`${t('vat_breakdown_vat')} (${breakdown.rate}%)`}</span>
+        <span>{breakdown.vatCHF.toFixed(2)} CHF</span>
+      </div>
+      <div className="flex items-center justify-between text-white/60 pt-0.5 border-t border-white/5">
+        <span>{t('vat_breakdown_total')}</span>
+        <span>{breakdown.totalCHF.toFixed(2)} CHF</span>
       </div>
     </div>
   );

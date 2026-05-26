@@ -2,7 +2,8 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
-import { doc, updateDoc, increment, onSnapshot } from "firebase/firestore";
+import { useLanguage } from "@/context/LanguageContext";
+import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 
 const CREDIT_PACKS = {
@@ -17,6 +18,7 @@ export function useCredits() {
   const { user, userProfile } = useAuth();
   const router = useRouter();
   const { toast } = useToast();
+  const { t } = useLanguage();
 
   // Real-time credits from Firestore (onSnapshot)
   const [liveCredits, setLiveCredits] = useState<number | null>(null);
@@ -40,22 +42,67 @@ export function useCredits() {
   const hasCredits = credits > 0;
 
   const useCredit = async (): Promise<boolean> => {
-    if (!db) return false;
     if (!user || !hasCredits) {
       toast({
-        title: "\u2764\uFE0F Pas de credits",
-        description: "Reserve une activite pour pouvoir liker.",
+        title: `\u2764\uFE0F ${t('credits_insufficient')}`,
+        description: t('credits_need_activity_reservation'),
         className: "bg-[#1A1A1A] border-[#D91CD2]/40 text-white",
       });
       router.push("/payment");
       return false;
     }
+
+    // Hardening s\u00E9curit\u00E9 : le d\u00E9bit du solde passe d\u00E9sormais par
+    // /api/credits/debit (Firebase Admin SDK + transaction Firestore).
+    // Les Firestore rules bloquent toute \u00E9criture du champ `credits` depuis
+    // le client (sauf admin), donc un updateDoc direct ici \u00E9chouerait.
+    //
+    // Optimistic UI : on baisse le compteur local pour un feedback imm\u00E9diat,
+    // puis on attend la r\u00E9ponse serveur. Si l'API renvoie une erreur (solde
+    // insuffisant 402, network, etc.), on revert via le state local + le
+    // onSnapshot Firestore qui re-synchronisera dans la foul\u00E9e.
+    const prevOptimistic = liveCredits;
+    setLiveCredits((c) => (c == null ? c : Math.max(0, c - 1)));
+
     try {
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, { credits: increment(-1) });
+      const idToken = await user.getIdToken();
+      const res = await fetch("/api/credits/debit", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${idToken}`,
+        },
+        body: JSON.stringify({ amount: 1, reason: "like" }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        // Revert optimistic update.
+        setLiveCredits(prevOptimistic);
+
+        if (res.status === 402) {
+          // Insufficient credits \u2014 push vers la page d'achat.
+          toast({
+            title: `\u2764\uFE0F ${t('credits_insufficient')}`,
+            description: t('credits_need_activity_reservation'),
+            className: "bg-[#1A1A1A] border-[#D91CD2]/40 text-white",
+          });
+          router.push("/payment");
+          return false;
+        }
+
+        console.error("[useCredits] debit API error:", res.status, data);
+        return false;
+      }
+
+      // Sync state with server response (onSnapshot will also catch up).
+      if (typeof data?.newBalance === "number") {
+        setLiveCredits(data.newBalance);
+      }
       return true;
     } catch (err) {
       console.error("Credit decrement failed:", err);
+      setLiveCredits(prevOptimistic);
       return false;
     }
   };

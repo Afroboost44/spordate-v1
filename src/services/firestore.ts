@@ -23,6 +23,14 @@ import { CREDIT_PACKAGES } from '@/types/firestore';
 import { scanMessageL1 } from '@/lib/anti-leak/regex';
 import type { AntiLeakInput, AntiLeakOutput } from '@/ai/types';
 import { sendEmail } from '@/lib/email/sendEmail';
+import { MAX_REFERRALS_PER_USER } from '@/lib/referral/limits';
+import {
+  validatePayoutRequest,
+  PAYOUT_BELOW_MINIMUM_ERROR,
+  INSUFFICIENT_BALANCE_ERROR,
+  MIN_PAYOUT_CHF,
+} from '@/lib/creators/limits';
+import { getAdminSetting } from '@/lib/admin/settings';
 
 // ===================== HELPERS =====================
 
@@ -53,7 +61,18 @@ function todayString(): string {
 
 // ===================== USERS =====================
 
-export async function createUser(data: Partial<UserProfile> & { uid: string; email: string }): Promise<UserProfile> {
+/**
+ * Résultat enrichi de createUser. On expose le profil créé + le statut typé
+ * du traitement parrainage pour que le caller (AuthContext) puisse afficher
+ * un toast non-bloquant si le code est invalide. Comportement legacy préservé :
+ * l'inscription réussit toujours, peu importe le statut du parrainage.
+ */
+export interface CreateUserResult {
+  profile: UserProfile;
+  referralStatus: ReferralSignupResult;
+}
+
+export async function createUser(data: Partial<UserProfile> & { uid: string; email: string }): Promise<CreateUserResult> {
   const user: Partial<UserProfile> = {
     uid: data.uid,
     email: data.email,
@@ -83,12 +102,15 @@ export async function createUser(data: Partial<UserProfile> & { uid: string; ema
   // Mettre à jour analytics global
   await updateAnalyticsOnNewUser();
 
-  // Traiter le parrainage si referredBy existe
+  // Traiter le parrainage si referredBy existe. On capture le statut pour
+  // le remonter au caller (UX toast côté AuthContext). Si pas de referredBy,
+  // on retourne 'no-code' (caller ignore — pas de toast).
+  let referralStatus: ReferralSignupResult = { status: 'no-code' };
   if (data.referredBy) {
-    await processReferralSignup(data.uid, data.referredBy);
+    referralStatus = await processReferralSignup(data.uid, data.referredBy);
   }
 
-  return user as UserProfile;
+  return { profile: user as UserProfile, referralStatus };
 }
 
 export async function getUser(uid: string): Promise<UserProfile | null> {
@@ -428,31 +450,108 @@ export async function getCreator(creatorId: string): Promise<Creator | null> {
   return snap.exists() ? (snap.data() as Creator) : null;
 }
 
-async function processReferralSignup(newUserId: string, referralCode: string): Promise<void> {
-  // Trouver le créateur par son code
-  const q = query(getCollection('creators'), where('referralCode', '==', referralCode), limit(1));
-  const snap = await getDocs(q);
+/**
+ * Résultat typé de processReferralSignup. Permet au caller (AuthContext) de
+ * différencier le cas "code inexistant" (toast UX "code non reconnu") du cas
+ * "code valide mais self-referral / plafond atteint" (silence : déjà géré
+ * côté logique métier, on n'embarrasse pas l'utilisateur).
+ *
+ * Cf. audit parrainage : Bassi veut savoir si l'utilisateur a tapé un code
+ * bidon (ex: faute de frappe sur le code d'un ami) pour afficher un feedback
+ * non-bloquant. Les autres statuts restent silencieux.
+ */
+export type ReferralSignupResult =
+  | { status: 'ok'; referrerId: string }
+  | { status: 'no-code' }              // pas de code fourni au signup
+  | { status: 'code-not-found' }       // code fourni mais inexistant en base
+  | { status: 'self-referral' }        // user tente de s'auto-parrainer
+  | { status: 'cap-reached' };         // parrain a déjà atteint MAX_REFERRALS_PER_USER
 
-  if (snap.empty) {
-    // Peut-être un user normal qui a parrainé
-    const userSnap = await getUsersByReferralCode(referralCode);
-    if (!userSnap) return;
-    // Créer automatiquement un profil créateur
-    await createCreator(userSnap.uid, userSnap.displayName);
+export async function processReferralSignup(newUserId: string, referralCode: string): Promise<ReferralSignupResult> {
+  // Garde basique : code vide → rien à faire.
+  if (!referralCode || typeof referralCode !== 'string') {
+    return { status: 'no-code' };
   }
 
-  const creatorDoc = snap.empty ? null : snap.docs[0];
-  const creatorId = creatorDoc?.id || (await getUsersByReferralCode(referralCode))?.uid;
-  if (!creatorId) return;
+  // === Fix audit parrainage — VALIDATION code existe =========================
+  // Avant ce fix, un user pouvait s'inscrire avec un code bidon (ex: 'FAKE'),
+  // ce qui ne créait pas de doc /referrals mais laissait `users/{uid}.referredBy
+  // = 'FAKE'` côté caller (cf. createUser ligne ~88). On NE PEUT PAS modifier
+  // referredBy ici (le doc est déjà setDoc), mais on bloque toute la suite si
+  // le code est introuvable — pas de doc /referrals orphelin, pas d'increment
+  // sur un parrain inexistant.
+  //
+  // On résout le parrain en une passe : creators d'abord (fast path), users
+  // ensuite (cas user normal qui a parrainé sans encore être promu creator).
+  const creatorQ = query(getCollection('creators'), where('referralCode', '==', referralCode), limit(1));
+  const creatorSnap = await getDocs(creatorQ);
 
-  // Anti self-referral
-  if (creatorId === newUserId) return;
+  let creatorDoc = creatorSnap.empty ? null : creatorSnap.docs[0];
+  let referrerUser: UserProfile | null = null;
 
-  // Créer le document referral
+  if (!creatorDoc) {
+    referrerUser = await getUsersByReferralCode(referralCode);
+    if (!referrerUser) {
+      // Code inconnu — log silencieux. Inscription du filleul OK, juste pas de
+      // bonus parrainage. Pas de throw : on ne casse pas l'onboarding.
+      // Le caller (AuthContext) utilise ce statut pour déclencher un toast
+      // non-bloquant "code parrainage non reconnu".
+      console.warn('[processReferralSignup] code inconnu, skip', { referralCode, newUserId });
+      return { status: 'code-not-found' };
+    }
+    // Auto-promotion creator (comportement legacy préservé).
+    await createCreator(referrerUser.uid, referrerUser.displayName);
+    const refetch = await getDocs(creatorQ);
+    creatorDoc = refetch.empty ? null : refetch.docs[0];
+  }
+
+  const referrerId = creatorDoc?.id || referrerUser?.uid;
+  if (!referrerId) {
+    console.warn('[processReferralSignup] referrerId introuvable après resolve', { referralCode, newUserId });
+    // Cas pathologique post-resolve (creator promu mais re-fetch vide) : on
+    // mappe sur 'code-not-found' pour la cohérence côté UX (rien n'a été
+    // créé en base, c'est un échec silencieux équivalent).
+    return { status: 'code-not-found' };
+  }
+
+  // === Anti self-referral ====================================================
+  // Cas : un user copie-colle son propre code. Bloqué + log explicite.
+  if (referrerId === newUserId) {
+    console.warn('[processReferralSignup] self-referral bloqué', { referralCode, newUserId });
+    return { status: 'self-referral' };
+  }
+
+  // === Fix audit parrainage — PLAFOND filleuls ===============================
+  // Lit le compteur courant côté users (source de vérité Phase audit) + fallback
+  // creators.totalReferrals si users.referralCount pas encore initialisé sur les
+  // vieux comptes. Si plafond atteint → skip silencieux (signup OK, pas de bonus).
+  const referrerUserSnap = await getDoc(getDocRef('users', referrerId));
+  const referrerUserData = referrerUserSnap.exists() ? referrerUserSnap.data() : null;
+  const currentReferralCount =
+    (referrerUserData as { referralCount?: number } | null)?.referralCount ??
+    (creatorDoc?.data() as { totalReferrals?: number } | undefined)?.totalReferrals ??
+    0;
+
+  if (currentReferralCount >= MAX_REFERRALS_PER_USER) {
+    console.warn('[processReferralSignup] plafond filleuls atteint, skip bonus', {
+      referrerId,
+      currentReferralCount,
+      maxReferralsPerUser: MAX_REFERRALS_PER_USER,
+      newUserId,
+    });
+    return { status: 'cap-reached' };
+  }
+
+  // === Création du doc /referrals + incréments ==============================
+  // Best-effort : on enchaîne setDoc + updateDoc. Pas de runTransaction ici
+  // car les deux writes sont sur des docs différents et l'incrément atomique
+  // côté FieldValue.increment suffit pour éviter la race condition de
+  // compteur. La fenêtre de race entre check `currentReferralCount` et
+  // setDoc est acceptable (worst case : +1 ou +2 filleuls au-delà du plafond).
   const ref = doc(getCollection('referrals'));
   await setDoc(ref, {
     referralId: ref.id,
-    referrerId: creatorId,
+    referrerId,
     referredUserId: newUserId,
     referralCode,
     status: 'registered',
@@ -461,10 +560,16 @@ async function processReferralSignup(newUserId: string, referralCode: string): P
     createdAt: serverTimestamp(),
   });
 
-  // Incrémenter le compteur du créateur
-  await updateDoc(getDocRef('creators', creatorId), {
+  // Incrémenter le compteur créateur (legacy : displayé dans /creator/dashboard)
+  // ET le compteur user (source de vérité Fix audit pour le check plafond).
+  await updateDoc(getDocRef('creators', referrerId), {
     totalReferrals: increment(1),
   });
+  await updateDoc(getDocRef('users', referrerId), {
+    referralCount: increment(1),
+  });
+
+  return { status: 'ok', referrerId };
 }
 
 export async function processReferralPurchase(userId: string, amount: number): Promise<void> {
@@ -547,7 +652,33 @@ export async function updatePartner(partnerId: string, data: Partial<Partner>): 
 export async function requestPayout(creatorId: string, amount: number, method: 'twint' | 'bank_transfer', details: Record<string, string>): Promise<string> {
   const creator = await getCreator(creatorId);
   if (!creator) throw new Error('Créateur non trouvé');
-  if (creator.pendingPayout < amount) throw new Error('Solde insuffisant');
+
+  // === Fix audit créateurs — guard serveur MIN_PAYOUT_CHF =====================
+  // Avant ce fix, le minimum 10 CHF n'était imposé QUE côté UI (bouton disabled
+  // si pendingPayout < 10). Un attaquant qui bypass via DevTools pouvait POST
+  // un payout de 0.01 CHF → spam admin queue + frais bancaires disproportionnés
+  // (TWINT/virement > 0.50 CHF/op). On valide ici en pur via validatePayoutRequest
+  // (cf. src/lib/creators/limits.ts) qui retourne un code d'erreur typé.
+  // L'ordre des checks est important : on rejette le montant trop bas AVANT de
+  // checker le solde, pour ne pas révéler le solde courant à un client malformé.
+  //
+  // Le seuil est paramétrable par Bassi depuis /admin/manage > Tarifs (champ
+  // `minPayoutCHF` du doc settings/pricing). Floor absolu côté lib/creators :
+  // jamais < MIN_PAYOUT_CHF même si Bassi entre 5. Si Firestore indispo ou
+  // champ absent → fallback constante MIN_PAYOUT_CHF (back-compat premier
+  // déploiement où le doc n'a pas encore ce champ).
+  const minPayout = await getAdminSetting('minPayoutCHF', MIN_PAYOUT_CHF);
+  const validation = validatePayoutRequest(amount, creator.pendingPayout, minPayout);
+  if (!validation.ok) {
+    if (validation.reason === PAYOUT_BELOW_MINIMUM_ERROR) {
+      throw new Error(PAYOUT_BELOW_MINIMUM_ERROR);
+    }
+    if (validation.reason === INSUFFICIENT_BALANCE_ERROR) {
+      // On garde le message FR legacy pour ne pas casser les call sites qui
+      // matchent sur 'Solde insuffisant' dans leurs toasts (cf. dashboard).
+      throw new Error('Solde insuffisant');
+    }
+  }
 
   const ref = doc(getCollection('payouts'));
   await setDoc(ref, {

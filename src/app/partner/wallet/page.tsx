@@ -28,6 +28,8 @@ import { db } from '@/lib/firebase';
 import {
   doc, getDoc, collection, query, where, getDocs, limit, orderBy,
 } from 'firebase/firestore';
+import { computeVat } from '@/lib/pricing/vat';
+import { DEFAULT_SITE_PRICING, sanitizeVatEnabled, sanitizeVatRate, sanitizeVatMode } from '@/lib/pricing/sitePricing';
 
 interface PartnerWallet {
   id: string;
@@ -63,9 +65,28 @@ export default function PartnerWalletPage() {
   const [savingIban, setSavingIban] = useState(false);
   const [requestingPayout, setRequestingPayout] = useState(false);
 
+  // TVA Suisse — settings paramétrables admin (default OFF). Quand activée,
+  // on affiche les revenus partenaire en "Hors TVA" + "TVA collectée" pour
+  // la transparence comptable. La TVA est calculée DEPUIS les montants
+  // existants (partner.totalRevenue, partner.balance) — pas de double comptage,
+  // on assume juste que ces montants reflètent le mode TVA configuré.
+  const [vatSettings, setVatSettings] = useState<{ enabled: boolean; rate: number; mode: 'included' | 'added' }>({
+    enabled: DEFAULT_SITE_PRICING.vatEnabled,
+    rate: DEFAULT_SITE_PRICING.vatRate,
+    mode: DEFAULT_SITE_PRICING.vatMode,
+  });
+
   const hasIban = useMemo(() => !!(partnerData?.iban && partnerData.iban.length >= 10), [partnerData]);
   const balanceCents = partnerData?.balance ?? 0;
   const canRequestPayout = hasIban && balanceCents > 0;
+
+  // Ventilation TVA des revenus totaux (cents → CHF avant computeVat).
+  // Affichée uniquement si vatSettings.enabled, sinon UI inchangée.
+  const revenueChf = (partnerData?.totalRevenue ?? 0) / 100;
+  const revenueBreakdown = useMemo(
+    () => computeVat(revenueChf, vatSettings),
+    [revenueChf, vatSettings],
+  );
 
   // Load partner data + transactions
   useEffect(() => {
@@ -74,6 +95,19 @@ export default function PartnerWalletPage() {
 
     const load = async () => {
       try {
+        // Pull TVA settings en parallèle (back-compat : doc inexistant → defaults OFF).
+        try {
+          const settingsSnap = await getDoc(doc(fbDb, 'settings', 'pricing'));
+          if (settingsSnap.exists()) {
+            const data = settingsSnap.data() || {};
+            setVatSettings({
+              enabled: sanitizeVatEnabled(data.vatEnabled, DEFAULT_SITE_PRICING.vatEnabled),
+              rate: sanitizeVatRate(data.vatRate, DEFAULT_SITE_PRICING.vatRate),
+              mode: sanitizeVatMode(data.vatMode, DEFAULT_SITE_PRICING.vatMode),
+            });
+          }
+        } catch { /* leave defaults */ }
+
         let partnerSnap = await getDoc(doc(fbDb, 'partners', user.uid));
         let partnerId = user.uid;
 
@@ -212,6 +246,21 @@ export default function PartnerWalletPage() {
             <span className="text-xs text-white/30 uppercase tracking-wider font-light">{t('partner_wallet_revenue_label')}</span>
           </div>
           <p className="text-3xl font-extralight text-white">{formatChf(partnerData?.totalRevenue)} <span className="text-base text-white/30">CHF</span></p>
+          {/* Ventilation TVA — affichée uniquement si vatSettings.enabled.
+              Donne au partenaire la transparence comptable (HT vs TVA) sans
+              casser l'UI legacy quand TVA OFF. */}
+          {vatSettings.enabled ? (
+            <div className="mt-3 pt-3 border-t border-white/5 flex flex-col gap-1 text-[11px] text-white/40">
+              <div className="flex items-center justify-between">
+                <span>{t('partner_wallet_revenue_net_label')}</span>
+                <span>{revenueBreakdown.subtotalCHF.toFixed(2)} CHF</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>{`${t('partner_wallet_vat_collected_label')} (${vatSettings.rate}%)`}</span>
+                <span>{revenueBreakdown.vatCHF.toFixed(2)} CHF</span>
+              </div>
+            </div>
+          ) : null}
         </div>
 
         <div className="bg-white/5 border border-white/10 rounded-2xl p-6">

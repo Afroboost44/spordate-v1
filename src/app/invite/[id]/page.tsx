@@ -22,8 +22,15 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { ArrowLeft, Calendar, MapPin, MessageSquare } from 'lucide-react';
-import { InviteActionsClient } from '@/components/invites/InviteActionsClient';
+import { Calendar, MapPin, MessageSquare } from 'lucide-react';
+import { InviteActionsClient, InviteRefundBanner } from '@/components/invites/InviteActionsClient';
+import {
+  InviteBackLink,
+  InviteHeading,
+  InviteViewSessionLink,
+  InviteDeclinedRetry,
+  InviteExpiredMessage,
+} from '@/components/invites/InvitePageTexts';
 import { getAdminDb } from '@/lib/firebase/admin';
 
 export const dynamic = 'force-dynamic'; // Toujours fresh status
@@ -31,6 +38,15 @@ export const dynamic = 'force-dynamic'; // Toujours fresh status
 // =====================================================================
 // Lazy Admin SDK init (cohérent /api/checkout, /api/invites)
 // =====================================================================
+
+type RefundStatusUI =
+  | 'pending'
+  | 'in-progress'
+  | 'succeeded'
+  | 'failed'
+  | 'manual-review'
+  | 'not-applicable'
+  | null;
 
 interface InvitePageData {
   inviteId: string;
@@ -47,6 +63,8 @@ interface InvitePageData {
   message?: string;
   isExpired: boolean;
   sessionId?: string;
+  refundStatus: RefundStatusUI;
+  refundedAtISO: string | null;
 }
 
 const FR_DAYS = ['dim', 'lun', 'mar', 'mer', 'jeu', 'ven', 'sam'];
@@ -88,6 +106,25 @@ async function loadInviteData(inviteId: string): Promise<InvitePageData | null> 
     const isExpired = invite.status === 'pending' && expiresAtMs <= Date.now();
     const effectiveStatus = isExpired ? ('expired' as const) : (invite.status as InvitePageData['status']);
 
+    // Fix audit refund visibility — extrait refundState pour rendu UI conditionnel
+    const refundStatusRaw = invite.refundState?.status as string | undefined;
+    const validRefundStatuses: RefundStatusUI[] = [
+      'pending',
+      'in-progress',
+      'succeeded',
+      'failed',
+      'manual-review',
+      'not-applicable',
+    ];
+    const refundStatus: RefundStatusUI = validRefundStatuses.includes(refundStatusRaw as RefundStatusUI)
+      ? (refundStatusRaw as RefundStatusUI)
+      : null;
+    const refundedAtVal = invite.refundState?.refundedAt;
+    const refundedAtISO =
+      refundedAtVal && typeof refundedAtVal.toDate === 'function'
+        ? (refundedAtVal.toDate() as Date).toISOString()
+        : null;
+
     return {
       inviteId,
       fromUserId: invite.fromUserId,
@@ -103,6 +140,8 @@ async function loadInviteData(inviteId: string): Promise<InvitePageData | null> 
       message: invite.message as string | undefined,
       isExpired,
       sessionId: invite.sessionId as string | undefined,
+      refundStatus,
+      refundedAtISO,
     };
   } catch (err) {
     console.error('[/invite/[id]] loadInviteData error:', err);
@@ -139,28 +178,14 @@ export default async function InvitePage({
   return (
     <div className="min-h-screen bg-black">
       <div className="container mx-auto px-4 py-12 max-w-2xl">
-        <Link
-          href="/activities"
-          className="inline-flex items-center gap-2 text-gray-500 hover:text-white transition-colors mb-8 text-sm font-light"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Retour
-        </Link>
+        <InviteBackLink />
 
         {/* Header status badge */}
         <div className="mb-6">
           <StatusBadge status={data.status} />
         </div>
 
-        <h1 className="text-3xl md:text-4xl font-light text-white mb-2">
-          {data.status === 'pending'
-            ? `${data.fromUserName} t'invite`
-            : data.status === 'accepted'
-              ? 'Invitation acceptée'
-              : data.status === 'declined'
-                ? 'Invitation refusée'
-                : 'Invitation expirée'}
-        </h1>
+        <InviteHeading status={data.status} fromUserName={data.fromUserName} />
 
         {/* Activity card */}
         <div className="bg-white/5 rounded-2xl p-6 mt-6 space-y-3">
@@ -207,26 +232,28 @@ export default async function InvitePage({
               <p className="text-white/70 font-light text-sm leading-relaxed">
                 {data.toUserName} a accepté et payé. Vous êtes tous les deux confirmés sur cette session.
               </p>
-              <Link
-                href={`/sessions/${data.sessionId}`}
-                className="inline-flex items-center gap-2 px-4 py-2 bg-accent text-black text-sm font-medium rounded-lg hover:opacity-90 transition-opacity"
-              >
-                Voir la session
-              </Link>
+              <InviteViewSessionLink sessionId={data.sessionId} />
             </div>
           )}
 
           {data.status === 'declined' && (
-            <p className="text-white/50 font-light text-sm leading-relaxed">
-              {data.toUserName} n’a pas pu rejoindre cette session. Tu peux inviter quelqu’un d’autre depuis le chat
-              ou la page de l’activité.
-            </p>
+            <>
+              <InviteDeclinedRetry toUserName={data.toUserName} />
+              <InviteRefundBanner
+                refundStatus={data.refundStatus}
+                refundedAtISO={data.refundedAtISO}
+              />
+            </>
           )}
 
           {data.status === 'expired' && (
-            <p className="text-white/50 font-light text-sm leading-relaxed">
-              Cette invitation a expiré (max 7 jours, jamais après le début de la session).
-            </p>
+            <>
+              <InviteExpiredMessage />
+              <InviteRefundBanner
+                refundStatus={data.refundStatus}
+                refundedAtISO={data.refundedAtISO}
+              />
+            </>
           )}
         </div>
 

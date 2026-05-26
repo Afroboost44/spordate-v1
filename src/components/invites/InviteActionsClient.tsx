@@ -9,13 +9,18 @@
  *
  * Accept → fetch POST /api/checkout mode='invite-accept' → redirect Stripe URL
  * Refuse → fetch POST /api/invites/[id]/decline → toast + page reload
+ *
+ * Fix audit refund visibility — exporte également InviteRefundBanner : affiche un
+ * encart explicite du statut refund (succeeded/in-progress/failed/manual-review)
+ * pour les invitations declined ou expired (Split/Gift).
  */
 
 import * as React from 'react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, Check, X } from 'lucide-react';
+import { Loader2, Check, X, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -35,6 +40,7 @@ export function InviteActionsClient({
   toUserName,
 }: InviteActionsClientProps) {
   const { user, loading: authLoading } = useAuth();
+  const { t } = useLanguage();
   const { toast } = useToast();
   const router = useRouter();
   const [busy, setBusy] = useState<'accept' | 'decline' | null>(null);
@@ -43,7 +49,7 @@ export function InviteActionsClient({
     return (
       <div className="flex items-center gap-2 text-white/40 text-sm">
         <Loader2 className="h-4 w-4 animate-spin" />
-        Chargement…
+        {t('invite_loading')}
       </div>
     );
   }
@@ -52,21 +58,21 @@ export function InviteActionsClient({
   if (!user) {
     return (
       <div className="text-sm text-white/50 font-light bg-white/5 rounded-xl px-4 py-3">
-        Connecte-toi pour accepter ou refuser cette invitation.
+        {t('invite_login_to_respond')}
       </div>
     );
   }
   if (user.uid === fromUserId) {
     return (
       <div className="text-sm text-white/50 font-light bg-white/5 rounded-xl px-4 py-3">
-        En attente de la réponse de {toUserName}.
+        {t('invite_waiting_response_from').replace('{name}', toUserName)}
       </div>
     );
   }
   if (user.uid !== toUserId) {
     return (
       <div className="text-sm text-white/40 font-light bg-white/5 rounded-xl px-4 py-3">
-        Cette invitation ne t’est pas adressée.
+        {t('invite_not_for_you')}
       </div>
     );
   }
@@ -92,14 +98,14 @@ export function InviteActionsClient({
         return;
       }
 
-      let userMessage = data.detail || 'Impossible d’accepter pour le moment.';
-      if (response.status === 409) userMessage = 'Cette invitation a déjà été traitée.';
-      else if (response.status === 410) userMessage = 'Cette invitation a expiré.';
-      else if (response.status === 401) userMessage = 'Session expirée — reconnecte-toi.';
-      toast({ title: 'Acceptation impossible', description: userMessage, variant: 'destructive' });
+      let userMessage = data.detail || t('invite_accept_unavailable');
+      if (response.status === 409) userMessage = t('invite_already_processed');
+      else if (response.status === 410) userMessage = t('invite_has_expired');
+      else if (response.status === 401) userMessage = t('invite_session_expired_reconnect');
+      toast({ title: t('invite_accept_failed_title'), description: userMessage, variant: 'destructive' });
     } catch (err) {
       console.warn('[InviteActionsClient] accept fetch failed', err);
-      toast({ title: 'Erreur réseau', description: 'Réessaye dans un instant.', variant: 'destructive' });
+      toast({ title: t('invite_network_error_title'), description: t('invite_network_error_desc'), variant: 'destructive' });
     } finally {
       setBusy(null);
     }
@@ -120,8 +126,8 @@ export function InviteActionsClient({
 
       if (response.ok) {
         toast({
-          title: 'Invitation refusée',
-          description: 'Tu as décliné cette invitation.',
+          title: t('invite_refused_title'),
+          description: t('invite_refused_desc'),
           className: 'bg-zinc-700 text-white',
         });
         // Re-render page (status passé à 'declined' côté server)
@@ -130,13 +136,13 @@ export function InviteActionsClient({
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string; detail?: string };
-      let userMessage = data.detail || 'Impossible de refuser pour le moment.';
-      if (response.status === 409) userMessage = 'Cette invitation a déjà été traitée.';
-      else if (response.status === 401) userMessage = 'Session expirée — reconnecte-toi.';
-      toast({ title: 'Refus impossible', description: userMessage, variant: 'destructive' });
+      let userMessage = data.detail || t('invite_decline_unavailable');
+      if (response.status === 409) userMessage = t('invite_already_processed');
+      else if (response.status === 401) userMessage = t('invite_session_expired_reconnect');
+      toast({ title: t('invite_decline_failed_title'), description: userMessage, variant: 'destructive' });
     } catch (err) {
       console.warn('[InviteActionsClient] decline fetch failed', err);
-      toast({ title: 'Erreur réseau', description: 'Réessaye dans un instant.', variant: 'destructive' });
+      toast({ title: t('invite_network_error_title'), description: t('invite_network_error_desc'), variant: 'destructive' });
     } finally {
       setBusy(null);
     }
@@ -155,12 +161,12 @@ export function InviteActionsClient({
         {busy === 'accept' ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            Redirection Stripe…
+            {t('invite_redirecting_stripe')}
           </>
         ) : (
           <>
             <Check className="mr-2 h-4 w-4" />
-            Accepter et payer
+            {t('invite_action_accept_pay')}
           </>
         )}
       </Button>
@@ -175,10 +181,102 @@ export function InviteActionsClient({
         ) : (
           <>
             <X className="mr-2 h-4 w-4" />
-            Refuser
+            {t('invite_action_decline')}
           </>
         )}
       </Button>
     </div>
   );
+}
+
+// =====================================================================
+// InviteRefundBanner — Fix audit Stripe refund visibility
+// =====================================================================
+
+export type InviteRefundStatusUI =
+  | 'pending'
+  | 'in-progress'
+  | 'succeeded'
+  | 'failed'
+  | 'manual-review'
+  | 'not-applicable'
+  | null;
+
+interface InviteRefundBannerProps {
+  refundStatus: InviteRefundStatusUI;
+  /** ISO date du remboursement (utilisé si succeeded). */
+  refundedAtISO: string | null;
+}
+
+/**
+ * Affiche un encart explicite du statut refund pour les invitations Split/Gift
+ * declined/expired. Ne rend rien si refundStatus === 'not-applicable' ou null.
+ */
+export function InviteRefundBanner({ refundStatus, refundedAtISO }: InviteRefundBannerProps) {
+  const { t } = useLanguage();
+
+  if (!refundStatus || refundStatus === 'not-applicable') {
+    return null;
+  }
+
+  if (refundStatus === 'succeeded') {
+    const dateLabel = refundedAtISO
+      ? new Date(refundedAtISO).toLocaleDateString(undefined, {
+          day: '2-digit',
+          month: 'long',
+          year: 'numeric',
+        })
+      : '';
+    return (
+      <div className="mt-4 flex items-start gap-3 rounded-xl border border-green-600/30 bg-green-600/10 px-4 py-3">
+        <CheckCircle2 className="h-5 w-5 flex-shrink-0 text-green-400" />
+        <div className="text-sm font-light leading-relaxed text-green-200">
+          {dateLabel
+            ? t('invite_refund_status_succeeded_dated').replace('{date}', dateLabel)
+            : t('invite_refund_status_succeeded')}
+        </div>
+      </div>
+    );
+  }
+
+  if (refundStatus === 'pending' || refundStatus === 'in-progress') {
+    return (
+      <div className="mt-4 flex items-start gap-3 rounded-xl border border-orange-600/30 bg-orange-600/10 px-4 py-3">
+        <Loader2 className="h-5 w-5 flex-shrink-0 animate-spin text-orange-400" />
+        <div className="text-sm font-light leading-relaxed text-orange-200">
+          {t('invite_refund_status_in_progress')}
+        </div>
+      </div>
+    );
+  }
+
+  if (refundStatus === 'failed') {
+    return (
+      <div className="mt-4 flex items-start gap-3 rounded-xl border border-orange-600/30 bg-orange-600/10 px-4 py-3">
+        <Clock className="h-5 w-5 flex-shrink-0 text-orange-400" />
+        <div className="text-sm font-light leading-relaxed text-orange-200">
+          {t('invite_refund_status_failed_retry')}
+        </div>
+      </div>
+    );
+  }
+
+  if (refundStatus === 'manual-review') {
+    return (
+      <div className="mt-4 flex items-start gap-3 rounded-xl border border-red-600/30 bg-red-600/10 px-4 py-3">
+        <AlertCircle className="h-5 w-5 flex-shrink-0 text-red-400" />
+        <div className="text-sm font-light leading-relaxed text-red-200">
+          {t('invite_refund_status_manual_review')}{' '}
+          <a
+            href="mailto:contact@spordateur.com"
+            className="underline hover:text-white"
+          >
+            contact@spordateur.com
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
 }

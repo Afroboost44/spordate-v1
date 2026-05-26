@@ -74,13 +74,74 @@ service cloud.firestore {
     // Phase 9 SC6 c3/4 — soft delete user-facing UI (RGPD/nLPD Art. 17).
     // Owner allowed full update inclut softDelete fields (preserved Phase 9).
     // Phase 10 polish : tighten owner update à champs whitelist via diff.affectedKeys().hasOnly.
+    //
+    // Audit Sécurité (R0) — champs financiers / role / sanctions / IA modération
+    // sont SERVER-ONLY (Admin SDK via API routes). Le client owner peut update
+    // son profil mais NE PEUT PAS toucher à la liste ci-dessous, sinon write
+    // refusé par les rules (admin bypass via isAdmin()).
+    //
+    // PROTECTED_USER_FIELDS — liste exhaustive des champs réservés Admin SDK :
+    //  - credits         : solde Sport Dates (faille R0 — debit/grant via /api/checkout,
+    //                      /api/webhooks/stripe, /api/chat/unlock-direct, /api/boost-credits)
+    //  - role            : 'user'|'creator'|'admin' (escalade privilèges)
+    //  - isCreator       : promotion creator (set par createCreator server-side)
+    //  - isPremium       : flag abonnement (Stripe webhook)
+    //  - commission      : taux paramétrables admin (% commission referral)
+    //  - referralCode    : code parrainage unique (collision = perte commission)
+    //  - referredBy      : qui m'a parrainé (anti-spoof commission)
+    //  - lastPaymentId / lastPaymentAt : trace dernier paiement Stripe
+    //  - activeSanctionId / activeSanctionLevel / activeSanctionEndsAt :
+    //                      denorm sanctions T&S (server-managed via userSanctions/)
+    //  - bioModeration   : score IA Gemini bio (server-managed via /api/users/[id]/moderate-bio)
+    //  - leakFlagged     : flag anti-leak L4 (server-managed via Cloud Function)
+    //  - averageRatingAsReviewee / reviewCountAsReviewee : denorm rating
+    //                      (server-managed via /api/users/[id]/recompute-rating)
+    //  - anonymizedAt    : timestamp purge RGPD (cron only)
+    //  - softDeleteScheduledPurgeAt : cron-managed (anti-bypass purge timer)
+    //  - referralCount   : compteur filleuls validés (vague 2 — incrémenté côté
+    //                      serveur Admin SDK quand un parrain valide un filleul,
+    //                      anti-spoof inflation client)
+    //
+    // Owner peut toujours édit ses softDeletedAt + softDeleteReason
+    // (cf. softDeleteUser service Phase 9 SC6) — pas dans la liste protected.
+    function onlyMutatesNonProtectedUserFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'credits',
+        'role',
+        'isCreator',
+        'isPremium',
+        'commission',
+        'referralCode',
+        'referredBy',
+        'lastPaymentId',
+        'lastPaymentAt',
+        'activeSanctionId',
+        'activeSanctionLevel',
+        'activeSanctionEndsAt',
+        'bioModeration',
+        'leakFlagged',
+        'averageRatingAsReviewee',
+        'reviewCountAsReviewee',
+        'anonymizedAt',
+        'softDeleteScheduledPurgeAt',
+        'referralCount'
+      ]);
+    }
+
     match /users/{userId} {
       allow read: if isAuth();
       allow create: if isOwner(userId);
-      // Update : owner full update OU admin OU owner soft-delete only path (defense-in-depth).
-      // Le 3e path est redondant (owner allowed full) mais documenté pour audit
-      // — préserve possibilité Phase 10 de tighten owner update à champs whitelist.
-      allow update: if isOwner(userId) || isAdmin();
+      // Update : owner ne peut PAS muter les champs server-only (credits, role, commission, etc.)
+      // OU admin (bypass complet via isAdmin()).
+      // Audit R0 : empêche un client malveillant de s'auto-créditer via SDK DevTools.
+      // Toute mutation de credits doit passer par Admin SDK :
+      //   - /api/checkout (webhook post-purchase)
+      //   - /api/webhooks/stripe (handler grant credits)
+      //   - /api/chat/unlock-direct (debit -5)
+      //   - /api/boost-credits (debit -cost)
+      //   - /api/admin/* (admin manual adjust)
+      allow update: if (isOwner(userId) && onlyMutatesNonProtectedUserFields())
+                    || isAdmin();
       allow delete: if isAdmin();
 
       match /preferences/{doc} {
@@ -197,8 +258,29 @@ service cloud.firestore {
     }
 
     // === CREATORS ===
+    // Audit Sécurité (R0) — restriction lecture owner + admin uniquement.
+    // Avant : `allow read: if isAuth()` exposait pendingPayout, totalEarnings,
+    // referralCode, referralLink, payoutDetails (IBAN/twintNumber) de TOUS les
+    // creators à n'importe quel user authentifié → PII financière fuyait.
+    //
+    // Firestore Rules ne supportent pas une lecture PARTIELLE (field-level)
+    // côté serveur sur get/list. Conséquence : la collection devient lisible
+    // owner+admin only. Si une future feature a besoin d'exposer un sous-set
+    // public (ex : displayName + isActive pour leaderboard creators), créer
+    // un mirror collection `creatorsPublic/{creatorId}` server-maintained avec
+    // uniquement les champs non-sensibles, et lui appliquer `allow read: if true`.
+    //
+    // REGRESSION CONNUE — `processReferralSignup` (src/services/firestore.ts:431)
+    // fait un `query(getCollection('creators'), where('referralCode','==', code))`
+    // côté client lors du signup avec referral. Cette query échouera désormais
+    // (rules deny non-owner read). Le service appellera son fallback
+    // `getUsersByReferralCode()` qui lui scanne /users/ (autorisé `read if isAuth()`),
+    // donc les referral codes saisis comme code USER continueront de marcher.
+    // Les referral codes saisis comme code CREATOR PUR (sans miroir users.referralCode)
+    // ne lieront plus le referral au signup → à migrer côté Admin SDK
+    // (POST /api/referrals/link {newUserId, referralCode}).
     match /creators/{creatorId} {
-      allow read: if isAuth();
+      allow read: if isOwner(creatorId) || isAdmin();
       allow create: if isOwner(creatorId);
       allow update: if isOwner(creatorId) || isAdmin();
       allow delete: if isAdmin();
@@ -233,6 +315,60 @@ service cloud.firestore {
             || resource.data.partnerId == request.auth.uid
             || resource.data.partnerId == 'partner-' + request.auth.uid);
       allow write: if false;
+    }
+
+    // === STRIPE WEBHOOK EVENTS (Audit R0 — idempotence webhook Stripe) ===
+    // Collection prévue par l'audit sécurité pour stocker les `event.id` Stripe
+    // déjà traités → empêche le double-grant credits sur retry webhook (network
+    // hiccup, Stripe retry policy, replay attack).
+    //
+    // Schéma attendu (géré 100% côté serveur via Admin SDK dans le handler
+    // /api/webhooks/stripe) :
+    //   { eventId: string, type: string, processedAt: Timestamp,
+    //     livemode: bool, requestId?: string }
+    //
+    // Aucun accès client (lecture inutile, écriture = bypass idempotence).
+    // L'Admin SDK passe outre ces rules par design.
+    match /stripeWebhookEvents/{eventId} {
+      allow read, write: if false;
+    }
+
+    // === REFUND INCIDENTS (Vague 3 — log échecs remboursement Stripe ≥ 5 retries) ===
+    // Collection écrite 100% côté serveur via Admin SDK (cf.
+    // src/lib/stripe/refundForInvite.ts) quand un remboursement Stripe a échoué
+    // 5 fois consécutivement. Permet à l'admin de manuellement intervenir
+    // (refund manuel via Stripe Dashboard, contact user, audit).
+    //
+    // Read : admin seul (queue intervention manuelle).
+    // Write : server-only (Admin SDK bypass ces rules). Aucun create/update/delete
+    // côté client — l'audit trail doit rester intègre + aucun bypass de retry counter.
+    match /refundIncidents/{incidentId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if false;
+    }
+
+    // === COMMISSION REVERSALS (Vague 2 — log annulations commission post-refund Stripe) ===
+    // Collection écrite 100% côté serveur via Admin SDK (cf.
+    // src/lib/referral/reverseCommission.ts) quand un `charge.refunded` Stripe
+    // arrive : on rejoue à l'envers processCommission et on logge un doc reversal
+    // pour la traçabilité comptable.
+    //
+    // Schéma (cf. reverseCommission.ts reverseSlot()) :
+    //   { reversalId, originalTransactionId, paymentIntentId, refundId,
+    //     slot ('creator'|'invite'), recipientId, referralCode, mode,
+    //     originalCommissionCents | originalCredits, commissionReversedCents | creditsReversed,
+    //     refundAmountCents, totalAmountCents, refundRatio, isFullRefund,
+    //     reason, refundedAt, createdAt, ... }
+    //
+    // Read : le destinataire de la commission (recipientId) doit pouvoir voir
+    // ses propres reverses (affichage "commission annulée" côté UI partenaire/
+    // parrain). Admin voit tout.
+    // Write : server-only (Admin SDK bypass ces rules). Aucun create/update/delete
+    // côté client — l'audit trail doit rester intègre.
+    match /commissionReversals/{reversalId} {
+      allow read: if isAuth()
+        && (resource.data.recipientId == request.auth.uid || isAdmin());
+      allow create, update, delete: if false;
     }
 
     // === REFERRALS (server-side only) ===
@@ -333,11 +469,27 @@ service cloud.firestore {
     }
 
     // === PAYOUTS ===
+    // Vague 3 — defense-in-depth MIN_PAYOUT_CHF=10. Avant ce fix, un attaquant
+    // bypassant requestPayout() via DevTools setDoc direct pouvait créer un
+    // payout < 10 CHF (spam admin queue + frais bancaires disproportionnés).
+    // La rule duplique le check du service (validatePayoutRequest /
+    // src/lib/creators/limits.ts:54) au niveau Firestore.
+    //
+    // Unité : amount est en CHF entier (cf. services/firestore.ts:678
+    // `amount,` passé tel quel + MIN_PAYOUT_CHF = 10 dans lib/creators/limits.ts:26).
+    // PAS en centimes (contrairement à payoutRequests.amountCents qui est
+    // server-only, allow write: if false ligne ~306).
+    //
+    // PLANCHER ABSOLU 10 CHF en dur — si l'UI un jour rend le min paramétrable,
+    // la rule reste un garde-fou : impossible de descendre sous 10 CHF sans
+    // modifier ce fichier manuellement (garantie de sécurité, vague 3).
     match /payouts/{payoutId} {
       allow read: if isAuth()
         && (resource.data.creatorId == request.auth.uid || isAdmin());
       allow create: if isAuth()
-        && request.resource.data.creatorId == request.auth.uid;
+        && request.resource.data.creatorId == request.auth.uid
+        && request.resource.data.amount is number
+        && request.resource.data.amount >= 10;
       allow update: if isAdmin();
       allow delete: if false;
     }

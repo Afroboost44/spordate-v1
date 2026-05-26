@@ -28,7 +28,7 @@ import {
   type Firestore,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import type { Invite, InviteMode, Session } from '@/types/firestore';
+import type { Invite, InviteMode, InviteRefundState, Session } from '@/types/firestore';
 import { computeSplitAmounts, SplitMathError } from './splitMath';
 
 // =====================================================================
@@ -188,6 +188,17 @@ export async function createInvite(input: CreateInviteInput): Promise<string> {
 
   // Phase 9 SC2 c2/6 — modes Split/Gift : compute amounts + persist
   const mode: InviteMode = input.mode ?? 'individual';
+
+  // Fix audit refund visibility — initialise toujours `refundState` (pending si
+  // Split/Gift car un refund pourrait être déclenché par decline/expire ; sinon
+  // not-applicable pour mode='individual'). Sera transitionné par refundForInvite.
+  const initialRefundState: InviteRefundState = {
+    attempted: false,
+    status: mode === 'individual' ? 'not-applicable' : 'pending',
+    attempts: 0,
+  };
+  payload.refundState = initialRefundState;
+
   if (mode !== 'individual') {
     if (!input.totalCents || input.totalCents <= 0) {
       throw new InviteError(

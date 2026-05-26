@@ -17,6 +17,8 @@ import {
 import type { Creator, Referral } from "@/types/firestore";
 import { Timestamp } from 'firebase/firestore';
 import { QRCodeButton } from "@/components/share/QRCodeButton";
+import { MIN_PAYOUT_CHF } from "@/lib/creators/limits";
+import { getAdminSetting } from "@/lib/admin/settings";
 
 function formatCHF(amount: number): string {
   return amount.toFixed(2) + ' CHF';
@@ -37,6 +39,11 @@ export default function CreatorDashboardPage() {
   const [referrals, setReferrals] = useState<Referral[]>([]);
   const [loading, setLoading] = useState(true);
   const [requestingPayout, setRequestingPayout] = useState(false);
+  // Seuil min retrait : paramétrable par Bassi via /admin/manage > Tarifs
+  // (champ settings/pricing.minPayoutCHF). Floor MIN_PAYOUT_CHF côté serveur
+  // applique la défense en profondeur. Initialisé au floor pour back-compat
+  // (si Firestore indispo / champ absent, on tombe sur 10 CHF par défaut).
+  const [minPayoutChf, setMinPayoutChf] = useState<number>(MIN_PAYOUT_CHF);
 
   useEffect(() => {
     if (!user) return;
@@ -55,6 +62,13 @@ export default function CreatorDashboardPage() {
 
         const refs = await getCreatorReferrals(user.uid);
         setReferrals(refs);
+
+        // Lit le seuil min retrait paramétré par Bassi (fallback MIN_PAYOUT_CHF
+        // si champ absent — back-compat premier déploiement). On clamp côté UI
+        // au plancher absolu pour ne jamais afficher un disabled plus permissif
+        // que ce que le serveur acceptera.
+        const adminMin = await getAdminSetting('minPayoutCHF', MIN_PAYOUT_CHF);
+        setMinPayoutChf(Math.max(MIN_PAYOUT_CHF, adminMin));
       } catch (err) {
         console.error('Erreur chargement créateur:', err);
       } finally {
@@ -72,7 +86,7 @@ export default function CreatorDashboardPage() {
   };
 
   const handleRequestPayout = async () => {
-    if (!creator || creator.pendingPayout < 10) {
+    if (!creator || creator.pendingPayout < minPayoutChf) {
       toast({
         variant: 'destructive',
         title: t('creator_dashboard_minimum_payout'),
@@ -95,7 +109,17 @@ export default function CreatorDashboardPage() {
       const updated = await getCreator(creator.creatorId);
       if (updated) setCreator(updated);
     } catch (err) {
-      toast({ variant: 'destructive', title: t('creator_dashboard_error'), description: String(err) });
+      // Fix audit créateurs — map du code d'erreur serveur 'payout-below-minimum'
+      // (cf. src/lib/creators/limits.ts) sur un toast i18n propre. Si un attaquant
+      // bypass le bouton via DevTools, le serveur throw et on affiche un message
+      // user-facing au lieu de propager le code brut dans le toast.
+      const errMessage = err instanceof Error ? err.message : String(err);
+      const isBelowMin = errMessage === 'payout-below-minimum';
+      toast({
+        variant: 'destructive',
+        title: t('creator_dashboard_error'),
+        description: isBelowMin ? t('payout_min_amount_error') : errMessage,
+      });
     } finally {
       setRequestingPayout(false);
     }
@@ -214,7 +238,7 @@ export default function CreatorDashboardPage() {
             </div>
             <Button
               onClick={handleRequestPayout}
-              disabled={requestingPayout || creator.pendingPayout < 10}
+              disabled={requestingPayout || creator.pendingPayout < minPayoutChf}
               className="h-14 px-8 bg-white/5 backdrop-blur-xl border border-accent text-white font-light tracking-wider uppercase hover:bg-accent/10 disabled:opacity-30"
             >
               {requestingPayout ? (

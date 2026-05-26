@@ -1247,6 +1247,38 @@ export type InviteStatus = 'pending' | 'accepted' | 'declined' | 'expired';
  *  Mode choisi par inviter à la création (Q1=A). */
 export type InviteMode = 'individual' | 'split' | 'gift';
 
+/** Audit refund state — étend le champ `status` (pending/accepted/declined/expired)
+ *  avec un suivi explicite du remboursement Stripe (best-effort retry-able).
+ *  - 'not-applicable' : mode='individual' (rien à rembourser inviter-side).
+ *  - 'pending' : invitation payée (Split/Gift) en attente d'event decline/expire.
+ *  - 'in-progress' : refund Stripe en cours d'exécution (lock court).
+ *  - 'succeeded' : Stripe a confirmé le remboursement (set stripeRefundId, refundedAt).
+ *  - 'failed' : dernière tentative Stripe a échoué — retry cron éligible si attempts<5.
+ *  - 'manual-review' : 5 tentatives KO, escalation vers ops via collection `refundIncidents`. */
+export type InviteRefundStatus =
+  | 'pending'
+  | 'in-progress'
+  | 'succeeded'
+  | 'failed'
+  | 'manual-review'
+  | 'not-applicable';
+
+export interface InviteRefundState {
+  /** True dès qu'une transition vers 'in-progress' a déjà été tentée. */
+  attempted: boolean;
+  status: InviteRefundStatus;
+  /** Nombre total de tentatives Stripe (success ou failure). */
+  attempts: number;
+  /** Dernière date de tentative Stripe (succès ou échec). */
+  lastAttemptAt?: Timestamp;
+  /** Message d'erreur de la dernière tentative (failed). */
+  lastError?: string;
+  /** ID Stripe refund si succeeded (idempotent via Stripe). */
+  stripeRefundId?: string;
+  /** Server timestamp de la date du remboursement effectif. */
+  refundedAt?: Timestamp;
+}
+
 export interface Invite {
   /** Doc ID Firestore — pattern `${fromUserId}_${toUserId}_${sessionId}`. */
   inviteId: string;
@@ -1294,6 +1326,10 @@ export interface Invite {
   /** Phase 9 SC2 c1/6. Montant inviter remboursé (CHF centimes, cohérent
    *  Booking.refundedAmount Phase 8 SC5 c4/5). */
   inviterRefundedAmount?: number;
+  /** Fix audit Stripe refund visibility — sous-objet de suivi explicite des
+   *  remboursements auto (decline / expire). Indépendant de `status` qui reste
+   *  l'état de l'invitation (pending/accepted/declined/expired). */
+  refundState?: InviteRefundState;
 }
 
 // ===================== NOTIFICATIONS =====================

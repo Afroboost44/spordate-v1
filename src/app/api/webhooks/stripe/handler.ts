@@ -1232,3 +1232,75 @@ async function handleBoostPayment(session: Record<string, unknown>) {
 
   console.log(`[Boost] Activé doc=${ref.id} partnerId=${partnerId} activityId=${activityId || '(legacy)'} duration=${duration} city=${city}`);
 }
+
+// =============================================================
+// Vague 2 — Stripe `charge.refunded` handler.
+//
+// Quand Bassi rembourse une charge via le Stripe dashboard (full ou partiel),
+// Stripe émet `charge.refunded`. La commission partenaire / parrainage qui
+// avait été appliquée au moment du paiement DOIT être annulée au prorata —
+// sinon le partenaire reste payé alors que le client a été remboursé.
+//
+// On délègue toute la logique métier à `reverseCommissionForRefund` (testable
+// isolément, voir src/lib/referral/reverseCommission.ts). Ce wrapper ne fait
+// qu'extraire les bons champs du payload Stripe et logger le résultat.
+//
+// Idempotence : double protection.
+//   - Vague 1 : event.id Stripe gated par claimWebhookEvent côté route.ts.
+//   - Helper  : check (paymentIntentId, refundId) sur /commissionReversals
+//     avant d'écrire — si un retry passe la vague 1 (cooldown failed expiré),
+//     le helper skip quand même.
+// =============================================================
+export async function handleChargeRefunded(charge: Record<string, unknown>): Promise<void> {
+  const { db, FV } = await initAdmin();
+  const chargeId = (charge.id as string) || '';
+  const paymentIntentId = (charge.payment_intent as string) || '';
+  const totalAmountCents = (charge.amount as number) || 0;
+  // `amount_refunded` est cumulatif côté Stripe (total remboursé sur cette
+  // charge à date). Si Bassi fait 2 refunds partiels successifs, on aura 2
+  // events `charge.refunded`. Pour reverser le delta du dernier refund, on
+  // lit le dernier objet refund dans `charge.refunds.data[0]` (le plus
+  // récent — Stripe ordonne par created desc).
+  const refundsObj = charge.refunds as Record<string, unknown> | undefined;
+  const refundsData = (refundsObj?.data as Array<Record<string, unknown>> | undefined) || [];
+  const lastRefund = refundsData[0];
+  const refundAmountCents = lastRefund
+    ? ((lastRefund.amount as number) || 0)
+    : ((charge.amount_refunded as number) || 0);
+  const refundId = lastRefund ? ((lastRefund.id as string) || '') : '';
+
+  if (!paymentIntentId) {
+    await logErr(db, FV, '[charge.refunded] payload sans payment_intent', chargeId);
+    return;
+  }
+  if (!refundAmountCents || refundAmountCents <= 0) {
+    await logErr(db, FV, '[charge.refunded] refundAmountCents <= 0', chargeId);
+    return;
+  }
+
+  try {
+    const { reverseCommissionForRefund } = await import('@/lib/referral/reverseCommission');
+    const result = await reverseCommissionForRefund({
+      db,
+      FV,
+      paymentIntentId,
+      refundAmountCents,
+      totalAmountCents,
+      refundId,
+    });
+    if (result.reversed) {
+      console.log(
+        `[charge.refunded] reversed=${result.reversalsCreated} pi=${paymentIntentId} refundId=${refundId} amountRefunded=${refundAmountCents} of total=${totalAmountCents}`,
+      );
+    } else {
+      console.log(
+        `[charge.refunded] no-op (${result.reason}) pi=${paymentIntentId} refundId=${refundId}`,
+      );
+    }
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    await logErr(db, FV, `[charge.refunded] reverseCommission échec: ${msg}`, chargeId);
+    // On NE re-throw PAS — un échec du reverse ne doit pas bloquer le webhook,
+    // l'event sera marqué completed et Bassi pourra inspecter errorLogs.
+  }
+}

@@ -36,6 +36,7 @@ import {
   type CommissionConfig,
   type CommissionSlot,
 } from './commission';
+import { tPush, coerceLang, DEFAULT_LANG, type ServerLang } from '@/lib/i18n/serverTranslations';
 
 // firebase-admin/firestore FieldValue — typeof shape, ne pas importer la classe
 // pour rester compatible avec le caller existant qui injecte `FV`.
@@ -223,13 +224,21 @@ async function applyPercentReward(
     totalPurchases: FV.increment(1),
   });
 
+  // Fix audit i18n notif — lit la langue du destinataire (users/{uid}.language).
+  // Fallback DEFAULT_LANG ('fr') si user introuvable ou langue invalide. Pattern
+  // cohérent avec getUserLang.ts / pickUserLang.
+  const recipientLang = await loadRecipientLang(db, recipientId);
+  const tr = tPush(recipientLang, 'referral_commission_received', {
+    amount: (commissionCents / 100).toFixed(2),
+  });
+
   const nRef = db.collection('notifications').doc();
   batch.set(nRef, {
     notificationId: nRef.id,
     userId: recipientId,
     type: slot === 'creator' ? 'affiliation' : 'referral',
-    title: 'Commission reçue !',
-    body: `+${(commissionCents / 100).toFixed(2)} CHF de commission sur un achat de ton filleul`,
+    title: tr.title,
+    body: tr.body,
     data: { referredUserId: payerUserId },
     isRead: false,
     createdAt: FV.serverTimestamp(),
@@ -274,20 +283,45 @@ async function applyFreeClassReward(
     createdAt: FV.serverTimestamp(),
   });
 
+  // Fix audit i18n notif — lit la langue du destinataire + sélectionne la
+  // variante singular/plural (style ICU light : `_one` / `_other`). Cf.
+  // serverTranslations.ts pour les clés.
+  const recipientLang = await loadRecipientLang(db, recipientId);
+  const variantSuffix = credits === 1 ? 'one' : 'other';
+  const variantKey =
+    slot === 'creator'
+      ? (`referral_free_class_creator_${variantSuffix}` as const)
+      : (`referral_free_class_invite_${variantSuffix}` as const);
+  const tr = tPush(recipientLang, variantKey, { credits });
+
   const nRef = db.collection('notifications').doc();
   batch.set(nRef, {
     notificationId: nRef.id,
     userId: recipientId,
     type: slot === 'creator' ? 'affiliation' : 'referral',
-    title: credits === 1 ? 'Cours offert reçu !' : `${credits} cours offerts reçus !`,
-    body:
-      slot === 'creator'
-        ? `+${credits} cours offert${credits > 1 ? 's' : ''} via ton lien créateur`
-        : `+${credits} cours offert${credits > 1 ? 's' : ''} — ton ami a fait un achat`,
+    title: tr.title,
+    body: tr.body,
     data: { referredUserId: payerUserId },
     isRead: false,
     createdAt: FV.serverTimestamp(),
   });
 
   await batch.commit();
+}
+
+// -----------------------------------------------------------------------------
+// Helper local : lit users/{uid}.language → ServerLang (fallback DEFAULT_LANG).
+// Cohérent avec pickUserLang (src/lib/i18n/getUserLang.ts) qui fait pareil mais
+// pour les emails. Ici on garde l'accès firebase-admin direct (pas d'import
+// pickUserLang) pour éviter une dépendance circulaire potentielle.
+// -----------------------------------------------------------------------------
+async function loadRecipientLang(db: Firestore, recipientId: string): Promise<ServerLang> {
+  try {
+    const snap = await db.collection('users').doc(recipientId).get();
+    if (!snap.exists) return DEFAULT_LANG;
+    const data_ = snap.data() || {};
+    return coerceLang((data_ as { language?: unknown }).language ?? DEFAULT_LANG);
+  } catch {
+    return DEFAULT_LANG;
+  }
 }
