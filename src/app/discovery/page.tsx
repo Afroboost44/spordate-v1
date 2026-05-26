@@ -1723,24 +1723,28 @@ END:VCALENDAR`;
 
               {/* Name + Location — name cliquable vers /profile/[uid] (BUG #18).
                   BUG #84 — Badge ✓ Vérifié à droite du nom si le user a passé
-                  la reconnaissance faciale (selfieVerificationStatus='verified'). */}
-              <div className="absolute bottom-0 left-0 right-0 p-6 pb-7 z-10">
+                  la reconnaissance faciale (selfieVerificationStatus='verified').
+                  Fix débordement nom : max-w-[60%] + truncate pour éviter que les
+                  pseudos longs (ex "BASSI BASSI") ne passent derrière les boutons
+                  action (Pass/Like/Chat) ancrés en bottom-right. Taille de police
+                  adaptative text-2xl → md:text-3xl (avant text-4xl). */}
+              <div className="absolute bottom-0 left-0 right-0 p-6 pb-7 pr-44 z-10">
                 {profileHref ? (
-                  <Link href={profileHref} className="inline-flex items-center gap-2 hover:opacity-90 transition">
-                    <h2 className="text-4xl font-light tracking-tight text-white drop-shadow-2xl">{currentProfile.name}</h2>
+                  <Link href={profileHref} className="inline-flex items-center gap-2 hover:opacity-90 transition max-w-full">
+                    <h2 className="text-2xl md:text-3xl font-light tracking-tight text-white drop-shadow-2xl truncate min-w-0">{currentProfile.name}</h2>
                     {currentProfile.isVerified && (
                       <BadgeCheck
-                        className="h-7 w-7 text-accent drop-shadow-2xl"
+                        className="h-6 w-6 md:h-7 md:w-7 text-accent drop-shadow-2xl shrink-0"
                         aria-label={t('profile_verified_aria')}
                       />
                     )}
                   </Link>
                 ) : (
-                  <div className="inline-flex items-center gap-2">
-                    <h2 className="text-4xl font-light tracking-tight text-white drop-shadow-2xl">{currentProfile.name}</h2>
+                  <div className="inline-flex items-center gap-2 max-w-full">
+                    <h2 className="text-2xl md:text-3xl font-light tracking-tight text-white drop-shadow-2xl truncate min-w-0">{currentProfile.name}</h2>
                     {currentProfile.isVerified && (
                       <BadgeCheck
-                        className="h-7 w-7 text-accent drop-shadow-2xl"
+                        className="h-6 w-6 md:h-7 md:w-7 text-accent drop-shadow-2xl shrink-0"
                         aria-label={t('profile_verified_aria')}
                       />
                     )}

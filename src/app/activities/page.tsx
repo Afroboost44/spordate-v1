@@ -539,20 +539,21 @@ function ActivityCardComponent({
             <Info className="h-3 w-3 opacity-80" />
             <span>{t('activities_see_detail')}</span>
           </Link>
-          {/* BUG #52 — bouton "Plein écran" en haut-droite, à GAUCHE du
-              volume toggle (right-12 = 48px laisse la place au volume du
-              CardVideoEmbed à right-2). Quand existingBookingId, le badge
-              "Déjà réservée" prend right-3 → on décale Plein écran à
-              right-[6.5rem] pour pas chevaucher. */}
+          {/* BUG #52 / Fix Bassi — bouton "Plein écran" en haut-droite,
+              icône uniquement (square compact) pour éviter le chevauchement
+              avec le badge "Déjà réservée". right-12 laisse la place au
+              volume toggle du CardVideoEmbed (right-2). Quand
+              existingBookingId, badge "Déjà réservée" prend right-3 →
+              on décale Plein écran à right-[6rem] (gap visuel suffisant). */}
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); e.preventDefault(); setFullscreenStartIndex(currentSlide); }}
-            className="absolute top-3 z-10 flex items-center gap-1 bg-black/60 backdrop-blur-sm text-white text-[11px] font-medium px-2 py-1 rounded-full hover:bg-black/80 transition-colors"
+            className="absolute top-3 z-10 inline-flex items-center justify-center h-7 w-7 p-0 bg-black/60 backdrop-blur-sm text-white rounded-full hover:bg-black/80 transition-colors"
             aria-label={t('activities_display_fullscreen_aria')}
-            style={{ right: existingBookingId ? '7rem' : '3rem' }}
+            title={t('activities_fullscreen')}
+            style={{ right: existingBookingId ? '6rem' : '3rem' }}
           >
-            <Maximize2 className="h-3 w-3" />
-            <span>{t('activities_fullscreen')}</span>
+            <Maximize2 className="h-4 w-4" />
           </button>
           {/* Phase 9.5 c16 BUG F — badge "Déjà réservée" si user a un booking actif */}
           {existingBookingId && (

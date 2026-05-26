@@ -4,33 +4,22 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Home, Dumbbell, MessageCircle, User } from 'lucide-react';
 import { useFeatureFlags } from '@/lib/site/useFeatureFlags';
+import { SpordateurLogo } from '@/components/icons/SpordateurLogo';
 
-// Fix #196 — Icône Rencontres = vrai logo Spordateur (cœur+flèche blanc
-// transparent) extrait du SVG officiel uploadé par Bassi. PNG 256×256 RGBA
-// 13KB, transparent → posé directement sur le fond noir de la nav. L'état
-// actif est conveyé par le label rose en-dessous + le drop-shadow glow déjà
-// appliqué via la className parent (pas besoin de changer la couleur du logo).
-function DiscoveryIcon({ className }: { className?: string }) {
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src="/spordateur-logo.png"
-      alt=""
-      aria-hidden="true"
-      className={className}
-      style={{ objectFit: 'contain' }}
-    />
-  );
-}
+// Fix #205 (hotfix bonus) — Icône Rencontres migrée du PNG raster vers SVG
+// vectoriel inline (composant SpordateurLogo). Le PNG d'origine ne pouvait
+// pas être teinté en rose quand l'onglet est actif (text-[var(--accent-color)]
+// n'a aucun effet sur <img>). Le SVG inline utilise fill="currentColor" sur
+// tous ses paths, donc il hérite la couleur du parent (rose actif, blanc inactif).
 
 interface NavItem {
   href: string;
-  icon: typeof Home | typeof DiscoveryIcon;
+  icon: typeof Home | typeof SpordateurLogo;
   label: string;
 }
 
 const ACTIVITIES_ITEM: NavItem = { href: '/activities', icon: Dumbbell, label: 'Activités' };
-const DISCOVERY_ITEM: NavItem = { href: '/discovery', icon: DiscoveryIcon, label: 'Rencontres' };
+const DISCOVERY_ITEM: NavItem = { href: '/discovery', icon: SpordateurLogo, label: 'Rencontres' };
 const CHAT_ITEM: NavItem = { href: '/chat', icon: MessageCircle, label: 'Messages' };
 const PROFILE_ITEM: NavItem = { href: '/profile', icon: User, label: 'Profil' };
 
@@ -68,7 +57,20 @@ export default function BottomNav() {
                   : 'text-white/40 active:text-white/70'
               }`}
             >
-              <Icon className={`h-6 w-6 flex-shrink-0 ${isActive ? 'drop-shadow-[0_0_8px_rgb(var(--accent-color-rgb) / 0.6)]' : ''}`} strokeWidth={isActive ? 2.5 : 1.5} />
+              {/* Fix #204 — Icône active rose comme le label. Bassi report :
+                  le texte virait bien à text-accent quand actif mais l'icône
+                  restait blanche. Lucide hérite normalement de currentColor,
+                  mais on force explicitement la couleur ici pour lever toute
+                  ambiguïté (et couvrir DiscoveryIcon <img> via filter hue).
+                  Inactive : text-white/40 (cohérent avec le Link parent). */}
+              <Icon
+                className={`h-6 w-6 flex-shrink-0 ${
+                  isActive
+                    ? 'text-[var(--accent-color)] drop-shadow-[0_0_8px_rgb(var(--accent-color-rgb) / 0.6)]'
+                    : 'text-white/40'
+                }`}
+                strokeWidth={isActive ? 2.5 : 1.5}
+              />
               <span className="text-[10px] font-medium truncate max-w-full px-1">{item.label}</span>
             </Link>
           );
