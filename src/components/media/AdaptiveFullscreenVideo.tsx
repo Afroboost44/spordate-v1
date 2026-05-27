@@ -38,7 +38,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Maximize2, Volume2, VolumeX, X } from 'lucide-react';
+import { Volume2, VolumeX, X } from 'lucide-react';
 import { useLanguage } from '@/context/LanguageContext';
 
 export interface AdaptiveFullscreenVideoProps {
@@ -71,13 +71,12 @@ export default function AdaptiveFullscreenVideo({
     if (typeof window === 'undefined') return false;
     return window.matchMedia('(max-width: 768px)').matches;
   });
-  const [showRotateHint, setShowRotateHint] = useState<boolean>(false);
+  // (Bassi 27/05 — hint "Tourne ton téléphone" RETIRÉ, expérience silencieuse.)
   // Refs pour cleanup : on doit savoir si on a verrouillé l'orientation
   // ou demandé un fullscreen natif côté <video>, pour défaire au unmount
   // sans casser d'autres écrans déjà fullscreen.
   const didLockOrientation = useRef(false);
   const didRequestFullscreen = useRef(false);
-  const rotateHintTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Détection mobile via matchMedia, mise à jour live si rotation/resize.
   useEffect(() => {
@@ -114,7 +113,13 @@ export default function AdaptiveFullscreenVideo({
       // No-op : object-cover w-screen h-screen suffit pour "remplir l'écran".
     }
 
-    // Vidéo 16:9 (landscape) → orientation lock landscape, fallback hint.
+    // Vidéo 16:9 (landscape) → orientation lock landscape.
+    // Bug fix Bassi 27/05 — Plus de hint "Tourne ton téléphone" : Bassi a
+    // demandé que l'expérience soit silencieuse. Si l'API Screen Orientation
+    // Lock est dispo (Chrome/Firefox Android) on bascule l'écran auto. Si
+    // elle ne l'est pas (Safari iOS qui bloque depuis 2023), on ne fait
+    // rien — l'utilisateur peut tourner son téléphone lui-même s'il veut.
+    // Aucun message visuel à l'utilisateur.
     if (ratio === 'landscape') {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const orient = (screen as any).orientation;
@@ -123,30 +128,21 @@ export default function AdaptiveFullscreenVideo({
         try {
           const p = orient.lock('landscape');
           if (p && typeof p.then === 'function') {
-            p.then(() => { didLockOrientation.current = true; }).catch(() => {
-              // Lock refusé runtime → afficher le hint.
-              setShowRotateHint(true);
-              rotateHintTimerRef.current = setTimeout(() => setShowRotateHint(false), 5000);
-            });
+            p.then(() => { didLockOrientation.current = true; }).catch(() => { /* silent */ });
           } else {
             didLockOrientation.current = true;
           }
         } catch {
-          setShowRotateHint(true);
-          rotateHintTimerRef.current = setTimeout(() => setShowRotateHint(false), 5000);
+          /* silent */
         }
-      } else {
-        // Safari iOS ou API absente → hint visuel 5s.
-        setShowRotateHint(true);
-        rotateHintTimerRef.current = setTimeout(() => setShowRotateHint(false), 5000);
       }
+      // Safari iOS ou API absente : on ne fait rien (silencieux).
     }
   }, [isMobile, ratio]);
 
   // Cleanup global au unmount du composant.
   useEffect(() => {
     return () => {
-      if (rotateHintTimerRef.current) clearTimeout(rotateHintTimerRef.current);
       if (didLockOrientation.current) {
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -278,15 +274,9 @@ export default function AdaptiveFullscreenVideo({
             )}
           </button>
 
-          {/* Overlay hint "tourne ton téléphone" pour Safari iOS sur 16:9 */}
-          {showRotateHint && (
-            <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 z-20 flex flex-col items-center justify-center px-6 pointer-events-none">
-              <div className="bg-black/70 backdrop-blur text-white text-sm md:text-base px-4 py-3 rounded-xl flex items-center gap-2 text-center">
-                <Maximize2 className="h-5 w-5 rotate-90" aria-hidden="true" />
-                <span>{t('fullscreen_rotate_phone_hint')}</span>
-              </div>
-            </div>
-          )}
+          {/* Hint "tourne ton téléphone" RETIRÉ (Bassi 27/05) :
+              expérience silencieuse, on bascule auto si l'API marche, sinon
+              on laisse l'utilisateur tourner manuellement. */}
         </>
       )}
     </div>

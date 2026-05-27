@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -727,17 +728,8 @@ function ActivityCardComponent({
           propos (MediaCarousel) qui marche parfaitement. Sur desktop ou pour
           un item image, on garde FullscreenLightbox (UX swipe horizontal
           inter-médias, fonctionne très bien). */}
-      {fullscreenStartIndex !== null && (() => {
+      {fullscreenStartIndex !== null && typeof document !== 'undefined' && (() => {
         const startItem = items[fullscreenStartIndex];
-        // Bug fix Bassi 27/05 — Élargissement du check mobile : on bypass
-        // FullscreenLightbox pour TOUT item type='video' qui n'est PAS un
-        // iframe externe (YouTube/Vimeo/Drive). Avant on exigeait `source ===
-        // 'upload'` OU `isStorageVideoUrl` mais certaines vidéos sont
-        // étiquetées avec une source différente (legacy migrés, ou structure
-        // particulière) → le bypass ne se déclenchait pas → la vidéo restait
-        // contrainte dans son cadre normal au lieu de prendre tout l'écran.
-        // Élargir au "tout sauf provider iframe" couvre 100% des vidéos HTML5
-        // natif lisibles par AdaptiveFullscreenVideo.
         const isMobileViewport = typeof window !== 'undefined'
           && window.matchMedia('(max-width: 1024px)').matches;
         const isHtml5Video = !!startItem
@@ -745,37 +737,42 @@ function ActivityCardComponent({
           && startItem.provider !== 'youtube'
           && startItem.provider !== 'vimeo'
           && startItem.provider !== 'drive';
-        if (isMobileViewport && isHtml5Video) {
-          return (
-            <div
-              className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
-              role="dialog"
-              aria-label={t('activities_fullscreen_preview_aria')}
+        // Bug fix Bassi 27/05 — `createPortal` vers document.body : le rendu
+        // était imbriqué dans <Card> qui peut être contraint par un ancêtre
+        // CSS scroll-snap / transform / contain → `fixed inset-0` devenait
+        // relatif à cet ancêtre au lieu du viewport, donc la vidéo restait
+        // dans son cadre au lieu de remplir l'écran (header + bottom nav
+        // visibles). Le portal échappe à TOUT containing block parent et
+        // attache le rendu direct dans <body>.
+        const overlay = (isMobileViewport && isHtml5Video) ? (
+          <div
+            className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
+            role="dialog"
+            aria-label={t('activities_fullscreen_preview_aria')}
+          >
+            <button
+              type="button"
+              onClick={() => setFullscreenStartIndex(null)}
+              className="absolute top-4 left-4 z-30 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors backdrop-blur-sm"
+              aria-label={t('fullscreen_close')}
+              title={t('fullscreen_close')}
             >
-              <button
-                type="button"
-                onClick={() => setFullscreenStartIndex(null)}
-                className="absolute top-4 left-4 z-30 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors backdrop-blur-sm"
-                aria-label={t('fullscreen_close')}
-                title={t('fullscreen_close')}
-              >
-                <X className="h-6 w-6" />
-              </button>
-              <AdaptiveFullscreenVideo
-                src={startItem.url}
-                autoPlay
-                onClose={() => setFullscreenStartIndex(null)}
-              />
-            </div>
-          );
-        }
-        return (
+              <X className="h-6 w-6" />
+            </button>
+            <AdaptiveFullscreenVideo
+              src={startItem.url}
+              autoPlay
+              onClose={() => setFullscreenStartIndex(null)}
+            />
+          </div>
+        ) : (
           <FullscreenLightbox
             items={items}
             initialIndex={fullscreenStartIndex}
             onClose={() => setFullscreenStartIndex(null)}
           />
         );
+        return createPortal(overlay, document.body);
       })()}
     </Card>
   );

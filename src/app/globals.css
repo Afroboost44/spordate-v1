@@ -100,6 +100,21 @@ body {
   }
 }
 
+/* Bug fix Bassi 27/05 — Cache le bouton fullscreen natif HTML5 sur tous les
+   <video controlsList="nofullscreen"> (page À propos MediaCarousel etc.).
+   controlsList désactive l'action mais Chrome continue d'afficher le bouton.
+   Ces sélecteurs cachent visuellement le bouton fullscreen + le menu PiP/3 points
+   sur Chrome/Edge/Safari. Aucun impact sur les autres controls (play/volume/time). */
+video[controlslist*="nofullscreen"]::-webkit-media-controls-fullscreen-button {
+  display: none !important;
+}
+video[disablepictureinpicture]::-webkit-media-controls-picture-in-picture-button {
+  display: none !important;
+}
+video[controlslist*="nofullscreen"]::-webkit-media-controls-overflow-menu-button {
+  display: none !important;
+}
+
 /* Neon glow utility — Accent feature : suit --accent-color-rgb (dynamique). */
 .neon-glow {
   box-shadow: 0 0 20px rgb(var(--accent-color-rgb) / 0.3), 0 0 40px rgb(var(--accent-color-rgb) / 0.1);
