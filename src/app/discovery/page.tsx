@@ -1856,8 +1856,15 @@ END:VCALENDAR`;
               {t('payment_modal_title', { title: 'Afroboost' })}
             </DialogTitle>
             <DialogDescription className="text-gray-400 text-sm">
+              {/* Bug fix Bassi 27/05 — `currentProfile.location` = ville du
+                  PROFIL (Veldaes = Zurich) et non de l'activité. L'utilisateur
+                  voyait "Séance avec Veldaes à Zurich" alors que l'activité
+                  Silent Afroboost est à Neuchâtel. On retire la mention ville
+                  ici : à l'étape 1 du wizard l'activité n'est pas encore
+                  choisie, et la ville réelle de chaque activité est affichée
+                  dans la card de la liste juste en-dessous. */}
               {currentProfile && (
-                <>Séance avec {currentProfile.name.split(',')[0]} à {currentProfile.location}</>
+                <>Séance avec {currentProfile.name.split(',')[0]}</>
               )}
             </DialogDescription>
             {/* Phase 9.5 c48 — Steps indicator wizard 3 étapes */}
