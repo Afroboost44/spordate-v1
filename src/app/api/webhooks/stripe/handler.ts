@@ -668,9 +668,13 @@ async function handleInviteAcceptPayment(
   const fromUserId = meta.fromUserId;
   const sessionId = meta.sessionId;
   const activityId = meta.activityId;
+  const partnerIdFromMeta = meta.partnerId || '';
   const tierFromMeta = (meta.tier as PricingTierKind) || 'early';
   const amountFromMeta = parseInt(meta.amount || '0');
   const bundleCredits = parseInt(meta.bundleCredits || '50');
+  // Fix #144 (extension) — applicationFeeAmount transporté via metadata pour
+  // permettre au webhook de calculer partner.balance += (amountTotal - fee).
+  const applicationFeeAmountFromMeta = parseInt(meta.applicationFeeAmount || '0');
   const stripeSessionId = stripeCheckout.id as string;
   const paymentIntentId = (stripeCheckout.payment_intent as string) || '';
   const amountTotal = (stripeCheckout.amount_total as number) || 0;
@@ -845,6 +849,49 @@ async function handleInviteAcceptPayment(
       createdAt: FV.serverTimestamp(),
     });
   } catch { /* silent */ }
+
+  // Fix #144 (extension) — Mode in-house wallet : crédit partner.balance pour
+  // la part B (Split) ou pour le paiement complet (Individual). Pas de
+  // Stripe Connect transfer : tout reste sur le compte plateforme et on
+  // crédite le wallet Firestore que Bassi vire ensuite manuellement.
+  if (partnerIdFromMeta && amountTotal > 0) {
+    try {
+      const partnerNetCents = Math.max(0, amountTotal - applicationFeeAmountFromMeta);
+      const { findPartnerDoc } = await import('@/lib/partner/findPartnerDoc');
+      const partnerDocId = await findPartnerDoc(db, partnerIdFromMeta);
+      if (partnerDocId) {
+        await db.collection('partners').doc(partnerDocId).set({
+          balance: FV.increment(partnerNetCents),
+          totalRevenue: FV.increment(amountTotal),
+          commissionPaid: FV.increment(applicationFeeAmountFromMeta),
+          lastSaleAt: FV.serverTimestamp(),
+        }, { merge: true });
+
+        const wtRef = db.collection('walletTransactions').doc();
+        await wtRef.set({
+          walletTransactionId: wtRef.id,
+          partnerId: partnerDocId,
+          type: 'invite_accept_credit',
+          amountCents: partnerNetCents,
+          grossAmountCents: amountTotal,
+          commissionCents: applicationFeeAmountFromMeta,
+          currency: 'CHF',
+          stripeSessionId,
+          stripePaymentIntentId: paymentIntentId,
+          sessionId,
+          bookingId: bookingIdResult,
+          inviteId,
+          userId: toUserId,
+          createdAt: FV.serverTimestamp(),
+        });
+      } else {
+        await logErr(db, FV, `[in-house wallet invite-accept] partner doc introuvable pour partnerId=${partnerIdFromMeta}`, stripeSessionId);
+      }
+    } catch (walletErr) {
+      const m = walletErr instanceof Error ? walletErr.message : String(walletErr);
+      await logErr(db, FV, `[in-house wallet invite-accept] crédit partner échoué: ${m}`, stripeSessionId);
+    }
+  }
 }
 
 // =============================================================
@@ -868,6 +915,8 @@ async function handleInvitePrepayPayment(
   const inviteId = meta.inviteId;
   const fromUserId = meta.fromUserId;
   const inviteMode = meta.inviteMode || 'split';
+  const partnerIdFromMeta = meta.partnerId || '';
+  const applicationFeeAmountFromMeta = parseInt(meta.applicationFeeAmount || '0');
   const stripeSessionId = stripeCheckout.id as string;
   const paymentIntentId = (stripeCheckout.payment_intent as string) || '';
   const amountTotal = (stripeCheckout.amount_total as number) || 0;
@@ -996,6 +1045,53 @@ async function handleInvitePrepayPayment(
     });
   } catch {
     /* silent */
+  }
+
+  // Fix #144 (extension) — Mode in-house wallet : crédit partner.balance pour
+  // la part inviter (Split = sa part, Gift = totalité). Pas de Stripe Connect
+  // transfer : tout reste sur le compte plateforme et on crédite le wallet
+  // Firestore que Bassi vire ensuite manuellement.
+  //
+  // NB : si l'invitation Split/Gift est ensuite declined/expired, refundForInvite
+  // remboursera A via Stripe. Le wallet partner sera reverssé par
+  // handleChargeRefunded (vague 2 reverseCommissionForRefund) qui scanne les
+  // walletTransactions liés à ce paymentIntentId.
+  if (partnerIdFromMeta && amountTotal > 0) {
+    try {
+      const partnerNetCents = Math.max(0, amountTotal - applicationFeeAmountFromMeta);
+      const { findPartnerDoc } = await import('@/lib/partner/findPartnerDoc');
+      const partnerDocId = await findPartnerDoc(db, partnerIdFromMeta);
+      if (partnerDocId) {
+        await db.collection('partners').doc(partnerDocId).set({
+          balance: FV.increment(partnerNetCents),
+          totalRevenue: FV.increment(amountTotal),
+          commissionPaid: FV.increment(applicationFeeAmountFromMeta),
+          lastSaleAt: FV.serverTimestamp(),
+        }, { merge: true });
+
+        const wtRef = db.collection('walletTransactions').doc();
+        await wtRef.set({
+          walletTransactionId: wtRef.id,
+          partnerId: partnerDocId,
+          type: inviteMode === 'gift' ? 'invite_gift_credit' : 'invite_prepay_credit',
+          amountCents: partnerNetCents,
+          grossAmountCents: amountTotal,
+          commissionCents: applicationFeeAmountFromMeta,
+          currency: 'CHF',
+          stripeSessionId,
+          stripePaymentIntentId: paymentIntentId,
+          sessionId: meta.sessionId || '',
+          inviteId,
+          userId: fromUserId,
+          createdAt: FV.serverTimestamp(),
+        });
+      } else {
+        await logErr(db, FV, `[in-house wallet invite-prepay] partner doc introuvable pour partnerId=${partnerIdFromMeta}`, stripeSessionId);
+      }
+    } catch (walletErr) {
+      const m = walletErr instanceof Error ? walletErr.message : String(walletErr);
+      await logErr(db, FV, `[in-house wallet invite-prepay] crédit partner échoué: ${m}`, stripeSessionId);
+    }
   }
 }
 

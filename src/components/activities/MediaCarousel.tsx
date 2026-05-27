@@ -196,9 +196,16 @@ function MediaItemRender({
       return (
         <div className="relative aspect-video rounded-lg overflow-hidden border border-white/10 bg-zinc-950">
           {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+          {/* Bug fix Bassi 27/05 — controlsList="nofullscreen" supprime le
+              bouton fullscreen natif HTML5 (icône carré aux coins). On garde
+              seulement le bouton custom Maximize2 en bas-droite (ci-dessous)
+              qui ouvre AdaptiveFullscreenVideo. Sans ça, l'utilisateur voyait
+              2 boutons d'agrandissement côte-à-côte. */}
           <video
             src={item.url}
             controls
+            controlsList="nofullscreen"
+            disablePictureInPicture
             preload="metadata"
             playsInline
             className="absolute inset-0 w-full h-full object-cover bg-black"

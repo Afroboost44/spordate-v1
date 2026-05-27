@@ -153,17 +153,25 @@ export function InviteButton({
               window.location.href = prepayData.url;
               return;
             }
-            const reason = prepayData.detail || prepayData.error || t('invite_payment_generic_error');
+            // Fix #144 (extension) — Plus d'exposition du détail technique
+            // Stripe (ex. "Stripe account acct_… charges_enabled=false") à
+            // l'utilisateur. On affiche un message générique uniforme. Le
+            // détail reste loggé côté serveur.
+            console.warn('[InviteButton] prepay checkout server error', {
+              status: prepayRes.status,
+              error: prepayData.error,
+              detail: prepayData.detail,
+            });
             toast({
               title: t('invite_created_payment_required_title'),
-              description: t('invite_created_payment_required_desc', { name: toUserName, mode: data.mode || '', reason }),
+              description: t('invite_split_payment_failed_desc'),
               variant: 'destructive',
             });
           } catch (err) {
             console.warn('[InviteButton] prepay checkout failed', err);
             toast({
               title: t('invite_created_payment_required_title'),
-              description: t('invite_retry_payment_desc'),
+              description: t('invite_split_payment_failed_desc'),
               variant: 'destructive',
             });
           }

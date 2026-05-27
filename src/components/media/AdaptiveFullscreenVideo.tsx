@@ -54,7 +54,13 @@ export default function AdaptiveFullscreenVideo({
 }: AdaptiveFullscreenVideoProps) {
   const { t } = useLanguage();
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [ratio, setRatio] = useState<'landscape' | 'portrait' | 'square'>('landscape');
+  // Bug fix Bassi 27/05 — Le state démarrait à 'landscape' par défaut. Sur
+  // une vidéo 9:16, l'effect orientation/hint se déclenchait IMMÉDIATEMENT
+  // au mount (avant que onLoadedMetadata détecte le vrai ratio), donc le
+  // hint "Tourne ton téléphone" apparaissait brièvement sur les 9:16 puis
+  // restait 5s à l'écran via le setTimeout. Fix : on initialise à null et
+  // l'effect skip tant que ratio n'est pas détecté.
+  const [ratio, setRatio] = useState<'landscape' | 'portrait' | 'square' | null>(null);
   const [isMobile, setIsMobile] = useState<boolean>(false);
   // Démarrage muted=true sur mobile pour permettre l'autoplay (Chrome/Safari
   // bloquent l'autoplay sonore par défaut). Sur desktop, controls natifs +

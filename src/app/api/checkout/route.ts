@@ -895,7 +895,7 @@ async function handleInviteAcceptMode(
       last_minute: 'Last Minute',
     };
 
-    // Phase 9 SC2 c3/6 — split mode : B paye splitInviteeAmountCents avec destination charge
+    // Phase 9 SC2 c3/6 — split mode : B paye splitInviteeAmountCents
     // Phase 9 SC2 c3/6 — gift mode : B ne paye rien (bypass checkout)
     const inviteMode = (invite.mode ?? 'individual') as 'individual' | 'split' | 'gift';
 
@@ -912,11 +912,14 @@ async function handleInviteAcceptMode(
       );
     }
 
-    // Compute amount + destination charge params selon mode
+    // Compute amount selon mode
+    // Fix #144 (extension) — Mode in-house wallet : pas de transfer_data /
+    // destination charge Stripe Connect. Le paiement reste sur le compte
+    // plateforme Spordateur. Le webhook handler crédite manuellement
+    // partner.balance avec (amount - applicationFeeAmount).
     let unitAmount: number = price;
     let descriptionExtra = `Invite de ${invite.fromUserId.slice(0, 8)}`;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const paymentIntentData: any = {};
+    let applicationFeeAmountForMeta = 0;
 
     if (inviteMode === 'split') {
       const splitInviteeCents = invite.splitInviteeAmountCents ?? 0;
@@ -929,27 +932,10 @@ async function handleInviteAcceptMode(
       unitAmount = splitInviteeCents;
       descriptionExtra = `Ta part Split (${(splitInviteeCents / 100).toFixed(2)} CHF) • Invite de ${invite.fromUserId.slice(0, 8)}`;
 
-      // Stripe Connect destination charge
-      try {
-        const { getPartnerStripeAccount, ConnectError } = await import('@/lib/stripe/connectHelpers');
-        const partnerStripeAccount = await getPartnerStripeAccount(session.partnerId);
-        const { getApplicationFeePct } = await import('@/lib/invites/splitMath');
-        const feePct = getApplicationFeePct();
-        const applicationFeeAmount = Math.round((unitAmount * feePct) / 100);
-        paymentIntentData.transfer_data = { destination: partnerStripeAccount };
-        paymentIntentData.application_fee_amount = applicationFeeAmount;
-        // Useful side: ConnectError is just imported for future strict typecheck — narrowing handled by caller
-        void ConnectError;
-      } catch (err) {
-        const code = (err as { code?: string })?.code;
-        if (code === 'partner-not-found' || code === 'partner-not-onboarded') {
-          return NextResponse.json(
-            { error: code, detail: err instanceof Error ? err.message : 'Stripe Connect required' },
-            { status: 412 },
-          );
-        }
-        throw err;
-      }
+      // Commission Spordateur sur la part B (crédit partner.balance via webhook)
+      const { getApplicationFeePct } = await import('@/lib/invites/splitMath');
+      const feePct = getApplicationFeePct();
+      applicationFeeAmountForMeta = Math.round((unitAmount * feePct) / 100);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -984,11 +970,9 @@ async function handleInviteAcceptMode(
         amount: String(unitAmount),
         bundleCredits: String(bundleCredits),
         inviteMode,
+        applicationFeeAmount: String(applicationFeeAmountForMeta),
       },
     };
-    if (Object.keys(paymentIntentData).length > 0) {
-      checkoutParams.payment_intent_data = paymentIntentData;
-    }
 
     const stripeSession = await (await getStripe()).checkout.sessions.create(checkoutParams);
 
@@ -1097,24 +1081,11 @@ async function handleInvitePrepayMode(
     }
     const activity = activitySnap.data() as unknown as Activity;
 
-    // Stripe Connect : resolve partner account + verify charges_enabled
-    let partnerStripeAccount: string;
-    try {
-      const { getPartnerStripeAccount, assertConnectChargesEnabled } = await import(
-        '@/lib/stripe/connectHelpers'
-      );
-      partnerStripeAccount = await getPartnerStripeAccount(session.partnerId);
-      await assertConnectChargesEnabled(partnerStripeAccount);
-    } catch (err) {
-      const code = (err as { code?: string })?.code;
-      if (code === 'partner-not-found' || code === 'partner-not-onboarded') {
-        return NextResponse.json(
-          { error: code, detail: err instanceof Error ? err.message : 'Stripe Connect required' },
-          { status: 412 },
-        );
-      }
-      throw err;
-    }
+    // Fix #144 (extension) — Mode in-house wallet : on supprime tout flow
+    // Stripe Connect (destination charge + charges_enabled assert). Le paiement
+    // de A va sur le compte plateforme Spordateur. Le webhook handler crédite
+    // partner.balance avec (inviterCents - applicationFeeAmount) lors du
+    // succès. Bassi vire ensuite manuellement via sa banque (workflow temporaire).
 
     // Application fee Spordateur (Q4=B 5% Phase 9)
     const { getApplicationFeePct } = await import('@/lib/invites/splitMath');
@@ -1153,10 +1124,8 @@ async function handleInvitePrepayMode(
             quantity: 1,
           },
         ],
-        payment_intent_data: {
-          transfer_data: { destination: partnerStripeAccount },
-          application_fee_amount: applicationFeeAmount,
-        },
+        // Fix #144 (extension) — Pas de payment_intent_data.transfer_data
+        // (in-house wallet model, pas de Stripe Connect partner onboarding).
         metadata: {
           mode: 'invite-prepay',
           inviteId,
