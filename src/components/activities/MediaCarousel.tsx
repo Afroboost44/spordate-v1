@@ -28,7 +28,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { ChevronLeft, ChevronRight, Play } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Maximize2, Play, X } from 'lucide-react';
 import type { MediaItem } from '@/types/firestore';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
 import { computeMediaCarouselLayout } from '@/lib/activities/mediaCarouselLayout';
@@ -49,6 +49,8 @@ import {
   CarouselNext,
   type CarouselApi,
 } from '@/components/ui/carousel';
+import AdaptiveFullscreenVideo from '@/components/media/AdaptiveFullscreenVideo';
+import { useLanguage } from '@/context/LanguageContext';
 
 export interface MediaCarouselProps {
   items: MediaItem[];
@@ -57,11 +59,17 @@ export interface MediaCarouselProps {
 }
 
 export function MediaCarousel({ items, className = '' }: MediaCarouselProps) {
+  const { t } = useLanguage();
   // BUG #33 — setApi + currentSlide pour piloter counter + dots (pattern aligné
   // fix #29 LISTE). Embla expose selectedScrollSnap() qui retourne l'index du
   // slide leftmost visible. useEffect attach un listener sur 'select'.
   const [api, setApi] = useState<CarouselApi>();
   const [currentSlide, setCurrentSlide] = useState(0);
+  // Fix bandes noires + son page À propos — état lightbox plein écran pour
+  // les vidéos Storage. URL du media en cours = ouvert, null = fermé. On
+  // réutilise AdaptiveFullscreenVideo (mêmes règles ratio-aware + audio que
+  // la page Activités listing).
+  const [fullscreenVideoSrc, setFullscreenVideoSrc] = useState<string | null>(null);
 
   useEffect(() => {
     if (!api) return;
@@ -94,7 +102,11 @@ export function MediaCarousel({ items, className = '' }: MediaCarouselProps) {
               key={`${item.url}-${i}`}
               className={`pl-3 ${layout.itemBasis}`}
             >
-              <MediaItemRender item={item} priority={i === 0} />
+              <MediaItemRender
+                item={item}
+                priority={i === 0}
+                onOpenFullscreen={(url) => setFullscreenVideoSrc(url)}
+              />
             </CarouselItem>
           ))}
         </CarouselContent>
@@ -130,6 +142,31 @@ export function MediaCarousel({ items, className = '' }: MediaCarouselProps) {
           ))}
         </div>
       )}
+      {/* Lightbox plein écran ratio-aware (parité page Activités listing) :
+          ouvre AdaptiveFullscreenVideo dans un overlay fixed pour la vidéo
+          choisie. Fix bandes noires + son sur page À propos. */}
+      {fullscreenVideoSrc !== null && (
+        <div
+          className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
+          role="dialog"
+          aria-label={t('activities_fullscreen_preview_aria')}
+        >
+          <button
+            type="button"
+            onClick={() => setFullscreenVideoSrc(null)}
+            className="absolute top-4 left-4 z-30 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors backdrop-blur-sm"
+            aria-label={t('fullscreen_close')}
+            title={t('fullscreen_close')}
+          >
+            <X className="h-6 w-6" />
+          </button>
+          <AdaptiveFullscreenVideo
+            src={fullscreenVideoSrc}
+            autoPlay
+            onClose={() => setFullscreenVideoSrc(null)}
+          />
+        </div>
+      )}
     </section>
   );
 }
@@ -137,10 +174,16 @@ export function MediaCarousel({ items, className = '' }: MediaCarouselProps) {
 function MediaItemRender({
   item,
   priority,
+  onOpenFullscreen,
 }: {
   item: MediaItem;
   priority?: boolean;
+  /** Fix page À propos — callback pour ouvrir AdaptiveFullscreenVideo en
+   *  lightbox ratio-aware (parité page Activités listing). Si non fourni,
+   *  le bouton plein écran n'est pas rendu (compat futurs call-sites). */
+  onOpenFullscreen?: (url: string) => void;
 }) {
+  const { t } = useLanguage();
   if (item.type === 'video') {
     // BUG #30 étape 3 — Vidéo migrée Drive→Storage par Cloud Function : render
     // HTML5 <video> natif (zéro redirection externe, contrôles browser standard,
@@ -160,6 +203,26 @@ function MediaItemRender({
             playsInline
             className="absolute inset-0 w-full h-full object-contain bg-black"
           />
+          {/* Fix page À propos — bouton plein écran ratio-aware (UX parité
+              page Activités listing). Le HTML5 <video controls> fullscreen
+              natif force le 16:9 → bandes noires latérales sur 9:16. Notre
+              AdaptiveFullscreenVideo gère 9:16 / 16:9 / mobile / desktop +
+              son utilisateur-gesture débloqué. */}
+          {onOpenFullscreen && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                onOpenFullscreen(item.url);
+              }}
+              className="absolute bottom-2 right-2 z-10 inline-flex items-center justify-center h-8 w-8 p-0 bg-black/60 backdrop-blur-sm text-white rounded-full hover:bg-black/80 transition-colors"
+              aria-label={t('activities_display_fullscreen_aria')}
+              title={t('activities_fullscreen')}
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+          )}
         </div>
       );
     }

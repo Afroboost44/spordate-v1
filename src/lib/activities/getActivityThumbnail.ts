@@ -125,6 +125,36 @@ export function getActivityThumbnailChain(activity: AnyActivity | null | undefin
     chain.push(activity.imageUrl);
   }
 
+  // 3bis. Fix #204 — `thumbnailMedia` (Phase 2 / Sessions UI). Champ nested
+  // explicitement défini dans le type Activity (cf. types/firestore.ts) :
+  //   thumbnailMedia?: { type: 'image' | 'video'; url: string; posterUrl?: string }
+  // Sans ce parsing, une activité boostée qui n'a QUE thumbnailMedia (cas
+  // partenaire qui choisit une vidéo en miniature de session) retombait sur
+  // le filet ultime générique — bug visuel intermittent sur les modals
+  // "Où pratiquer" / "Choisir une activité". On le push ici en priorité 3bis
+  // pour qu'il batte le scan brute force, et seulement si pas déjà dans la
+  // chain (anti-doublon idempotent).
+  const thumbMedia = activity.thumbnailMedia as
+    | { type?: string; url?: string; posterUrl?: string }
+    | undefined;
+  if (thumbMedia && typeof thumbMedia === 'object') {
+    if (
+      typeof thumbMedia.posterUrl === 'string' &&
+      thumbMedia.posterUrl.length > 0 &&
+      !chain.includes(thumbMedia.posterUrl)
+    ) {
+      chain.push(thumbMedia.posterUrl);
+    }
+    if (
+      typeof thumbMedia.url === 'string' &&
+      thumbMedia.url.length > 0 &&
+      thumbMedia.type === 'image' &&
+      !chain.includes(thumbMedia.url)
+    ) {
+      chain.push(thumbMedia.url);
+    }
+  }
+
   // 4. Fix #155 — Filet ultime : on scanne TOUS les champs string de l'activité
   // pour récupérer toute URL qui ressemble à une image (Firebase Storage, CDN
   // classique, etc.). Couvre les cas où l'image est stockée dans un champ

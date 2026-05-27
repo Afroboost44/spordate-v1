@@ -11,7 +11,6 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, getDocs, limit, query, where } from 'firebase/firestore';
 import { Search, Loader2, MapPin, Calendar, Info } from 'lucide-react';
 import {
   Dialog,
@@ -21,12 +20,16 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
-import { db } from '@/lib/firebase';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
 // Fix #153 — getActivityThumbnail = helper unique (chaîne thumbnailUrl →
 // mediaItems image → video thumb → imageUrl legacy). Remplace la chaîne
 // copiée-collée incomplète qui manquait thumbnailUrl + imageUrl.
 import { getActivityThumbnail } from '@/lib/activities/getActivityThumbnail';
+// Fix #204 — Service UNIFIÉ pour activités boostées. Remplace la query
+// brute `where('isActive','==',true)` qui affichait TOUTES les activités
+// (y compris non-boostées) → bug récurrent "activité fantôme dans le picker".
+// Doit rester aligné avec le modal "Où pratiquer" pour cohérence (même source).
+import { getBoostedActivities } from '@/lib/activities/getBoostedActivities';
 import { displayActivityTitle } from '@/lib/chat/activityInvite';
 import { getNextFutureSessionForActivity } from '@/services/firestore';
 import { getBookingPriceCHF } from '@/lib/booking/price';
@@ -60,20 +63,28 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
   const [sessionsByActivityId, setSessionsByActivityId] = useState<Record<string, Session>>({});
 
   useEffect(() => {
-    if (!open || !db) return;
+    if (!open) return;
     let cancelled = false;
     setLoading(true);
     (async () => {
       try {
-        const fbDb = db;
-        const q = query(
-          collection(fbDb, 'activities'),
-          where('isActive', '==', true),
-          limit(50),
-        );
-        const snap = await getDocs(q);
+        // Fix #204 — UNIFIÉ avec "Où pratiquer ?" : on n'affiche QUE les
+        // activités actuellement boostées (active + non-expired). Avant, ce
+        // modal listait toutes les activités actives (y compris celles dont
+        // le partenaire n'a pas payé un boost) → bug "activité fantôme" +
+        // incohérence vs modal "Où pratiquer". getBoostedActivities() est
+        // la source unique des deux fenêtres → 100% cohérent.
+        const { activities: boosted } = await getBoostedActivities({ max: 100 });
         if (cancelled) return;
-        const items: Activity[] = snap.docs.map((d) => ({ ...(d.data() as Activity), activityId: d.id }));
+        // Mappe vers Activity[] : conserve TOUS les champs et garantit
+        // `activityId` (id Firestore copié si absent du payload — chaque doc
+        // de boosts/activities a déjà `activityId` dans data, on prend l'id
+        // doc sinon).
+        const items: Activity[] = boosted.map((d) => ({
+          ...(d as unknown as Activity),
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          activityId: (d as any).activityId || d.id,
+        }));
         setActivities(items);
 
         // Prefetch sessions in parallel — non-bloquant pour l'affichage de la liste.

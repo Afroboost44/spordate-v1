@@ -50,6 +50,10 @@ import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/car
 import { extractSwipedUids } from '@/lib/discovery/swipedUids';
 import { buildActivityListUrl } from '@/lib/activities/listUrl';
 import { getActivityThumbnail } from '@/lib/activities/getActivityThumbnail';
+// Fix #204 — Service UNIFIÉ pour activités boostées (active + non-expired).
+// Source unique partagée avec ActivitySelectorModal pour cohérence parfaite
+// entre les fenêtres "Où pratiquer" et "Choisir une activité".
+import { getBoostedActivities } from '@/lib/activities/getBoostedActivities';
 import Link from 'next/link';
 import { DANCE_ACTIVITIES } from '@/types/firestore';
 import { createMatch, getUserMatches, getNextFutureSessionForActivity } from '@/services/firestore';
