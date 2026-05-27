@@ -1789,11 +1789,16 @@ END:VCALENDAR`;
               {/* CTA Row — Réserver (80%) + Lieux (20%) */}
               <div className="pt-2 flex items-center gap-3 px-0">
                 {!hasTicket ? (
+                  /* Bug fix Bassi 27/05 — Le bouton était bg-white/5 + texte
+                      blanc + icône rose : peu visible sur un profil sombre.
+                      Maintenant fond rose accent solide + texte + icône en
+                      blanc, plus visible et plus impactant (c'est le CTA
+                      principal qui vend l'activité). */
                   <button
                     onClick={handleBookSession}
-                    className="flex-[4] h-14 rounded-full bg-white/5 backdrop-blur-xl border border-accent/30 text-white font-light text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 hover:bg-accent/10 hover:border-accent/50 transition-all active:scale-[0.98]"
+                    className="flex-[4] h-14 rounded-full bg-accent border border-accent text-white font-medium text-sm tracking-wider uppercase flex items-center justify-center gap-2.5 shadow-lg shadow-accent/30 hover:bg-accent/90 transition-all active:scale-[0.98]"
                   >
-                    <Zap className="h-4 w-4 text-accent" />
+                    <Zap className="h-4 w-4 text-white" />
                     {t('discovery_reserve_button')}
                   </button>
                 ) : (

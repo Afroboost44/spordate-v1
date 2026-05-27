@@ -729,12 +729,23 @@ function ActivityCardComponent({
           inter-médias, fonctionne très bien). */}
       {fullscreenStartIndex !== null && (() => {
         const startItem = items[fullscreenStartIndex];
+        // Bug fix Bassi 27/05 — Élargissement du check mobile : on bypass
+        // FullscreenLightbox pour TOUT item type='video' qui n'est PAS un
+        // iframe externe (YouTube/Vimeo/Drive). Avant on exigeait `source ===
+        // 'upload'` OU `isStorageVideoUrl` mais certaines vidéos sont
+        // étiquetées avec une source différente (legacy migrés, ou structure
+        // particulière) → le bypass ne se déclenchait pas → la vidéo restait
+        // contrainte dans son cadre normal au lieu de prendre tout l'écran.
+        // Élargir au "tout sauf provider iframe" couvre 100% des vidéos HTML5
+        // natif lisibles par AdaptiveFullscreenVideo.
         const isMobileViewport = typeof window !== 'undefined'
-          && window.matchMedia('(max-width: 768px)').matches;
-        const isStorageVideo = !!startItem
+          && window.matchMedia('(max-width: 1024px)').matches;
+        const isHtml5Video = !!startItem
           && startItem.type === 'video'
-          && (startItem.source === 'upload' || isStorageVideoUrl(startItem.url));
-        if (isMobileViewport && isStorageVideo) {
+          && startItem.provider !== 'youtube'
+          && startItem.provider !== 'vimeo'
+          && startItem.provider !== 'drive';
+        if (isMobileViewport && isHtml5Video) {
           return (
             <div
               className="fixed inset-0 z-[100] bg-black flex items-center justify-center"

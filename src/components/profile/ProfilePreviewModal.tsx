@@ -84,22 +84,15 @@ export function ProfilePreviewModal({
       <DialogContent
         className="bg-black border-zinc-800 text-white p-0 w-[100vw] h-[100dvh] max-w-none sm:w-auto sm:h-auto sm:max-w-lg sm:max-h-[90vh] sm:rounded-2xl overflow-hidden flex flex-col"
       >
-        {/* Header fixe (pas sticky) — separé du body scrollable via flex-col */}
-        <div className="shrink-0 border-b border-zinc-800 px-4 py-3 flex items-center justify-between bg-black">
-          <div className="flex items-center gap-2">
-            <Eye className="h-4 w-4 text-accent" aria-hidden="true" />
-            <DialogTitle className="text-sm font-light tracking-wider uppercase text-white/70">
-              Aperçu de ton profil
-            </DialogTitle>
-          </div>
-          <button
-            type="button"
-            onClick={() => onOpenChange(false)}
-            aria-label="Fermer l'aperçu"
-            className="text-white/60 hover:text-white transition-colors p-1"
-          >
-            <X className="h-5 w-5" />
-          </button>
+        {/* Header fixe (pas sticky) — separé du body scrollable via flex-col.
+            Bug fix Bassi 27/05 — Bouton X custom RETIRÉ : shadcn DialogContent
+            ajoute automatiquement un X en absolute top-right (dialog.tsx:47-50),
+            donc le custom faisait doublon. On garde le X shadcn standard. */}
+        <div className="shrink-0 border-b border-zinc-800 px-4 py-3 flex items-center gap-2 bg-black">
+          <Eye className="h-4 w-4 text-accent" aria-hidden="true" />
+          <DialogTitle className="text-sm font-light tracking-wider uppercase text-white/70">
+            Aperçu de ton profil
+          </DialogTitle>
         </div>
 
         {/* Body scrollable — flex-1 prend tout l'espace restant, overflow-y-auto
