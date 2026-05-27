@@ -42,7 +42,7 @@ import { isFirebaseConfigured, getMissingConfig, db } from "@/lib/firebase";
 import { ConfigErrorScreen } from "@/components/ConfigErrorScreen";
 import { useAuth } from "@/context/AuthContext";
 import { resolveActiveReferralCode } from "@/lib/referral/refStorage";
-import { collection, query, where, getDocs, getDoc, doc, setDoc, deleteDoc, serverTimestamp, limit as firestoreLimit, orderBy, Timestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, getDoc, doc, setDoc, deleteDoc, serverTimestamp, limit as firestoreLimit } from 'firebase/firestore';
 import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { groupBoostedActivitiesByCity } from '@/lib/discovery/whereToPractice';
@@ -404,67 +404,39 @@ export default function DiscoveryPage() {
     }
   };
 
-  // Load active boosts from Firestore
+  // Fix #204 — Load active boosts + activités boostées via le service UNIFIÉ.
+  // Avant : 2 queries parallèles bricolées (boosts + ALL activities) puis
+  // filtrage à la consommation. Maintenant : `getBoostedActivities()` fait
+  // les 2 queries + jointure + retourne SEULEMENT les activités effectivement
+  // boostées (active + non-expired) avec l'objet complet (pour les miniatures
+  // via `getActivityThumbnail`). Source partagée avec ActivitySelectorModal
+  // → cohérence parfaite entre les fenêtres "Où pratiquer" et "Choisir une
+  // activité". Toute activité non-boostée est invisible dans les flows discovery.
   useEffect(() => {
     if (!db || !isFirebaseConfigured) return;
-    const fbDb = db; // capture for async closures (already proven non-null by guard above)
 
-    const loadActiveBoosts = async () => {
+    const loadBoostedData = async () => {
       try {
-        const now = Timestamp.now();
-        const boostsRef = collection(fbDb, 'boosts');
-        const q = query(
-          boostsRef,
-          where('active', '==', true),
-          where('expiresAt', '>', now)
+        const { activities, boostedActivityIds, boostedPartnerIds } =
+          await getBoostedActivities({ max: 200 });
+        setBoostedActivityIds(boostedActivityIds);
+        setBoostedPartnerIds(boostedPartnerIds);
+        // Note : on stocke uniquement les activités boostées dans realActivities.
+        // Les call sites en aval (visibleActivities, effectiveBoostedPartnerIds,
+        // wherePracticeGroups) re-filtrent par boostedActivityIds/PartnerIds —
+        // donc aucun changement de comportement, juste un set plus restreint
+        // dès la source. setBoostedActivities_db conservé vide (pas utilisé en UI).
+        setRealActivities(activities);
+        setBoostedActivities_db([]);
+        console.log(
+          `[Discovery] getBoostedActivities : ${activities.length} activités boostées (${boostedActivityIds.size} per-activity + ${boostedPartnerIds.size} legacy partner)`,
         );
-        const snapshot = await getDocs(q);
-        // BUG #69 — Sépare boosts per-activity (nouveau) vs legacy (sans activityId).
-        //  - Boost AVEC activityId → push dans boostedActivityIds (filtre précis)
-        //  - Boost SANS activityId → push dans boostedPartnerIds (fallback legacy
-        //    qui boost toutes les activités du partner). Ces docs ont été créés
-        //    AVANT le fix #69 et restent valides jusqu'à leur expiration naturelle.
-        const partnerIds = new Set<string>();
-        const activityIds = new Set<string>();
-        const boostDocs: any[] = [];
-        snapshot.forEach(doc => {
-          const data = doc.data();
-          if (data.activityId) {
-            activityIds.add(data.activityId);
-          } else if (data.partnerId) {
-            partnerIds.add(data.partnerId);
-          }
-          boostDocs.push({ id: doc.id, ...data });
-        });
-        setBoostedPartnerIds(partnerIds);
-        setBoostedActivityIds(activityIds);
-        setBoostedActivities_db(boostDocs);
-        console.log(`[Discovery] boosts chargés : ${activityIds.size} per-activity + ${partnerIds.size} legacy (partenaire)`);
       } catch (err) {
-        console.warn('[Discovery] Erreur chargement boosts:', err);
+        console.warn('[Discovery] Erreur chargement boosts/activités:', err);
       }
     };
 
-    // Load real activities from Firestore
-    const loadRealActivities = async () => {
-      try {
-        let snap;
-        try {
-          const q = query(collection(fbDb, 'activities'), where('isActive', '==', true), orderBy('createdAt', 'desc'));
-          snap = await getDocs(q);
-        } catch {
-          const q = query(collection(fbDb, 'activities'), where('isActive', '==', true));
-          snap = await getDocs(q);
-        }
-        const acts = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-        setRealActivities(acts);
-      } catch (err) {
-        console.warn('[Discovery] Erreur chargement activités:', err);
-      }
-    };
-
-    loadActiveBoosts();
-    loadRealActivities();
+    loadBoostedData();
   }, []);
 
   // Load confirmed tickets and partners
@@ -1610,31 +1582,24 @@ END:VCALENDAR`;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showWherePracticeModal]);
 
-  // BUG #10 — Groupes "activités boostées par ville" pour le modal Où pratiquer.
-  // Dérivé de realActivities + boostedPartnerIds déjà chargés par useEffect.
+  // BUG #10 + Fix #204 — Groupes "activités boostées par ville" pour le modal
+  // Où pratiquer. Dérivé de realActivities + boostedPartnerIds déjà chargés
+  // par useEffect (cohérent avec le reste de la page Discovery qui consomme
+  // déjà ces données pour le booking modal).
   //
-  // Fix UX (régression observée) : si aucun boost actif (expiration, drift
-  // partnerId post-migration c34/c36, ou setup partner sans boost) le modal
-  // serait vide. Fallback : si zéro match boosté → grouper TOUTES les
-  // activités actives par ville. UX utile, le user voit une liste plutôt
-  // qu'un empty state inquiétant. Si boost actif → comportement standard.
+  // RÈGLE DURE (Fix #204) : on n'affiche QUE des activités effectivement
+  // boostées (boost.active===true ET boost.expiresAt>now). PAS de fallback
+  // "show all" — Bassi veut un empty state explicite quand aucune activité
+  // n'est boostée. Cohérent avec ActivitySelectorModal qui utilise le même
+  // service unifié `getBoostedActivities()`. Plus de divergence entre les
+  // 2 fenêtres pour les mêmes données.
   const wherePracticeGroups = useMemo(() => {
     // BUG #69 — passe les 2 sets (per-activity + legacy partner) au helper
-    const boosted = groupBoostedActivitiesByCity(
+    return groupBoostedActivitiesByCity(
       realActivities,
       boostedPartnerIds,
       { max: 50, boostedActivityIds },
     );
-    if (boosted.length > 0) return boosted;
-    // Fallback : groupe toutes les activités actives par ville (set partnerIds
-    // dérivé des activités elles-mêmes → tout pass le filtre boost dans le helper).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const allActive = realActivities.filter((a: any) => a.isActive !== false);
-    const allPartnerIds = new Set(
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      allActive.map((a: any) => a.partnerId).filter((id): id is string => typeof id === 'string' && id.length > 0),
-    );
-    return groupBoostedActivitiesByCity(allActive, allPartnerIds, { max: 50 });
   }, [realActivities, boostedPartnerIds, boostedActivityIds]);
 
   return (
