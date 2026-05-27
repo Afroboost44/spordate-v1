@@ -201,7 +201,7 @@ function MediaItemRender({
             controls
             preload="metadata"
             playsInline
-            className="absolute inset-0 w-full h-full object-contain bg-black"
+            className="absolute inset-0 w-full h-full object-cover bg-black"
           />
           {/* Fix page À propos — bouton plein écran ratio-aware (UX parité
               page Activités listing). Le HTML5 <video controls> fullscreen

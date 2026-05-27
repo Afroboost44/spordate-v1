@@ -243,7 +243,17 @@ function FullscreenLightbox({
 
   useEffect(() => {
     const el = containerRef.current;
-    if (el && el.requestFullscreen) {
+    // Bug fix Bassi 27/05 — Sur MOBILE, on NE FAIT PAS requestFullscreen()
+    // car Chrome Android entre dans son "fullscreen vidéo" qui FORCE la
+    // rotation en landscape, même pour une vidéo 9:16 (TikTok-style).
+    // Résultat : la vidéo 9:16 verticale est rendue dans un viewport
+    // landscape → toute petite au centre avec énormes bandes noires.
+    // Le containerRef fixed inset-0 z-100 suffit pour overlay plein écran
+    // sans demander l'API fullscreen natif au browser. Sur desktop, on
+    // garde requestFullscreen() pour UX YouTube-like.
+    const isMobileViewport = typeof window !== 'undefined'
+      && window.matchMedia('(max-width: 768px)').matches;
+    if (!isMobileViewport && el && el.requestFullscreen) {
       el.requestFullscreen().catch(() => undefined);
     }
     // Scroll instant vers l'item initial (sans animation) APRÈS mount.
@@ -259,7 +269,7 @@ function FullscreenLightbox({
     // composant <FullscreenVideo> qui lock/unlock après detection du ratio
     // (9:16 → fullscreen natif, 16:9 → landscape lock + fallback hint iOS).
     // Sur desktop, on garde le lock historique (UX YouTube fullscreen).
-    const isMobileViewport = typeof window !== 'undefined' && window.matchMedia('(max-width: 768px)').matches;
+    // (isMobileViewport déjà calculé plus haut pour le skip requestFullscreen.)
     const lockOrientationForCurrent = (idx: number) => {
       if (isMobileViewport) return;
       const it = items[idx];
