@@ -49,7 +49,10 @@ import { groupBoostedActivitiesByCity } from '@/lib/discovery/whereToPractice';
 import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/cardImage';
 import { extractSwipedUids } from '@/lib/discovery/swipedUids';
 import { buildActivityListUrl } from '@/lib/activities/listUrl';
-import { getActivityThumbnail } from '@/lib/activities/getActivityThumbnail';
+import {
+  getActivityThumbnail,
+  getActivityThumbnailMedia,
+} from '@/lib/activities/getActivityThumbnail';
 // Fix #204 — Service UNIFIÉ pour activités boostées (active + non-expired).
 // Source unique partagée avec ActivitySelectorModal pour cohérence parfaite
 // entre les fenêtres "Où pratiquer" et "Choisir une activité".
@@ -2627,7 +2630,15 @@ END:VCALENDAR`;
                       // Fix #146 — utilise le helper unique getActivityThumbnail
                       // (chaîne unifiée : thumbnailUrl → mediaItems image → video
                       // thumb → imageUrl legacy). Plus jamais de carré rose Zap.
-                      const thumb = getActivityThumbnail(a);
+                      //
+                      // Fix #205 — Variante video-aware : si l'activité n'a QUE
+                      // une vidéo Storage upload (cas Silent Afroboost), on rend
+                      // `<video preload="metadata">` (1ère frame) au lieu du
+                      // placeholder Zap rose. Comportement identique à la page
+                      // liste /activities qui rendait déjà la vidéo direct.
+                      const thumbMedia = getActivityThumbnailMedia(a);
+                      const thumb = thumbMedia?.kind === 'image' ? thumbMedia.url : null;
+                      const videoThumb = thumbMedia?.kind === 'video' ? thumbMedia.url : null;
                       // Fix #172 — Wrap dans un div flex pour permettre le bouton
                       // Découvrir secondaire à droite (pattern cohérent avec
                       // ActivitySelectorModal). Main button = liste activités en
@@ -2664,10 +2675,23 @@ END:VCALENDAR`;
                                   if (next) next.style.display = 'flex';
                                 }}
                               />
+                            ) : videoThumb ? (
+                              // Fix #205 — Vidéo Storage upload : <video preload="metadata">
+                              // affiche la 1ère frame sans télécharger toute la vidéo.
+                              // Identique au pattern de la page liste /activities.
+                              // pointer-events-none pour ne pas intercepter le clic
+                              // sur le bouton parent (navigation vers activity).
+                              <video
+                                src={`${videoThumb}${videoThumb.includes('#') ? '' : '#t=0.1'}`}
+                                muted
+                                playsInline
+                                preload="metadata"
+                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-zinc-900 pointer-events-none"
+                              />
                             ) : null}
                             <div
                               className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-[#E91E63] flex-shrink-0 items-center justify-center text-white text-xs font-semibold"
-                              style={{ display: thumb ? 'none' : 'flex' }}
+                              style={{ display: thumb || videoThumb ? 'none' : 'flex' }}
                             >
                               <Zap className="h-4 w-4" />
                             </div>

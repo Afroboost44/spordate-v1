@@ -24,7 +24,13 @@ import { resolveMediaImageSrc } from '@/lib/activities/media';
 // Fix #153 — getActivityThumbnail = helper unique (chaîne thumbnailUrl →
 // mediaItems image → video thumb → imageUrl legacy). Remplace la chaîne
 // copiée-collée incomplète qui manquait thumbnailUrl + imageUrl.
-import { getActivityThumbnail } from '@/lib/activities/getActivityThumbnail';
+// Fix #205 — getActivityThumbnailMedia = variante video-aware. Quand l'activité
+// n'a QUE une vidéo Storage uploadée (Silent Afroboost), on rend `<video
+// preload="metadata">` (1ère frame) au lieu du placeholder rose.
+import {
+  getActivityThumbnail,
+  getActivityThumbnailMedia,
+} from '@/lib/activities/getActivityThumbnail';
 // Fix #204 — Service UNIFIÉ pour activités boostées. Remplace la query
 // brute `where('isActive','==',true)` qui affichait TOUTES les activités
 // (y compris non-boostées) → bug récurrent "activité fantôme dans le picker".
@@ -236,7 +242,14 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
               // Le helper scan TOUS les champs (mediaItems, mediaUrls, images, imageUrl,
               // thumbnailUrl, posterUrl, coverImage, scan exhaustif champs string).
               // Cherry-pick = bug récurrent — la miniature qui marche partout sauf ici.
-              const imageUrl = getActivityThumbnail(a) || '';
+              //
+              // Fix #205 — On utilise le descriptor `{kind, url}` qui retombe sur
+              // une vidéo Storage upload si aucune image résolvable (cas Silent
+              // Afroboost = unique mediaUrls[] = video Firebase Storage, sans
+              // VideoThumbnailPicker custom → chain image vide).
+              const thumbMedia = getActivityThumbnailMedia(a);
+              const imageUrl = thumbMedia?.kind === 'image' ? thumbMedia.url : '';
+              const videoPosterUrl = thumbMedia?.kind === 'video' ? thumbMedia.url : '';
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
               const aName = (a as any).name as string | undefined;
               const cardTitle = displayActivityTitle({ title: a.title, name: aName, sport: a.sport, city: a.city });
@@ -273,6 +286,22 @@ export function ActivitySelectorModal({ open, onOpenChange, onSelect }: Activity
                         src={resolveMediaImageSrc(imageUrl)}
                         alt=""
                         className="w-12 h-12 rounded-lg object-cover flex-shrink-0"
+                      />
+                    ) : videoPosterUrl ? (
+                      // Fix #205 — Vidéo Storage upload sans miniature image
+                      // disponible : on rend `<video preload="metadata" muted>`
+                      // qui charge juste les premiers octets et affiche la 1ère
+                      // frame (identique au comportement de la page liste
+                      // /activities, qui rendait `<video>` direct). Pas de play
+                      // overlay : c'est une miniature compacte 48×48, pas un
+                      // player. Le clic sur la card est intercepté par le button
+                      // parent (pick / handleDiscover).
+                      <video
+                        src={`${videoPosterUrl}${videoPosterUrl.includes('#') ? '' : '#t=0.1'}`}
+                        muted
+                        playsInline
+                        preload="metadata"
+                        className="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-zinc-900 pointer-events-none"
                       />
                     ) : (
                       <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-accent to-[#E91E63] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">

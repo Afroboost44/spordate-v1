@@ -24,6 +24,23 @@
  *  5. activity.imageUrl (legacy, si image-like)  — backward compat
  *  6. null → caller doit afficher fallback (logo Spordateur, icône, etc.)
  *
+ * Fix #205 (Silent Afroboost rose modal) — ajout `getActivityThumbnailMedia()`.
+ * Cause racine : une activité dont SEUL média est une vidéo Firebase Storage
+ * uploadée (mp4 sans VideoThumbnailPicker custom) retournait `null` ici :
+ *  - pas de `thumbnailUrl` direct
+ *  - pas de `images[]`
+ *  - boucle `mediaItems` skip (item type='video', pas d'image)
+ *  - `getVideoThumbnailChain` retourne [] pour Storage (provider 'direct' non
+ *    supporté, seul YouTube/Vimeo/Drive ont des chains thumbnail auto)
+ *  - pas de `imageUrl`/`thumbnailMedia`
+ *  - scan top-level n'inspecte que les champs string (mediaUrls est un array)
+ *  → chain vide → null → placeholder rose dans les modals.
+ * La page liste /activities ne voyait pas le bug : elle rend la VIDEO direct
+ * via `<video preload="metadata">`, montrant la 1ère frame.
+ * Fix : nouveau helper qui renvoie `{kind:'video', url}` quand seule une vidéo
+ * upload est disponible, permettant aux modals de rendre `<video>` au lieu de
+ * `<img>` (1ère frame visible identique à la page listing).
+ *
  * @module
  */
 
@@ -180,4 +197,80 @@ export function getActivityThumbnailChain(activity: AnyActivity | null | undefin
   }
 
   return chain;
+}
+
+/**
+ * Fix #205 — Variante "vidéo-aware" du helper.
+ *
+ * Retourne un descriptor `{kind, url}` au lieu d'une simple URL string. Permet
+ * aux call sites (modals "Où pratiquer", "Choisir une activité"...) de rendre
+ * `<video preload="metadata" muted>` quand SEUL média disponible est une vidéo
+ * Firebase Storage uploadée — qui n'a aucune chain thumbnail auto-générable.
+ *
+ * Sans ce helper, ces activités tombaient sur le placeholder rose. La page
+ * liste /activities masquait le bug en rendant la vidéo direct (1ère frame
+ * visible via `<video preload="metadata">`).
+ *
+ * Priorité :
+ *  1. Image trouvée par `getActivityThumbnail()` → {kind:'image', url}
+ *  2. Première vidéo upload (Firebase Storage / mp4 direct) → {kind:'video', url}
+ *  3. null
+ *
+ * Le caller utilise `kind` pour brancher `<img>` ou `<video>`. Idempotent côté
+ * scan : on réutilise getActivityThumbnail pour les images (mêmes règles).
+ */
+export function getActivityThumbnailMedia(
+  activity: AnyActivity | null | undefined,
+): { kind: 'image' | 'video'; url: string } | null {
+  if (!activity) return null;
+
+  // 1. Tentative image standard (chain complète : thumbnailUrl → mediaItems
+  //    image → video thumb auto → imageUrl → thumbnailMedia → scan exhaustif).
+  const imageUrl = getActivityThumbnail(activity);
+  if (imageUrl) {
+    return { kind: 'image', url: imageUrl };
+  }
+
+  // 2. Filet ultime "vidéo upload" — cherche dans mediaItems / mediaUrls une
+  //    première vidéo uploadée (Firebase Storage). Le composant peut alors
+  //    rendre `<video preload="metadata" muted>` pour montrer la 1ère frame.
+  //    NE TENTE PAS YouTube/Vimeo/Drive ici : ces providers ont déjà des
+  //    chains thumbnail traitées par getActivityThumbnail (étape 1). Si on
+  //    arrive ici, c'est qu'il n'y a aucune image résolvable du tout.
+  const mediaItems = Array.isArray(activity.mediaItems)
+    ? activity.mediaItems
+    : Array.isArray(activity.mediaUrls)
+      ? activity.mediaUrls
+      : [];
+  for (const m of mediaItems) {
+    if (!m || typeof m !== 'object') continue;
+    const url = (m as AnyActivity).url;
+    const type = (m as AnyActivity).type;
+    const source = (m as AnyActivity).source;
+    if (type !== 'video' || typeof url !== 'string' || !url) continue;
+    // Upload Storage OU URL .mp4/.webm/.mov direct → rendu video possible.
+    const looksUploaded =
+      source === 'upload' ||
+      /\.(mp4|webm|mov|m4v)(\?|#|$)/i.test(url.toLowerCase()) ||
+      /firebasestorage\.googleapis\.com/.test(url);
+    if (looksUploaded) {
+      return { kind: 'video', url };
+    }
+  }
+
+  // 3. thumbnailMedia type='video' avec url Storage (cas Phase 2 Sessions UI)
+  const thumbMedia = activity.thumbnailMedia as
+    | { type?: string; url?: string; posterUrl?: string }
+    | undefined;
+  if (
+    thumbMedia &&
+    typeof thumbMedia === 'object' &&
+    thumbMedia.type === 'video' &&
+    typeof thumbMedia.url === 'string' &&
+    thumbMedia.url.length > 0
+  ) {
+    return { kind: 'video', url: thumbMedia.url };
+  }
+
+  return null;
 }

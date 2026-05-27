@@ -717,14 +717,55 @@ function ActivityCardComponent({
           Quand fullscreenItem est set : on appelle requestFullscreen() sur le
           modal au mount → ça hide la URL bar Chrome, le bottom nav Spordateur,
           et même la system status bar Android. Sortie via Escape ou tap croix
-          → exitFullscreen() puis state cleanup. */}
-      {fullscreenStartIndex !== null && (
-        <FullscreenLightbox
-          items={items}
-          initialIndex={fullscreenStartIndex}
-          onClose={() => setFullscreenStartIndex(null)}
-        />
-      )}
+          → exitFullscreen() puis state cleanup.
+
+          Fix Bassi 27/05 — sur MOBILE (≤ 768px), si l'item courant est une
+          vidéo, on shortcut le FullscreenLightbox (wrapper scroll-snap qui
+          interfère avec AdaptiveFullscreenVideo : 9:16 trop petite, 16:9 sans
+          rotation auto épousant l'écran). On monte AdaptiveFullscreenVideo
+          directement dans un overlay simple — pattern identique à la page À
+          propos (MediaCarousel) qui marche parfaitement. Sur desktop ou pour
+          un item image, on garde FullscreenLightbox (UX swipe horizontal
+          inter-médias, fonctionne très bien). */}
+      {fullscreenStartIndex !== null && (() => {
+        const startItem = items[fullscreenStartIndex];
+        const isMobileViewport = typeof window !== 'undefined'
+          && window.matchMedia('(max-width: 768px)').matches;
+        const isStorageVideo = !!startItem
+          && startItem.type === 'video'
+          && (startItem.source === 'upload' || isStorageVideoUrl(startItem.url));
+        if (isMobileViewport && isStorageVideo) {
+          return (
+            <div
+              className="fixed inset-0 z-[100] bg-black flex items-center justify-center"
+              role="dialog"
+              aria-label={t('activities_fullscreen_preview_aria')}
+            >
+              <button
+                type="button"
+                onClick={() => setFullscreenStartIndex(null)}
+                className="absolute top-4 left-4 z-30 p-3 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors backdrop-blur-sm"
+                aria-label={t('fullscreen_close')}
+                title={t('fullscreen_close')}
+              >
+                <X className="h-6 w-6" />
+              </button>
+              <AdaptiveFullscreenVideo
+                src={startItem.url}
+                autoPlay
+                onClose={() => setFullscreenStartIndex(null)}
+              />
+            </div>
+          );
+        }
+        return (
+          <FullscreenLightbox
+            items={items}
+            initialIndex={fullscreenStartIndex}
+            onClose={() => setFullscreenStartIndex(null)}
+          />
+        );
+      })()}
     </Card>
   );
 }
