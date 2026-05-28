@@ -111,32 +111,50 @@ export default function AdaptiveFullscreenVideo({
     // vidéo verticale qui remplit l'écran portrait sans rotation.
     if (ratio === 'portrait') {
       // No-op : object-cover w-screen h-screen suffit pour "remplir l'écran".
+      // INTERDIT d'appeler requestFullscreen() ici (rotation auto Android).
     }
 
-    // Vidéo 16:9 (landscape) → orientation lock landscape.
-    // Bug fix Bassi 27/05 — Plus de hint "Tourne ton téléphone" : Bassi a
-    // demandé que l'expérience soit silencieuse. Si l'API Screen Orientation
-    // Lock est dispo (Chrome/Firefox Android) on bascule l'écran auto. Si
-    // elle ne l'est pas (Safari iOS qui bloque depuis 2023), on ne fait
-    // rien — l'utilisateur peut tourner son téléphone lui-même s'il veut.
-    // Aucun message visuel à l'utilisateur.
+    // Vidéo 16:9 (landscape) → fullscreen natif PUIS orientation lock landscape.
+    // Bug fix Bassi 28/05 — Sur Android Chrome, screen.orientation.lock()
+    // nécessite d'être en fullscreen natif au préalable, sinon la promise
+    // est silencieusement rejetée. On enchaîne donc :
+    //  1. requestFullscreen() sur le <video> (ou webkitEnterFullscreen iOS).
+    //  2. UNE FOIS en fullscreen, orient.lock('landscape').
+    // La rotation auto Android déclenchée par requestFullscreen est OK ici :
+    // on VEUT le landscape pour 16:9. Safari iOS bloque encore lock() :
+    // l'utilisateur devra tourner son téléphone lui-même (silencieux).
     if (ratio === 'landscape') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const orient = (screen as any).orientation;
-      const canLock = orient && typeof orient.lock === 'function' && !isSafariIOS();
-      if (canLock) {
-        try {
-          const p = orient.lock('landscape');
-          if (p && typeof p.then === 'function') {
-            p.then(() => { didLockOrientation.current = true; }).catch(() => { /* silent */ });
-          } else {
-            didLockOrientation.current = true;
+      const run = async () => {
+        const v = videoRef.current;
+        if (!v) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const reqFs: (() => Promise<void> | void) | undefined =
+          v.requestFullscreen?.bind(v)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          ?? (v as any).webkitEnterFullscreen?.bind(v);
+        if (reqFs) {
+          try {
+            const fsPromise = reqFs();
+            if (fsPromise && typeof (fsPromise as Promise<void>).then === 'function') {
+              await fsPromise;
+            }
+            didRequestFullscreen.current = true;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const orient = (screen as any).orientation;
+            if (orient && typeof orient.lock === 'function' && !isSafariIOS()) {
+              try {
+                await orient.lock('landscape');
+                didLockOrientation.current = true;
+              } catch {
+                /* silent — Safari iOS ou refus navigateur */
+              }
+            }
+          } catch {
+            /* silent — fullscreen refusé par le navigateur */
           }
-        } catch {
-          /* silent */
         }
-      }
-      // Safari iOS ou API absente : on ne fait rien (silencieux).
+      };
+      run();
     }
   }, [isMobile, ratio]);
 
