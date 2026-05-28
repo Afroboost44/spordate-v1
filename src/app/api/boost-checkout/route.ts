@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
+import { safeStripeProductName } from '@/lib/stripe/safeProductName';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -135,7 +136,14 @@ export async function POST(request: NextRequest) {
         price_data: {
           currency: 'chf',
           product_data: {
-            name: `${boost.label} — ${locationLabel}`,
+            // Anti-régression Stripe "product_data[name] cannot be empty".
+            // boost.label vient d'un dict statique BOOST_PRICES donc non-vide
+            // en pratique, mais on passe par le helper pour rester cohérent
+            // et survivre à une future refonte du dict (ex. chargé Firestore).
+            name: safeStripeProductName({
+              title: `${boost.label} — ${locationLabel}`,
+              fallback: 'Boost Spordateur',
+            }),
             description: boost.description,
           },
           unit_amount: boost.price,

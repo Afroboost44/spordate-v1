@@ -24,6 +24,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 import { getSharedStripe } from '@/lib/stripe/sharedStripe';
+import { safeStripeProductName } from '@/lib/stripe/safeProductName';
 import { computePricingTier, isSessionBookable } from '@/services/firestore';
 import { resolvePaymentMethodTypes } from '@/lib/payment/methodResolver';
 import type { Session, Activity, PricingTierKind } from '@/types/firestore';
@@ -206,7 +207,13 @@ export async function POST(request: NextRequest) {
           price_data: {
             currency: 'chf',
             product_data: {
-              name: `${session.title} (Duo — 2 places)`,
+              // Anti-régression : safeStripeProductName garantit un name non-vide
+              // même si session.title est vide (cf. lib/stripe/safeProductName).
+              name: `${safeStripeProductName({
+                title: session.title,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                name: activity.title || (activity as any).name || safeActivityTitle,
+              })} (Duo — 2 places)`,
               description: `${tierLabel[tier]} • 2 places • ${grantedCredits} crédits chat inclus • Invitation à ${safeActivityTitle}`,
               images: ['https://spordateur.com/logo.png'],
             },

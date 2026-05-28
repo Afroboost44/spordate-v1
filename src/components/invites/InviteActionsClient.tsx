@@ -98,10 +98,21 @@ export function InviteActionsClient({
         return;
       }
 
-      let userMessage = data.detail || t('invite_accept_unavailable');
+      // Anti-régression : on n'affiche JAMAIS data.detail brut. Stripe peut
+      // renvoyer des messages techniques (ex. "product_data[name] cannot be
+      // empty") qui n'ont aucun sens côté UI invité (capture 1). Le détail
+      // technique reste loggé pour debug ; l'utilisateur voit un message
+      // générique i18n selon le status.
+      console.error('[InviteActionsClient] accept failed', {
+        status: response.status,
+        error: data.error,
+        detail: data.detail,
+      });
+      let userMessage = t('invite_accept_generic_error');
       if (response.status === 409) userMessage = t('invite_already_processed');
       else if (response.status === 410) userMessage = t('invite_has_expired');
       else if (response.status === 401) userMessage = t('invite_session_expired_reconnect');
+      else if (response.status === 403) userMessage = t('invite_not_for_you');
       toast({ title: t('invite_accept_failed_title'), description: userMessage, variant: 'destructive' });
     } catch (err) {
       console.warn('[InviteActionsClient] accept fetch failed', err);
@@ -136,7 +147,14 @@ export function InviteActionsClient({
       }
 
       const data = (await response.json().catch(() => ({}))) as { error?: string; detail?: string };
-      let userMessage = data.detail || t('invite_decline_unavailable');
+      // Anti-régression : pas de data.detail brut dans le toast (cohérent
+      // avec le handleAccept ci-dessus).
+      console.error('[InviteActionsClient] decline failed', {
+        status: response.status,
+        error: data.error,
+        detail: data.detail,
+      });
+      let userMessage = t('invite_decline_generic_error');
       if (response.status === 409) userMessage = t('invite_already_processed');
       else if (response.status === 401) userMessage = t('invite_session_expired_reconnect');
       toast({ title: t('invite_decline_failed_title'), description: userMessage, variant: 'destructive' });

@@ -11,6 +11,7 @@ import { computePricingTier, isSessionBookable } from '@/services/firestore';
 import type { Session, Activity, PricingTierKind, Invite } from '@/types/firestore';
 import { verifyAuth, parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 import { getSharedStripe } from '@/lib/stripe/sharedStripe';
+import { safeStripeProductName } from '@/lib/stripe/safeProductName';
 import { resolvePaymentMethodTypes } from '@/lib/payment/methodResolver';
 
 export const dynamic = 'force-dynamic';
@@ -197,11 +198,17 @@ export async function POST(request: NextRequest) {
       },
     };
 
+    // Anti-régression Stripe "product_data[name] cannot be empty" — pkg.label
+    // est rempli en dur dans DEFAULT_PACKAGES mais admin Firestore peut
+    // overrider à '' → on passe par safeStripeProductName pour blindage.
     if (isSubscription) {
       sessionParams.line_items = [{
         price_data: {
           currency: 'chf',
-          product_data: { name: pkg.label, description: pkg.description },
+          product_data: {
+            name: safeStripeProductName({ title: pkg.label, fallback: packageId }),
+            description: pkg.description,
+          },
           unit_amount: pkg.price,
           recurring: { interval: pkg.interval || 'month' },
         },
@@ -214,7 +221,11 @@ export async function POST(request: NextRequest) {
       sessionParams.line_items = [{
         price_data: {
           currency: 'chf',
-          product_data: { name: pkg.label, description: pkg.description, images: ['https://spordateur.com/logo.png'] },
+          product_data: {
+            name: safeStripeProductName({ title: pkg.label, fallback: packageId }),
+            description: pkg.description,
+            images: ['https://spordateur.com/logo.png'],
+          },
           unit_amount: pkg.price,
         },
         quantity: 1,
@@ -430,7 +441,18 @@ async function handleSessionMode(body: Partial<SessionCheckoutBody>): Promise<Ne
           price_data: {
             currency: 'chf',
             product_data: {
-              name: isDuo ? `${session.title} (Duo — 2 places)` : session.title,
+              // Anti-régression : passe par safeStripeProductName pour éviter
+              // l'erreur Stripe "product_data[name] cannot be empty" si
+              // session.title est vide (legacy Activity sans title/name).
+              name: (() => {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const fallbackTitle = (activity as any).title || (activity as any).name || '';
+                const baseName = safeStripeProductName({
+                  title: session.title,
+                  name: fallbackTitle,
+                });
+                return isDuo ? `${baseName} (Duo — 2 places)` : baseName;
+              })(),
               description: `${tierLabel[tier]} • ${seats} place${seats > 1 ? 's' : ''} • ${grantedCredits} crédits chat inclus`,
               images: ['https://spordateur.com/logo.png'],
             },
@@ -949,7 +971,13 @@ async function handleInviteAcceptMode(
           price_data: {
             currency: 'chf',
             product_data: {
-              name: session.title,
+              // Anti-régression bug "Acceptation impossible — product_data[name]
+              // cannot be empty" (capture 1). Cascade title/name/fallback.
+              name: safeStripeProductName({
+                title: session.title,
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                name: (activity as any).title || (activity as any).name || '',
+              }),
               description: `${tierLabel[tier]} • ${descriptionExtra} • Inclut ${bundleCredits} crédits chat`,
               images: ['https://spordateur.com/logo.png'],
             },
@@ -1115,7 +1143,13 @@ async function handleInvitePrepayMode(
             price_data: {
               currency: 'chf',
               product_data: {
-                name: session.title,
+                // Anti-régression bug "paiement n'a pas pu démarrer" côté
+                // inviteur (capture 2). Cascade title/name/fallback.
+                name: safeStripeProductName({
+                  title: session.title,
+                  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  name: activity.title || (activity as any).name || '',
+                }),
                 description: `${productLabel} • ${activity.title || 'Spordateur'}`,
                 images: ['https://spordateur.com/logo.png'],
               },

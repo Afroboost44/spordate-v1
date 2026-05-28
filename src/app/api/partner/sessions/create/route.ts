@@ -170,7 +170,16 @@ export async function POST(request: NextRequest) {
       partnerId: activity.partnerId,
       creatorId: (activity.createdBy as string) ?? activity.partnerId,
       sport: (activity.sport as string) ?? '',
-      title: (activity.title as string) ?? '',
+      // Anti-régression bug Stripe "product_data[name] cannot be empty" :
+      // legacy activities ont `name` au lieu de `title`. Si les deux sont
+      // absents, la session était créée avec title='' → Stripe rejette le
+      // checkout invite-accept. On hydrate via cascade title → name → fallback
+      // pour garantir un title non-vide sur la session.
+      title:
+        (activity.title as string)?.trim() ||
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ((activity as any).name as string)?.trim() ||
+        '',
       city: (activity.city as string) ?? '',
       startAt: Timestamp.fromMillis(startMs),
       endAt: Timestamp.fromMillis(endMs),
