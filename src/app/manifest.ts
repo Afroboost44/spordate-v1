@@ -41,6 +41,10 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
       purpose: 'maskable',
     });
   }
+  // Fix #208 — icons "any" : maintenant que le PNG a un fond NOIR opaque
+  // baked-in, on les déclare aussi en `purpose: 'any maskable'` pour qu'ils
+  // soient utilisés EN PRIORITÉ par Android sur le home screen, sans que
+  // l'OS ajoute son carré blanc auto autour d'une icône transparente.
   if (brand?.icon192Url) {
     icons.push({
       src: `${brand.icon192Url}${v}`,

@@ -295,48 +295,51 @@ function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
  * Le caller charge le File via loadImageFromFile() puis appelle generateAll(img).
  */
 export async function generateAllLogos(srcImg: HTMLImageElement): Promise<GeneratedLogoSet> {
-  // Fix #207 — Transparence partout sauf maskable + splash.
+  // Fix #208 — RETOUR au fond NOIR baked-in pour TOUS les variants icônes.
   //
-  // ICONS STANDARDS (favicon, PWA "any", apple-touch) → fond TRANSPARENT.
-  // Raisons :
-  //   1. Le logo SVG source de Bassi est déjà transparent — préserver la
-  //      transparence native évite l'effet "vignette noire encadrée" visible
-  //      sur le splash et l'onglet navigateur.
-  //   2. iOS/Android composent ces icônes sur le background-color du manifest
-  //      (#000000 noir cohérent dark mode) → on obtient logo sur noir SANS
-  //      avoir besoin de coller un carré noir.
-  //   3. Sur onglet navigateur clair, la transparence laisse passer la couleur
-  //      de fond système, ce qui donne un rendu plus net qu'un carré noir
-  //      qui jure dans la tab bar.
+  // Contexte (post Fix #207) : Bassi a installé la PWA sur son écran d'accueil
+  // mobile, l'icône apparaissait avec un FOND BLANC carré autour du logo rose.
+  // Cause : Android (Chromium) et iOS ajoutent un fond BLANC par défaut aux
+  // icônes "any" transparentes — même si le manifest a background_color
+  // #000000, ce background n'est appliqué qu'au splash, PAS au tile d'icône
+  // sur le home screen. Les icônes transparentes finissent toujours sur un
+  // carré blanc OS-managed.
   //
-  // MASKABLE → fond NOIR conservé (norme Android adaptive icon : le système
-  //   crop selon la forme du device, l'icône DOIT avoir un fond opaque à
-  //   l'intérieur de sa safe-zone). Padding 15% pour ne pas être tronqué.
+  // Solution : on bake un fond NOIR opaque (#000000) DANS le PNG lui-même.
+  // Comme ça l'OS n'a plus à compositer — il pose juste le PNG carré (noir
+  // + logo rose centré) sur le home screen et ça donne le rendu attendu.
   //
-  // SPLASH → fond NOIR explicite (logo centré, padding 15%). Le splash est
-  //   l'écran d'amorçage iOS PWA, il doit être full-bleed opaque.
+  //   - icon16/32/192/512        → fond NOIR opaque, padding 12% (logo
+  //                                 respiré sans toucher les bords).
+  //   - maskable192/512          → fond NOIR opaque + padding safe-zone 20%
+  //                                 (Material Design 3 spec : Android crop
+  //                                 jusqu'à 20% sur les bords selon forme
+  //                                 device, donc 80% safe-zone centrée).
+  //   - appleTouch180            → fond NOIR opaque (iOS demande un fond
+  //                                 opaque sinon ajoute du blanc au home).
+  //   - monochrome512            → reste transparent (Android applique sa
+  //                                 propre couleur dynamique dessus).
+  //   - splash1024               → fond NOIR opaque, padding 20% (déjà OK
+  //                                 depuis Fix #207).
 
-  // Favicons 16/32 — TRANSPARENTS (cohérent SVG source).
-  const c16 = resizeToSquare(srcImg, 16);
-  const c32 = resizeToSquare(srcImg, 32);
+  // Favicons 16/32 — fond NOIR pour cohérence onglet navigateur dark mode.
+  const c16 = resizeToSquare(srcImg, 16, { bg: 'black' });
+  const c32 = resizeToSquare(srcImg, 32, { bg: 'black' });
 
-  // PWA standard 192/512 — TRANSPARENTS (Fix #207 : le manifest a
-  // background_color #000000 → Android compose l'icône sur noir natif,
-  // pas besoin d'un carré noir dans le PNG).
-  const c192 = resizeToSquare(srcImg, 192, { padding: 0.08 });
-  const c512 = resizeToSquare(srcImg, 512, { padding: 0.08 });
+  // PWA standard 192/512 — fond NOIR baked-in (fix carré blanc home screen
+  // Android/iOS). Padding 12% pour donner de l'air au logo.
+  const c192 = resizeToSquare(srcImg, 192, { bg: 'black', padding: 0.12 });
+  const c512 = resizeToSquare(srcImg, 512, { bg: 'black', padding: 0.12 });
 
-  // Maskable 192/512 — fond NOIR conservé (norme adaptive icon Android :
-  // crop arbitraire selon forme device, safe-zone 80% centrée). Padding
-  // 15% suffisant.
-  const cMaskable192 = resizeToSquare(srcImg, 192, { bg: 'black', padding: 0.15 });
-  const cMaskable512 = resizeToSquare(srcImg, 512, { bg: 'black', padding: 0.15 });
+  // Maskable 192/512 — fond NOIR + padding safe-zone 20% (Material Design 3
+  // adaptive icon : Android crop arbitraire selon forme device, l'élément
+  // important doit tenir dans le cercle de 80% centré).
+  const cMaskable192 = resizeToSquare(srcImg, 192, { bg: 'black', padding: 0.2 });
+  const cMaskable512 = resizeToSquare(srcImg, 512, { bg: 'black', padding: 0.2 });
 
-  // Apple Touch 180×180 — TRANSPARENT (Fix #207 : iOS PWA pose ses propres
-  // coins arrondis, sur un home screen qui a déjà son wallpaper. Le fond
-  // noir ne sert qu'à matcher dark mode, mais sur home screen iOS user
-  // perso ça peut jurer. La transparence laisse iOS gérer.)
-  const cApple180 = resizeToSquare(srcImg, 180, { padding: 0.08 });
+  // Apple Touch 180×180 — fond NOIR baked-in. iOS PWA home screen ajoute
+  // toujours un fond blanc aux PNG transparents → on bake le noir nous-mêmes.
+  const cApple180 = resizeToSquare(srcImg, 180, { bg: 'black', padding: 0.12 });
 
   // Monochrome 512 — silhouette blanche, fond transparent (Android monochrome
   // adaptive icon : le système applique sa propre couleur de fond dynamique).

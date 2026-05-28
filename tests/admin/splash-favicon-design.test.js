@@ -146,17 +146,22 @@ function stripComments(src) {
   }
 }
 
-// ─── D4 : icons standards transparents (pas de bg opaque) ────────────────────
+// ─── D4 (Fix #208) : icons standards + apple-touch + maskable = fond NOIR ─────
+// Anti-régression : iOS/Android ajoutent un fond BLANC auto aux icônes PNG
+// transparentes même si manifest.background_color est noir. On bake donc un
+// fond NOIR opaque dans le PNG lui-même pour tous les variants icônes
+// (favicon, PWA "any", apple-touch, maskable). Le seul slot transparent
+// autorisé est monochrome512 (Android applique sa propre couleur dynamique).
 {
   const src = readSrc('lib/brand/generateLogos.ts');
-  // Pour chaque slot transparent attendu, on récupère la déclaration et on
-  // vérifie qu'aucune option bg:'black'/bg:'white' n'apparaît dans l'appel.
   const slots = [
     { name: 'c16', pattern: /const\s+c16\s*=\s*resizeToSquare\([^)]+\)/ },
     { name: 'c32', pattern: /const\s+c32\s*=\s*resizeToSquare\([^)]+\)/ },
     { name: 'c192', pattern: /const\s+c192\s*=\s*resizeToSquare\([^)]+\)/ },
     { name: 'c512', pattern: /const\s+c512\s*=\s*resizeToSquare\([^)]+\)/ },
     { name: 'cApple180', pattern: /const\s+cApple180\s*=\s*resizeToSquare\([^)]+\)/ },
+    { name: 'cMaskable192', pattern: /const\s+cMaskable192\s*=\s*resizeToSquare\([^)]+\)/ },
+    { name: 'cMaskable512', pattern: /const\s+cMaskable512\s*=\s*resizeToSquare\([^)]+\)/ },
   ];
   let d4ok = true;
   for (const slot of slots) {
@@ -169,16 +174,37 @@ function stripComments(src) {
       d4ok = false;
       continue;
     }
-    if (/bg:\s*['"](black|white|#[0-9a-fA-F]{3,8})['"]/.test(m[0])) {
+    if (!/bg:\s*['"]black['"]/.test(m[0])) {
       fail(
-        `D4 slot ${slot.name} doit être transparent`,
-        `Le slot ${slot.name} doit être généré sans bg opaque (transparent natif).\n        Ligne actuelle : ${m[0]}`,
+        `D4 slot ${slot.name} doit avoir fond NOIR baked-in`,
+        `Le slot ${slot.name} doit être généré avec \`bg: 'black'\` pour bypass le fond blanc auto OS sur home screen mobile.\n        Ligne actuelle : ${m[0]}`,
       );
       d4ok = false;
     }
   }
   if (d4ok) {
-    pass('D4 generateLogos.ts icons standards transparents (16/32/192/512 + appleTouch180)');
+    pass('D4 generateLogos.ts icons (16/32/192/512 + apple180 + maskable192/512) → fond NOIR baked-in');
+  }
+}
+
+// ─── D4bis : maskable safe-zone padding ≥ 0.18 (Material Design 3) ───────────
+{
+  const src = readSrc('lib/brand/generateLogos.ts');
+  // On vérifie que cMaskable192 et cMaskable512 ont padding ≥ 0.18 (~20% spec).
+  const maskableLines = src.match(/const\s+cMaskable(?:192|512)\s*=\s*resizeToSquare\([^)]+\)/g) || [];
+  let d4bisOk = maskableLines.length === 2;
+  for (const line of maskableLines) {
+    const padMatch = line.match(/padding:\s*([0-9.]+)/);
+    if (!padMatch || parseFloat(padMatch[1]) < 0.18) {
+      fail(
+        'D4bis maskable safe-zone',
+        `Maskable doit avoir padding ≥ 0.18 (norme Material Design 3 : safe-zone 80%).\n        Ligne : ${line}`,
+      );
+      d4bisOk = false;
+    }
+  }
+  if (d4bisOk) {
+    pass('D4bis maskable padding ≥ 0.18 (Material Design 3 safe-zone)');
   }
 }
 

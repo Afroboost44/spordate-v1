@@ -30,7 +30,10 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { db } from '@/lib/firebase';
-import { getActivityThumbnailChain } from '@/lib/activities/getActivityThumbnail';
+import {
+  getActivityThumbnailChain,
+  getActivityThumbnailMedia,
+} from '@/lib/activities/getActivityThumbnail';
 import { resolveMediaImageSrc } from '@/lib/activities/media';
 import { formatNextSessionLabel, resolveInviteCardView } from '@/lib/chat/inviteView';
 import { acceptActivityInvite, declineActivityInvite } from '@/services/activityInvite';
@@ -89,6 +92,15 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
   //      fetché (thumbnailUrl → mediaItems image → mediaItems video thumb →
   //      imageUrl legacy → scan champs string).
   // Le `<img onError>` walk vers thumbIndex+1 quand une URL renvoie 404.
+  //
+  // Bug récurrent Bassi 28/05 — Silent Afroboost (et toutes les activités dont
+  // l'UNIQUE média est une vidéo Firebase Storage uploadée sans VideoThumbnailPicker)
+  // retombait sur le placeholder rose ici : `getActivityThumbnailChain` retourne []
+  // car aucune image n'est résolvable (vidéo Storage ≠ chain thumbnail auto, c'est
+  // un .mp4 hosté sur firebasestorage.googleapis.com). Même bug que #205 modal
+  // "Choisir une activité" — fix identique : utiliser `getActivityThumbnailMedia`
+  // qui descripteur {kind, url} permet de brancher `<video preload="metadata">`
+  // pour afficher la 1ère frame de la vidéo (comme la page liste /activities).
   const thumbCandidates: string[] = [];
   if (invite.activityImageUrl) thumbCandidates.push(invite.activityImageUrl);
   if (activityDoc) {
@@ -97,6 +109,12 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
     }
   }
   const thumbUrl = thumbCandidates[thumbIndex] ?? null;
+  // Filet ultime vidéo Storage upload (Silent Afroboost & co.) — résolu après
+  // épuisement de la chain image. Le caller branche `<video>` au lieu de `<img>`.
+  const videoFallback =
+    !thumbUrl && activityDoc ? getActivityThumbnailMedia(activityDoc) : null;
+  const videoPosterUrl =
+    videoFallback?.kind === 'video' ? videoFallback.url : null;
 
   const sessionLabel = formatNextSessionLabel(invite.nextSessionAt ?? null);
   const isDuoSponsored = invite.inviteMode === 'duo' && !!msg.sponsorPaidAt;
@@ -171,7 +189,9 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
     <div
       className={`max-w-sm w-full ${view.isSender ? 'ml-auto' : 'mr-auto'} bg-zinc-900 border border-white/10 rounded-2xl overflow-hidden`}
     >
-      {/* Header : image (Fix #194 bug B — chaîne fallback complète via helper #146) */}
+      {/* Header : image (Fix #194 bug B — chaîne fallback complète via helper #146)
+          + Bug récurrent Bassi 28/05 — fallback `<video>` pour vidéo Storage upload
+          quand aucune image résolvable (cas Silent Afroboost). */}
       {thumbUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -183,6 +203,14 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
               setThumbIndex(thumbIndex + 1);
             }
           }}
+        />
+      ) : videoPosterUrl ? (
+        <video
+          src={`${videoPosterUrl}${videoPosterUrl.includes('#') ? '' : '#t=0.1'}`}
+          muted
+          playsInline
+          preload="metadata"
+          className="w-full h-28 object-cover bg-zinc-900 pointer-events-none"
         />
       ) : (
         <div className="w-full h-28 bg-gradient-to-br from-accent to-[#E91E63] flex items-center justify-center">

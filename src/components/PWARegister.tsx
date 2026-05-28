@@ -265,16 +265,43 @@ export default function PWARegister() {
     };
   }, []);
 
+  // Fix #208 BUG 2 — handleInstall robuste :
+  //   1. Si `deferredPrompt` (beforeinstallprompt fired) → on lance la popup
+  //      native via prompt() + on lit userChoice pour gérer accept/dismiss.
+  //   2. Sinon (Safari iOS, ou Chrome Android sans event encore fired) → on
+  //      bascule sur le tutoriel manuel (showManualTutorial state).
+  const [showManualTutorial, setShowManualTutorial] = useState(false);
+
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    deferredPrompt.prompt();
-    const result = await deferredPrompt.userChoice;
-    if (result.outcome === 'accepted') {
-      setShowInstall(false);
-      setShowMobileBanner(false);
-      setHasNativePrompt(false);
-      deferredPrompt = null;
+    if (deferredPrompt) {
+      try {
+        await deferredPrompt.prompt();
+        const result = await deferredPrompt.userChoice;
+        if (result?.outcome === 'accepted') {
+          setShowInstall(false);
+          setShowMobileBanner(false);
+          setHasNativePrompt(false);
+          deferredPrompt = null;
+          return;
+        }
+        // Dismissed : on enregistre le cooldown + on ferme la bannière.
+        try {
+          window.localStorage.setItem(IOS_BANNER_DISMISS_KEY, String(Date.now()));
+        } catch {
+          // ignore (private browsing)
+        }
+        setShowInstall(false);
+        setShowMobileBanner(false);
+        deferredPrompt = null;
+        setHasNativePrompt(false);
+        return;
+      } catch (err) {
+        // prompt() peut throw si déjà consommé → fallback tutoriel.
+        console.log('[PWARegister] prompt() failed, fallback tutorial:', err);
+      }
     }
+    // Pas de prompt natif dispo → afficher tutoriel manuel inline.
+    setShowManualTutorial(true);
   };
 
   const handleMobileDismiss = () => {
@@ -318,6 +345,118 @@ export default function PWARegister() {
       {t('pwa_new_version_reloading')}
     </div>
   ) : null;
+
+  // Fix #208 BUG 2 — overlay tutoriel manuel quand le prompt natif n'est
+  // pas disponible (Safari iOS, ou Chrome Android sans event fired).
+  // Affichage modal centré avec icône + instructions step-by-step + close.
+  if (showManualTutorial) {
+    return (
+      <>
+      {updateToast}
+      <div
+        role="dialog"
+        aria-modal="true"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 9999,
+          background: 'rgba(0, 0, 0, 0.85)',
+          backdropFilter: 'blur(8px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: 16,
+        }}
+        onClick={() => setShowManualTutorial(false)}
+      >
+        <div
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: '#0a0a0a',
+            border: '1px solid rgb(var(--accent-color-rgb) / 0.3)',
+            borderRadius: 20,
+            padding: '24px 20px',
+            maxWidth: 360,
+            width: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            gap: 12,
+          }}
+        >
+          <div
+            style={{
+              width: 64,
+              height: 64,
+              borderRadius: '50%',
+              backgroundColor: 'rgb(var(--accent-color-rgb) / 0.12)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}
+          >
+            <SpordateurLogo className="h-9 w-9 text-accent" />
+          </div>
+          <p style={{ color: 'white', margin: 0, fontWeight: 700, fontSize: 18, textAlign: 'center' }}>
+            {t('pwa_install_title')}
+          </p>
+          {deviceType === 'ios' ? (
+            <p style={{ color: '#bbb', margin: 0, fontSize: 14, textAlign: 'center', lineHeight: 1.5 }}>
+              {t('pwa_ios_install_step1')}{' '}
+              <svg
+                width="14"
+                height="18"
+                viewBox="0 0 14 18"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ display: 'inline-block', verticalAlign: 'middle' }}
+                aria-label="share icon"
+              >
+                <path d="M7 1L4 4M7 1L10 4M7 1V11" stroke="var(--accent-color)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M2 8H1V16C1 16.5523 1.44772 17 2 17H12C12.5523 17 13 16.5523 13 16V8H12" stroke="var(--accent-color)" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>{' '}
+              {t('pwa_ios_install_step2')}
+            </p>
+          ) : (
+            <p style={{ color: '#bbb', margin: 0, fontSize: 14, textAlign: 'center', lineHeight: 1.5 }}>
+              {t('pwa_android_install_step1')}{' '}
+              <svg
+                width="4"
+                height="16"
+                viewBox="0 0 4 16"
+                fill="var(--accent-color)"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ display: 'inline-block', verticalAlign: 'middle' }}
+                aria-label="menu icon"
+              >
+                <circle cx="2" cy="2" r="2" />
+                <circle cx="2" cy="8" r="2" />
+                <circle cx="2" cy="14" r="2" />
+              </svg>{' '}
+              {t('pwa_android_install_step2')}
+            </p>
+          )}
+          <button
+            onClick={() => setShowManualTutorial(false)}
+            style={{
+              background: 'var(--accent-color)',
+              color: 'white',
+              border: 'none',
+              borderRadius: 12,
+              padding: '10px 28px',
+              fontWeight: 600,
+              fontSize: 14,
+              cursor: 'pointer',
+              marginTop: 4,
+            }}
+          >
+            {t('common_close')}
+          </button>
+        </div>
+      </div>
+      </>
+    );
+  }
 
   if (showSplash) {
     return (
@@ -448,7 +587,16 @@ export default function PWARegister() {
     //  - iOS Safari : icône partage + instruction "Tap [share] → Ajouter…"
     //  - Android Chrome + deferredPrompt fired : bouton "Installer" natif
     //  - Android Chrome sans event : icône menu ⋮ + instruction "Tap ⋮ → …"
-    const isAndroidWithPrompt = deviceType === 'android' && hasNativePrompt;
+    // Fix #208 BUG 2 — bouton "Installer" maintenant affiché sur Android
+    // EN PERMANENCE (même sans event beforeinstallprompt déjà fired).
+    // Le clic appelle handleInstall qui :
+    //   - utilise deferredPrompt.prompt() si dispo (Chrome Android, Edge,
+    //     Samsung Browser…)
+    //   - bascule sur showManualTutorial sinon (Safari iOS, fallback).
+    // Sur iOS, on n'affiche pas de bouton "Installer" (l'API n'existe pas
+    // et iOS exige une action manuelle dans le menu partage de Safari) —
+    // on garde les instructions visuelles avec l'icône share natif.
+    const showInstallButton = deviceType === 'android';
     return (
       <>
       {updateToast}
@@ -535,7 +683,7 @@ export default function PWARegister() {
             </p>
           )}
         </div>
-        {isAndroidWithPrompt && (
+        {showInstallButton && (
           <button
             onClick={handleInstall}
             style={{
