@@ -159,9 +159,46 @@ export default function AdaptiveFullscreenVideo({
   }, [isMobile, ratio]);
 
   // Cleanup global au unmount du composant.
+  // Bug fix Bassi 28/05 (cleanup mobile) — Même si le composant est unmount
+  // brutalement (state parent set à null, navigation client, etc.), on DOIT
+  // unlock l'orientation + exit fullscreen pour ne pas laisser la page
+  // bloquée en landscape ou en mode fullscreen (overlay caché qui mange tous
+  // les events). On exécute le teardown sans guard `didRequestFullscreen` :
+  // si on a quitté le fullscreen manuellement via le bouton réduire natif,
+  // document.fullscreenElement est déjà null et exitFullscreen() est no-op
+  // safe. Pareil pour unlock(), idempotent.
   useEffect(() => {
     return () => {
-      if (didLockOrientation.current) {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (screen as any).orientation?.unlock?.();
+      } catch {
+        /* silent */
+      }
+      didLockOrientation.current = false;
+      if (typeof document !== 'undefined' && document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => undefined);
+      }
+      didRequestFullscreen.current = false;
+    };
+  }, []);
+
+  // Bug fix Bassi 28/05 (page bloquée après fullscreen 16:9) — Quand
+  // l'utilisateur appuie sur le bouton "réduire" NATIF du player vidéo
+  // (icône fullscreen-exit dans le HUD iOS/Android Chrome) ou tape Escape
+  // sur desktop, le browser quitte le fullscreen MAIS notre state React
+  // reste à `fullscreenStartIndex !== null`. Résultat : l'overlay portal
+  // reste monté, le body reste en mode fullscreen logique, et la page
+  // devient inutilisable. Fix : on écoute `fullscreenchange` au niveau
+  // document, et si on en sort (fullscreenElement === null) ALORS QU'ON
+  // avait demandé un fullscreen, on appelle onClose() pour démonter le
+  // portal proprement et reset le state parent.
+  useEffect(() => {
+    if (typeof document === 'undefined') return;
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement && didRequestFullscreen.current) {
+        // L'utilisateur a quitté le fullscreen natif → unlock + reset refs
+        // + ferme le modal React via le callback parent.
         try {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (screen as any).orientation?.unlock?.();
@@ -169,13 +206,18 @@ export default function AdaptiveFullscreenVideo({
           /* silent */
         }
         didLockOrientation.current = false;
-      }
-      if (didRequestFullscreen.current && typeof document !== 'undefined' && document.fullscreenElement) {
-        document.exitFullscreen?.().catch(() => undefined);
         didRequestFullscreen.current = false;
+        onClose?.();
       }
     };
-  }, []);
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    // Safari iOS / WebKit utilise le préfixe webkit.
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+    };
+  }, [onClose]);
 
   const handleLoaded = (e: React.SyntheticEvent<HTMLVideoElement>) => {
     const v = e.currentTarget;
@@ -187,19 +229,23 @@ export default function AdaptiveFullscreenVideo({
   };
 
   const handleClose = () => {
-    if (didLockOrientation.current) {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (screen as any).orientation?.unlock?.();
-      } catch {
-        /* silent */
-      }
-      didLockOrientation.current = false;
+    // Bug fix Bassi 28/05 — Cleanup INCONDITIONNEL (pas de guard sur les
+    // refs) : si l'utilisateur clique sur le ✕ après avoir déjà réduit le
+    // player nativement, le ref serait à false et on ne ferait pas
+    // l'unlock/exit, laissant la page potentiellement coincée. Les deux
+    // appels sont idempotents (unlock no-op si pas locked, exitFullscreen
+    // no-op safe si fullscreenElement === null).
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (screen as any).orientation?.unlock?.();
+    } catch {
+      /* silent */
     }
-    if (didRequestFullscreen.current && typeof document !== 'undefined' && document.fullscreenElement) {
+    didLockOrientation.current = false;
+    if (typeof document !== 'undefined' && document.fullscreenElement) {
       document.exitFullscreen?.().catch(() => undefined);
-      didRequestFullscreen.current = false;
     }
+    didRequestFullscreen.current = false;
     onClose?.();
   };
 

@@ -255,11 +255,84 @@ function stripComments(src) {
   }
 }
 
+// ─── D9 (Bassi 28/05 — flash blanc PWA) : layout.tsx force fond noir inline ──
+// Sur le démarrage PWA Android/iOS, un flash BLANC apparaissait avant que le
+// splash noir du manifest prenne le relais. Cause : le user-agent affiche
+// son fond default (blanc) tant que la CSS app n'est pas chargée. Fix : on
+// inline le `background-color: #000000` directement sur <html> et <body>
+// dans le rendered HTML, plus un <style> inline en première position du
+// <head> qui set la même règle, AVANT toute autre CSS.
+{
+  const src = readSrc('app/layout.tsx');
+  // D9a : <html> doit avoir style avec backgroundColor #000000 (ou black).
+  if (!/<html[^>]*style=\{\{[^}]*backgroundColor:\s*['"](?:#000000|black)['"]/.test(src)) {
+    fail(
+      'D9a layout html background inline',
+      "<html> doit avoir style={{ backgroundColor: '#000000' }} pour éliminer le flash blanc PWA avant que la CSS soit chargée.",
+    );
+  } else {
+    pass("D9a layout.tsx <html style={{backgroundColor: '#000000'}}> (anti-flash blanc PWA)");
+  }
+  // D9b : <body> doit avoir style avec backgroundColor #000000 ou black.
+  if (!/<body[^>]*style=\{\{[^}]*backgroundColor:\s*['"](?:#000000|black)['"]/.test(src)) {
+    fail(
+      'D9b layout body background inline',
+      "<body> doit avoir style={{ backgroundColor: '#000000' }} pour garantir le fond noir avant chargement CSS.",
+    );
+  } else {
+    pass("D9b layout.tsx <body style={{backgroundColor: '#000000'}}>");
+  }
+  // D9c : un <style> inline en <head> avec html/body background #000000.
+  // On match les <style ... dangerouslySetInnerHTML={{__html: '...'}}> qui
+  // contiennent une règle html,body background-color #000000.
+  const inlineStyleMatch = src.match(
+    /<style[\s\S]{0,200}?dangerouslySetInnerHTML[\s\S]{0,400}?html[\s\S]{0,40}?body[\s\S]{0,80}?background-color:\s*#000000/i,
+  );
+  if (!inlineStyleMatch) {
+    fail(
+      'D9c layout <style> inline fond noir',
+      "Un <style> inline en <head> doit set `html,body { background-color: #000000 !important; }` AVANT toute autre CSS pour éviter le flash blanc.",
+    );
+  } else {
+    pass('D9c layout.tsx <style> inline html,body background-color: #000000 (anti-FOUC)');
+  }
+}
+
+// ─── D10 (Bassi 28/05 — flash blanc PWA) : globals.css fond noir AVANT tailwind ──
+{
+  const cssPath = path.join(SRC, 'app/globals.css');
+  const cssRaw = fs.existsSync(cssPath) ? fs.readFileSync(cssPath, 'utf8') : '';
+  // On strip les /* ... */ commentaires pour éviter qu'un `@tailwind base`
+  // cité en docstring soit pris pour le vrai import.
+  const cssNoComments = cssRaw.replace(/\/\*[\s\S]*?\*\//g, '');
+  // On veut une règle html,body background-color #000000 AVANT @tailwind base.
+  const tailwindBaseIdx = cssNoComments.indexOf('@tailwind base');
+  if (tailwindBaseIdx < 0) {
+    fail(
+      'D10 globals.css @tailwind base',
+      'globals.css doit contenir `@tailwind base` (sinon Tailwind ne fonctionne pas).',
+    );
+  } else {
+    const beforeTailwind = cssNoComments.slice(0, tailwindBaseIdx);
+    // Match `html,body { ... background-color: #000000 ... }` (avec retour ligne autorisé).
+    const earlyBgRule =
+      /html\s*,\s*body\s*\{[^}]*background-color:\s*#000000[^}]*\}/i.test(beforeTailwind);
+    if (!earlyBgRule) {
+      fail(
+        'D10 globals.css fond noir avant @tailwind',
+        'globals.css doit avoir une règle `html,body { background-color: #000000 !important; }` AVANT `@tailwind base`. Sans ça, Tailwind base reset peut introduire un flash blanc bref sur certains user-agents PWA.',
+      );
+    } else {
+      pass('D10 globals.css règle html,body fond noir AVANT @tailwind base (anti-flash blanc)');
+    }
+  }
+}
+
 if (failures > 0) {
   console.error(`\n${failures} check(s) en échec dans le pipeline splash + favicon.`);
   console.error('Re-lis la docstring du test pour comprendre l\'invariant à corriger.');
   process.exit(1);
 }
 
-console.log('\nOK — Pipeline splash + favicon premium valide (8/8 checks).');
+console.log('\nOK — Pipeline splash + favicon premium valide (tous checks).');
 process.exit(0);

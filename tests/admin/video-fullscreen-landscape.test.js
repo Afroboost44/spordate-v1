@@ -99,6 +99,72 @@ if (!hasUnlock) {
 }
 
 // ---------------------------------------------------------------------------
+// Invariant 5 (Bassi 28/05 — page bloquée après 16:9) : le composant doit
+// écouter `fullscreenchange` au niveau document pour détecter quand
+// l'utilisateur appuie sur le bouton "réduire" natif du player. Sans cette
+// écoute, le state React `fullscreenStartIndex` reste à != null et l'overlay
+// portal reste monté → page bloquée.
+// ---------------------------------------------------------------------------
+if (!/addEventListener\(\s*['"]fullscreenchange['"]/.test(content)) {
+  failures.push(
+    "Invariant 5 KO : `addEventListener('fullscreenchange', ...)` absent. Le composant doit détecter la sortie fullscreen native (bouton réduire iOS/Android) et appeler onClose() pour ne pas laisser la page bloquée.",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Invariant 6 (Bassi 28/05) : le handler de fullscreenchange doit appeler
+// onClose?.() quand on sort du fullscreen, pour que le state parent
+// `fullscreenStartIndex` repasse à null et démonte le portal.
+// ---------------------------------------------------------------------------
+// On cherche un useEffect (ou fonction) qui addEventListener fullscreenchange
+// et dont le corps appelle onClose?.(). On scanne le code en stripped de
+// commentaires pour éviter le faux positif sur la docstring.
+const codeOnly = content
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .split('\n')
+  .map((l) => l.replace(/\/\/.*$/, ''))
+  .join('\n');
+const fsChangeListenerExists =
+  /addEventListener\(\s*['"]fullscreenchange['"]/.test(codeOnly);
+const onCloseCalledInHandler =
+  /handleFullscreenChange[\s\S]{0,800}?onClose\?\.\(\)/.test(codeOnly)
+  || /onClose\?\.\(\)[\s\S]{0,400}?addEventListener\(\s*['"]fullscreenchange['"]/.test(codeOnly)
+  || /addEventListener\(\s*['"]fullscreenchange['"][\s\S]*?onClose\?\.\(\)/.test(codeOnly);
+if (!fsChangeListenerExists || !onCloseCalledInHandler) {
+  failures.push(
+    "Invariant 6 KO : le handler `fullscreenchange` doit appeler `onClose?.()` pour démonter le portal côté React quand l'utilisateur quitte le fullscreen via le bouton natif.",
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Invariant 7 (Bassi 28/05) : le call site (activities/page.tsx) doit bien
+// reset `fullscreenStartIndex` à `null` dans le onClose du portal mobile.
+// Si ce reset disparaît, la page reste bloquée.
+// ---------------------------------------------------------------------------
+const ACTIVITIES_PAGE = path.resolve(
+  __dirname,
+  '../../src/app/activities/page.tsx',
+);
+if (fs.existsSync(ACTIVITIES_PAGE)) {
+  const activitiesContent = fs.readFileSync(ACTIVITIES_PAGE, 'utf8');
+  // On cherche la séquence <AdaptiveFullscreenVideo ... onClose={() => setFullscreenStartIndex(null)}>
+  if (!/setFullscreenStartIndex\(\s*null\s*\)/.test(activitiesContent)) {
+    failures.push(
+      "Invariant 7 KO : `setFullscreenStartIndex(null)` absent du call site `activities/page.tsx`. Le onClose du portal mobile doit reset le state pour démonter l'overlay.",
+    );
+  }
+  // Et on vérifie qu'AdaptiveFullscreenVideo reçoit un onClose qui set null.
+  const adaptiveCall = activitiesContent.match(
+    /<AdaptiveFullscreenVideo[\s\S]{0,400}?onClose=\{[^}]*setFullscreenStartIndex\(\s*null\s*\)[^}]*\}/,
+  );
+  if (!adaptiveCall) {
+    failures.push(
+      "Invariant 7bis KO : `<AdaptiveFullscreenVideo ... onClose={() => setFullscreenStartIndex(null)}>` absent. Le composant fullscreen doit propager la fermeture au parent.",
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Rapport.
 // ---------------------------------------------------------------------------
 if (failures.length > 0) {

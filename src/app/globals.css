@@ -1,3 +1,15 @@
+/* Bug fix Bassi 28/05 (flash blanc splash PWA) — Fond noir forcé EN PREMIER
+   avant tout @tailwind. Sans cette règle prioritaire, Tailwind base reset
+   peut, sur certains user-agents (Chrome Android, Safari iOS), repasser un
+   bref instant sur le default UA `background-color: white` pendant l'inject
+   de @tailwind base, provoquant le flash blanc visible chez Bassi au démarrage
+   PWA. La règle est dupliquée avec celle de `layout.tsx` (style inline en
+   <head>) — double ceinture pour garantir zéro flash. */
+html,
+body {
+  background-color: #000000 !important;
+}
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;

@@ -114,8 +114,24 @@ export default async function RootLayout({
   );
 
   return (
-    <html lang="fr" className={`dark ${jakarta.variable}`}>
+    <html lang="fr" className={`dark ${jakarta.variable}`} style={{ backgroundColor: '#000000' }}>
       <head>
+        {/* Bug fix Bassi 28/05 (flash blanc splash PWA) — On force le fond
+            noir dès la PREMIÈRE balise <head> via un <style> inline. Sans
+            ça, le user-agent (Chrome Android, Safari iOS PWA) affiche un
+            écran blanc default tant que la CSS app n'est pas chargée, ce
+            qui provoque un flash BLANC visible avant que le splash noir du
+            manifest prenne le relais. Ce <style> est appliqué AVANT toute
+            autre règle (avant `globals.css`, avant Tailwind base) car le
+            navigateur lit le HTML dans l'ordre. Le `!important` couvre les
+            règles user-agent (Chrome a parfois un `background-color: white`
+            default sur html/body en mode mobile). */}
+        <style
+          dangerouslySetInnerHTML={{
+            __html:
+              'html,body{background-color:#000000 !important;}html{color-scheme:dark;}',
+          }}
+        />
         <style id="server-theme" dangerouslySetInnerHTML={{ __html: themeStyle }} />
         {/* Fix #128 + #205 — STRICT : si admin a uploadé un logo, on injecte
             UNIQUEMENT les <link> custom. Sinon UNIQUEMENT les <link> statiques.
@@ -180,7 +196,7 @@ export default async function RootLayout({
             Quand iOS 17+ implementera la spec PWA `display_override: ["browser"]`
             avec splash dynamique inline, on pourra revenir à un splash custom. */}
       </head>
-      <body className="font-body">
+      <body className="font-body" style={{ backgroundColor: '#000000' }}>
         <AuthProvider>
           <LanguageProvider>
             <ThemeProvider>
