@@ -5,22 +5,20 @@
  * ImageResponse (next/og). Le favicon suit la couleur admin configurée
  * dans settings/site.primaryColor (Firestore, propagation realtime).
  *
- * Output : PNG 32×32 rasterisé depuis du JSX SVG par Satori.
+ * Output : PNG 32×32 rasterisé depuis du JSX par Satori.
  * Runtime : nodejs (firebase-admin nécessaire pour read Firestore).
  * Cache : revalidate=60s (1 min) — propagation rapide après save admin
  * sans hammer Firestore à chaque request.
  *
  * Fallback : si Firestore unreachable ou settings absent → charte default
- * #D91CD2 (cohérent globals.css :root et public/favicon.ico static).
+ * #D91CD2.
  *
- * Shape : logo "S" Spordateur (path courbe + 2 cercles) repris du composant
- * SpordateurLogo + offline.html. Stroke + fill cercles utilisent la couleur
- * d'accent dynamique.
- *
- * Fix #128 — Lorsque l'admin uploade un logo via /admin/manage → Site, le
+ * Fix #206 — ON N'AFFICHE PLUS LE "S" SPORDATEUR. Bassi a demandé la
+ * suppression totale et définitive de l'ancien logo "S". Cette icon.tsx
+ * rend désormais un carré uni de la couleur d'accent (placeholder neutre),
+ * SANS aucun motif ni path. Si l'admin uploade un brand custom, le
  * layout.tsx injecte des <link rel="icon"> explicites qui prennent priorité
- * sur ce fichier. Cette icon.tsx reste comme fallback si brand n'est pas
- * configuré.
+ * sur ce fichier.
  *
  * @module
  */
@@ -79,30 +77,18 @@ async function getAccentColor(): Promise<string> {
 
 export default async function Icon() {
   const color = await getAccentColor();
+  // Fix #206 — Placeholder neutre : carré uni couleur d'accent, AUCUN motif.
+  // L'ancien rendu (path "S" + 2 cercles) a été supprimé définitivement.
   return new ImageResponse(
     (
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
           width: '100%',
           height: '100%',
-          background: 'transparent',
+          background: color,
         }}
-      >
-        <svg viewBox="0 0 32 32" fill="none" width="32" height="32" xmlns="http://www.w3.org/2000/svg">
-          <path
-            d="M20.5 8C20.5 8 22.5 8 22.5 10.5C22.5 13 18 13.5 16 14.5C14 15.5 9.5 16 9.5 19.5C9.5 23 13 24 13 24"
-            stroke={color}
-            strokeWidth="3"
-            strokeLinecap="round"
-            fill="none"
-          />
-          <circle cx="16" cy="7.5" r="2" fill={color} fillOpacity="0.6" />
-          <circle cx="16" cy="24.5" r="2" fill={color} fillOpacity="0.6" />
-        </svg>
-      </div>
+      />
     ),
     { ...size },
   );

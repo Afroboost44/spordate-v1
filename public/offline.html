@@ -46,13 +46,9 @@
 </head>
 <body>
   <div class="container">
-    <div class="logo pulse">
-      <svg viewBox="0 0 32 32" fill="none">
-        <path d="M20.5 8C20.5 8 22.5 8 22.5 10.5C22.5 13 18 13.5 16 14.5C14 15.5 9.5 16 9.5 19.5C9.5 23 13 24 13 24" stroke="white" stroke-width="3" stroke-linecap="round" fill="none"/>
-        <circle cx="16" cy="7.5" r="2" fill="white" opacity="0.6"/>
-        <circle cx="16" cy="24.5" r="2" fill="white" opacity="0.6"/>
-      </svg>
-    </div>
+    <!-- Fix #206 — Ancien path "S" + cercles supprimés. Carré gradient
+         neutre uniquement, cohérent avec la suppression définitive du logo. -->
+    <div class="logo pulse"></div>
     <h1>Hors ligne</h1>
     <p>Tu sembles ne pas avoir de connexion internet. Reconnecte-toi pour retrouver tes matchs et activit\u00e9s.</p>
     <button onclick="location.reload()">R\u00e9essayer</button>

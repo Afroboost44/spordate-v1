@@ -37,42 +37,32 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Spordateur",
   },
-  // Phase 9.5 c14/c18/c22/c46 — métadonnées icons + cache-bust query param.
-  // Chrome cache aggressivement les favicons : versionner les URLs force re-fetch.
-  // Bump v27 = c46 : nouveau logo neon Spordateur (généré depuis logo-source.png
-  // via src/scripts/generate-pwa-assets.ts → public/icons/). À incrémenter à
-  // chaque regénération d'asset pour éviter d'avoir à demander Cmd+Shift+Delete.
-  // Accent feature Phase 2 : icons 16/32 servis dynamiquement par
-  // src/app/icon.tsx (suit settings/site.primaryColor admin, revalidate 60s).
-  // Les tailles 192/512 (PWA) + apple-touch-icon restent statiques (charte
-  // officielle), régénération dynamique reportée (Cloud Function Phase 3).
-  icons: {
-    icon: [
-      { url: "/icons/icon-192.png?v=29", type: "image/png", sizes: "192x192" },
-      { url: "/icons/icon-512.png?v=29", type: "image/png", sizes: "512x512" },
-    ],
-    apple: [{ url: "/icons/apple-touch-icon.png?v=29", sizes: "180x180" }],
-    shortcut: ["/favicon.ico?v=29"],
-  },
+  // Fix #205 — On NE déclare PLUS les icons statiques dans metadata.icons.
+  // Raison : Next.js Metadata API injecte ces <link> AVANT ceux qu'on injecte
+  // manuellement dans <head>, ce qui fait que sur certains navigateurs (Chrome
+  // mobile install dialog, iOS PWA dialog) le logo "S" statique fallback était
+  // détecté même lorsque brand.icon192Url custom existait dans Firestore.
+  //
+  // La nouvelle logique est strictement gérée dans le RootLayout ci-dessous :
+  //   - Si brand custom configuré → on injecte UNIQUEMENT les <link> custom
+  //   - Sinon → on injecte UNIQUEMENT les <link> statiques fallback /icons/*
+  //
+  // Plus jamais les deux côte-à-côte = plus jamais de réapparition du "S".
+  // Fix #206 — OG/Twitter images statiques retirées (l'ancien /og-image.png
+  // contenait l'ancien logo "S" et a été supprimé physiquement du repo). Si
+  // l'admin a uploadé un brand custom avec ogImageUrl, on l'utilisera ici dès
+  // que le slot sera ajouté au schéma. En attendant, pas de preview social
+  // statique plutôt qu'un faux preview avec l'ancien logo.
   openGraph: {
     title: "Spordateur",
     description: "Sport pour de vraies rencontres en Suisse romande.",
     type: "website",
     locale: "fr_CH",
-    images: [
-      {
-        url: "/og-image.png",
-        width: 1200,
-        height: 630,
-        alt: "Spordateur",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: "Spordateur",
     description: "Sport pour de vraies rencontres en Suisse romande.",
-    images: ["/og-image.png"],
   },
 };
 
@@ -107,34 +97,59 @@ export default async function RootLayout({
   // Le ThemeProvider client reste actif pour les updates realtime admin.
   const theme = await getServerTheme();
   const themeStyle = buildThemeStyleString(theme);
-  // Fix #128 — Lecture brand logos uploadés par admin. Si présents, on injecte
-  // des <link> explicites qui écrasent les défauts statiques /icons/*.png.
+  // Fix #128 + #205 — Lecture brand logos uploadés par admin. Logique STRICTE :
+  // si admin a uploadé un set complet → ON N'INJECTE JAMAIS le fallback "S"
+  // statique. Sinon → on retombe sur les PNG statiques /icons/* (fallback légal
+  // si l'admin n'a pas encore configuré son logo).
   const brand = await getServerBrand();
   const v = brand?.version ? `?v=${brand.version}` : '';
+  // Fix #205 — "hasBrand" = au moins UN slot custom dispo. Dès qu'il y en a un,
+  // on rentre en mode "tout custom", on n'injecte plus de fallback statique.
+  const hasBrand = !!(
+    brand?.icon16Url ||
+    brand?.icon32Url ||
+    brand?.icon192Url ||
+    brand?.icon512Url ||
+    brand?.appleTouch180Url
+  );
 
   return (
     <html lang="fr" className={`dark ${jakarta.variable}`}>
       <head>
         <style id="server-theme" dangerouslySetInnerHTML={{ __html: themeStyle }} />
-        {/* Fix #128 — Si admin a configuré des logos, on les injecte avant les
-            défauts statiques pour qu'ils gagnent la priorité (le navigateur
-            utilise le dernier link déclaré qui matche le rel+sizes). */}
-        {brand?.icon32Url && (
-          <link rel="icon" type="image/png" sizes="32x32" href={`${brand.icon32Url}${v}`} />
-        )}
-        {brand?.icon16Url && (
-          <link rel="icon" type="image/png" sizes="16x16" href={`${brand.icon16Url}${v}`} />
-        )}
-        {brand?.icon192Url && (
-          <link rel="icon" type="image/png" sizes="192x192" href={`${brand.icon192Url}${v}`} />
-        )}
-        {brand?.icon512Url && (
-          <link rel="icon" type="image/png" sizes="512x512" href={`${brand.icon512Url}${v}`} />
-        )}
-        {brand?.appleTouch180Url ? (
-          <link rel="apple-touch-icon" sizes="180x180" href={`${brand.appleTouch180Url}${v}`} />
+        {/* Fix #128 + #205 — STRICT : si admin a uploadé un logo, on injecte
+            UNIQUEMENT les <link> custom. Sinon UNIQUEMENT les <link> statiques.
+            Plus jamais les deux ensemble → plus de réapparition du "S" cache. */}
+        {hasBrand ? (
+          <>
+            {brand?.icon32Url && (
+              <link rel="icon" type="image/png" sizes="32x32" href={`${brand.icon32Url}${v}`} />
+            )}
+            {brand?.icon16Url && (
+              <link rel="icon" type="image/png" sizes="16x16" href={`${brand.icon16Url}${v}`} />
+            )}
+            {brand?.icon192Url && (
+              <link rel="icon" type="image/png" sizes="192x192" href={`${brand.icon192Url}${v}`} />
+            )}
+            {brand?.icon512Url && (
+              <link rel="icon" type="image/png" sizes="512x512" href={`${brand.icon512Url}${v}`} />
+            )}
+            {brand?.appleTouch180Url && (
+              <link rel="apple-touch-icon" sizes="180x180" href={`${brand.appleTouch180Url}${v}`} />
+            )}
+          </>
         ) : (
-          <link rel="apple-touch-icon" sizes="180x180" href="/icons/apple-touch-icon.png?v=29" />
+          <>
+            {/* Fix #206 — Tous les anciens logos "S" statiques ont été supprimés
+                physiquement du repo. On utilise un seul placeholder neutre rose
+                accent (#D91CD2, 192×192 uni, aucun motif "S") pour TOUTES les
+                tailles, le temps que l'admin uploade son brand custom. */}
+            <link rel="icon" type="image/png" sizes="32x32" href="/icons/placeholder.png?v=32" />
+            <link rel="icon" type="image/png" sizes="16x16" href="/icons/placeholder.png?v=32" />
+            <link rel="icon" type="image/png" sizes="192x192" href="/icons/placeholder.png?v=32" />
+            <link rel="icon" type="image/png" sizes="512x512" href="/icons/placeholder.png?v=32" />
+            <link rel="apple-touch-icon" sizes="180x180" href="/icons/placeholder.png?v=32" />
+          </>
         )}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         {/* BUG #87 — "black-translucent" laisse passer le contenu du site sous
@@ -166,19 +181,12 @@ export default async function RootLayout({
             <link rel="apple-touch-startup-image" href={`${brand.splash1024Url}${v}`} media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" />
             <link rel="apple-touch-startup-image" href={`${brand.splash1024Url}${v}`} media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" />
           </>
-        ) : (
-          <>
-            <link rel="apple-touch-startup-image" href="/splash/apple-splash-1125-2436.png?v=29" media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
-            <link rel="apple-touch-startup-image" href="/splash/apple-splash-750-1334.png?v=29" media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
-            <link rel="apple-touch-startup-image" href="/splash/apple-splash-828-1792.png?v=29" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" />
-            <link rel="apple-touch-startup-image" href="/splash/apple-splash-1170-2532.png?v=29" media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
-            <link rel="apple-touch-startup-image" href="/splash/apple-splash-1242-2208.png?v=29" media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3)" />
-            <link rel="apple-touch-startup-image" href="/splash/apple-splash-1242-2688.png?v=29" media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" />
-            <link rel="apple-touch-startup-image" href="/splash/apple-splash-1284-2778.png?v=29" media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" />
-            <link rel="apple-touch-startup-image" href="/splash/apple-splash-1536-2048.png?v=29" media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" />
-            <link rel="apple-touch-startup-image" href="/splash/apple-splash-2048-2732.png?v=29" media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" />
-          </>
-        )}
+        ) : null}
+        {/* Fix #206 — Tous les anciens splash PNG "S" statiques ont été
+            supprimés physiquement du repo. Sans brand.splash1024Url custom,
+            iOS affichera le fond noir par défaut au lancement (cohérent
+            background_color du manifest). C'est ce que Bassi veut : plus
+            jamais l'ancien logo "S", même au splash screen. */}
       </head>
       <body className="font-body">
         <AuthProvider>

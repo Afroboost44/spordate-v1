@@ -18,10 +18,12 @@ import type { MediaItem } from '@/types/firestore';
 import { resolveThumbnail } from '@/lib/youtube/thumbnail';
 
 /**
- * Logo neon Spordateur — fallback final quand un MediaItem image n'a aucune
- * URL exploitable (jamais de placeholder "tasse de café" / image random).
+ * Fix #206 — Placeholder neutre rose accent uni. Fallback final quand un
+ * MediaItem image n'a aucune URL exploitable (jamais de placeholder
+ * "tasse de café" / image random). L'ancien fichier /brand/icon-512.png
+ * a été supprimé physiquement du repo (suppression du logo "S").
  */
-export const SPORDATEUR_LOGO_FALLBACK = '/brand/icon-512.png';
+export const SPORDATEUR_LOGO_FALLBACK = '/icons/placeholder.png';
 
 /**
  * BUG #6 — Extrait l'ID d'une URL Google Drive `/file/d/{id}/...` (formats share
@@ -68,10 +70,10 @@ export function resolveMediaImageSrc(url: string | null | undefined): string {
  * (walk via `onError`). Terminée **toujours** par le logo Spordateur — jamais
  * par une photo random Picsum.
  *
- *   resolveSessionImageChain(null)                    → ['/brand/icon-512.png']
- *   resolveSessionImageChain('https://cdn/x.jpg')     → ['https://cdn/x.jpg', '/brand/icon-512.png']
- *   resolveSessionImageChain('https://youtu.be/ID')   → ['https://img.youtube.com/vi/ID/hqdefault.jpg', '/brand/icon-512.png']
- *   resolveSessionImageChain('https://a.jpg', ['b'])  → ['https://a.jpg', 'b', '/brand/icon-512.png']
+ *   resolveSessionImageChain(null)                    → ['/icons/placeholder.png']
+ *   resolveSessionImageChain('https://cdn/x.jpg')     → ['https://cdn/x.jpg', '/icons/placeholder.png']
+ *   resolveSessionImageChain('https://youtu.be/ID')   → ['https://img.youtube.com/vi/ID/hqdefault.jpg', '/icons/placeholder.png']
+ *   resolveSessionImageChain('https://a.jpg', ['b'])  → ['https://a.jpg', 'b', '/icons/placeholder.png']
  *
  * @param primaryUrl URL primaire (media.url ou media.posterUrl). Résolue via
  *   resolveMediaImageSrc (Drive → thumbnail, lien YouTube → miniature, vide → ignoré).

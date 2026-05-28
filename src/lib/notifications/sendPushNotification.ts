@@ -124,8 +124,8 @@ export async function sendPushNotification(input: SendPushInput): Promise<SendPu
       notification: {
         title: input.title,
         body: input.body,
-        icon: '/icons/icon-192.png',
-        badge: '/icons/icon-192.png',
+        icon: '/icons/placeholder.png',
+        badge: '/icons/placeholder.png',
         // eslint-disable-next-line @typescript-eslint/naming-convention
         vibrate: [200, 100, 200],
         requireInteraction: false,

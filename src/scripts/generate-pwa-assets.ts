@@ -1,22 +1,21 @@
 /**
  * Phase 9.5 c46 — Génération assets PWA (icons + splash screens iOS).
  *
- * Source : public/logo-source.png (1500×1500 RGBA, logo neon Spordateur).
+ * Fix #206 — DÉSACTIVÉ. Bassi a demandé la suppression définitive et totale
+ * de l'ancien logo "S" Spordateur. La source `public/logo-source.png` et
+ * tous les PNG dérivés (`/public/icons/*.png`, `/public/splash/*.png`,
+ * `/public/icon-*.png`, `/public/apple-touch-icon.png`, `/public/favicon.ico`,
+ * etc.) ont été supprimés du repo. Si on relance ce script à vide, il échouera
+ * et c'est volontaire — la chaîne PWA est désormais 100% dynamique via
+ * l'upload admin de brand custom (settings/site.brand → Firestore).
  *
- * Sorties :
- *   public/icons/icon-192.png            (192×192,   maskable any)
- *   public/icons/icon-512.png            (512×512,   maskable any)
- *   public/icons/apple-touch-icon.png    (180×180,   iOS home screen)
- *   public/icons/favicon-32.png          (32×32,     browser tab)
- *   public/icons/favicon-16.png          (16×16,     browser tab)
- *   public/splash/apple-splash-<W>-<H>.png × 9 (iOS PWA splash)
+ * Pour réactiver ce flow, il faudrait :
+ *   1. Déposer un NOUVEAU `public/logo-source.png` (jamais l'ancien "S").
+ *   2. Décommenter et adapter `main()` ci-dessous.
+ *   3. Ajouter les paths générés à la whitelist de
+ *      tests/admin/brand-no-static-fallback.test.js.
  *
- * Splash layout : background noir #000000, logo centré à 40% du min(W,H)
- * → cohérent avec le logo source déjà rond. Pas de border-radius nécessaire.
- *
- * Idempotent : peut être re-run pour regénérer (overwrite des fichiers).
- *
- * Usage : `npx tsx src/scripts/generate-pwa-assets.ts`
+ * Usage (désactivé) : `npx tsx src/scripts/generate-pwa-assets.ts`
  */
 
 /* eslint-disable @typescript-eslint/no-require-imports */
@@ -132,33 +131,32 @@ async function generateSplash(w: number, h: number, label: string): Promise<void
 }
 
 async function main(): Promise<void> {
-  if (!existsSync(SOURCE)) {
-    console.error(`✗ Source not found: ${SOURCE}`);
-    process.exit(1);
-  }
-
-  console.log(`Source: ${SOURCE}`);
-  console.log(`Generating PWA assets...\n`);
-
-  await ensureDir(ICONS_DIR);
-  await ensureDir(SPLASH_DIR);
-
-  console.log('Icons:');
-  for (const { size, name } of ICON_SIZES) {
-    await generateIcon(size, name);
-  }
-
-  console.log('\nRoot legacy (Phase 9.5 c49 — PWA installées pre-c46) :');
-  for (const { size, name, maskable } of ROOT_LEGACY) {
-    await generateRootLegacy(size, name, maskable);
-  }
-
-  console.log('\nSplash screens:');
-  for (const { w, h, label } of SPLASH_SIZES) {
-    await generateSplash(w, h, label);
-  }
-
-  console.log(`\n✓ Done — ${ICON_SIZES.length} icons + ${ROOT_LEGACY.length} root-legacy + ${SPLASH_SIZES.length} splash PNGs generated.`);
+  // Fix #206 — Script désactivé suite à la suppression définitive du logo "S".
+  // La source `public/logo-source.png` a été retirée du repo. Voir docstring
+  // en haut du fichier pour la procédure de réactivation.
+  console.error(
+    '✗ generate-pwa-assets désactivé (Fix #206). La source public/logo-source.png',
+  );
+  console.error(
+    "  a été supprimée définitivement (ancien logo \"S\"). Le pipeline PWA passe",
+  );
+  console.error(
+    '  désormais par l\'upload admin (settings/site.brand) — pas de génération statique.',
+  );
+  // On lit ICON_SIZES / ROOT_LEGACY / SPLASH_SIZES juste pour éviter l'erreur
+  // TS "déclaré mais jamais utilisé" tant que la structure reste documentée.
+  void ICON_SIZES;
+  void ROOT_LEGACY;
+  void SPLASH_SIZES;
+  void SOURCE;
+  void ICONS_DIR;
+  void SPLASH_DIR;
+  void PUBLIC_DIR;
+  void ensureDir;
+  void generateIcon;
+  void generateRootLegacy;
+  void generateSplash;
+  process.exit(1);
 }
 
 main().catch((err) => {

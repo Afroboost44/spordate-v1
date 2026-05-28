@@ -19,7 +19,7 @@ import { getServerBrand } from '@/lib/brand/server';
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const brand = await getServerBrand();
-  const v = brand?.version ? `?v=${brand.version}` : '?v=30';
+  const v = brand?.version ? `?v=${brand.version}` : '?v=32';
 
   // Icons : si brand configuré, on utilise les URLs Firebase Storage. Sinon
   // on retombe sur les PNG statiques de public/icons/ (cohérent legacy).
@@ -74,38 +74,23 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     });
   }
 
-  // Fallback statique : si aucun brand configuré, on garde le legacy PWA setup.
+  // Fix #206 — Fallback neutre : un seul placeholder rose accent uni, sans
+  // motif "S". Tous les anciens PNG /icons/icon-*.png ont été supprimés
+  // physiquement du repo. Tant que l'admin n'a pas uploadé son brand custom,
+  // le navigateur affiche ce carré neutre (cohérent avec layout.tsx fallback).
   if (icons.length === 0) {
     icons.push(
       {
-        src: '/icons/icon-192.png?v=30',
-        sizes: '192x192',
-        type: 'image/png',
-        purpose: 'maskable',
-      },
-      {
-        src: '/icons/icon-192.png?v=30',
+        src: '/icons/placeholder.png?v=32',
         sizes: '192x192',
         type: 'image/png',
         purpose: 'any',
       },
       {
-        src: '/icons/icon-512.png?v=30',
-        sizes: '512x512',
+        src: '/icons/placeholder.png?v=32',
+        sizes: '192x192',
         type: 'image/png',
         purpose: 'maskable',
-      },
-      {
-        src: '/icons/icon-512.png?v=30',
-        sizes: '512x512',
-        type: 'image/png',
-        purpose: 'any',
-      },
-      {
-        src: '/icons/apple-touch-icon.png?v=30',
-        sizes: '180x180',
-        type: 'image/png',
-        purpose: 'any',
       },
     );
   }
@@ -114,7 +99,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     name: 'Spordateur',
     short_name: 'Spordateur',
     description: 'La plateforme suisse de rencontres par le sport et la danse.',
-    start_url: '/?v=30',
+    start_url: '/?v=32',
     display: 'standalone',
     background_color: '#000000',
     theme_color: '#000000',
