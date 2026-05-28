@@ -158,6 +158,43 @@ for (const file of inviteFiles) {
 }
 
 // =====================================================================
+// Check 4 — Placeholder rose PLAT interdit dans `ActivityInviteMessage.tsx`.
+// Bug récurrent Bassi 28/05 (épisode 2) — quand aucune miniature résolvable
+// (image + vidéo helper tous deux null), le composant tombait sur un
+// `bg-gradient-to-br from-accent to-[#E91E63]` opaque qui ressemblait à un
+// rectangle rose-bug. Le fallback DOIT être un dégradé subtle vers zinc-900
+// (cohérent fond card chat) + nom de l'activité en gros texte, PAS un rose
+// plat opaque qui crie "miniature cassée".
+// =====================================================================
+if (fs.existsSync(INVITE_MESSAGE_PATH)) {
+  const content = fs.readFileSync(INVITE_MESSAGE_PATH, 'utf8');
+  const lines = content.split('\n');
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    if (trimmed.startsWith('//') || trimmed.startsWith('*')) continue;
+    // Détection du pattern rose plat opaque (accent → E91E63 sans opacity).
+    // On tolère `from-accent/25` ou `from-accent/15` (variants subtle), seul
+    // le `from-accent` ou `from-accent to-[#E91E63]` SANS modifier d'opacité
+    // est interdit.
+    if (
+      /bg-gradient-to-(br|r|b|tr)\s+from-accent\s+to-\[#E91E63\]/.test(line) ||
+      /bg-gradient-to-(br|r|b|tr)\s+from-accent\b(?!\/)\s+to-/.test(line)
+    ) {
+      offenders.push({
+        file: path.relative(path.resolve(__dirname, '../..'), INVITE_MESSAGE_PATH),
+        line: i + 1,
+        content: line.trim(),
+        rule:
+          "Placeholder rose plat opaque interdit dans ActivityInviteMessage. " +
+          "Quand aucune miniature résolvable, utiliser un dégradé subtle (from-accent/15 → zinc-900) " +
+          "+ icône Sparkles semi-transparent + titre activité centré. Le rose plat ressemble à un bug visuel.",
+      });
+    }
+  }
+}
+
+// =====================================================================
 // Report
 // =====================================================================
 if (offenders.length > 0) {

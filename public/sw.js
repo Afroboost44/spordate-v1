@@ -12,7 +12,7 @@
 // SW_VERSION sert aussi à invalider tous les caches existants à l'install
 // (le suffix BUILD_ID injecté par next.config.ts garantit un body distinct
 // à chaque build, donc updatefound + SKIP_WAITING à chaque déploiement).
-const SW_VERSION = 'v33';
+const SW_VERSION = 'v34';
 const CACHE_NAME = `spordate-${SW_VERSION}`;
 // Cache séparé pour assets long-life (/_next/static/* immuables). Reste utile
 // même quand on bump CACHE_NAME car ces fichiers sont addressés par hash unique.

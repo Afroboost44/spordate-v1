@@ -213,8 +213,17 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
           className="w-full h-28 object-cover bg-zinc-900 pointer-events-none"
         />
       ) : (
-        <div className="w-full h-28 bg-gradient-to-br from-accent to-[#E91E63] flex items-center justify-center">
-          <Calendar className="h-10 w-10 text-white/30" />
+        // Bug récurrent Bassi 28/05 (épisode 2) — fallback ÉLÉGANT quand aucune
+        // miniature résolvable (helper image + video tous deux null). Avant :
+        // rectangle rose plat opaque + petit icône calendrier = ressemblait à un
+        // bug visuel. Maintenant : dégradé subtle accent → zinc-900 (cohérent
+        // bg card chat) + sparkles semi-transparent + titre activité en gros
+        // texte centré qui assume l'absence d'image au lieu de la cacher.
+        <div className="w-full h-28 bg-gradient-to-br from-accent/25 via-zinc-900 to-zinc-900 flex items-center justify-center relative overflow-hidden">
+          <Sparkles className="absolute h-16 w-16 text-accent/15" aria-hidden="true" />
+          <p className="relative text-base font-semibold text-white/85 px-4 text-center leading-tight line-clamp-2">
+            {invite.activityTitle}
+          </p>
         </div>
       )}
 

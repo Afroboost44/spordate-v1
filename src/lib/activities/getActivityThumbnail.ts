@@ -77,13 +77,21 @@ export function getActivityThumbnailChain(activity: AnyActivity | null | undefin
     chain.push(activity.thumbnailUrl);
   }
 
-  // 1bis. Fix #153 — champ legacy `images[]` (string[]) utilisé par certaines
-  // activités créées avant le pivot mediaItems[]. Premier élément valide gagne.
+  // 1bis. Fix #153 — champ legacy `images[]` utilisé par certaines activités
+  // créées avant le pivot mediaItems[]. Bug récurrent Bassi 28/05 (épisode 2) :
+  // on PUSH TOUS les candidats dans la chain (au lieu de break après le 1er)
+  // pour que `<img onError>` puisse walk vers les suivants si le 1er 404.
+  // Supporte aussi `images[]` contenant des objets `{url, ...}` (cas legacy
+  // jamais migré → certains seed scripts mettent des objets, pas des strings).
   if (Array.isArray(activity.images)) {
-    for (const url of activity.images) {
-      if (typeof url === 'string' && url.length > 0 && !chain.includes(url)) {
+    for (const item of activity.images) {
+      let url: string | undefined;
+      if (typeof item === 'string') url = item;
+      else if (item && typeof item === 'object' && typeof (item as AnyActivity).url === 'string') {
+        url = (item as AnyActivity).url as string;
+      }
+      if (url && url.length > 0 && !chain.includes(url)) {
         chain.push(url);
-        break;
       }
     }
   }
@@ -184,15 +192,29 @@ export function getActivityThumbnailChain(activity: AnyActivity | null | undefin
     'i.imgur.com',
     'cdn',
   ];
-  for (const [key, value] of Object.entries(activity)) {
-    if (typeof value !== 'string' || value.length < 8) continue;
-    if (chain.includes(value)) continue;
-    // Skip les clés qu'on a déjà traité explicitement pour éviter doublons.
-    if (['thumbnailUrl', 'imageUrl'].includes(key)) continue;
-    // Image probable si extension image OU host connu.
+  const tryPushImageUrl = (value: string, key: string) => {
+    if (typeof value !== 'string' || value.length < 8) return;
+    if (chain.includes(value)) return;
+    if (['thumbnailUrl', 'imageUrl'].includes(key)) return;
     const isImageHost = KNOWN_HOSTS.some((host) => value.includes(host));
     if (isImageUrl(value) || (isImageHost && /\.(jpg|jpeg|png|webp|gif|svg)/i.test(value))) {
       chain.push(value);
+    }
+  };
+  for (const [key, value] of Object.entries(activity)) {
+    if (typeof value === 'string') {
+      tryPushImageUrl(value, key);
+    } else if (Array.isArray(value)) {
+      // Bug récurrent Bassi 28/05 (épisode 2) — scan exhaustif des arrays de
+      // strings (cas activités legacy avec champs custom non standardisés type
+      // `photos: ['url1', 'url2']` ou objets `{url}` dans un champ inattendu).
+      for (const item of value) {
+        if (typeof item === 'string') {
+          tryPushImageUrl(item, key);
+        } else if (item && typeof item === 'object' && typeof (item as AnyActivity).url === 'string') {
+          tryPushImageUrl((item as AnyActivity).url as string, key);
+        }
+      }
     }
   }
 
