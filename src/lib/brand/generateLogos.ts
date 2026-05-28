@@ -295,37 +295,59 @@ function canvasToPng(canvas: HTMLCanvasElement): Promise<Blob> {
  * Le caller charge le File via loadImageFromFile() puis appelle generateAll(img).
  */
 export async function generateAllLogos(srcImg: HTMLImageElement): Promise<GeneratedLogoSet> {
-  // Favicons 16/32 — RESTENT transparents (s'affichent dans l'onglet navigateur
-  // sur un fond souvent clair, la transparence donne le meilleur rendu).
+  // Fix #207 — Transparence partout sauf maskable + splash.
+  //
+  // ICONS STANDARDS (favicon, PWA "any", apple-touch) → fond TRANSPARENT.
+  // Raisons :
+  //   1. Le logo SVG source de Bassi est déjà transparent — préserver la
+  //      transparence native évite l'effet "vignette noire encadrée" visible
+  //      sur le splash et l'onglet navigateur.
+  //   2. iOS/Android composent ces icônes sur le background-color du manifest
+  //      (#000000 noir cohérent dark mode) → on obtient logo sur noir SANS
+  //      avoir besoin de coller un carré noir.
+  //   3. Sur onglet navigateur clair, la transparence laisse passer la couleur
+  //      de fond système, ce qui donne un rendu plus net qu'un carré noir
+  //      qui jure dans la tab bar.
+  //
+  // MASKABLE → fond NOIR conservé (norme Android adaptive icon : le système
+  //   crop selon la forme du device, l'icône DOIT avoir un fond opaque à
+  //   l'intérieur de sa safe-zone). Padding 15% pour ne pas être tronqué.
+  //
+  // SPLASH → fond NOIR explicite (logo centré, padding 15%). Le splash est
+  //   l'écran d'amorçage iOS PWA, il doit être full-bleed opaque.
+
+  // Favicons 16/32 — TRANSPARENTS (cohérent SVG source).
   const c16 = resizeToSquare(srcImg, 16);
   const c32 = resizeToSquare(srcImg, 32);
 
-  // PWA standard 192/512 — fond NOIR + petit padding 5% pour ne pas coller aux bords.
-  // Charte Spordateur = fond noir partout, l'icône doit matcher l'identité de l'app
-  // sur le home screen mobile (sans cela, Android/iOS affiche du blanc autour).
-  const c192 = resizeToSquare(srcImg, 192, { bg: 'black', padding: 0.08 });
-  const c512 = resizeToSquare(srcImg, 512, { bg: 'black', padding: 0.08 });
+  // PWA standard 192/512 — TRANSPARENTS (Fix #207 : le manifest a
+  // background_color #000000 → Android compose l'icône sur noir natif,
+  // pas besoin d'un carré noir dans le PNG).
+  const c192 = resizeToSquare(srcImg, 192, { padding: 0.08 });
+  const c512 = resizeToSquare(srcImg, 512, { padding: 0.08 });
 
-  // Maskable 192/512 — fond NOIR + padding 12% pour safe-zone Android adaptive
-  // icon (le système crop les bords selon la forme du device : cercle, squircle,
-  // carré arrondi…). Padding plus large que standard car le crop peut être
-  // jusqu'à ~20%.
+  // Maskable 192/512 — fond NOIR conservé (norme adaptive icon Android :
+  // crop arbitraire selon forme device, safe-zone 80% centrée). Padding
+  // 15% suffisant.
   const cMaskable192 = resizeToSquare(srcImg, 192, { bg: 'black', padding: 0.15 });
   const cMaskable512 = resizeToSquare(srcImg, 512, { bg: 'black', padding: 0.15 });
 
-  // Apple Touch 180×180 — fond NOIR + petit padding (iOS appose son propre
-  // arrondi de coins). Sans fond noir, le rendu sur home screen iOS montre
-  // du blanc/transparence moche.
-  const cApple180 = resizeToSquare(srcImg, 180, { bg: 'black', padding: 0.08 });
+  // Apple Touch 180×180 — TRANSPARENT (Fix #207 : iOS PWA pose ses propres
+  // coins arrondis, sur un home screen qui a déjà son wallpaper. Le fond
+  // noir ne sert qu'à matcher dark mode, mais sur home screen iOS user
+  // perso ça peut jurer. La transparence laisse iOS gérer.)
+  const cApple180 = resizeToSquare(srcImg, 180, { padding: 0.08 });
 
   // Monochrome 512 — silhouette blanche, fond transparent (Android monochrome
   // adaptive icon : le système applique sa propre couleur de fond dynamique).
   const cMono512 = resizeToSquare(srcImg, 512);
   makeMonochromeWhite(cMono512);
 
-  // Splash 1024×1024 — logo plus visible (padding 15% = logo occupe 70% du canvas)
-  // sur fond noir cohérent app PWA standalone.
-  const cSplash = resizeToSquare(srcImg, 1024, { bg: 'black', padding: 0.15 });
+  // Splash 1024×1024 — fond NOIR explicite (#000000), logo centré (padding
+  // 20% pour donner plus d'air, le splash est un canvas dédié pas une icône).
+  // Le fond doit être noir uni car iOS letterbox le splash sur les écrans
+  // de format différent → la couleur du fond compte.
+  const cSplash = resizeToSquare(srcImg, 1024, { bg: 'black', padding: 0.2 });
 
   const [icon16, icon32, icon192, icon512, maskable192, maskable512, appleTouch180, monochrome512, splash1024] =
     await Promise.all([

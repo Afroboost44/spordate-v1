@@ -164,29 +164,21 @@ export default async function RootLayout({
         <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#000000" />
         <meta name="theme-color" media="(prefers-color-scheme: light)" content="#000000" />
         <meta name="msapplication-navbutton-color" content="#000000" />
-        {/* Phase 9.5 c46 — iOS PWA splash screens (9 tailles standard).
-            Media queries match device-width × device-height × pixel-ratio.
-            Fix #128 — Si brand.splash1024Url existe, on l'utilise sur toutes
-            les tailles (iOS scale automatiquement avec letterbox noir). Sinon
-            on garde les 9 PNG statiques générés via generate-pwa-assets.ts. */}
-        {brand?.splash1024Url ? (
-          <>
-            <link rel="apple-touch-startup-image" href={`${brand.splash1024Url}${v}`} media="(device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3)" />
-            <link rel="apple-touch-startup-image" href={`${brand.splash1024Url}${v}`} media="(device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2)" />
-            <link rel="apple-touch-startup-image" href={`${brand.splash1024Url}${v}`} media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2)" />
-            <link rel="apple-touch-startup-image" href={`${brand.splash1024Url}${v}`} media="(device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3)" />
-            <link rel="apple-touch-startup-image" href={`${brand.splash1024Url}${v}`} media="(device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3)" />
-            <link rel="apple-touch-startup-image" href={`${brand.splash1024Url}${v}`} media="(device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3)" />
-            <link rel="apple-touch-startup-image" href={`${brand.splash1024Url}${v}`} media="(device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3)" />
-            <link rel="apple-touch-startup-image" href={`${brand.splash1024Url}${v}`} media="(device-width: 768px) and (device-height: 1024px) and (-webkit-device-pixel-ratio: 2)" />
-            <link rel="apple-touch-startup-image" href={`${brand.splash1024Url}${v}`} media="(device-width: 1024px) and (device-height: 1366px) and (-webkit-device-pixel-ratio: 2)" />
-          </>
-        ) : null}
-        {/* Fix #206 — Tous les anciens splash PNG "S" statiques ont été
-            supprimés physiquement du repo. Sans brand.splash1024Url custom,
-            iOS affichera le fond noir par défaut au lancement (cohérent
-            background_color du manifest). C'est ce que Bassi veut : plus
-            jamais l'ancien logo "S", même au splash screen. */}
+        {/* Fix #207 — Splash screen iOS PWA.
+            BUG résolu : avant, on déclarait 9 <link rel="apple-touch-startup-image">
+            tous pointant vers le MÊME splash1024Url (1024×1024). iOS ne peut
+            pas adapter ce splash carré aux résolutions iPhone modernes
+            (notamment iPhone 14 Pro = 1179×2556, iPhone 16 = 1206×2622).
+            Quand iOS ne trouve PAS de splash matchant la résolution exacte
+            du device, il fallback sur du BLANC PUR et centre l'image. C'est
+            EXACTEMENT le bug visible chez Bassi : fond blanc + boîte noire
+            opaque (le splash 1024×1024 avec son fond noir) centrée dessus.
+            Solution : on n'injecte plus AUCUN apple-touch-startup-image.
+            iOS, à défaut de splash, utilise alors l'icône apple-touch-icon
+            sur le background-color du manifest (#000000 noir). Résultat :
+            fond noir uni + icône logo centrée — premium et cohérent dark mode.
+            Quand iOS 17+ implementera la spec PWA `display_override: ["browser"]`
+            avec splash dynamique inline, on pourra revenir à un splash custom. */}
       </head>
       <body className="font-body">
         <AuthProvider>

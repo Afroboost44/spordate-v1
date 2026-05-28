@@ -1,29 +1,33 @@
 /**
  * Accent feature Phase 2 — Favicon dynamique.
  *
- * Next.js icon.tsx convention : génère le favicon dynamiquement via
- * ImageResponse (next/og). Le favicon suit la couleur admin configurée
- * dans settings/site.primaryColor (Firestore, propagation realtime).
+ * Next.js icon.tsx convention : génère le favicon dynamiquement.
  *
- * Output : PNG 32×32 rasterisé depuis du JSX par Satori.
+ * Fix #207 — Bug favicon "carré rose" : ce fichier est consommé par Next.js
+ * à l'URL `/icon` (généré au build/SSR). Avant ce fix, il rendait toujours
+ * le placeholder neutre rose accent même quand l'admin avait uploadé un
+ * logo custom dans settings/site.brand. Le RootLayout injecte bien des
+ * <link rel="icon"> custom mais certains navigateurs (Chrome desktop sur
+ * un nouvel onglet, Edge…) requêtent ce `/icon` en parallèle et l'utilisent
+ * en priorité → onglet affichant le carré rose au lieu du logo Bassi.
+ *
+ * Fix : si l'admin a uploadé un brand custom (icon32Url ou icon192Url dispo
+ * dans settings/site.brand → Firestore), on renvoie un Response qui fetch
+ * le PNG depuis Firebase Storage et le stream tel quel (PRÉSERVE la
+ * transparence native du PNG uploadé, aucune réécriture canvas).
+ *
+ * Sinon (premier déploiement, pas encore d'upload admin) → on rend le
+ * placeholder neutre rose accent comme avant (carré uni #D91CD2, aucun
+ * motif "S").
+ *
  * Runtime : nodejs (firebase-admin nécessaire pour read Firestore).
- * Cache : revalidate=60s (1 min) — propagation rapide après save admin
- * sans hammer Firestore à chaque request.
- *
- * Fallback : si Firestore unreachable ou settings absent → charte default
- * #D91CD2.
- *
- * Fix #206 — ON N'AFFICHE PLUS LE "S" SPORDATEUR. Bassi a demandé la
- * suppression totale et définitive de l'ancien logo "S". Cette icon.tsx
- * rend désormais un carré uni de la couleur d'accent (placeholder neutre),
- * SANS aucun motif ni path. Si l'admin uploade un brand custom, le
- * layout.tsx injecte des <link rel="icon"> explicites qui prennent priorité
- * sur ce fichier.
+ * Cache : revalidate=60s — propagation rapide après save admin.
  *
  * @module
  */
 
 import { ImageResponse } from 'next/og';
+import { getServerBrand } from '@/lib/brand/server';
 
 export const runtime = 'nodejs';
 export const size = { width: 32, height: 32 };
@@ -75,10 +79,36 @@ async function getAccentColor(): Promise<string> {
   return FALLBACK_HEX;
 }
 
+/**
+ * Fix #207 — Si brand custom uploadé → fetch + stream le PNG storage.
+ * Sinon → ImageResponse placeholder neutre.
+ *
+ * On préfère icon32Url (taille native pour favicon). À défaut, on remonte
+ * sur icon192Url puis icon512Url (le navigateur downscale tout seul).
+ */
 export default async function Icon() {
+  // 1. Brand custom prioritaire — bug favicon rose résolu.
+  try {
+    const brand = await getServerBrand();
+    const customUrl = brand?.icon32Url || brand?.icon192Url || brand?.icon512Url;
+    if (customUrl) {
+      const res = await fetch(customUrl, { next: { revalidate: 60 } });
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        return new Response(buf, {
+          headers: {
+            'Content-Type': 'image/png',
+            'Cache-Control': 'public, max-age=60, s-maxage=60',
+          },
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('[icon.tsx] Brand custom fetch failed, fallback placeholder:', err instanceof Error ? err.message : err);
+  }
+
+  // 2. Fallback placeholder neutre (aucun brand uploadé encore).
   const color = await getAccentColor();
-  // Fix #206 — Placeholder neutre : carré uni couleur d'accent, AUCUN motif.
-  // L'ancien rendu (path "S" + 2 cercles) a été supprimé définitivement.
   return new ImageResponse(
     (
       <div

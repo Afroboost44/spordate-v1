@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
- * Fix #205 — Test light du pipeline brand admin.
+ * Fix #205 + #207 — Test light du pipeline brand admin.
  *
- * Vérifie 4 invariants statiques (sans accès Firestore) :
+ * Vérifie 8 invariants statiques (sans accès Firestore) :
  *
  *   C1. Le type BrandLogos (src/lib/brand/generateLogos.ts) déclare TOUS les
  *       slots attendus : icon16/32/192/512, maskable192/512, appleTouch180,
@@ -18,6 +18,26 @@
  *   C4. Le BrandLogoManager (admin UI) incrémente `version = Date.now()` à
  *       chaque save → cache-bust query param `?v=N` change → navigateur refetch
  *       les variants au lieu de servir l'ancien depuis le cache HTTP.
+ *
+ *   C5 (Fix #207). Le manifest.ts a `background_color: '#000000'` ET
+ *       `theme_color: '#000000'`. Cohérent dark mode app, prévient le splash
+ *       Android sur fond blanc.
+ *
+ *   C6 (Fix #207). icon.tsx (favicon dynamique Next.js) lit le brand custom
+ *       AVANT le fallback placeholder. Pattern : `getServerBrand()` appelé,
+ *       `brand?.icon32Url` (ou 192/512) utilisé pour fetch + stream le PNG,
+ *       sinon ImageResponse placeholder. Sans ce check, le bug "favicon =
+ *       carré rose" réapparaît même quand l'admin a uploadé son logo.
+ *
+ *   C7 (Fix #207). generateLogos.ts génère les icons standards (icon16/32/192/
+ *       512, appleTouch180) SANS fond noir/opaque — la transparence native
+ *       du SVG source est préservée. Seuls maskable192/512 (norme Android
+ *       adaptive icon) et splash1024 conservent un fond noir explicite.
+ *
+ *   C8 (Fix #207). Le splash1024 dans generateLogos.ts utilise explicitement
+ *       `bg: 'black'`. Anti-régression contre un re-passage en fond blanc
+ *       (ou couleur autre) qui réintroduirait le bug visuel "fond blanc +
+ *       boîte noire" reporté par Bassi.
  *
  * EXÉCUTION
  *   node tests/admin/brand-pipeline.test.js
