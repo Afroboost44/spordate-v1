@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import {
   Send, ArrowLeft, Lock, MessageCircle,
   Loader2, CreditCard, CheckCheck, Check, PartyPopper, User, ChevronRight,
-  Coins, ShieldCheck, Calendar
+  Coins, ShieldCheck, Calendar, AudioLines
 } from "lucide-react";
 import Link from 'next/link';
 import { useRouter, useSearchParams } from "next/navigation";
@@ -218,12 +218,23 @@ function ConversationList({
               </div>
               <div className="flex items-center justify-between mt-0.5">
                 <span className={cn(
-                  "text-xs font-light truncate",
+                  "text-xs font-light truncate inline-flex items-center gap-1",
                   hasUnread ? "text-white font-medium" : "text-gray-500"
                 )}>
                   {isLocked
                     ? "Chat verrouillé"
-                    : conv.lastMessage || `Match : ${conv.match.sport || 'Sport'}`}
+                    : conv.lastMessage?.startsWith('🎙️') ? (
+                      <>
+                        {/* Bug fix Bassi 28/05 — remplace l'emoji micro 🎙️
+                            par l'icône AudioLines (onde audio, identique au
+                            bouton recorder en bas-droite du chat) pour la
+                            cohérence visuelle dans la liste des conversations. */}
+                        <AudioLines className="h-3.5 w-3.5 flex-shrink-0" aria-hidden="true" />
+                        <span className="truncate">{conv.lastMessage.replace(/^🎙️\s*/, '')}</span>
+                      </>
+                    ) : (
+                      conv.lastMessage || `Match : ${conv.match.sport || 'Sport'}`
+                    )}
                 </span>
                 {conv.unreadCount > 0 && (
                   <span className="bg-accent text-white text-xs rounded-full h-5 min-w-[20px] flex items-center justify-center px-1.5 font-medium ml-2 flex-shrink-0">
