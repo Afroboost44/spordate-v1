@@ -681,13 +681,16 @@ function ActivityCardComponent({
               }}
             />
             {existingBookingId ? (
-              /* Phase 9.5 c16 BUG F — lien direct vers réservation existante (skip flow réservation) */
+              /* Phase 9.5 c16 BUG F — lien direct vers réservation existante.
+                 Bug fix Bassi 28/05 — Bouton un poil plus compact : text-sm
+                 → text-xs + font-semibold → font-medium + px-4 → px-3.
+                 Aligné visuellement avec "Réserver — 15 CHF" voisin. */
               <Button
                 asChild
-                className="bg-accent hover:bg-accent/90 text-white text-sm font-semibold px-4"
+                className="bg-accent hover:bg-accent/90 text-white text-xs font-medium px-3"
               >
                 <Link href={`/sessions/${existingBookingId}?status=success`}>
-                  Voir ma réservation →
+                  {t('activities_view_booking')}
                 </Link>
               </Button>
             ) : (

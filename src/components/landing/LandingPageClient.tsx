@@ -174,12 +174,15 @@ export default function LandingPageClient({ initialSite }: LandingPageClientProp
             <a href="#method" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">{t('landing_method')}</a>
             <a href="#activities" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">{t('nav_activities')}</a>
             <a href="#stories" className="text-sm font-light text-white/50 hover:text-white transition tracking-wide uppercase">{t('landing_testimonials')}</a>
-            <Button asChild className="bg-accent hover:bg-accent/80 text-white text-sm font-normal tracking-wide uppercase px-6 h-10 rounded-none">
+            {/* Bug fix Bassi 28/05 — Bouton REJOINDRE (header) : rounded-none
+                → rounded-full pour matcher visuellement le CTA "Commencer"
+                (rounded-full ligne 204). Cohérence UX premium. */}
+            <Button asChild className="bg-accent hover:bg-accent/80 text-white text-sm font-normal tracking-wide uppercase px-6 h-10 rounded-full">
               <Link href="/signup">{t('landing_join')}</Link>
             </Button>
           </div>
           <div className="md:hidden">
-            <Button asChild size="sm" className="bg-accent hover:bg-accent/80 text-white text-xs font-normal tracking-wide uppercase rounded-none">
+            <Button asChild size="sm" className="bg-accent hover:bg-accent/80 text-white text-xs font-normal tracking-wide uppercase rounded-full">
               <Link href="/signup">{t('landing_join')}</Link>
             </Button>
           </div>
