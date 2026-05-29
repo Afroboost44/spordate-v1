@@ -108,6 +108,10 @@ export default async function Icon() {
   }
 
   // 2. Fallback placeholder neutre (aucun brand uploadé encore).
+  // Fix #209 (Hypothèse E) — on garantit un PNG OPAQUE (aucun pixel alpha)
+  // via background-color noir sous le carré accent. Si jamais l'ImageResponse
+  // produisait du semi-transparent en bord, le fond noir est composé dessous
+  // → aucun risque que le launcher Android ajoute un fond blanc système.
   const color = await getAccentColor();
   return new ImageResponse(
     (
@@ -116,9 +120,18 @@ export default async function Icon() {
           display: 'flex',
           width: '100%',
           height: '100%',
-          background: color,
+          backgroundColor: '#000000',
         }}
-      />
+      >
+        <div
+          style={{
+            display: 'flex',
+            width: '100%',
+            height: '100%',
+            backgroundColor: color,
+          }}
+        />
+      </div>
     ),
     { ...size },
   );

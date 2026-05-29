@@ -160,11 +160,11 @@ export default async function RootLayout({
                 physiquement du repo. On utilise un seul placeholder neutre rose
                 accent (#D91CD2, 192×192 uni, aucun motif "S") pour TOUTES les
                 tailles, le temps que l'admin uploade son brand custom. */}
-            <link rel="icon" type="image/png" sizes="32x32" href="/icons/placeholder.png?v=32" />
-            <link rel="icon" type="image/png" sizes="16x16" href="/icons/placeholder.png?v=32" />
-            <link rel="icon" type="image/png" sizes="192x192" href="/icons/placeholder.png?v=32" />
-            <link rel="icon" type="image/png" sizes="512x512" href="/icons/placeholder.png?v=32" />
-            <link rel="apple-touch-icon" sizes="180x180" href="/icons/placeholder.png?v=32" />
+            <link rel="icon" type="image/png" sizes="32x32" href="/icons/placeholder.png?v=35" />
+            <link rel="icon" type="image/png" sizes="16x16" href="/icons/placeholder.png?v=35" />
+            <link rel="icon" type="image/png" sizes="192x192" href="/icons/placeholder.png?v=35" />
+            <link rel="icon" type="image/png" sizes="512x512" href="/icons/placeholder.png?v=35" />
+            <link rel="apple-touch-icon" sizes="180x180" href="/icons/placeholder.png?v=35" />
           </>
         )}
         <meta name="apple-mobile-web-app-capable" content="yes" />

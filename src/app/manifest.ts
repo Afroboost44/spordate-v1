@@ -19,32 +19,30 @@ import { getServerBrand } from '@/lib/brand/server';
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const brand = await getServerBrand();
-  const v = brand?.version ? `?v=${brand.version}` : '?v=32';
+  // Fix #209 — bump fallback version v32 → v35 cohérent avec SW_VERSION pour
+  // forcer cache-bust sur la prochaine visite mobile (Bassi).
+  const v = brand?.version ? `?v=${brand.version}` : '?v=35';
 
   // Icons : si brand configuré, on utilise les URLs Firebase Storage. Sinon
   // on retombe sur les PNG statiques de public/icons/ (cohérent legacy).
   const icons: MetadataRoute.Manifest['icons'] = [];
 
-  if (brand?.maskable192Url) {
-    icons.push({
-      src: `${brand.maskable192Url}${v}`,
-      sizes: '192x192',
-      type: 'image/png',
-      purpose: 'maskable',
-    });
-  }
-  if (brand?.maskable512Url) {
-    icons.push({
-      src: `${brand.maskable512Url}${v}`,
-      sizes: '512x512',
-      type: 'image/png',
-      purpose: 'maskable',
-    });
-  }
-  // Fix #208 — icons "any" : maintenant que le PNG a un fond NOIR opaque
-  // baked-in, on les déclare aussi en `purpose: 'any maskable'` pour qu'ils
-  // soient utilisés EN PRIORITÉ par Android sur le home screen, sans que
-  // l'OS ajoute son carré blanc auto autour d'une icône transparente.
+  // Fix #209 (Hypothèse C — purpose 'maskable' mal interprété par Material 3) —
+  // On RETIRE les déclarations purpose: 'maskable'. Plusieurs launchers Android
+  // (Pixel Launcher M3, Samsung One UI 6+) appliquent au maskable un masque
+  // circulaire + un fond clair par défaut tiré du thème système. Le PNG avec
+  // fond noir baked-in est alors COMPOSITIONNÉ par-dessus ce fond clair côté
+  // launcher → le carré blanc visible chez Bassi.
+  //
+  // En ne déclarant QUE `purpose: 'any'` avec un fond noir baked-in dans le
+  // PNG, le launcher pose simplement le carré PNG tel quel (pas de masque, pas
+  // de fond système), comportement prévisible et identique tous launchers.
+  //
+  // Les variants maskable512Url restent générés côté admin (pour future
+  // compat) mais NE SONT PLUS exposés au manifest.
+  // Fix #208 — icons "any" : le PNG a un fond NOIR opaque baked-in donc le
+  // launcher Android peut le poser tel quel sur le home screen sans ajouter
+  // de fond blanc auto.
   if (brand?.icon192Url) {
     icons.push({
       src: `${brand.icon192Url}${v}`,
@@ -83,27 +81,22 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   // physiquement du repo. Tant que l'admin n'a pas uploadé son brand custom,
   // le navigateur affiche ce carré neutre (cohérent avec layout.tsx fallback).
   if (icons.length === 0) {
-    icons.push(
-      {
-        src: '/icons/placeholder.png?v=32',
-        sizes: '192x192',
-        type: 'image/png',
-        purpose: 'any',
-      },
-      {
-        src: '/icons/placeholder.png?v=32',
-        sizes: '192x192',
-        type: 'image/png',
-        purpose: 'maskable',
-      },
-    );
+    // Fix #209 — fallback : un seul slot `purpose: 'any'`. Plus de `maskable`
+    // qui invite le launcher Android à appliquer son thème clair (bug carré
+    // blanc home screen).
+    icons.push({
+      src: '/icons/placeholder.png?v=35',
+      sizes: '192x192',
+      type: 'image/png',
+      purpose: 'any',
+    });
   }
 
   return {
     name: 'Spordateur',
     short_name: 'Spordateur',
     description: 'La plateforme suisse de rencontres par le sport et la danse.',
-    start_url: '/?v=32',
+    start_url: '/?v=35',
     display: 'standalone',
     background_color: '#000000',
     theme_color: '#000000',

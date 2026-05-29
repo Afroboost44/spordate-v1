@@ -63,7 +63,28 @@ function resizeToSquare(
   const canvas = document.createElement('canvas');
   canvas.width = size;
   canvas.height = size;
-  const ctx = canvas.getContext('2d');
+  // Fix #209 (Hypothèse A — bug PWA mobile fond blanc persistant) — on force
+  // `alpha: false` sur le contexte 2D. Par défaut, getContext('2d') crée un
+  // canvas avec un buffer ARGB (alpha activé). À l'export PNG via toBlob(),
+  // les pixels du bord du logo après scaling (anti-aliasing) restent
+  // SEMI-TRANSPARENTS : sur PC ils s'affichent OK car compositionnés sur le
+  // <style> noir du layout, mais sur les launcher Android (Material 3), le
+  // PNG est composé directement sur un tile fond BLANC système → halo blanc
+  // visible autour du logo + bords flous.
+  //
+  // Avec `alpha: false`, le canvas est OPAQUE par contrat : tout pixel
+  // semi-transparent est composé sur la couleur de fond du canvas (qu'on
+  // initialise à #000000 noir juste après) AVANT export PNG. Le PNG produit
+  // n'a alors AUCUN pixel alpha ≠ 255 → aucun risque que le launcher Android
+  // l'imprime sur du blanc. Plus de halo, plus de fond carré blanc.
+  //
+  // Pour le slot monochrome512 qui veut justement préserver la transparence
+  // (silhouette blanche sur transparent → Android applique sa couleur
+  // dynamique), on RÉ-active alpha:true en passant `opts.bg === 'transparent'`
+  // ou en omettant le bg (clearRect ne fonctionne pas sur un canvas
+  // opaque — il produit alors du noir, pas du transparent).
+  const wantTransparent = opts.bg === 'transparent' || opts.bg === undefined;
+  const ctx = canvas.getContext('2d', { alpha: wantTransparent });
   if (!ctx) throw new Error('Canvas 2D context unavailable');
 
   // Fond

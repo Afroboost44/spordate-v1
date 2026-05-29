@@ -1,7 +1,17 @@
-// Spordateur Service Worker v33 (Fix #206 — suppression définitive de l'ancien
-// logo "S". Le precache ne référence plus aucun /icons/icon-*.png ni
-// /apple-touch-icon.png ni /favicon.ico — ces fichiers ont été supprimés
-// physiquement du repo. Seul un placeholder neutre rose reste pré-caché.)
+// Spordateur Service Worker v35 (Fix #209 — bug PWA mobile persistant fond
+// blanc carré home screen + flash blanc splash. Bump v34 → v35 pour FORCER
+// la purge complète des anciens caches (manifest, icons PNG anciennes URL
+// avec ?v=32) sur la prochaine ouverture mobile chez Bassi. Conjointement :
+//  - alpha=false sur canvas → PNG OPAQUE (plus de halo blanc anti-aliasing)
+//  - purpose='maskable' retiré du manifest → launcher Android pose juste
+//    le PNG noir tel quel (pas de thème clair appliqué dessus)
+//  - Cache-Control: max-age=0 sur /manifest.webmanifest → re-fetch obligé
+//    à chaque ouverture PWA, plus de cache 7j Android Chrome silencieux.
+// La bump SW est CRUCIALE car même avec headers HTTP corrects, le SW v34
+// pourrait servir un manifest cache stale jusqu'à activation du nouveau SW.)
+// v33 (Fix #206 — suppression définitive de l'ancien logo "S". Le precache
+// ne référence plus aucun /icons/icon-*.png ni /apple-touch-icon.png ni
+// /favicon.ico — ces fichiers ont été supprimés physiquement du repo.)
 // v32 (Fix #204 v2 — stratégies de cache séparées :
 // CacheFirst pour les assets immuables Next.js (/_next/static/* avec hash dans
 // nom = immuables par contrat), NetworkFirst strict (timeout 4s) pour les
@@ -12,7 +22,7 @@
 // SW_VERSION sert aussi à invalider tous les caches existants à l'install
 // (le suffix BUILD_ID injecté par next.config.ts garantit un body distinct
 // à chaque build, donc updatefound + SKIP_WAITING à chaque déploiement).
-const SW_VERSION = 'v34';
+const SW_VERSION = 'v35';
 const CACHE_NAME = `spordate-${SW_VERSION}`;
 // Cache séparé pour assets long-life (/_next/static/* immuables). Reste utile
 // même quand on bump CACHE_NAME car ces fichiers sont addressés par hash unique.
@@ -27,7 +37,7 @@ const IMMUTABLE_PREFIXES = ['/_next/static/'];
 const PRECACHE_ASSETS = [
   '/',
   '/manifest.webmanifest',
-  '/icons/placeholder.png?v=32',
+  '/icons/placeholder.png?v=35',
   '/offline.html',
 ];
 

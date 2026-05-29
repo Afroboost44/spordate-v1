@@ -45,6 +45,27 @@ const nextConfig: NextConfig = {
   // .next chunks peuvent référencer 2 build IDs différents). En dev, Next.js
   // gère lui-même un ID via HMR — ce hook n'est appelé qu'au build prod.
   generateBuildId: async () => BUILD_ID,
+  // Fix #209 (Hypothèse B — cache manifest Android Chrome agressif jusqu'à 7
+  // jours) — on force des headers anti-cache stricts sur /manifest.webmanifest.
+  // Sans ça, même quand Bassi désinstalle/réinstalle la PWA, Chrome Android
+  // peut continuer de servir un VIEUX manifest depuis le HTTP cache (avec
+  // d'anciennes icon URLs maskable problématiques). En posant max-age=0 +
+  // must-revalidate, le browser DOIT re-fetch le manifest à chaque ouverture
+  // PWA → garantit qu'il voit l'état courant du Firestore brand.
+  //
+  // On set aussi explicitement le Content-Type (Next.js défaut OK mais certains
+  // reverse-proxies docker peuvent le réécrire, ceinture+bretelles).
+  async headers() {
+    return [
+      {
+        source: '/manifest.webmanifest',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=0, must-revalidate' },
+          { key: 'Content-Type', value: 'application/manifest+json; charset=utf-8' },
+        ],
+      },
+    ];
+  },
   images: {
     unoptimized: isExport, // Required for static export
     remotePatterns: [

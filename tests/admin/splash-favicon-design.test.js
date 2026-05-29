@@ -354,6 +354,105 @@ function stripComments(src) {
   }
 }
 
+// ─── D11 (Fix #209 Hypothèse A — alpha=false sur canvas resizeToSquare) ─────
+// Anti-régression : si quelqu'un retire le param `alpha: false` du getContext,
+// les PNG redeviennent à canvas par défaut alpha=true → pixels semi-transparents
+// dans l'anti-aliasing des bords → halo blanc sur tile Android home screen.
+{
+  const src = readSrc('lib/brand/generateLogos.ts');
+  // On veut voir un getContext('2d', { alpha: ... }) avec false ou
+  // wantTransparent variable (cas avec optimisation monochrome). Le pattern
+  // strict : présence d'une expression `alpha: false` OU `alpha: wantTransparent`
+  // dans le bloc resizeToSquare.
+  const resizeFnMatch = src.match(/function\s+resizeToSquare[\s\S]*?\n\}/);
+  if (!resizeFnMatch) {
+    fail(
+      'D11 resizeToSquare introuvable',
+      'Le test n\'a pas pu localiser la fonction resizeToSquare dans generateLogos.ts.',
+    );
+  } else {
+    const body = resizeFnMatch[0];
+    if (!/getContext\(['"]2d['"]\s*,\s*\{\s*alpha:/.test(body)) {
+      fail(
+        'D11 canvas alpha=false manquant',
+        'resizeToSquare doit appeler `getContext(\'2d\', { alpha: false })` (ou alpha: wantTransparent calculé) pour produire un PNG OPAQUE — sinon l\'anti-aliasing des bords laisse des pixels semi-transparents qui s\'affichent en halo blanc sur le launcher Android.',
+      );
+    } else {
+      pass('D11 generateLogos.ts resizeToSquare → getContext avec { alpha: ... } explicite (anti halo blanc)');
+    }
+  }
+}
+
+// ─── D12 (Fix #209 Hypothèse B — Cache-Control sur /manifest.webmanifest) ───
+// Anti-régression : sans header anti-cache, Chrome Android peut conserver le
+// manifest jusqu'à 7 jours dans son HTTP cache → désinstall/réinstall PWA
+// continue de servir un VIEUX manifest avec d'anciennes icon URLs.
+{
+  const cfgPath = path.join(ROOT, 'next.config.ts');
+  if (!fs.existsSync(cfgPath)) {
+    fail('D12 next.config.ts manquant');
+  } else {
+    const cfg = fs.readFileSync(cfgPath, 'utf8');
+    if (!/source:\s*['"]\/manifest\.webmanifest['"]/.test(cfg)) {
+      fail(
+        'D12 headers config manifest manquante',
+        'next.config.ts doit déclarer un headers() avec source: \'/manifest.webmanifest\' pour forcer Cache-Control no-cache.',
+      );
+    } else if (!/Cache-Control[\s\S]{0,200}max-age=0[\s\S]{0,200}must-revalidate/.test(cfg)) {
+      fail(
+        'D12 Cache-Control manifest',
+        'next.config.ts doit poser `Cache-Control: public, max-age=0, must-revalidate` sur /manifest.webmanifest (anti-cache Android Chrome 7j).',
+      );
+    } else {
+      pass('D12 next.config.ts headers /manifest.webmanifest → Cache-Control max-age=0 must-revalidate');
+    }
+  }
+}
+
+// ─── D13 (Fix #209 Hypothèse C — pas de purpose: 'maskable' dans manifest) ──
+// Anti-régression : certains launchers Android Material 3 appliquent un fond
+// CLAIR système au purpose: 'maskable' → carré blanc apparent autour du logo.
+// En ne déclarant QUE `purpose: 'any'` avec fond noir baked-in, le launcher
+// pose le PNG tel quel sans thème.
+{
+  const src = stripComments(readSrc('app/manifest.ts'));
+  if (/purpose:\s*['"]maskable['"]/.test(src) || /purpose:\s*['"]any\s+maskable['"]/.test(src)) {
+    fail(
+      'D13 purpose maskable interdit dans manifest.ts',
+      'manifest.ts ne doit PAS contenir `purpose: \'maskable\'` ni `purpose: \'any maskable\'`. Les launchers Android Material 3 appliquent un fond clair au maskable → bug carré blanc home screen. Garder uniquement `purpose: \'any\'` avec fond NOIR baked-in dans le PNG.',
+    );
+  } else {
+    pass('D13 manifest.ts n\'a aucun purpose: \'maskable\' (anti carré blanc launcher Android M3)');
+  }
+}
+
+// ─── D14 (Fix #209) : SW_VERSION ≥ v35 (force purge cache mobile) ───────────
+{
+  const swPath = path.join(ROOT, 'public/sw.js');
+  if (!fs.existsSync(swPath)) {
+    fail('D14 public/sw.js manquant');
+  } else {
+    const swSrc = fs.readFileSync(swPath, 'utf8');
+    const verMatch = swSrc.match(/const\s+SW_VERSION\s*=\s*['"]v(\d+)['"]/);
+    if (!verMatch) {
+      fail(
+        'D14 SW_VERSION introuvable',
+        'public/sw.js doit déclarer une constante `const SW_VERSION = \'vNN\'`.',
+      );
+    } else {
+      const ver = parseInt(verMatch[1], 10);
+      if (ver < 35) {
+        fail(
+          'D14 SW_VERSION < v35',
+          `SW_VERSION actuel = v${ver}. Doit être ≥ v35 pour invalider les anciens caches mobile (manifest stale, icons ?v=32) au prochain reload PWA chez Bassi.`,
+        );
+      } else {
+        pass(`D14 SW_VERSION = v${ver} (≥ v35, force purge caches stale mobile)`);
+      }
+    }
+  }
+}
+
 if (failures > 0) {
   console.error(`\n${failures} check(s) en échec dans le pipeline splash + favicon.`);
   console.error('Re-lis la docstring du test pour comprendre l\'invariant à corriger.');
