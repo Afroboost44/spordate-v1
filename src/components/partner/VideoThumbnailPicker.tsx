@@ -157,7 +157,6 @@ export function VideoThumbnailPicker({
 
     const canvas = document.createElement('canvas');
     const collected: ExtractedFrame[] = [];
-    let idx = 0;
 
     // Cibles de seek dédupliquées. Sur une vidéo très courte, plusieurs
     // fractions retombent sur le même temps (après clamp à [0.05, duration-0.05]).
@@ -171,11 +170,11 @@ export function VideoThumbnailPicker({
     }
 
     // Watchdog : si une frame ne se décode jamais (codec exotique, seek bloqué),
-    // on finalise au bout de 10s avec ce qui a été collecté → pas de shimmer
+    // on finalise au bout de 12s avec ce qui a été collecté → pas de shimmer
     // infini. Le scrub + la capture restent disponibles indépendamment.
     let watchdog: ReturnType<typeof setTimeout> | null = setTimeout(() => {
       finish();
-    }, 10000);
+    }, 12000);
 
     const clearWatchdog = () => {
       if (watchdog) {
@@ -205,75 +204,108 @@ export function VideoThumbnailPicker({
       }
     };
 
-    const seekNext = () => {
-      if (cancelled) {
-        cleanup();
-        return;
-      }
-      if (idx >= targets.length) {
-        finish();
-        return;
-      }
-      video.currentTime = targets[idx];
-    };
+    type FrameMeta = { mediaTime: number };
 
-    // FIX — l'event `seeked` se déclenche AVANT que la frame cible soit décodée
-    // et peinte → drawImage capturait la frame précédente (toutes identiques à
-    // la 1ère). On attend donc la présentation effective de la nouvelle frame :
-    //   1. video.requestVideoFrameCallback (Chrome/Edge/Safari récents) = signal
-    //      exact quand la frame est envoyée au compositeur
-    //   2. fallback double requestAnimationFrame (layout puis paint)
-    //   3. garde-fou 500ms pour ne jamais bloquer l'extraction
-    const waitForPaintedFrame = (): Promise<void> =>
+    // Seek vers un temps précis + attend l'event `seeked`. Garde-fou 1.5s.
+    const seekTo = (time: number): Promise<void> =>
       new Promise((resolve) => {
         let done = false;
         const settle = () => {
           if (done) return;
           done = true;
+          video.removeEventListener('seeked', settle);
           resolve();
+        };
+        video.addEventListener('seeked', settle);
+        video.currentTime = time;
+        setTimeout(settle, 1500);
+      });
+
+    // FIX #207 — l'event `seeked` se déclenche AVANT que la frame cible soit
+    // décodée et peinte → drawImage capturait la frame précédente (toutes
+    // identiques à la 1ère). On attend la présentation EFFECTIVE de la frame :
+    //   1. video.requestVideoFrameCallback (Chrome/Edge/Safari récents) = signal
+    //      exact + metadata.mediaTime = temps RÉEL de la frame présentée
+    //   2. fallback double requestAnimationFrame (layout puis paint)
+    //   3. garde-fou 1.5s pour ne jamais bloquer l'extraction
+    // Retourne le mediaTime présenté (ou null si rvfc indispo / timeout).
+    const waitForPaintedFrame = (): Promise<number | null> =>
+      new Promise((resolve) => {
+        let done = false;
+        const settle = (mediaTime: number | null) => {
+          if (done) return;
+          done = true;
+          resolve(mediaTime);
         };
         const rvfc = (
           video as HTMLVideoElement & {
-            requestVideoFrameCallback?: (cb: () => void) => number;
+            requestVideoFrameCallback?: (
+              cb: (now: number, metadata: FrameMeta) => void,
+            ) => number;
           }
         ).requestVideoFrameCallback;
         if (typeof rvfc === 'function') {
-          rvfc.call(video, () => settle());
+          rvfc.call(video, (_now, metadata) =>
+            settle(metadata?.mediaTime ?? null),
+          );
         } else {
-          requestAnimationFrame(() => requestAnimationFrame(() => settle()));
+          requestAnimationFrame(() => requestAnimationFrame(() => settle(null)));
         }
-        setTimeout(settle, 500);
+        setTimeout(() => settle(null), 1500);
       });
 
-    video.onseeked = () => {
-      if (cancelled) return;
-      void (async () => {
-        await waitForPaintedFrame();
-        if (cancelled) return;
-        try {
-          const w = video.videoWidth;
-          const h = video.videoHeight;
-          if (w && h) {
-            canvas.width = w;
-            canvas.height = h;
-            const ctx = canvas.getContext('2d');
-            if (ctx) {
-              ctx.drawImage(video, 0, 0, w, h);
-              collected.push({
-                time: video.currentTime,
-                dataUrl: canvas.toDataURL('image/jpeg', 0.6),
-              });
-            }
-          }
-        } catch {
-          /* frame skip (tainted/decode) — on continue */
-        }
-        idx += 1;
-        seekNext();
-      })();
+    const captureFrame = () => {
+      try {
+        const w = video.videoWidth;
+        const h = video.videoHeight;
+        if (!w || !h) return;
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.drawImage(video, 0, 0, w, h);
+        collected.push({
+          time: video.currentTime,
+          dataUrl: canvas.toDataURL('image/jpeg', 0.6),
+        });
+      } catch {
+        /* frame skip (tainted/decode) — on continue */
+      }
     };
 
-    video.onloadeddata = () => seekNext();
+    // Boucle séquentielle promise-based (remplace la récursion onseeked qui
+    // souffrait de ré-entrance sur le retry).
+    const run = async () => {
+      for (let idx = 0; idx < targets.length; idx++) {
+        if (cancelled) {
+          cleanup();
+          return;
+        }
+        const target = targets[idx];
+        await seekTo(target);
+        let painted = await waitForPaintedFrame();
+
+        // ACTION C — si la frame présentée ne correspond pas au target (le
+        // décodeur a renvoyé une keyframe cachée / frame précédente), on
+        // pousse le seek de +0.01s pour forcer un re-decode, puis on réessaie
+        // UNE fois. mediaTime n'est dispo que via requestVideoFrameCallback.
+        if (painted !== null && Math.abs(painted - target) > 0.4) {
+          await seekTo(Math.min(target + 0.01, maxT));
+          painted = await waitForPaintedFrame();
+        }
+
+        if (cancelled) {
+          cleanup();
+          return;
+        }
+        captureFrame();
+      }
+      finish();
+    };
+
+    video.onloadeddata = () => {
+      void run();
+    };
     video.onerror = () => {
       // Échec extraction → pas de frames suggérées, mais scrub + capture OK.
       if (cancelled) return;
@@ -513,6 +545,14 @@ export function VideoThumbnailPicker({
                             alt=""
                             className="h-full w-full object-cover"
                           />
+                          {/* ACTION B — badge timestamp : l'user voit qu'il
+                              choisit un INSTANT (0s, 5s, 10s…), même si la
+                              vidéo est statique et les images se ressemblent. */}
+                          <span className="absolute bottom-1 left-1 bg-black/70 text-white text-[10px] font-mono px-1.5 py-0.5 rounded">
+                            {frame.time < 1
+                              ? `${Math.round(frame.time * 1000)}ms`
+                              : `${Math.round(frame.time)}s`}
+                          </span>
                           {selected && (
                             <span className="absolute top-1 right-1 flex items-center justify-center h-4 w-4 rounded-full bg-accent">
                               <Check className="h-2.5 w-2.5 text-white" />
