@@ -200,6 +200,7 @@ const defaultTranslations: any = {
     discovery_choose_activity: "Choisis une activité",
     discovery_activity_placeholder: "Sélectionner...",
     discovery_no_boosted_activity_partner: "Ce profil n'a pas d'activité boostée pour le moment.",
+    discovery_no_active_activity_partner: "Ce profil n'a pas d'activité disponible pour le moment.",
     // Profile onboarding (c25 NEW)
     profile_about_section_title: "À propos de moi",
     profile_first_name_label: "Prénom *",
@@ -1980,6 +1981,7 @@ invited_banner_title: "Invitation acceptée 🎉",
     discovery_choose_activity: "Choose an activity",
     discovery_activity_placeholder: "Select...",
     discovery_no_boosted_activity_partner: "This profile has no boosted activity right now.",
+    discovery_no_active_activity_partner: "This profile has no available activity right now.",
     // Profile onboarding
     profile_about_section_title: "About me",
     profile_first_name_label: "First name *",
@@ -3748,6 +3750,7 @@ invited_banner_title: "Invitation accepted 🎉",
     discovery_choose_activity: "Wähle eine Aktivität",
     discovery_activity_placeholder: "Auswählen...",
     discovery_no_boosted_activity_partner: "Dieses Profil hat derzeit keine geboostete Aktivität.",
+    discovery_no_active_activity_partner: "Dieses Profil hat derzeit keine verfügbare Aktivität.",
     // Profile onboarding
     profile_about_section_title: "Über mich",
     profile_first_name_label: "Vorname *",

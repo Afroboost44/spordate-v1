@@ -152,6 +152,34 @@ function PartnerCardMedia({ act }: { act: Activity }) {
 
   // Cas 1 : video → thumbnail chain
   if (first?.type === 'video') {
+    // Fix #207 — Cover custom (frame choisie via VideoThumbnailPicker). Si une
+    // miniature custom existe, elle gagne TOUJOURS : on rend l'image statique
+    // (persistante) au lieu de la 1ère frame de la vidéo. Sans ce court-circuit,
+    // la branche `isUploadedVideo` ci-dessous rendait <video #t=0.1> et la frame
+    // choisie n'apparaissait jamais. Vidéos sans cover → comportement inchangé.
+    if (first.thumbnailUrl) {
+      return (
+        <div className="relative h-36 w-full bg-zinc-900 overflow-hidden">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={first.thumbnailUrl}
+            alt={act.name}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+            <div className="bg-black/50 rounded-full p-2 backdrop-blur-sm">
+              <Play className="h-5 w-5 text-accent fill-accent" aria-hidden="true" />
+            </div>
+          </div>
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1A1A1A] to-transparent pointer-events-none" />
+          {items.length > 1 && (
+            <span className="absolute top-2 right-2 bg-black/60 text-white/70 text-[10px] px-2 py-0.5 rounded-full">
+              {items.length} {tMedia('partner_offers_media_unit')}
+            </span>
+          )}
+        </div>
+      );
+    }
     // BUG #63 — Régression "play icon sans aperçu" sur la liste /partner/offers.
     // Cause identique à BUG #60 (cards /activities) + #62 (modal media row) :
     // pour les vidéos uploadées vers Firebase Storage, getVideoThumbnailChain

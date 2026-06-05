@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { X, Heart, MapPin, Undo2, Zap, Lock, CheckCircle, RefreshCcw, Handshake, Share2, CreditCard, Check, Ticket, Loader2, Building2, Navigation, Clock, Users, Calendar, MessageCircle, Send, ChevronRight, Download, Gift, BadgeCheck, Info } from 'lucide-react';
@@ -152,6 +152,14 @@ export default function DiscoveryPage() {
   const [boostedActivityIds, setBoostedActivityIds] = useState<Set<string>>(new Set());
   const [boostedActivities_db, setBoostedActivities_db] = useState<any[]>([]);
   const [realActivities, setRealActivities] = useState<any[]>([]);
+  // Fix #207 (BUG B) — activités ACTIVES du partenaire dont le profil est
+  // actuellement affiché (boostées OU non). Source SÉPARÉE de realActivities
+  // (qui ne contient que les boostées via getBoostedActivities). Permet de
+  // réserver une activité active non-boostée depuis le profil d'un partenaire,
+  // sans réintroduire le bug #183 (profils non-partenaires → fallback boostées).
+  // Cache par uid pour éviter de re-query à chaque swipe sur le même profil.
+  const [partnerOwnedActivities, setPartnerOwnedActivities] = useState<any[]>([]);
+  const partnerOwnedCache = useRef<Map<string, any[]>>(new Map());
   // Phase 9.5 c26 BUG BB — activity choisie dans la modal "Tu veux rencontrer X ?".
   // Source de vérité du prix affiché dans la payment modal (à la place de
   // currentProfile.price retiré). Pre-sélectionnée auto par handleBookSession()
@@ -441,6 +449,51 @@ export default function DiscoveryPage() {
 
     loadBoostedData();
   }, []);
+
+  // Fix #207 (BUG B) — Charge les activités ACTIVES du partenaire dont le profil
+  // est affiché (boostées ET non-boostées), pour que le booking modal "Réserver
+  // une séance" les propose toutes. Query LOCALE sur `activities` (jamais sur
+  // `boosts` → ne viole pas la règle source-unique #204), filtre isActive côté
+  // client (évite un index composite partnerId+isActive). Cache par uid.
+  //   - Si le profil n'est pas un partenaire (ou n'a aucune activité active),
+  //     la query retourne [] → le fallback boostées-only (#183) reprend la main.
+  useEffect(() => {
+    const profile = profiles[currentIndex] as any;
+    const uid = profile?.firestoreUid as string | undefined;
+    if (!uid || !db || !isFirebaseConfigured) {
+      setPartnerOwnedActivities([]);
+      return;
+    }
+    const cached = partnerOwnedCache.current.get(uid);
+    if (cached) {
+      setPartnerOwnedActivities(cached);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const snap = await getDocs(
+          query(collection(db, 'activities'), where('partnerId', '==', uid)),
+        );
+        // Même shape que getBoostedActivities ({ id, ...data }) → rendu modal
+        // identique. Filtre isActive côté client (cohérent /activities qui
+        // n'affiche que isActive===true).
+        const acts = snap.docs
+          .map((d) => ({ id: d.id, ...(d.data() as any) }))
+          .filter((a) => a.isActive === true);
+        if (cancelled) return;
+        partnerOwnedCache.current.set(uid, acts);
+        setPartnerOwnedActivities(acts);
+      } catch (err) {
+        console.warn('[Discovery] load partner active activities failed', err);
+        if (!cancelled) setPartnerOwnedActivities([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profiles, currentIndex, db]);
 
   // Load confirmed tickets and partners
   useEffect(() => {
@@ -828,7 +881,7 @@ export default function DiscoveryPage() {
     if (!activity && partnerActivities.length === 0) {
       toast({
         title: 'Aucune activité disponible',
-        description: t('discovery_no_boosted_activity_partner'),
+        description: t('discovery_no_active_activity_partner'),
       });
       return;
     }
@@ -1556,15 +1609,23 @@ END:VCALENDAR`;
   // partenaire — le profil sert alors juste à matcher l'invitee Duo / partage.
   const partnerActivities = currentProfile
     ? (() => {
+        // Fix #207 (BUG B) — Si le profil affiché EST un partenaire, on propose
+        // TOUTES ses activités ACTIVES (boostées + non-boostées), chargées par
+        // le useEffect dédié (query partnerId + filtre isActive). Permet de
+        // réserver "Silent Afroboost" (active, non boostée) depuis le profil
+        // BASSI. partnerOwnedActivities est déjà filtré sur firestoreUid courant.
+        if (partnerOwnedActivities.length > 0) return partnerOwnedActivities;
+        // Sinon : activités boostées de ce partenaire (cas legacy boost partner
+        // sans activité isActive renvoyée, ou course de chargement).
         const owned = visibleActivities.filter(
           (act) => act.partnerId === (currentProfile as any).firestoreUid,
         );
         if (owned.length > 0) return owned;
-        // Fix #183 — Fallback corrigé : on retourne SEULEMENT les activités
-        // boostées (= visibleActivities). Avant : on retournait realActivities
-        // filtré uniquement par isActive, ce qui faisait apparaître des comptes
-        // non-boostés (ex: Studio Zen visible alors que pas boosté). Les activités
-        // non-boostées ne doivent JAMAIS apparaître dans le booking modal.
+        // Fix #183 — Fallback (profil NON partenaire / user swipé) : on retourne
+        // SEULEMENT les activités boostées (= visibleActivities). Avant : on
+        // retournait realActivities filtré isActive, ce qui faisait apparaître
+        // des comptes non-boostés (ex: Studio Zen). Les activités non-boostées
+        // d'AUTRES partenaires ne doivent JAMAIS apparaître ici.
         return visibleActivities;
       })()
     : [];
@@ -1917,7 +1978,7 @@ END:VCALENDAR`;
                 </Label>
                 {partnerActivities.length === 0 ? (
                   <div className="text-center py-6 text-white/50 text-sm">
-                    {t('discovery_no_boosted_activity_partner')}
+                    {t('discovery_no_active_activity_partner')}
                   </div>
                 ) : (
                   <div className="space-y-2">

@@ -385,6 +385,22 @@ function FullscreenLightbox({
 /** Phase 9.5 c5 + c6 — render media item card preview (image OR video autoplay loop muted toggle) */
 function CardMediaSlide({ item, fallbackSeed }: { item: MediaItem; fallbackSeed: string }) {
   if (item.type === 'video') {
+    // Fix #207 — Cover custom (frame choisie via VideoThumbnailPicker). Si le
+    // partner a défini une miniature pour cette vidéo, on l'affiche en IMAGE
+    // statique (persistante) au lieu de l'autoplay. Honore le choix explicite
+    // partout (listing, /partner/offers, chat). Les vidéos SANS cover gardent
+    // le comportement actuel (autoplay preview) → zéro régression.
+    if (item.thumbnailUrl) {
+      return (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={item.thumbnailUrl}
+          alt=""
+          draggable={false}
+          className="absolute inset-0 w-full h-full object-cover bg-zinc-950 pointer-events-none select-none"
+        />
+      );
+    }
     // BUG #30 étape 3 — Vidéo migrée Drive→Storage : HTML5 <video> natif sans
     // controls (preview muted loop comme YouTube/Vimeo CardVideoEmbed) pour
     // garder le pattern "hover preview" sur les cards LISTE.
