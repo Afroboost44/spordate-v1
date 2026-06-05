@@ -2,6 +2,37 @@
 
 Ce fichier liste toutes les commandes nécessaires pour installer, lancer, tester et déployer Spordate. Claude doit consulter ce fichier avant toute action sur le projet.
 
+## 0. RÈGLE STRICTE — Couleur de marque Spordateur
+
+**Couleur officielle Spordateur** : `#D91CD2` (RGB 217, 28, 210).
+
+C'est la couleur unique de la marque. Elle est définie dans `src/app/globals.css`
+sous `--accent-color: #D91CD2`, utilisée dans tous les fallbacks (icon.tsx, PWA,
+emails contacts/invite, etc.), et c'est la SEULE couleur d'accent autorisée.
+
+**INTERDIT — toutes ces couleurs sont des erreurs récurrentes** :
+- ❌ `#EC4899` (hot pink) — trop pâle, c'est un rose Tailwind, pas la marque
+- ❌ `#C026D3` (Tailwind fuchsia-600) — magenta moins saturé
+- ❌ `#7E22CE` (Tailwind violet-700) — c'est du VIOLET, jamais utilisé
+- ❌ `#A21CAF` (Tailwind fuchsia-700) — autre dérive
+- ❌ Tout dégradé "rose → violet" ou "rose → magenta"
+
+**Pour TOUT visuel marketing, Story Instagram, cover Highlight, illustration,
+prompt IA (Gemini/Midjourney/Imagen), email, PDF, présentation** :
+- Couleur unique = `#D91CD2`
+- Fond noir profond = `#000000` ou `#0A0204` (presque noir)
+- Texte principal = blanc `#FFFFFF`
+- Aucune autre teinte d'accent
+
+**Anti-pattern récurrent** : Claude propose un dégradé "rose-magenta-violet" pour
+"un effet néon plus riche". NON. La marque Spordateur = un seul accent, point.
+Le néon vient du glow halo `#D91CD2` sur fond noir, pas de plusieurs couleurs.
+
+**Quand le user dit "ce n'est pas du violet"** : il parle de la perception.
+`#D91CD2` est techniquement du magenta-fuchsia mais le user le voit comme "rose
+vif". Ne pas réinterpréter sa demande pour ajouter du violet, du magenta, ou du
+"plus rose pâle". Juste utiliser `#D91CD2` exactement.
+
 ## 1. Installation initiale
 
 ```bash

@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Planning Reels Spordateur — 30 mai → 5 juin</title>
+<style>
+  :root {
+    --bg: #050003;
+    --pink: #D91CD2;
+    --white: #fff;
+    --text: #ECECEC;
+    --muted: #8C8C95;
+    --green: #10B981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Plus Jakarta Sans', Helvetica, sans-serif;
+    background: radial-gradient(circle at top, #1A0510 0%, var(--bg) 70%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 36px 14px 80px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  header { text-align: center; margin-bottom: 36px; }
+  header h1 {
+    font-size: 30px;
+    color: var(--pink);
+    font-weight: 900;
+    margin-bottom: 10px;
+    letter-spacing: -0.5px;
+  }
+  header p { color: var(--muted); font-size: 14px; max-width: 620px; margin: 0 auto; line-height: 1.5; }
+
+  .post {
+    background: linear-gradient(135deg, rgba(217,28,210,0.06), rgba(217,28,210,0.02));
+    border: 1px solid rgba(217,28,210,0.3);
+    border-radius: 20px;
+    padding: 24px 22px 26px;
+    margin-bottom: 22px;
+    position: relative;
+  }
+  .post-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .date {
+    background: var(--pink);
+    color: #fff;
+    font-weight: 800;
+    font-size: 13px;
+    padding: 5px 12px;
+    border-radius: 999px;
+    letter-spacing: 0.3px;
+  }
+  .hour {
+    background: rgba(255,255,255,0.08);
+    color: var(--text);
+    font-weight: 700;
+    font-size: 13px;
+    padding: 5px 11px;
+    border-radius: 999px;
+  }
+  .file {
+    background: rgba(0,0,0,0.4);
+    color: var(--pink);
+    font-family: monospace;
+    font-size: 12px;
+    padding: 5px 10px;
+    border-radius: 6px;
+    border: 1px solid rgba(217,28,210,0.3);
+  }
+  .angle {
+    color: var(--muted);
+    font-size: 12px;
+    letter-spacing: 1.4px;
+    text-transform: uppercase;
+    margin-top: 2px;
+  }
+  h2 {
+    font-size: 18px;
+    color: var(--white);
+    margin: 10px 0 14px;
+    font-weight: 700;
+    line-height: 1.3;
+  }
+  .block {
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 16px;
+    margin-top: 10px;
+    position: relative;
+  }
+  .block-label {
+    font-size: 11px;
+    letter-spacing: 1.8px;
+    color: var(--pink);
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .text {
+    white-space: pre-wrap;
+    font-size: 14px;
+    line-height: 1.55;
+    color: var(--white);
+  }
+  .hashtags {
+    font-size: 13px;
+    color: #60A5FA;
+    word-break: break-word;
+    line-height: 1.6;
+  }
+  .copy-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: var(--pink);
+    border: none;
+    color: #fff;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .copy-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(217,28,210,0.4); }
+  .copy-btn.copied { background: var(--green); }
+
+  .check {
+    margin-top: 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 13px;
+    cursor: pointer;
+    user-select: none;
+  }
+  .check input { width: 18px; height: 18px; accent-color: var(--pink); cursor: pointer; }
+  .check.done span { color: var(--green); text-decoration: line-through; }
+
+  .tip {
+    margin-top: 50px;
+    padding: 22px;
+    background: rgba(217,28,210,0.08);
+    border: 1px dashed rgba(217,28,210,0.4);
+    border-radius: 14px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .tip strong { color: var(--pink); }
+  .tip ul { margin: 8px 0 0 18px; }
+  .tip li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📅 7 Reels — 30 mai au 5 juin</h1>
+    <p>Pour chaque jour : la légende prête à copier + les hashtags optimisés. Coche la case quand c'est publié.</p>
+  </header>
+
+  <!-- ============= POST 1 — SAM 30 MAI ============= -->
+  <div class="post">
+    <div class="post-head">
+      <span class="date">SAM 30 MAI</span>
+      <span class="hour">19h00</span>
+      <span class="file">afro-boost-instagram.mp4</span>
+    </div>
+    <div class="angle">🚀 Annonce officielle de la 1ère activité</div>
+    <h2>🎧 Le post de lancement — "C'est officiel"</h2>
+
+    <div class="block">
+      <span class="block-label">📝 Légende</span>
+      <button class="copy-btn" data-target="cap1">Copier</button>
+      <div class="text" id="cap1">🎧 C'EST OFFICIEL.
+
+Ma toute 1ʳᵉ activité Silent Afroboost est ouverte à la réservation sur Spordateur. 🌅
+
+Au bord du lac de Neuchâtel. Casques sur les oreilles. 45 minutes de cardio-danse afro qui te font oublier que tu fais du sport.
+
+🎁 1ʳᵉ session OFFERTE pour les premiers inscrits.
+
+👉 Réserve sur spordateur.com — places limitées 🔥</div>
+    </div>
+
+    <div class="block">
+      <span class="block-label"># Hashtags</span>
+      <button class="copy-btn" data-target="tag1">Copier</button>
+      <div class="hashtags" id="tag1">#SilentAfroboost #Spordateur #LancementOfficiel #Neuchâtel #SilentDisco #DanseAfro #SuisseRomande #LacDeNeuchâtel #BougeRencontreVis #PremierCoursOffert</div>
+    </div>
+
+    <label class="check"><input type="checkbox"><span>✅ Publié</span></label>
+  </div>
+
+  <!-- ============= POST 2 — DIM 31 MAI ============= -->
+  <div class="post">
+    <div class="post-head">
+      <span class="date">DIM 31 MAI</span>
+      <span class="hour">11h30</span>
+      <span class="file">2activités.mp4</span>
+    </div>
+    <div class="angle">⚡ Conversion urgence "il reste 8 places"</div>
+    <h2>🔥 Le groupe qui danse au lac</h2>
+
+    <div class="block">
+      <span class="block-label">📝 Légende</span>
+      <button class="copy-btn" data-target="cap2">Copier</button>
+      <div class="text" id="cap2">Tout le monde danse. Personne n'entend rien. Sauf nous. 🎧
+
+C'est ça, le Silent Afroboost. Une heure au bord du lac de Neuchâtel, casques sur les oreilles, et 20 inconnus qui deviennent ta nouvelle bande.
+
+Il reste 8 places. Tu prends laquelle ? 👇
+
+🎁 Premier cours OFFERT sur spordateur.com</div>
+    </div>
+
+    <div class="block">
+      <span class="block-label"># Hashtags</span>
+      <button class="copy-btn" data-target="tag2">Copier</button>
+      <div class="hashtags" id="tag2">#SilentAfroboost #SilentDisco #Neuchâtel #PremierCoursOffert #DanseAuLac #SportEntreAmis #CardioFun #Spordateur #SuisseRomande #SunsetVibes</div>
+    </div>
+
+    <label class="check"><input type="checkbox"><span>✅ Publié</span></label>
+  </div>
+
+  <!-- ============= POST 3 — LUN 1 JUIN ============= -->
+  <div class="post">
+    <div class="post-head">
+      <span class="date">LUN 1 JUIN</span>
+      <span class="hour">19h00</span>
+      <span class="file">6activités.mp4</span>
+    </div>
+    <div class="angle">💛 Preuve sociale — témoignage couple court</div>
+    <h2>🏃‍♂️🏃‍♀️ "Il y a 6 mois ils ne se connaissaient pas"</h2>
+
+    <div class="block">
+      <span class="block-label">📝 Légende</span>
+      <button class="copy-btn" data-target="cap3">Copier</button>
+      <div class="text" id="cap3">Il y a 6 mois, ils ne se connaissaient pas. 🌅
+
+Aujourd'hui, ils courent 10 km par semaine au bord du lac. Ensemble.
+
+Spordateur, c'est ça : trouver ton partenaire de sport. Pas ton coach. Pas ton concurrent. Quelqu'un qui te ressemble.
+
+Et qui restera bien après la dernière foulée. 💛
+
+👉 spordateur.com</div>
+    </div>
+
+    <div class="block">
+      <span class="block-label"># Hashtags</span>
+      <button class="copy-btn" data-target="tag3">Copier</button>
+      <div class="hashtags" id="tag3">#PartenaireDeSport #RunningPartner #SportEntreAmis #CourseAuLac #Spordateur #RencontreSportive #SuisseRomande #LacDeNeuchâtel #SportEnDuo #LifestyleSportif</div>
+    </div>
+
+    <label class="check"><input type="checkbox"><span>✅ Publié</span></label>
+  </div>
+
+  <!-- ============= POST 4 — MAR 2 JUIN ============= -->
+  <div class="post">
+    <div class="post-head">
+      <span class="date">MAR 2 JUIN</span>
+      <span class="hour">19h00</span>
+      <span class="file">5activités.mp4</span>
+    </div>
+    <div class="angle">💪 Motivation cours collectif</div>
+    <h2>🔥 "Ta meilleure version n'arrive jamais seule"</h2>
+
+    <div class="block">
+      <span class="block-label">📝 Légende</span>
+      <button class="copy-btn" data-target="cap4">Copier</button>
+      <div class="text" id="cap4">Ta meilleure version, elle n'arrive jamais seule. 💪
+
+Réserve un cours collectif sur Spordateur. Tu transpires. Tu te dépasses. Et tu rencontres ceux qui te poussent à devenir qui tu veux être.
+
+Pas de jugement. Juste du mouvement et du sourire. ✨
+
+👉 spordateur.com — 1er cours OFFERT</div>
+    </div>
+
+    <div class="block">
+      <span class="block-label"># Hashtags</span>
+      <button class="copy-btn" data-target="tag4">Copier</button>
+      <div class="hashtags" id="tag4">#CoursCollectif #Motivation #Spordateur #FitnessSuisse #SportEntreAmis #SuisseRomande #Neuchâtel #Mindset #SportPositif #1erCoursOffert</div>
+    </div>
+
+    <label class="check"><input type="checkbox"><span>✅ Publié</span></label>
+  </div>
+
+  <!-- ============= POST 5 — MER 3 JUIN ============= -->
+  <div class="post">
+    <div class="post-head">
+      <span class="date">MER 3 JUIN</span>
+      <span class="hour">18h00</span>
+      <span class="file">Activité.mp4</span>
+    </div>
+    <div class="angle">📱 Démo app — explique la plateforme</div>
+    <h2>📱 Comment ça marche, Spordateur ?</h2>
+
+    <div class="block">
+      <span class="block-label">📝 Légende</span>
+      <button class="copy-btn" data-target="cap5">Copier</button>
+      <div class="text" id="cap5">Comment ça marche, Spordateur ? 👀
+
+1️⃣ Tu crées ton profil
+2️⃣ Tu choisis ton cours (Silent Afroboost, danse, cardio, course…)
+3️⃣ Tu réserves ta place
+4️⃣ Le chat s'ouvre pendant l'activité pour briser la glace 🔥
+
+Tu ne viens pas chercher l'amour. Tu viens bouger. L'amour, lui, vient avec le casque.
+
+🎁 5 crédits chat offerts à l'inscription.
+👉 spordateur.com</div>
+    </div>
+
+    <div class="block">
+      <span class="block-label"># Hashtags</span>
+      <button class="copy-btn" data-target="tag5">Copier</button>
+      <div class="hashtags" id="tag5">#Spordateur #AppRencontreSportive #SportSuisse #TinderDuSport #Neuchâtel #SuisseRomande #LifestyleApp #SportEtRencontre #SilentDisco #BougeRencontreVis</div>
+    </div>
+
+    <label class="check"><input type="checkbox"><span>✅ Publié</span></label>
+  </div>
+
+  <!-- ============= POST 6 — JEU 4 JUIN ============= -->
+  <div class="post">
+    <div class="post-head">
+      <span class="date">JEU 4 JUIN</span>
+      <span class="hour">19h00</span>
+      <span class="file">3activités.mp4</span>
+    </div>
+    <div class="angle">💃 Rencontre par la danse</div>
+    <h2>💃 "Les meilleurs partenaires de vie, sur la piste"</h2>
+
+    <div class="block">
+      <span class="block-label">📝 Légende</span>
+      <button class="copy-btn" data-target="cap6">Copier</button>
+      <div class="text" id="cap6">Tu sais c'est quoi le truc qu'on dit jamais ? 💃
+
+Que les meilleurs partenaires de vie, on les trouve sur la piste de danse. Pas dans un bar.
+
+Sur Spordateur, tu choisis ton cours. Tu réserves ta place. Puis tu danses. Puis tu rencontres. 🕺
+
+Aucun swipe. Que du mouvement.
+
+👉 spordateur.com</div>
+    </div>
+
+    <div class="block">
+      <span class="block-label"># Hashtags</span>
+      <button class="copy-btn" data-target="tag6">Copier</button>
+      <div class="hashtags" id="tag6">#RencontreParLaDanse #DanseSuisse #PartenaireDeVie #Spordateur #NoSwipe #DanseAfro #SuisseRomande #Neuchâtel #SocialDance #CommunautéSportive</div>
+    </div>
+
+    <label class="check"><input type="checkbox"><span>✅ Publié</span></label>
+  </div>
+
+  <!-- ============= POST 7 — VEN 5 JUIN ============= -->
+  <div class="post">
+    <div class="post-head">
+      <span class="date">VEN 5 JUIN</span>
+      <span class="hour">20h00</span>
+      <span class="file">4activités.mp4</span>
+    </div>
+    <div class="angle">🌹 Bachata — lance le week-end</div>
+    <h2>🌹 Bachata Noche</h2>
+
+    <div class="block">
+      <span class="block-label">📝 Légende</span>
+      <button class="copy-btn" data-target="cap7">Copier</button>
+      <div class="text" id="cap7">Bachata Noche. 🌹
+
+Quand le rythme prend, plus besoin de chercher les mots. Le corps parle. Le sourire répond. Et parfois, c'est là que ça commence.
+
+Sur Spordateur, tu réserves ta soirée. La suite, c'est pas de notre ressort. 😏
+
+👉 spordateur.com — 1er cours offert</div>
+    </div>
+
+    <div class="block">
+      <span class="block-label"># Hashtags</span>
+      <button class="copy-btn" data-target="tag7">Copier</button>
+      <div class="hashtags" id="tag7">#BachataNoche #LatinDance #DanseLatine #RencontreSurLaPiste #Spordateur #SoiréeBachata #SuisseRomande #Neuchâtel #ApprendreLaBachata #SocialDancing</div>
+    </div>
+
+    <label class="check"><input type="checkbox"><span>✅ Publié</span></label>
+  </div>
+
+  <div class="tip">
+    <strong>💡 Astuces qui font la différence</strong>
+    <ul>
+      <li>Sur CHAQUE Reel : ajoute le sticker LIEU <strong>Lac de Neuchâtel</strong> (ou la ville de l'activité) → booste la portée locale.</li>
+      <li>Le lendemain matin (vers 8h30) : partage le Reel de la veille en Story avec un sticker "Tu l'as vu ?" → renvoi de trafic.</li>
+      <li>Réponds aux commentaires dans la 1ʳᵉ heure → l'algo Insta amplifie les posts qui ont des interactions précoces.</li>
+      <li><strong>partenaaire.mp4</strong> = ne pas publier en Reel. Mets-le dans le Highlight <strong>Coach?</strong> uniquement.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = document.getElementById(btn.dataset.target);
+    navigator.clipboard.writeText(t.innerText).then(() => {
+      const o = btn.textContent;
+      btn.textContent = '✓ Copié';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = o; btn.classList.remove('copied'); }, 1300);
+    });
+  });
+});
+document.querySelectorAll('.check input').forEach(box => {
+  box.addEventListener('change', () => box.parentElement.classList.toggle('done', box.checked));
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Prompts Gemini — 5 Highlights Spordateur</title>
+<style>
+  :root {
+    --bg: #050003;
+    --pink: #EC4899;
+    --magenta: #C026D3;
+    --violet: #7E22CE;
+    --white: #fff;
+    --text: #ECECEC;
+    --muted: #8C8C95;
+    --green: #10B981;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Plus Jakarta Sans', Helvetica, sans-serif;
+    background: radial-gradient(circle at top, #1A0510 0%, var(--bg) 70%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 36px 14px 80px;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; }
+
+  header { text-align: center; margin-bottom: 36px; }
+  header h1 {
+    font-size: 30px;
+    background: linear-gradient(90deg, var(--pink), var(--violet));
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    font-weight: 900;
+    margin-bottom: 10px;
+    letter-spacing: -0.5px;
+  }
+  header p { color: var(--muted); font-size: 14px; max-width: 620px; margin: 0 auto; line-height: 1.55; }
+
+  .how {
+    background: rgba(126,34,206,0.10);
+    border: 1px dashed rgba(236,72,153,0.35);
+    border-radius: 14px;
+    padding: 18px 22px;
+    margin: 0 0 32px;
+    font-size: 14px;
+    line-height: 1.6;
+  }
+  .how strong { color: var(--pink); }
+  .how ol { padding-left: 22px; margin-top: 8px; }
+
+  .highlight {
+    background: linear-gradient(135deg, rgba(236,72,153,0.06), rgba(126,34,206,0.05));
+    border: 2px solid rgba(236,72,153,0.3);
+    border-radius: 22px;
+    padding: 24px 22px 28px;
+    margin-bottom: 26px;
+  }
+  .hl-head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    margin-bottom: 14px;
+    flex-wrap: wrap;
+  }
+  .hl-cover {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    border: 2px solid var(--pink);
+    box-shadow: 0 0 20px rgba(236,72,153,0.4);
+    object-fit: cover;
+    flex-shrink: 0;
+  }
+  .hl-title {
+    font-size: 22px;
+    font-weight: 800;
+    color: var(--white);
+  }
+  .hl-tag {
+    display: inline-block;
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(236,72,153,0.3);
+    color: var(--pink);
+    font-size: 11px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 6px;
+    margin-top: 6px;
+    font-weight: 700;
+  }
+  .hl-intent {
+    color: var(--muted);
+    font-size: 13.5px;
+    line-height: 1.5;
+    margin: 4px 0 18px;
+  }
+
+  .story {
+    background: rgba(0,0,0,0.45);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 18px 18px 20px;
+    margin-top: 14px;
+  }
+  .story-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .badge-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: linear-gradient(90deg, var(--pink), var(--magenta));
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 800;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+  .story-title { font-size: 15px; font-weight: 700; color: var(--white); }
+  .story-role { font-size: 11.5px; color: var(--muted); letter-spacing: 1px; text-transform: uppercase; }
+
+  .block {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 10px;
+    padding: 14px;
+    margin-top: 10px;
+    position: relative;
+  }
+  .block-label {
+    font-size: 10.5px;
+    letter-spacing: 1.8px;
+    color: var(--pink);
+    text-transform: uppercase;
+    font-weight: 700;
+    margin-bottom: 8px;
+    display: block;
+  }
+  .prompt {
+    font-family: 'SF Mono', Menlo, monospace;
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: #DDD;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+  .overlay {
+    font-size: 14px;
+    color: var(--white);
+    line-height: 1.5;
+    white-space: pre-wrap;
+  }
+  .overlay strong { color: var(--pink); }
+
+  .copy-btn {
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: linear-gradient(90deg, var(--pink), var(--magenta));
+    border: none;
+    color: #fff;
+    font-weight: 700;
+    padding: 6px 12px;
+    border-radius: 7px;
+    cursor: pointer;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+  }
+  .copy-btn:hover { box-shadow: 0 4px 12px rgba(236,72,153,0.4); }
+  .copy-btn.copied { background: var(--green); }
+
+  details { margin-top: 18px; }
+  details summary {
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--pink);
+    font-weight: 700;
+    user-select: none;
+    padding: 8px 0;
+  }
+  details[open] summary { margin-bottom: 8px; }
+
+  .tip {
+    margin-top: 60px;
+    padding: 20px 22px;
+    background: rgba(16,185,129,0.07);
+    border: 1px dashed rgba(16,185,129,0.4);
+    border-radius: 12px;
+    font-size: 13.5px;
+    line-height: 1.6;
+    color: var(--text);
+  }
+  .tip strong { color: var(--green); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🪄 5 Highlights Spordateur — Prompts Gemini</h1>
+    <p>Pour chaque rond épinglé, voici les 3-4 Stories à publier. Tu copies le prompt Gemini, tu génères l'image, tu l'uploades en Story, et tu ajoutes le texte par-dessus avec l'outil texte d'Instagram.</p>
+  </header>
+
+  <div class="how">
+    <strong>🛠️ Comment t'en servir</strong>
+    <ol>
+      <li><strong>Copie le prompt Gemini</strong> (bouton rose)</li>
+      <li>Va sur <code>gemini.google.com</code> → mode <strong>Image</strong> (icône 🖼️)</li>
+      <li>Colle le prompt, génère, télécharge l'image</li>
+      <li>Sur Instagram, crée une Story, uploade l'image</li>
+      <li><strong>Ajoute le texte overlay</strong> avec l'outil "Aa" d'Instagram</li>
+      <li>Publie la Story, puis ajoute-la au Highlight correspondant</li>
+    </ol>
+  </div>
+
+  <!-- =====================  HIGHLIGHT 1  ===================== -->
+  <div class="highlight">
+    <div class="hl-head">
+      <img src="marketing-highlights/01-concept.png" alt="" class="hl-cover">
+      <div>
+        <div class="hl-title">🎧 Highlight 1 — Le concept</div>
+        <span class="hl-tag">Cover : 01-concept.png</span>
+      </div>
+    </div>
+    <p class="hl-intent">But : poser l'idée de Spordateur en 4 stories. Quel que soit le sport, l'app connecte ceux qui transpirent ensemble.</p>
+
+    <!-- Story 1.1 -->
+    <div class="story">
+      <div class="story-head"><span class="badge-num">1</span><span class="story-title">Hook visuel — collage sports</span><span class="story-role">2-3 secondes d'attention</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p11">Copier</button>
+        <div class="prompt" id="p11">A cinematic vertical 9:16 collage poster, divided in 4 quadrants showing diverse sport activities at golden hour : top-left a group doing silent disco fitness with neon pink headphones outdoors near a lake, top-right two people running on a forest trail, bottom-left a sensual bachata couple dancing in dim warm light, bottom-right a yoga class on a wooden deck at sunset. Each quadrant uses neon pink #EC4899 and violet #7E22CE accent lighting. Deep black background between the quadrants forming a subtle cross divider. Photorealistic, professional sport photography, high energy, joyful vibe. No text, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o11">Copier</button>
+        <div class="overlay" id="o11">SPORDATEUR
+Bouge. Rencontre. Vis.</div>
+      </div>
+    </div>
+
+    <!-- Story 1.2 -->
+    <div class="story">
+      <div class="story-head"><span class="badge-num">2</span><span class="story-title">L'idée — "Pas un swipe, un mouvement"</span><span class="story-role">Le concept en 1 phrase</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p12">Copier</button>
+        <div class="prompt" id="p12">A close-up cinematic shot of two athletic hands meeting in a high-five mid-air, sweat droplets caught in motion, at golden hour next to a lake. Background deep black with soft neon pink #EC4899 and violet #7E22CE bokeh light flares. Shallow depth of field, vertical 9:16 format. Photorealistic, high contrast, magazine-quality sport photography. No text, no logo, plenty of empty negative space at the top and bottom for adding text later. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o12">Copier</button>
+        <div class="overlay" id="o12">Ici on ne swipe pas.
+On TRANSPIRE.
+
+Et c'est là que tout commence.</div>
+      </div>
+    </div>
+
+    <!-- Story 1.3 -->
+    <div class="story">
+      <div class="story-head"><span class="badge-num">3</span><span class="story-title">Les 3 étapes</span><span class="story-role">Pédagogie rapide</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p13">Copier</button>
+        <div class="prompt" id="p13">A clean modern minimalist vertical 9:16 background, deep black with a subtle radial glow from below in neon pink #EC4899 transitioning to violet #7E22CE. Soft particles and bokeh dots floating. Negative space center stage for text. Mood : nocturnal, premium, sport-tech app aesthetic. No text, no logo, no people. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o13">Copier</button>
+        <div class="overlay" id="o13">COMMENT ÇA MARCHE ?
+
+1️⃣ Tu choisis ton activité
+(danse, course, yoga, cardio…)
+
+2️⃣ Tu réserves ta place
+(en 30 secondes)
+
+3️⃣ Tu bouges. Le chat s'ouvre.
+Tu rencontres.</div>
+      </div>
+    </div>
+
+    <!-- Story 1.4 -->
+    <div class="story">
+      <div class="story-head"><span class="badge-num">4</span><span class="story-title">CTA — "Télécharge l'app"</span><span class="story-role">Action</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p14">Copier</button>
+        <div class="prompt" id="p14">A vertical 9:16 hero shot of a smartphone held in a hand, screen glowing with a stylized fitness booking app, neon pink #EC4899 UI accents, dark mode interface. Background deep black with subtle violet #7E22CE atmospheric glow. Cinematic product photography style, sharp focus on the phone, soft blur on the hand. Plenty of empty space below for adding text. No text on the phone screen, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o14">Copier</button>
+        <div class="overlay" id="o14">spordateur.com
+👆 lien dans la bio</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================  HIGHLIGHT 2 — OFFRE  ===================== -->
+  <div class="highlight">
+    <div class="hl-head">
+      <img src="marketing-highlights/02-offre.png" alt="" class="hl-cover">
+      <div>
+        <div class="hl-title">🎁 Highlight 2 — Offre cadeau</div>
+        <span class="hl-tag">Cover : 02-offre.png</span>
+      </div>
+    </div>
+    <p class="hl-intent">But : tunnel de conversion #1. Convertir le scroll passif en réservation grâce à l'offre découverte "premier cours offert".</p>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">1</span><span class="story-title">Annonce — "1er cours OFFERT"</span><span class="story-role">Bombe visuelle</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p21">Copier</button>
+        <div class="prompt" id="p21">A luxurious vertical 9:16 close-up of an open gift box with neon pink #EC4899 ribbon untying mid-air, glowing neon light spilling out from inside the box, surrounded by floating sport-related icons (silent disco headphones, sneakers, yoga mat, tennis ball) softly out of focus. Background deep black with violet #7E22CE smoky atmosphere. Magazine-style commercial photography. No text, no logo, leave the top half mostly empty for headline. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o21">Copier</button>
+        <div class="overlay" id="o21">🎁 OFFRE DÉCOUVERTE
+
+Ton 1ᵉʳ cours
+OFFERT.
+
+Toutes les activités. Tous les partenaires.</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">2</span><span class="story-title">Comment l'utiliser</span><span class="story-role">Pédagogie</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p22">Copier</button>
+        <div class="prompt" id="p22">A vertical 9:16 minimalist background, deep black with three glowing horizontal stripes in neon pink #EC4899 and violet #7E22CE running from left to right, fading in and out softly. Subtle particles and lens flare. Atmospheric, premium, dark-mode app aesthetic. No text, no logo, no people. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o22">Copier</button>
+        <div class="overlay" id="o22">⚡ EN 3 ÉTAPES
+
+1. Crée ton compte sur spordateur.com
+2. Choisis n'importe quelle activité
+3. Réserve — le prix s'efface au paiement
+
+(Valable une fois par nouveau membre)</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">3</span><span class="story-title">CTA urgence</span><span class="story-role">Action immédiate</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p23">Copier</button>
+        <div class="prompt" id="p23">A vertical 9:16 cinematic shot from behind of a diverse group of joyful athletes (mixed ages, ethnicities, sports : runners, dancers, yoga practitioners) walking together towards a horizon glowing with a bright neon pink #EC4899 and violet #7E22CE sunset. Lake reflection. Backlit silhouettes. Inspiring, uplifting, communal. No text, no logo, lots of empty sky for headline. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o23">Copier</button>
+        <div class="overlay" id="o23">Rejoins la communauté.
+🔥 spordateur.com
+
+(Sticker LIEN à ajouter dans la story Instagram → renvoie vers spordateur.com)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================  HIGHLIGHT 3 — OÙ & QUAND  ===================== -->
+  <div class="highlight">
+    <div class="hl-head">
+      <img src="marketing-highlights/03-ou.png" alt="" class="hl-cover">
+      <div>
+        <div class="hl-title">📍 Highlight 3 — Où & quand</div>
+        <span class="hl-tag">Cover : 03-ou.png</span>
+      </div>
+    </div>
+    <p class="hl-intent">But : rassurer sur la couverture géographique et faire comprendre que Spordateur grandit. Aujourd'hui Neuchâtel, demain partout en Suisse.</p>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">1</span><span class="story-title">La région — Suisse romande</span><span class="story-role">Ancrage local</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p31">Copier</button>
+        <div class="prompt" id="p31">A vertical 9:16 stylized topographic map of Switzerland on a deep black background, the country outline glowing in neon pink #EC4899 wireframe lines, key Swiss-French cities marked with small glowing violet #7E22CE pulse dots (Neuchâtel, Lausanne, Geneva, Fribourg, Bern). Map is centered and there is empty space above and below for text. Modern tech / app aesthetic, premium dashboard look. No labels on the map, just the country shape and city dots. No text, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o31">Copier</button>
+        <div class="overlay" id="o31">🇨🇭 ON DÉMARRE EN SUISSE ROMANDE
+
+Aujourd'hui : Neuchâtel
+Bientôt : Lausanne, Genève, Fribourg…
+
+Tu veux Spordateur dans ta ville ?
+Dis-le nous en DM 💬</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">2</span><span class="story-title">Lieux types — outdoor & indoor</span><span class="story-role">Variété</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p32">Copier</button>
+        <div class="prompt" id="p32">A vertical 9:16 collage of 3 horizontal panels stacked : top panel is a serene Swiss lake at sunset with mountains, middle panel is a modern bright fitness studio with wooden floor and large windows, bottom panel is a urban park with people exercising at twilight. Each panel separated by a thin neon pink #EC4899 glowing line. Cinematic photography, cohesive warm color grade with magenta/violet undertones. No text, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o32">Copier</button>
+        <div class="overlay" id="o32">📍 PARTOUT, TOUT LE TEMPS
+
+🌅 Au bord du lac
+🏛️ En salle
+🌳 Au parc
+
+Chaque partenaire choisit son spot.</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">3</span><span class="story-title">Horaires types</span><span class="story-role">Praticité</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p33">Copier</button>
+        <div class="prompt" id="p33">A vertical 9:16 abstract analog clock face glowing in neon pink #EC4899 with violet #7E22CE inner glow, floating on a deep black background. The clock hands are stylized minimal lines. Soft glowing rays radiate from the clock. Empty space above and below the clock for text overlay. Premium, sleek, sport-tech aesthetic. No numbers, no text, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o33">Copier</button>
+        <div class="overlay" id="o33">⏰ DES CRÉNEAUX POUR TOUS
+
+🌅 Tôt le matin (avant le boulot)
+🌇 En soirée 18h30-21h
+🌞 Le week-end
+
+Tu choisis quand. Tu choisis quoi.</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">4</span><span class="story-title">Trouver une activité près de toi</span><span class="story-role">CTA exploration</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p34">Copier</button>
+        <div class="prompt" id="p34">A vertical 9:16 close-up of a smartphone screen showing a stylized location search interface, a glowing pink #EC4899 location pin dropping on a dark map with violet #7E22CE accents. Hand holding the phone partially visible. Background blurred urban scene at dusk. Cinematic product shot. No legible text on the screen, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o34">Copier</button>
+        <div class="overlay" id="o34">📍 Trouve une activité près de chez toi
+
+👉 spordateur.com
+(filtre par ville, sport, horaire)</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================  HIGHLIGHT 4 — FAQ  ===================== -->
+  <div class="highlight">
+    <div class="hl-head">
+      <img src="marketing-highlights/04-faq.png" alt="" class="hl-cover">
+      <div>
+        <div class="hl-title">❓ Highlight 4 — FAQ</div>
+        <span class="hl-tag">Cover : 04-faq.png</span>
+      </div>
+    </div>
+    <p class="hl-intent">But : lever les objections silencieuses. 5 questions = 5 Stories courtes, 1 question par Story.</p>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">1</span><span class="story-title">"C'est quoi Spordateur ?"</span><span class="story-role">Objection 1</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p41">Copier</button>
+        <div class="prompt" id="p41">A vertical 9:16 minimalist conceptual image : a large glowing neon pink #EC4899 question mark floating in deep black space, surrounded by small floating sport icons (sneaker, headphones, yoga pose, tennis ball) in soft violet #7E22CE glow, slightly out of focus. Premium dark aesthetic. Empty space below for answer text. No other text, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o41">Copier</button>
+        <div class="overlay" id="o41">❓ C'EST QUOI SPORDATEUR ?
+
+L'application qui te permet de rencontrer des gens qui partagent ton énergie et ton lifestyle — pendant le sport, pas après.
+
+Tu choisis. Tu réserves. Tu bouges. Tu rencontres.</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">2</span><span class="story-title">"Quel niveau requis ?"</span><span class="story-role">Objection 2</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p42">Copier</button>
+        <div class="prompt" id="p42">A vertical 9:16 inclusive photo of 4 diverse people of different body types, ages and ethnicities high-fiving and laughing after a sport activity, sweaty, casual sport clothes. Lake or park background at golden hour. Warm light, pink #EC4899 and violet #7E22CE color grading. Real and human, not commercial-fake. Empty top space for text. No text, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o42">Copier</button>
+        <div class="overlay" id="o42">💪 QUEL NIVEAU ?
+
+Aucun. Tu viens comme tu es.
+
+Tous les cours sont accessibles débutants. Si tu sais marcher, tu sais participer.</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">3</span><span class="story-title">"Combien ça coûte ?"</span><span class="story-role">Objection 3</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p43">Copier</button>
+        <div class="prompt" id="p43">A vertical 9:16 minimal stylized image of a sleek silver coin spinning in mid-air on a deep black background, neon pink #EC4899 reflections on the coin edge, violet #7E22CE atmospheric glow. Premium product-shot aesthetic. The coin is positioned in the lower third, leaving plenty of space above for text. No symbols, no text, no logo on the coin. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o43">Copier</button>
+        <div class="overlay" id="o43">💸 COMBIEN ?
+
+✅ 1ᵉʳ cours OFFERT
+Ensuite : chaque partenaire fixe son prix (à partir de 15 CHF la session)
+
+Le tarif s'affiche AVANT de réserver. Aucune mauvaise surprise.</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">4</span><span class="story-title">"Je viens seul·e, c'est gênant ?"</span><span class="story-role">Objection 4</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p44">Copier</button>
+        <div class="prompt" id="p44">A vertical 9:16 cinematic portrait of a single confident woman in sportswear arriving at a group activity at sunset, smiling warmly as others welcome her in the background out of focus. Neon pink #EC4899 hour light and violet #7E22CE accents. Inclusive, warm, real emotion. Empty space top for text. No text, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o44">Copier</button>
+        <div class="overlay" id="o44">🙋 JE VIENS SEUL·E ?
+
+C'est exactement le but. 80% des gens viennent seuls la première fois.
+
+Le chat s'ouvre PENDANT l'activité — la glace fond toute seule.</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">5</span><span class="story-title">"Quels sports ?"</span><span class="story-role">Objection 5</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p45">Copier</button>
+        <div class="prompt" id="p45">A vertical 9:16 grid of 9 square thumbnails (3x3) each showing a different sport icon or activity photo in cinematic style : silent disco dance, running, yoga, bachata, paddle boarding, tennis, hiking, cardio HIIT, climbing. Each thumbnail has neon pink #EC4899 or violet #7E22CE edge lighting. Black gutters between them. Cohesive premium magazine grid. No text, no logo, no captions on the thumbnails. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o45">Copier</button>
+        <div class="overlay" id="o45">🏋️ QUELS SPORTS ?
+
+🎧 Silent Disco
+💃 Danse (afro, bachata, salsa…)
+🏃 Course / running
+🧘 Yoga / pilates
+🎾 Tennis / paddle
+🥾 Randonnées
+… et tout ce que nos partenaires lancent.
+
+Nouveau sport chaque mois.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- =====================  HIGHLIGHT 5 — COACH ?  ===================== -->
+  <div class="highlight">
+    <div class="hl-head">
+      <img src="marketing-highlights/05-coach.png" alt="" class="hl-cover">
+      <div>
+        <div class="hl-title">📣 Highlight 5 — Coach ?</div>
+        <span class="hl-tag">Cover : 05-coach.png</span>
+      </div>
+    </div>
+    <p class="hl-intent">But : recruter des partenaires (coachs, profs, organisateurs d'activités) pour étendre l'offre. Tunnel B2B parallèle.</p>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">1</span><span class="story-title">Tu enseignes ?</span><span class="story-role">Accroche B2B</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p51">Copier</button>
+        <div class="prompt" id="p51">A vertical 9:16 cinematic shot of a confident female fitness coach with a whistle around her neck, mid-instruction, hand outstretched, soft empty studio background. Neon pink #EC4899 backlight, violet #7E22CE rim light. Magazine-style portrait, professional, empowering. Empty space at the top for headline. No text, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o51">Copier</button>
+        <div class="overlay" id="o51">📣 TU ENSEIGNES UN SPORT ?
+
+Yoga, danse, cardio, paddle, tennis, course…
+Tu as un cours à remplir ?
+
+On a ce qu'il te faut. 👇</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">2</span><span class="story-title">Ce qu'on t'apporte</span><span class="story-role">Bénéfices</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p52">Copier</button>
+        <div class="prompt" id="p52">A vertical 9:16 abstract conceptual image : 4 glowing neon pink #EC4899 upward arrows rising from the bottom of the frame towards a violet #7E22CE glowing horizon at the top. Deep black background with soft particles. Premium business dashboard aesthetic. Empty space center for text. No text, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o52">Copier</button>
+        <div class="overlay" id="o52">✅ CE QU'ON T'APPORTE
+
+📈 Des élèves prêts à payer
+💳 Réservation + paiement gérés
+📅 Calendrier auto sur l'app
+🤝 Une communauté qui grandit
+
+(Sans aucun engagement.)</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">3</span><span class="story-title">Offre de lancement</span><span class="story-role">Urgence</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p53">Copier</button>
+        <div class="prompt" id="p53">A vertical 9:16 dramatic close-up of a neon pink #EC4899 "VIP" style ticket or invitation card floating against a deep black background with violet #7E22CE atmospheric smoke. Glowing edges, premium gala invitation aesthetic. Empty space below for text. No legible text on the card, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o53">Copier</button>
+        <div class="overlay" id="o53">🎁 OFFRE DE LANCEMENT
+
+1 MOIS GRATUIT
+sur ta première activité publiée.
+
+Places limitées aux premiers partenaires.</div>
+      </div>
+    </div>
+
+    <div class="story">
+      <div class="story-head"><span class="badge-num">4</span><span class="story-title">CTA — Devenir partenaire</span><span class="story-role">Conversion B2B</span></div>
+      <div class="block">
+        <span class="block-label">🪄 Prompt Gemini</span>
+        <button class="copy-btn" data-target="p54">Copier</button>
+        <div class="prompt" id="p54">A vertical 9:16 close-up of a hand reaching forward to press a glowing neon pink #EC4899 CTA button floating in space, button surrounded by violet #7E22CE halo, deep black background. Cinematic, premium tech aesthetic. Empty space top for headline. No text on the button, no logo. 1080x1920.</div>
+      </div>
+      <div class="block">
+        <span class="block-label">✏️ Texte à mettre par-dessus</span>
+        <button class="copy-btn" data-target="o54">Copier</button>
+        <div class="overlay" id="o54">🚀 ON EN PARLE ?
+
+👉 spordateur.com/partner
+ou DM "PARTENAIRE"
+
+(Sticker LIEN dans la Story → renvoie vers spordateur.com/partner)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip">
+    <strong>💡 Astuce qui marche bien</strong> : avant d'ajouter le texte par-dessus, mets l'image en Story et applique un <strong>filtre "Pop"</strong> ou augmente la saturation +15 — ça booste le côté néon. Pour le texte, utilise la police <strong>"Strong"</strong> d'Instagram en blanc avec un fond rose <strong>#EC4899</strong> pour rester dans la palette.
+  </div>
+</div>
+
+<script>
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const t = document.getElementById(btn.dataset.target);
+    navigator.clipboard.writeText(t.innerText).then(() => {
+      const o = btn.textContent;
+      btn.textContent = '✓ Copié';
+      btn.classList.add('copied');
+      setTimeout(() => { btn.textContent = o; btn.classList.remove('copied'); }, 1300);
+    });
+  });
+});
+</script>
+</body>
+</html>

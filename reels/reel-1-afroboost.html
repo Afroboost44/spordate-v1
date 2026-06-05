@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Reel 1 — Afroboost · Spordateur</title>
+<style>
+  :root {
+    --bg: #000000;
+    --accent: #D91CD2;
+    --accent-rgb: 217, 28, 210;
+    --text: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); overflow: hidden; }
+  body {
+    font-family: 'Plus Jakarta Sans', 'Montserrat', -apple-system, BlinkMacSystemFont, sans-serif;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+  /* Format Reel 9:16 — viewport adaptable */
+  .reel {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    max-width: calc(100vh * 9 / 16);
+    margin: 0 auto;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  /* Grain léger */
+  .reel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image:
+      radial-gradient(circle at 30% 20%, rgba(var(--accent-rgb), 0.18), transparent 50%),
+      radial-gradient(circle at 70% 80%, rgba(var(--accent-rgb), 0.12), transparent 50%);
+    z-index: 0;
+  }
+  /* Pulse rythmé (bpm afrobeat ≈ 100, soit 600ms par beat) */
+  @keyframes beatPulse {
+    0%, 100% { transform: scale(1); opacity: 0.6; }
+    50% { transform: scale(1.2); opacity: 1; }
+  }
+  .pulse-bg {
+    position: absolute;
+    inset: -20%;
+    background: radial-gradient(circle, rgba(var(--accent-rgb), 0.35) 0%, transparent 50%);
+    animation: beatPulse 0.6s ease-in-out infinite;
+    z-index: 0;
+  }
+
+  /* Stages */
+  .stage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 0 8vh;
+    z-index: 2;
+    opacity: 0;
+    text-align: center;
+  }
+
+  /* Animation séquence 15s — visible entre tStart et tEnd */
+  @keyframes appear {
+    0%, 100% { opacity: 0; transform: translateY(20px); }
+    10%, 90% { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Étape 1 — 0 à 3s : Hook */
+  .stage-1 {
+    animation: appear 3s ease-out 0s forwards;
+  }
+  .stage-1 .label {
+    font-size: 2.5vh;
+    letter-spacing: 3px;
+    color: var(--accent);
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 3vh;
+  }
+  .stage-1 .hook {
+    font-size: 7vh;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -1px;
+  }
+  .stage-1 .hook em {
+    color: var(--accent);
+    font-style: normal;
+  }
+
+  /* Étape 2 — 3 à 9s : Build (mots qui tombent) */
+  .stage-2 {
+    animation: appear 6s ease-out 3s forwards;
+  }
+  .stage-2 .vibes {
+    display: flex;
+    flex-direction: column;
+    gap: 3vh;
+    width: 100%;
+  }
+  .stage-2 .vibe {
+    font-size: 9vh;
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -1.5px;
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+  .stage-2 .vibe.accent { color: var(--accent); }
+  @keyframes slideIn {
+    0% { opacity: 0; transform: translateX(-30px); }
+    100% { opacity: 1; transform: translateX(0); }
+  }
+  .stage-2 .vibe:nth-child(1) { animation: slideIn 0.5s ease-out 3.2s forwards; }
+  .stage-2 .vibe:nth-child(2) { animation: slideIn 0.5s ease-out 4.5s forwards; }
+  .stage-2 .vibe:nth-child(3) { animation: slideIn 0.5s ease-out 5.8s forwards; }
+  .stage-2 .vibe:nth-child(4) { animation: slideIn 0.5s ease-out 7.1s forwards; }
+
+  /* Étape 3 — 9 à 12s : Climax */
+  .stage-3 {
+    animation: appear 3s ease-out 9s forwards;
+  }
+  .stage-3 .climax {
+    font-size: 13vh;
+    font-weight: 900;
+    color: var(--accent);
+    letter-spacing: -2px;
+    line-height: 0.9;
+    text-shadow: 0 0 40px rgba(var(--accent-rgb), 0.6),
+                 0 0 80px rgba(var(--accent-rgb), 0.3);
+  }
+
+  /* Étape 4 — 12 à 15s : CTA */
+  .stage-4 {
+    animation: appear 3s ease-out 12s forwards;
+  }
+  .stage-4 .logo {
+    font-size: 12vh;
+    color: var(--accent);
+    line-height: 1;
+    margin-bottom: 3vh;
+    filter: drop-shadow(0 0 30px rgba(var(--accent-rgb), 0.6));
+  }
+  .stage-4 .brand {
+    font-size: 4vh;
+    font-weight: 800;
+    letter-spacing: 4px;
+    margin-bottom: 4vh;
+  }
+  .stage-4 .tagline {
+    font-size: 2.2vh;
+    color: var(--accent);
+    letter-spacing: 3px;
+    font-weight: 400;
+    margin-bottom: 6vh;
+  }
+  .stage-4 .cta {
+    padding: 2.5vh 6vh;
+    background: var(--accent);
+    color: var(--text);
+    font-size: 2.5vh;
+    font-weight: 700;
+    border-radius: 999px;
+    box-shadow: 0 0 40px rgba(var(--accent-rgb), 0.6),
+                0 0 80px rgba(var(--accent-rgb), 0.3);
+    letter-spacing: 0.5px;
+  }
+  .stage-4 .url {
+    margin-top: 4vh;
+    font-size: 2vh;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 1px;
+  }
+
+  /* Watermark logo en haut */
+  .watermark {
+    position: absolute;
+    top: 5vh;
+    right: 5vh;
+    font-size: 3.5vh;
+    color: var(--accent);
+    z-index: 3;
+    opacity: 0.6;
+  }
+
+  /* Instructions overlay (cachées au screen recording) */
+  .instructions {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 13px;
+    max-width: 320px;
+    z-index: 100;
+    border: 1px solid var(--accent);
+  }
+  .instructions h4 { color: var(--accent); margin-bottom: 8px; font-size: 13px; }
+  .instructions p { margin: 4px 0; opacity: 0.9; }
+  .instructions .keys { background: #222; padding: 2px 6px; border-radius: 3px; }
+
+  /* Bouton replay */
+  .replay {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 100;
+    font-size: 14px;
+    box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.5);
+  }
+</style>
+</head>
+<body>
+<button class="replay" onclick="document.location.reload()">↻ Rejouer</button>
+
+<div class="reel">
+  <div class="pulse-bg"></div>
+  <div class="watermark">♥➚</div>
+
+  <!-- 0-3s : Hook -->
+  <div class="stage stage-1">
+    <div class="label">⚡ Spordateur présente</div>
+    <div class="hook">T'as <em>15&nbsp;secondes</em><br>pour décider…</div>
+  </div>
+
+  <!-- 3-9s : Build -->
+  <div class="stage stage-2">
+    <div class="vibes">
+      <div class="vibe">Bouge</div>
+      <div class="vibe">Transpire</div>
+      <div class="vibe">Souris</div>
+      <div class="vibe accent">Vis.</div>
+    </div>
+  </div>
+
+  <!-- 9-12s : Climax -->
+  <div class="stage stage-3">
+    <div class="climax">L'AFRO<br>BOOST</div>
+  </div>
+
+  <!-- 12-15s : CTA -->
+  <div class="stage stage-4">
+    <div class="logo">♥➚</div>
+    <div class="brand">SPORDATEUR</div>
+    <div class="tagline">BOUGE · RENCONTRE · VIS</div>
+    <div class="cta">Réserve ta séance →</div>
+    <div class="url">spordateur.com</div>
+  </div>
+</div>
+
+<div class="instructions">
+  <h4>📹 Pour enregistrer ce Reel</h4>
+  <p>1. Mets ce navigateur en plein écran : <span class="keys">F11</span> (PC) ou <span class="keys">⌃⌘F</span> (Mac).</p>
+  <p>2. Lance un screen recording de 15-16 sec :<br>
+     macOS : <span class="keys">⌘⇧5</span> → sélectionne la zone du Reel.<br>
+     Windows : <span class="keys">⊞ G</span> (Xbox Game Bar).</p>
+  <p>3. Clique <strong>↻ Rejouer</strong> en haut à droite pour redémarrer l'animation.</p>
+  <p>4. Ajoute la musique afrobeat sur Instagram au moment du montage.</p>
+</div>
+</body>
+</html>

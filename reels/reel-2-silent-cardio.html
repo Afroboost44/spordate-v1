@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Reel 2 — Silent Cardio · Spordateur</title>
+<style>
+  :root {
+    --bg: #000000;
+    --accent: #D91CD2;
+    --accent-rgb: 217, 28, 210;
+    --sunset-1: #FF8E53;
+    --sunset-2: #FE5C8B;
+    --text: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); overflow: hidden; }
+  body {
+    font-family: 'Plus Jakarta Sans', 'Montserrat', sans-serif;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+  .reel {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    max-width: calc(100vh * 9 / 16);
+    margin: 0 auto;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  /* Sun gradient that rises from bottom (= coucher de soleil sur le lac) */
+  .sun {
+    position: absolute;
+    bottom: -20%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 80%;
+    aspect-ratio: 1;
+    background: radial-gradient(circle, var(--sunset-1) 0%, var(--sunset-2) 30%, transparent 60%);
+    opacity: 0;
+    filter: blur(20px);
+    z-index: 0;
+    animation: sunRise 20s ease-out 0s forwards;
+  }
+  @keyframes sunRise {
+    0% { transform: translateX(-50%) translateY(50%); opacity: 0; }
+    20% { transform: translateX(-50%) translateY(20%); opacity: 0.4; }
+    100% { transform: translateX(-50%) translateY(-10%); opacity: 0.7; }
+  }
+  /* Casques figure : ondes audio simulées */
+  .waves {
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 70%;
+    height: 30vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 1.5vh;
+    z-index: 1;
+    opacity: 0;
+    animation: wavesIn 1s ease-out 4s forwards;
+  }
+  @keyframes wavesIn { to { opacity: 0.7; } }
+  .wave {
+    width: 1vh;
+    background: var(--accent);
+    border-radius: 999px;
+    animation: waveBeat 0.5s ease-in-out infinite alternate;
+    box-shadow: 0 0 10px var(--accent);
+  }
+  .wave:nth-child(1) { height: 30%; animation-delay: 0s; }
+  .wave:nth-child(2) { height: 50%; animation-delay: 0.1s; }
+  .wave:nth-child(3) { height: 70%; animation-delay: 0.2s; }
+  .wave:nth-child(4) { height: 100%; animation-delay: 0.05s; }
+  .wave:nth-child(5) { height: 80%; animation-delay: 0.15s; }
+  .wave:nth-child(6) { height: 60%; animation-delay: 0.25s; }
+  .wave:nth-child(7) { height: 40%; animation-delay: 0.1s; }
+  @keyframes waveBeat {
+    from { transform: scaleY(0.4); }
+    to { transform: scaleY(1.2); }
+  }
+
+  .stage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 0 8vh;
+    z-index: 2;
+    opacity: 0;
+    text-align: center;
+  }
+
+  @keyframes appear {
+    0%, 100% { opacity: 0; transform: translateY(15px); }
+    10%, 90% { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Stage 1 : 0-3s — Hook silencieux */
+  .stage-1 { animation: appear 3s ease-out 0s forwards; }
+  .stage-1 .quote-open {
+    font-size: 12vh;
+    color: var(--accent);
+    line-height: 0.5;
+    margin-bottom: 4vh;
+    font-family: Georgia, serif;
+  }
+  .stage-1 .hook {
+    font-size: 5.5vh;
+    font-weight: 600;
+    line-height: 1.2;
+    letter-spacing: -0.5px;
+  }
+  .stage-1 .hook small {
+    display: block;
+    font-size: 2vh;
+    color: var(--accent);
+    letter-spacing: 4px;
+    margin-top: 3vh;
+    text-transform: uppercase;
+    font-weight: 500;
+  }
+
+  /* Stage 2 : 3-8s — Build (révélation casque) */
+  .stage-2 { animation: appear 5s ease-out 3s forwards; }
+  .stage-2 .reveal {
+    font-size: 5vh;
+    font-weight: 700;
+    line-height: 1.2;
+    margin-top: 50vh;
+  }
+  .stage-2 .reveal em {
+    color: var(--accent);
+    font-style: normal;
+  }
+
+  /* Stage 3 : 8-13s — Climax (Silent Afroboost) */
+  .stage-3 { animation: appear 5s ease-out 8s forwards; }
+  .stage-3 .label-top {
+    font-size: 2vh;
+    color: var(--accent);
+    letter-spacing: 6px;
+    text-transform: uppercase;
+    margin-bottom: 3vh;
+    font-weight: 500;
+  }
+  .stage-3 .climax {
+    font-size: 10vh;
+    font-weight: 900;
+    line-height: 0.95;
+    letter-spacing: -1.5px;
+  }
+  .stage-3 .climax em {
+    color: var(--accent);
+    font-style: normal;
+    text-shadow: 0 0 30px rgba(var(--accent-rgb), 0.6);
+  }
+  .stage-3 .where {
+    font-size: 2.5vh;
+    color: rgba(255, 255, 255, 0.7);
+    margin-top: 4vh;
+    letter-spacing: 1px;
+    font-weight: 300;
+  }
+
+  /* Stage 4 : 13-18s — Conclusion + CTA */
+  .stage-4 { animation: appear 5s ease-out 13s forwards; }
+  .stage-4 .summary {
+    font-size: 2.8vh;
+    line-height: 1.7;
+    color: rgba(255, 255, 255, 0.85);
+    margin-bottom: 5vh;
+    font-weight: 400;
+  }
+  .stage-4 .summary span {
+    color: var(--accent);
+    font-weight: 700;
+  }
+  .stage-4 .equals {
+    font-size: 4vh;
+    font-weight: 800;
+    color: var(--accent);
+    margin-bottom: 5vh;
+    text-shadow: 0 0 20px rgba(var(--accent-rgb), 0.5);
+  }
+  .stage-4 .cta {
+    padding: 2.5vh 6vh;
+    background: var(--accent);
+    color: var(--text);
+    font-size: 2.5vh;
+    font-weight: 700;
+    border-radius: 999px;
+    box-shadow: 0 0 40px rgba(var(--accent-rgb), 0.6);
+    letter-spacing: 0.5px;
+  }
+  .stage-4 .url {
+    margin-top: 3vh;
+    font-size: 2vh;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 1px;
+  }
+
+  .watermark {
+    position: absolute;
+    top: 5vh;
+    right: 5vh;
+    font-size: 3.5vh;
+    color: var(--accent);
+    z-index: 3;
+    opacity: 0.5;
+  }
+
+  .instructions {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 13px;
+    max-width: 320px;
+    z-index: 100;
+    border: 1px solid var(--accent);
+  }
+  .instructions h4 { color: var(--accent); margin-bottom: 8px; font-size: 13px; }
+  .instructions p { margin: 4px 0; opacity: 0.9; }
+  .instructions .keys { background: #222; padding: 2px 6px; border-radius: 3px; }
+
+  .replay {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 100;
+    font-size: 14px;
+    box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.5);
+  }
+</style>
+</head>
+<body>
+<button class="replay" onclick="document.location.reload()">↻ Rejouer</button>
+
+<div class="reel">
+  <div class="sun"></div>
+  <div class="watermark">♥➚</div>
+
+  <!-- Ondes audio (apparaissent à 4s) -->
+  <div class="waves">
+    <div class="wave"></div>
+    <div class="wave"></div>
+    <div class="wave"></div>
+    <div class="wave"></div>
+    <div class="wave"></div>
+    <div class="wave"></div>
+    <div class="wave"></div>
+  </div>
+
+  <!-- 0-3s : Hook -->
+  <div class="stage stage-1">
+    <div class="quote-open">"</div>
+    <div class="hook">
+      Tu vois ces gens-là ?
+      <small>· silence total ·</small>
+    </div>
+  </div>
+
+  <!-- 3-8s : Build -->
+  <div class="stage stage-2">
+    <div class="reveal">Ils écoutent tous<br><em>la même chose.</em></div>
+  </div>
+
+  <!-- 8-13s : Climax -->
+  <div class="stage stage-3">
+    <div class="label-top">· Bienvenue au ·</div>
+    <div class="climax">SILENT<br><em>AFROBOOST</em></div>
+    <div class="where">au bord du lac · au coucher du soleil</div>
+  </div>
+
+  <!-- 13-18s : Conclusion -->
+  <div class="stage stage-4">
+    <div class="summary">
+      Cardio. <span>+</span> Danse. <span>+</span> Casques audio.<br>
+      <span>+</span> Coucher de soleil. <span>+</span> Inconnus.
+    </div>
+    <div class="equals">= L'une des meilleures soirées de ta vie.</div>
+    <div class="cta">Réserve ta place →</div>
+    <div class="url">spordateur.com</div>
+  </div>
+</div>
+
+<div class="instructions">
+  <h4>📹 Pour enregistrer ce Reel</h4>
+  <p>1. Plein écran : <span class="keys">F11</span> (PC) ou <span class="keys">⌃⌘F</span> (Mac).</p>
+  <p>2. Lance un screen recording de <strong>18 sec</strong> :<br>
+     macOS : <span class="keys">⌘⇧5</span> → sélectionne la zone Reel.<br>
+     Windows : <span class="keys">⊞ G</span>.</p>
+  <p>3. Clique <strong>↻ Rejouer</strong> pour redémarrer.</p>
+  <p>4. Musique conseillée : Bonobo / Ben Böhmer (chill electro) avec drop à 13s.</p>
+</div>
+</body>
+</html>

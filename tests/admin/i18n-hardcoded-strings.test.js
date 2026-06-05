@@ -94,6 +94,7 @@ const WATCH_LIST = [
   { file: 'src/components/invites/InviteButton.tsx', maxHardcoded: 0 },
   { file: 'src/app/onboard/prompts/page.tsx', maxHardcoded: 0 },
   { file: 'src/components/partner/MediaManager.tsx', maxHardcoded: 0 },
+  { file: 'src/components/partner/VideoThumbnailPicker.tsx', maxHardcoded: 0 },
 ];
 
 // ─── Heuristiques détection texte français hardcodé ──────────────────────

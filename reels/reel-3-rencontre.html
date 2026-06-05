@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Reel 3 — La vraie rencontre · Spordateur</title>
+<style>
+  :root {
+    --bg: #000000;
+    --accent: #D91CD2;
+    --accent-rgb: 217, 28, 210;
+    --text: #FFFFFF;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: var(--bg); overflow: hidden; }
+  body {
+    font-family: 'Plus Jakarta Sans', 'Montserrat', sans-serif;
+    color: var(--text);
+    -webkit-font-smoothing: antialiased;
+  }
+  .reel {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    max-width: calc(100vh * 9 / 16);
+    margin: 0 auto;
+    background: var(--bg);
+    overflow: hidden;
+  }
+  /* Fond gradient subtle qui pulse doucement */
+  .reel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background:
+      radial-gradient(ellipse at 25% 30%, rgba(var(--accent-rgb), 0.20), transparent 55%),
+      radial-gradient(ellipse at 75% 75%, rgba(var(--accent-rgb), 0.15), transparent 55%);
+    z-index: 0;
+    animation: bgPulse 8s ease-in-out infinite;
+  }
+  @keyframes bgPulse {
+    0%, 100% { opacity: 0.7; }
+    50% { opacity: 1; }
+  }
+
+  .stage {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 0 8vh;
+    z-index: 2;
+    opacity: 0;
+    text-align: center;
+  }
+
+  @keyframes appear {
+    0%, 100% { opacity: 0; transform: translateY(15px); }
+    10%, 90% { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Stage 1 : 0-3s — Hook punch */
+  .stage-1 { animation: appear 3s ease-out 0s forwards; }
+  .stage-1 .punch {
+    font-size: 7vh;
+    font-weight: 800;
+    line-height: 1.05;
+    letter-spacing: -1px;
+  }
+  .stage-1 .punch em {
+    color: rgba(255, 255, 255, 0.4);
+    font-style: normal;
+    text-decoration: line-through;
+    text-decoration-color: var(--accent);
+    text-decoration-thickness: 0.5vh;
+  }
+  .stage-1 .arrow {
+    font-size: 6vh;
+    color: var(--accent);
+    margin-top: 4vh;
+    animation: arrowBounce 1s ease-in-out infinite;
+  }
+  @keyframes arrowBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  /* Stage 2 : 3-7s — Le swipe */
+  .stage-2 { animation: appear 4s ease-out 3s forwards; }
+  .stage-2 .phone {
+    width: 60vh;
+    max-width: 70vw;
+    aspect-ratio: 9/19;
+    background: linear-gradient(135deg, #1A1A1A 0%, #2A2A2A 100%);
+    border-radius: 4vh;
+    border: 1vh solid #333;
+    padding: 5vh 3vh;
+    display: flex;
+    flex-direction: column;
+    gap: 2vh;
+    box-shadow: 0 0 60px rgba(var(--accent-rgb), 0.4);
+    position: relative;
+  }
+  .stage-2 .profile-card {
+    flex: 1;
+    background: linear-gradient(180deg, transparent 60%, rgba(0, 0, 0, 0.8) 100%),
+                linear-gradient(135deg, var(--accent) 0%, #6B1A6E 100%);
+    border-radius: 2.5vh;
+    display: flex;
+    flex-direction: column-reverse;
+    padding: 3vh;
+  }
+  .stage-2 .profile-card .name {
+    font-size: 3vh;
+    font-weight: 700;
+    margin-bottom: 0.5vh;
+  }
+  .stage-2 .profile-card .tags {
+    display: flex;
+    gap: 1vh;
+    flex-wrap: wrap;
+    font-size: 1.5vh;
+  }
+  .stage-2 .profile-card .tag {
+    background: rgba(0, 0, 0, 0.5);
+    padding: 0.5vh 1.5vh;
+    border-radius: 999px;
+    color: var(--accent);
+    font-weight: 600;
+  }
+  .stage-2 .match-stamp {
+    position: absolute;
+    top: 30%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-15deg);
+    font-size: 7vh;
+    font-weight: 900;
+    color: var(--accent);
+    border: 0.8vh solid var(--accent);
+    padding: 1.5vh 4vh;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    box-shadow: 0 0 40px rgba(var(--accent-rgb), 0.7);
+    letter-spacing: 4px;
+    opacity: 0;
+    animation: matchStamp 0.5s ease-out 4.5s forwards;
+  }
+  @keyframes matchStamp {
+    0% { opacity: 0; transform: translate(-50%, -50%) rotate(-15deg) scale(0.5); }
+    60% { opacity: 1; transform: translate(-50%, -50%) rotate(-15deg) scale(1.15); }
+    100% { opacity: 1; transform: translate(-50%, -50%) rotate(-15deg) scale(1); }
+  }
+
+  /* Stage 3 : 7-13s — Le rendez-vous (texte poétique) */
+  .stage-3 { animation: appear 6s ease-out 7s forwards; }
+  .stage-3 .verse {
+    font-size: 4vh;
+    font-weight: 600;
+    line-height: 1.4;
+  }
+  .stage-3 .verse em {
+    color: var(--accent);
+    font-style: normal;
+    font-weight: 700;
+  }
+  .stage-3 .verse-line {
+    margin: 2vh 0;
+    opacity: 0;
+  }
+  @keyframes lineIn {
+    to { opacity: 1; }
+  }
+  .stage-3 .verse-line:nth-child(1) { animation: lineIn 0.4s ease-out 7.4s forwards; }
+  .stage-3 .verse-line:nth-child(2) { animation: lineIn 0.4s ease-out 8.8s forwards; }
+  .stage-3 .verse-line:nth-child(3) { animation: lineIn 0.4s ease-out 10.2s forwards; }
+  .stage-3 .verse-line:nth-child(4) { animation: lineIn 0.4s ease-out 11.6s forwards; }
+
+  /* Stage 4 : 13-18s — Closing */
+  .stage-4 { animation: appear 5s ease-out 13s forwards; }
+  .stage-4 .ending {
+    font-size: 6vh;
+    font-weight: 800;
+    line-height: 1.1;
+    margin-bottom: 5vh;
+    letter-spacing: -1px;
+  }
+  .stage-4 .ending em {
+    color: var(--accent);
+    font-style: normal;
+    text-shadow: 0 0 30px rgba(var(--accent-rgb), 0.6);
+  }
+  .stage-4 .logo {
+    font-size: 10vh;
+    color: var(--accent);
+    margin-bottom: 2vh;
+    filter: drop-shadow(0 0 30px rgba(var(--accent-rgb), 0.6));
+  }
+  .stage-4 .brand {
+    font-size: 3.5vh;
+    font-weight: 800;
+    letter-spacing: 4px;
+    margin-bottom: 4vh;
+  }
+  .stage-4 .cta {
+    padding: 2.5vh 6vh;
+    background: var(--accent);
+    color: var(--text);
+    font-size: 2.5vh;
+    font-weight: 700;
+    border-radius: 999px;
+    box-shadow: 0 0 40px rgba(var(--accent-rgb), 0.6);
+    letter-spacing: 0.5px;
+  }
+  .stage-4 .url {
+    margin-top: 3vh;
+    font-size: 2vh;
+    color: rgba(255, 255, 255, 0.5);
+    letter-spacing: 1px;
+  }
+
+  .watermark {
+    position: absolute;
+    top: 5vh;
+    right: 5vh;
+    font-size: 3.5vh;
+    color: var(--accent);
+    z-index: 3;
+    opacity: 0.5;
+  }
+
+  .instructions {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 12px 16px;
+    border-radius: 8px;
+    font-family: monospace;
+    font-size: 13px;
+    max-width: 320px;
+    z-index: 100;
+    border: 1px solid var(--accent);
+  }
+  .instructions h4 { color: var(--accent); margin-bottom: 8px; font-size: 13px; }
+  .instructions p { margin: 4px 0; opacity: 0.9; }
+  .instructions .keys { background: #222; padding: 2px 6px; border-radius: 3px; }
+
+  .replay {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 100;
+    font-size: 14px;
+    box-shadow: 0 0 20px rgba(var(--accent-rgb), 0.5);
+  }
+</style>
+</head>
+<body>
+<button class="replay" onclick="document.location.reload()">↻ Rejouer</button>
+
+<div class="reel">
+  <div class="watermark">♥➚</div>
+
+  <!-- 0-3s : Hook punchy -->
+  <div class="stage stage-1">
+    <div class="punch"><em>Tinder ?</em><br>C'est de l'autre<br>côté.</div>
+    <div class="arrow">→</div>
+  </div>
+
+  <!-- 3-7s : Phone + Match -->
+  <div class="stage stage-2">
+    <div class="phone">
+      <div class="profile-card">
+        <div class="tags">
+          <span class="tag">🕺 Salsa</span>
+          <span class="tag">🏃 Running</span>
+          <span class="tag">📍 Genève</span>
+        </div>
+        <div class="name">Léa, 28</div>
+      </div>
+      <div class="match-stamp">MATCH</div>
+    </div>
+  </div>
+
+  <!-- 7-13s : Verses -->
+  <div class="stage stage-3">
+    <div class="verse">
+      <div class="verse-line">Ici, on commence par <em>bouger</em>.</div>
+      <div class="verse-line">Pas par boire.</div>
+      <div class="verse-line">On <em>transpire</em> ensemble.</div>
+      <div class="verse-line">Puis on rit ensemble.</div>
+    </div>
+  </div>
+
+  <!-- 13-18s : Closing -->
+  <div class="stage stage-4">
+    <div class="ending">Et la suite,<br><em>c'est ton histoire.</em></div>
+    <div class="logo">♥➚</div>
+    <div class="brand">SPORDATEUR</div>
+    <div class="cta">Inscris-toi gratuitement →</div>
+    <div class="url">spordateur.com</div>
+  </div>
+</div>
+
+<div class="instructions">
+  <h4>📹 Pour enregistrer ce Reel</h4>
+  <p>1. Plein écran : <span class="keys">F11</span> (PC) ou <span class="keys">⌃⌘F</span> (Mac).</p>
+  <p>2. Lance un screen recording de <strong>18 sec</strong> :<br>
+     macOS : <span class="keys">⌘⇧5</span> → sélectionne la zone Reel.<br>
+     Windows : <span class="keys">⊞ G</span>.</p>
+  <p>3. Clique <strong>↻ Rejouer</strong> pour redémarrer.</p>
+  <p>4. Musique : bossa-house romantique ou afrobeat léger, sensuel sans niaiserie.</p>
+</div>
+</body>
+</html>

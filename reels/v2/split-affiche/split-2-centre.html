@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Split 2/3 — Centre · Spordateur</title>
+<style>
+  :root {
+    --accent: #EC4899;
+    --accent-rgb: 236, 72, 153;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; background: #000; overflow: hidden; }
+  body { font-family: -apple-system, 'Plus Jakarta Sans', sans-serif; color: #fff; }
+  .reel {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    max-width: calc(100vh * 9 / 16);
+    margin: 0 auto;
+    background: #000;
+    overflow: hidden;
+  }
+  .bg {
+    position: absolute;
+    inset: 0;
+    background-image: url('affiche-source.jpg');
+    background-size: 300% auto;
+    background-position: 50% center;  /* CENTRE */
+    background-repeat: no-repeat;
+    animation: kenBurns2 18s ease-out infinite;
+  }
+  @keyframes kenBurns2 {
+    0%   { transform: scale(1.08); background-position: 48% center; }
+    100% { transform: scale(1.22); background-position: 52% center; }
+  }
+  .overlay-dark {
+    position: absolute;
+    inset: 0;
+    background:
+      linear-gradient(to bottom, rgba(0,0,0,0.5) 0%, transparent 25%, transparent 70%, rgba(0,0,0,0.9) 100%);
+    z-index: 2;
+  }
+  .indicator {
+    position: absolute;
+    top: 5vh;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 1vh;
+    z-index: 5;
+  }
+  .indicator .dot {
+    width: 8vh;
+    height: 0.6vh;
+    border-radius: 999px;
+    background: rgba(255,255,255,0.3);
+  }
+  .indicator .dot.active {
+    background: var(--accent);
+    box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.7);
+  }
+
+  /* Punch central qui apparait progressivement */
+  .punch-center {
+    position: absolute;
+    top: 50%;
+    left: 4vh;
+    right: 4vh;
+    transform: translateY(-50%);
+    z-index: 5;
+    text-align: center;
+    opacity: 0;
+    animation: fadeInUp 0.8s ease-out 1s forwards;
+  }
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(-30%); }
+    to { opacity: 1; transform: translateY(-50%); }
+  }
+  .punch-center .label {
+    display: inline-block;
+    background: var(--accent);
+    color: #fff;
+    padding: 1vh 3vh;
+    border-radius: 999px;
+    font-size: 1.5vh;
+    font-weight: 800;
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    margin-bottom: 3vh;
+    box-shadow: 0 0 30px rgba(var(--accent-rgb), 0.6);
+  }
+  .punch-center .big {
+    font-size: 6vh;
+    font-weight: 900;
+    line-height: 1.0;
+    letter-spacing: -1.5px;
+    text-shadow: 0 4px 30px rgba(0,0,0,0.95);
+  }
+  .punch-center .big em {
+    color: var(--accent);
+    font-style: normal;
+    text-shadow: 0 0 30px rgba(var(--accent-rgb), 0.7);
+  }
+  .punch-center .sub {
+    font-size: 2vh;
+    color: rgba(255,255,255,0.9);
+    margin-top: 2.5vh;
+    line-height: 1.4;
+    font-weight: 500;
+    text-shadow: 0 2px 15px rgba(0,0,0,0.9);
+  }
+
+  /* Outro CTA bottom */
+  .outro {
+    position: absolute;
+    bottom: 5vh;
+    left: 4vh;
+    right: 4vh;
+    z-index: 5;
+    text-align: center;
+    opacity: 0;
+    animation: fadeIn 0.8s ease-out 13s forwards;
+  }
+  @keyframes fadeIn {
+    to { opacity: 1; }
+  }
+  .outro .swipe {
+    font-size: 1.8vh;
+    color: var(--accent);
+    letter-spacing: 3px;
+    text-transform: uppercase;
+    font-weight: 600;
+    margin-bottom: 2vh;
+    animation: pulseRight 1.2s ease-in-out infinite 13s;
+  }
+  @keyframes pulseRight {
+    0%, 100% { transform: translateX(0); opacity: 1; }
+    50% { transform: translateX(8px); opacity: 0.7; }
+  }
+  .outro .url {
+    font-size: 2.5vh;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-shadow: 0 4px 20px rgba(0,0,0,0.9);
+    margin-bottom: 0.5vh;
+  }
+  .outro .tag {
+    font-size: 1.4vh;
+    color: rgba(255,255,255,0.7);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  /* UI cachée au screen recording */
+  .ui {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    background: rgba(0,0,0,0.9);
+    color: #fff;
+    padding: 14px 18px;
+    border-radius: 10px;
+    font-family: monospace;
+    font-size: 13px;
+    max-width: 360px;
+    z-index: 100;
+    border: 1px solid var(--accent);
+  }
+  .ui h4 { color: var(--accent); margin-bottom: 8px; }
+  .ui p { margin: 4px 0; line-height: 1.5; }
+  .ui code { background: #222; padding: 2px 6px; border-radius: 3px; }
+  .replay {
+    position: fixed;
+    top: 20px;
+    left: 20px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 999px;
+    font-weight: 700;
+    cursor: pointer;
+    z-index: 100;
+    font-size: 14px;
+  }
+  .placeholder-warning {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, #1A0E1A, #0A0A0A);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    color: var(--accent);
+    text-align: center;
+    padding: 4vh;
+    z-index: 3;
+  }
+  .placeholder-warning.hide { display: none; }
+  .placeholder-warning h3 { font-size: 3vh; margin-bottom: 2vh; }
+  .placeholder-warning p { font-size: 1.8vh; line-height: 1.6; color: #fff; }
+  .placeholder-warning code { background: #222; padding: 2px 8px; border-radius: 4px; color: var(--accent); }
+</style>
+</head>
+<body>
+<button class="replay" onclick="document.location.reload()">↻ Rejouer</button>
+
+<div class="reel">
+  <div class="bg"></div>
+  <div class="overlay-dark"></div>
+
+  <div class="placeholder-warning" id="warn">
+    <h3>📁 Image source manquante</h3>
+    <p>Place ton affiche dans ce dossier sous le nom :</p>
+    <p style="margin-top: 2vh"><code>affiche-source.jpg</code></p>
+  </div>
+
+  <div class="indicator">
+    <span class="dot"></span>
+    <span class="dot active"></span>
+    <span class="dot"></span>
+  </div>
+
+  <div class="punch-center">
+    <div class="label">⚡ Épisode 2/3</div>
+    <div class="big">Au bord du<br><em>lac de Neuchâtel</em></div>
+    <div class="sub">Casques sur les oreilles. Cardio. Danse afro. Coucher de soleil.</div>
+  </div>
+
+  <div class="outro">
+    <div class="swipe">SWIPE POUR LE FINAL →</div>
+    <div class="url">spordateur.com</div>
+    <div class="tag">BOUGE · RENCONTRE · VIS</div>
+  </div>
+</div>
+
+<div class="ui">
+  <h4>📹 Reel 2/3 — Partie CENTRE</h4>
+  <p>1. Image dans <code>affiche-source.jpg</code> dans ce dossier.</p>
+  <p>2. Plein écran : <code>⌃⌘F</code></p>
+  <p>3. <code>⌘⇧5</code> → cadre la zone → enregistre <strong>15 sec</strong>.</p>
+  <p>4. ↻ Rejouer pour relancer.</p>
+</div>
+
+<script>
+const img = new Image();
+img.onload = () => document.getElementById('warn').classList.add('hide');
+img.onerror = () => {
+  const img2 = new Image();
+  img2.onload = () => {
+    document.querySelector('.bg').style.backgroundImage = "url('affiche-source.png')";
+    document.getElementById('warn').classList.add('hide');
+  };
+  img2.src = 'affiche-source.png';
+};
+img.src = 'affiche-source.jpg';
+</script>
+</body>
+</html>

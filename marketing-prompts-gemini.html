@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<title>Prompts Gemini + Légendes — Spordateur</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root {
+    --bg: #0A0A0A;
+    --bg-card: #141414;
+    --accent: #EC4899;
+    --accent-soft: rgba(236, 72, 153, 0.15);
+    --text: #FFFFFF;
+    --text-dim: #A0A0A0;
+    --border: rgba(255, 255, 255, 0.08);
+    --success: #22C55E;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Helvetica Neue', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .container {
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  /* ===== HEADER ===== */
+  header {
+    text-align: center;
+    padding: 30px 0 40px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+  }
+  header h1 {
+    font-size: 36px;
+    font-weight: 800;
+    letter-spacing: -1px;
+    margin-bottom: 8px;
+  }
+  header h1 span { color: var(--accent); }
+  header p {
+    color: var(--text-dim);
+    font-size: 14px;
+  }
+
+  /* ===== NAV STICKY ===== */
+  nav.toc {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 40px;
+    position: sticky;
+    top: 20px;
+    z-index: 100;
+  }
+  nav.toc h3 {
+    font-size: 13px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+  nav.toc ul {
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 6px;
+  }
+  nav.toc a {
+    color: var(--text-dim);
+    text-decoration: none;
+    font-size: 13px;
+    padding: 6px 10px;
+    border-radius: 6px;
+    display: block;
+    transition: all 0.2s;
+  }
+  nav.toc a:hover {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  /* ===== SECTIONS ===== */
+  section {
+    margin-bottom: 60px;
+  }
+  section h2 {
+    font-size: 26px;
+    font-weight: 800;
+    margin-bottom: 8px;
+    letter-spacing: -0.5px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  section h2 .num {
+    background: var(--accent);
+    color: white;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  section h2 .emoji { font-size: 28px; }
+  section > .intro {
+    color: var(--text-dim);
+    font-size: 14px;
+    margin-bottom: 20px;
+    padding-left: 48px;
+  }
+
+  /* ===== COPYABLE BLOCKS ===== */
+  .block {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    margin-bottom: 14px;
+    overflow: hidden;
+    transition: border-color 0.3s;
+  }
+  .block:hover { border-color: rgba(236, 72, 153, 0.3); }
+  .block-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    background: rgba(255,255,255,0.02);
+    border-bottom: 1px solid var(--border);
+  }
+  .block-label {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--accent);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .copy-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s;
+  }
+  .copy-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(236, 72, 153, 0.4); }
+  .copy-btn.copied { background: var(--success); }
+  .block-content {
+    padding: 16px;
+    font-size: 14px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    color: var(--text);
+  }
+  .block.prompt .block-content {
+    font-family: 'SF Mono', 'Monaco', monospace;
+    font-size: 12.5px;
+    color: #E4E4E7;
+    background: #0A0A0A;
+  }
+  .block.legende .block-content {
+    color: var(--text);
+  }
+  .block.legende .block-content strong { color: var(--accent); }
+
+  /* ===== STYLE GLOBAL BOX ===== */
+  .style-box {
+    background: linear-gradient(135deg, rgba(236,72,153,0.1), rgba(236,72,153,0.02));
+    border: 1px solid rgba(236,72,153,0.3);
+    border-radius: 16px;
+    padding: 24px;
+    margin-bottom: 40px;
+  }
+  .style-box h3 {
+    font-size: 14px;
+    color: var(--accent);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* ===== TABLE ===== */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--bg-card);
+    border-radius: 12px;
+    overflow: hidden;
+    margin: 16px 0;
+    font-size: 13px;
+  }
+  th {
+    background: var(--accent);
+    color: white;
+    padding: 12px;
+    text-align: left;
+    font-weight: 700;
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  td:first-child { font-weight: 600; color: var(--accent); white-space: nowrap; }
+
+  /* ===== TIPS LIST ===== */
+  .tips {
+    background: var(--bg-card);
+    border-left: 4px solid var(--accent);
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin: 16px 0;
+  }
+  .tips ol, .tips ul { padding-left: 20px; }
+  .tips li { margin: 8px 0; font-size: 14px; }
+  .tips li::marker { color: var(--accent); }
+
+  /* ===== TOAST ===== */
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--success);
+    color: white;
+    padding: 12px 24px;
+    border-radius: 999px;
+    font-weight: 700;
+    z-index: 1000;
+    opacity: 0;
+    transition: all 0.3s;
+    font-size: 14px;
+    box-shadow: 0 4px 20px rgba(34, 197, 94, 0.4);
+  }
+  .toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media (max-width: 640px) {
+    body { padding: 12px; }
+    header h1 { font-size: 28px; }
+    section h2 { font-size: 22px; }
+    section > .intro { padding-left: 0; }
+    nav.toc { position: static; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>🎨 Prompts Gemini + <span>Légendes</span></h1>
+  <p>Clique sur les boutons <strong>📋 Copier</strong> — les blocs se copient directement.</p>
+</header>
+
+<!-- ===== NAV TOC ===== -->
+<nav class="toc">
+  <h3>📍 Navigation rapide</h3>
+  <ul>
+    <li><a href="#style">🎨 Style global</a></li>
+    <li><a href="#p1">1. Portrait Coach</a></li>
+    <li><a href="#p2">2. Silent au lac</a></li>
+    <li><a href="#p3">3. Danse afro studio</a></li>
+    <li><a href="#p4">4. Couple bachata</a></li>
+    <li><a href="#p5">5. Fitness collectif</a></li>
+    <li><a href="#p6">6. Running au lac</a></li>
+    <li><a href="#p7">7. Casques gros plan</a></li>
+    <li><a href="#p8">8. BTS avant session</a></li>
+    <li><a href="#p9">9. Rencontre post-cours</a></li>
+    <li><a href="#p10">10. App iPhone</a></li>
+    <li><a href="#p11">11. Selfie post-effort</a></li>
+    <li><a href="#p12">12. Groupe au lac</a></li>
+    <li><a href="#p13">13. Flow state artistique</a></li>
+    <li><a href="#tips">💡 Pro tips</a></li>
+    <li><a href="#templates">📝 Templates</a></li>
+  </ul>
+</nav>
+
+<!-- ===== STYLE GLOBAL ===== -->
+<section id="style">
+  <h2><span class="emoji">🎨</span> Style global — toujours ajouter aux prompts</h2>
+  <p class="intro">Colle un de ces 2 blocs à chaque prompt pour cohérence visuelle parfaite avec ton site.</p>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Version Français</span>
+      <button class="copy-btn" data-copy="Photographie professionnelle, ambiance premium, palette monochrome noir et blanc avec une touche subtile de rose magenta accent (#EC4899), lumière naturelle douce ou éclairage néon rose discret, contraste élevé, grain de film subtil, style éditorial mode, composition épurée, sujet centré, ambiance authentique et vivante, mouvement capturé, expression vraie (pas de pose corporate).">📋 Copier</button>
+    </div>
+    <div class="block-content">Photographie professionnelle, ambiance premium, palette monochrome noir et blanc avec une touche subtile de rose magenta accent (#EC4899), lumière naturelle douce ou éclairage néon rose discret, contraste élevé, grain de film subtil, style éditorial mode, composition épurée, sujet centré, ambiance authentique et vivante, mouvement capturé, expression vraie (pas de pose corporate).</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Version English (recommended)</span>
+      <button class="copy-btn" data-copy="Professional editorial photography, premium dark mood, black and white palette with subtle pink magenta accent (#EC4899), soft natural lighting or discrete neon pink rim light, high contrast, subtle film grain, fashion editorial style, clean centered composition, authentic candid expression, motion captured, real emotion (no corporate pose).">📋 Copier</button>
+    </div>
+    <div class="block-content">Professional editorial photography, premium dark mood, black and white palette with subtle pink magenta accent (#EC4899), soft natural lighting or discrete neon pink rim light, high contrast, subtle film grain, fashion editorial style, clean centered composition, authentic candid expression, motion captured, real emotion (no corporate pose).</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 1 ===== -->
+<section id="p1">
+  <h2><span class="num">1</span> Portrait Coach Silent Afroboost</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Portrait noir et blanc d'un homme sub-saharien charismatique, la trentaine, portant des écouteurs over-ear professionnels noirs, légère sueur sur le visage, sourire vrai et détendu, regard concentré vers la caméra. Mains près des écouteurs comme s'il ajustait le son. Veste sportive type training noire avec inscription discrète Afroboost. Arrière-plan flou neutre gris foncé. Lumière studio douce qui sculpte le visage, halo rose magenta (#EC4899) subtil en contre-jour. Ambiance authentique, pas corporate. Format vertical 9:16, haute qualité éditoriale.">📋 Copier</button>
+    </div>
+    <div class="block-content">Portrait noir et blanc d'un homme sub-saharien charismatique, la trentaine, portant des écouteurs over-ear professionnels noirs, légère sueur sur le visage, sourire vrai et détendu, regard concentré vers la caméra. Mains près des écouteurs comme s'il ajustait le son. Veste sportive type training noire avec inscription discrète Afroboost. Arrière-plan flou neutre gris foncé. Lumière studio douce qui sculpte le visage, halo rose magenta (#EC4899) subtil en contre-jour. Ambiance authentique, pas corporate. Format vertical 9:16, haute qualité éditoriale.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Black and white editorial portrait of a charismatic sub-Saharan man in his thirties, wearing professional black over-ear headphones, slight sweat on face, real relaxed smile, focused gaze towards camera. Hands near the headphones as if adjusting sound. Black training jacket with subtle Afroboost embroidery. Soft blurred dark gray studio background. Soft sculpting studio light, subtle magenta pink (#EC4899) rim light from behind. Authentic mood, not corporate. Vertical 9:16, high editorial quality.">📋 Copier</button>
+    </div>
+    <div class="block-content">Black and white editorial portrait of a charismatic sub-Saharan man in his thirties, wearing professional black over-ear headphones, slight sweat on face, real relaxed smile, focused gaze towards camera. Hands near the headphones as if adjusting sound. Black training jacket with subtle Afroboost embroidery. Soft blurred dark gray studio background. Soft sculpting studio light, subtle magenta pink (#EC4899) rim light from behind. Authentic mood, not corporate. Vertical 9:16, high editorial quality.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="Lui, c'est Bassi. Coach Afroboost Silent. Et tu sais ce qu'il a découvert après 5 ans de cours ?
+Que la meilleure rencontre, c'est celle qu'on fait quand on transpire.
+
+Spordateur, c'est l'app pour rencontrer celui ou celle qui aime exactement ce que tu aimes — et qui a déjà sa place réservée à ton prochain cours.
+
+Rejoins le mouvement. spordateur.com 🎧
+
+#Spordateur #Afroboost #SilentDisco #CoachLife #Neuchâtel #DanseSuisse">📋 Copier</button>
+    </div>
+    <div class="block-content">Lui, c'est Bassi. Coach Afroboost Silent. Et tu sais ce qu'il a découvert après 5 ans de cours ?
+Que la meilleure rencontre, c'est celle qu'on fait quand on transpire.
+
+Spordateur, c'est l'app pour rencontrer celui ou celle qui aime exactement ce que tu aimes — et qui a déjà sa place réservée à ton prochain cours.
+
+Rejoins le mouvement. spordateur.com 🎧
+
+#Spordateur #Afroboost #SilentDisco #CoachLife #Neuchâtel #DanseSuisse</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 2 ===== -->
+<section id="p2">
+  <h2><span class="num">2</span> Session Silent Afroboost au coucher de soleil</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Vue large à hauteur d'épaule d'un groupe de 15 personnes diverses (femmes et hommes, multiculturels, 20-40 ans), au bord du lac de Neuchâtel au coucher de soleil orangé, chacun portant des écouteurs over-ear noirs. Tous en mouvement synchronisé de danse afrobeat — bras levés, hanches qui bougent, sourires éclatants. Silhouettes à contre-jour, lumière dorée qui les baigne, reflets sur l'eau du lac. Ambiance silencieuse mais énergie palpable. Effet cinématographique, légère brume au sol. Style éditorial documentaire premium, accent rose magenta (#EC4899) subtil sur les écouteurs et touches de néon. Format 9:16.">📋 Copier</button>
+    </div>
+    <div class="block-content">Vue large à hauteur d'épaule d'un groupe de 15 personnes diverses (femmes et hommes, multiculturels, 20-40 ans), au bord du lac de Neuchâtel au coucher de soleil orangé, chacun portant des écouteurs over-ear noirs. Tous en mouvement synchronisé de danse afrobeat — bras levés, hanches qui bougent, sourires éclatants. Silhouettes à contre-jour, lumière dorée qui les baigne, reflets sur l'eau du lac. Ambiance silencieuse mais énergie palpable. Effet cinématographique, légère brume au sol. Style éditorial documentaire premium, accent rose magenta (#EC4899) subtil sur les écouteurs et touches de néon. Format 9:16.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Wide shoulder-level shot of 15 diverse people (mixed gender, multicultural, 20-40), at sunset by lake Neuchâtel Switzerland, each wearing black over-ear headphones. All in synchronized afrobeat dance movement — raised arms, hip movement, bright smiles. Backlit silhouettes, golden hour light bathing them, water reflections. Silent atmosphere but palpable energy. Cinematic mood, subtle ground mist. Premium documentary editorial style, subtle magenta pink (#EC4899) accent on headphones and neon touches. 9:16 vertical.">📋 Copier</button>
+    </div>
+    <div class="block-content">Wide shoulder-level shot of 15 diverse people (mixed gender, multicultural, 20-40), at sunset by lake Neuchâtel Switzerland, each wearing black over-ear headphones. All in synchronized afrobeat dance movement — raised arms, hip movement, bright smiles. Backlit silhouettes, golden hour light bathing them, water reflections. Silent atmosphere but palpable energy. Cinematic mood, subtle ground mist. Premium documentary editorial style, subtle magenta pink (#EC4899) accent on headphones and neon touches. 9:16 vertical.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="Tout le monde danse. Personne n'entend rien. Sauf nous.
+
+C'est ça, le Silent Afroboost. Une heure au bord du lac, casques sur les oreilles, et 20 inconnus qui deviennent ta nouvelle bande.
+
+17 juin · 18h30 · Plage de Neuchâtel.
+Il reste 8 places. Tu prends laquelle ? 🎧🔥
+
+Réserve sur spordateur.com (lien en bio)
+
+#SilentAfroboost #LacNeuchâtel #ExpérienceUnique #Spordateur #SunsetVibes #CardioFitness">📋 Copier</button>
+    </div>
+    <div class="block-content">Tout le monde danse. Personne n'entend rien. Sauf nous.
+
+C'est ça, le Silent Afroboost. Une heure au bord du lac, casques sur les oreilles, et 20 inconnus qui deviennent ta nouvelle bande.
+
+17 juin · 18h30 · Plage de Neuchâtel.
+Il reste 8 places. Tu prends laquelle ? 🎧🔥
+
+Réserve sur spordateur.com (lien en bio)
+
+#SilentAfroboost #LacNeuchâtel #ExpérienceUnique #Spordateur #SunsetVibes #CardioFitness</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 3 ===== -->
+<section id="p3">
+  <h2><span class="num">3</span> Cours de danse afro intense (studio)</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Plan moyen d'un groupe de 8 femmes diverses en plein cours de danse afrobeat dans un studio de danse au sol parquet, miroirs en arrière-plan flou. Mouvement explosif des hanches, cheveux qui volent, sueur visible. Tenues sportives colorées (noir, blanc, gris). Une danseuse rit aux éclats au centre. Lumière néon rose magenta (#EC4899) tamisée au plafond. Capture de mouvement avec léger flou de mouvement sur les jambes. Style photojournalisme premium, énergie brute et authentique, ambiance fitness club premium. Format vertical 9:16.">📋 Copier</button>
+    </div>
+    <div class="block-content">Plan moyen d'un groupe de 8 femmes diverses en plein cours de danse afrobeat dans un studio de danse au sol parquet, miroirs en arrière-plan flou. Mouvement explosif des hanches, cheveux qui volent, sueur visible. Tenues sportives colorées (noir, blanc, gris). Une danseuse rit aux éclats au centre. Lumière néon rose magenta (#EC4899) tamisée au plafond. Capture de mouvement avec léger flou de mouvement sur les jambes. Style photojournalisme premium, énergie brute et authentique, ambiance fitness club premium. Format vertical 9:16.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Medium shot of 8 diverse women in full afrobeat dance class, parquet floor studio, blurred mirrors background. Explosive hip movement, hair flying, visible sweat. Sporty colorful outfits (black, white, gray). One dancer laughing out loud in center. Soft magenta pink (#EC4899) neon overhead lighting. Motion capture with slight movement blur on legs. Premium photojournalism style, raw authentic energy, premium fitness club mood. Vertical 9:16.">📋 Copier</button>
+    </div>
+    <div class="block-content">Medium shot of 8 diverse women in full afrobeat dance class, parquet floor studio, blurred mirrors background. Explosive hip movement, hair flying, visible sweat. Sporty colorful outfits (black, white, gray). One dancer laughing out loud in center. Soft magenta pink (#EC4899) neon overhead lighting. Motion capture with slight movement blur on legs. Premium photojournalism style, raw authentic energy, premium fitness club mood. Vertical 9:16.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="Tu sais c'est quoi le truc qu'on dit jamais ? Que les meilleurs partenaires de vie, on les trouve sur la piste de danse, pas dans un bar.
+
+Sur Spordateur, tu choisis ton cours, tu réserves ta place. Puis tu danses. Puis tu rencontres.
+
+Simple comme ça. spordateur.com 💃🏽
+
+#AfroDance #FitnessSuisse #Genève #Lausanne #Neuchâtel #Spordateur #DanseFitness">📋 Copier</button>
+    </div>
+    <div class="block-content">Tu sais c'est quoi le truc qu'on dit jamais ? Que les meilleurs partenaires de vie, on les trouve sur la piste de danse, pas dans un bar.
+
+Sur Spordateur, tu choisis ton cours, tu réserves ta place. Puis tu danses. Puis tu rencontres.
+
+Simple comme ça. spordateur.com 💃🏽
+
+#AfroDance #FitnessSuisse #Genève #Lausanne #Neuchâtel #Spordateur #DanseFitness</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 4 ===== -->
+<section id="p4">
+  <h2><span class="num">4</span> Couple en salsa / bachata</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Gros plan complice d'un couple multiculturel (femme et homme, 25-35 ans) en pleine danse bachata dans un club de danse vintage avec lumières tamisées orangées. Position close embrace, regards intenses qui se croisent, sourire au coin de la lèvre de la femme. Tenues élégantes mais sportives. Lumière chaude type bougie/néon doré, accent rose magenta (#EC4899) très subtil. Capture du moment où ils basculent dans un pas. Ambiance sensuelle sans vulgarité, dignité et joie. Style éditorial cinéma sud-américain. Format 9:16, grain de pellicule subtil.">📋 Copier</button>
+    </div>
+    <div class="block-content">Gros plan complice d'un couple multiculturel (femme et homme, 25-35 ans) en pleine danse bachata dans un club de danse vintage avec lumières tamisées orangées. Position close embrace, regards intenses qui se croisent, sourire au coin de la lèvre de la femme. Tenues élégantes mais sportives. Lumière chaude type bougie/néon doré, accent rose magenta (#EC4899) très subtil. Capture du moment où ils basculent dans un pas. Ambiance sensuelle sans vulgarité, dignité et joie. Style éditorial cinéma sud-américain. Format 9:16, grain de pellicule subtil.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Close intimate shot of a multicultural couple (woman and man, 25-35) dancing bachata in a vintage dance club with warm orange dim lighting. Close embrace position, intense crossing gazes, slight smile corner of woman's lip. Elegant but sporty outfits. Warm candle/golden neon light, very subtle magenta pink (#EC4899) accent. Captured mid-step. Sensual atmosphere without vulgarity, dignity and joy. South American cinema editorial style. 9:16 vertical, subtle film grain.">📋 Copier</button>
+    </div>
+    <div class="block-content">Close intimate shot of a multicultural couple (woman and man, 25-35) dancing bachata in a vintage dance club with warm orange dim lighting. Close embrace position, intense crossing gazes, slight smile corner of woman's lip. Elegant but sporty outfits. Warm candle/golden neon light, very subtle magenta pink (#EC4899) accent. Captured mid-step. Sensual atmosphere without vulgarity, dignity and joy. South American cinema editorial style. 9:16 vertical, subtle film grain.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="Le premier rendez-vous, on l'imagine autour d'un verre. Mauvaise idée.
+
+Sur Spordateur, ton premier rendez-vous, c'est sur la piste de bachata. Tu danses pendant 1 heure avec quelqu'un qui kiffe la même chose que toi. Après ? C'est ton histoire.
+
+spordateur.com — sport, danse, rencontres
+
+#Bachata #Salsa #DateLikeAdult #DanseSuisse #Spordateur #RealConnection">📋 Copier</button>
+    </div>
+    <div class="block-content">Le premier rendez-vous, on l'imagine autour d'un verre. Mauvaise idée.
+
+Sur Spordateur, ton premier rendez-vous, c'est sur la piste de bachata. Tu danses pendant 1 heure avec quelqu'un qui kiffe la même chose que toi. Après ? C'est ton histoire.
+
+spordateur.com — sport, danse, rencontres
+
+#Bachata #Salsa #DateLikeAdult #DanseSuisse #Spordateur #RealConnection</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 5 ===== -->
+<section id="p5">
+  <h2><span class="num">5</span> Fitness collectif en plein effort</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Vue en plongée légère d'un groupe de 10 personnes diverses (mixte, 25-40 ans, différentes morphologies) en plein cours de HIIT/cardio dans une salle de sport moderne premium. Mouvement de squat sauté ou burpee, expressions intenses, sueur. Sol bois clair, mur béton brut en arrière-plan, néons roses magenta (#EC4899) en haut. Coach au centre encourageant. Style photo de marque sportive premium type Lululemon/Nike. Lumière naturelle latérale + accent néon. Diversité corporelle célébrée. Format 9:16, palette désaturée avec touches roses.">📋 Copier</button>
+    </div>
+    <div class="block-content">Vue en plongée légère d'un groupe de 10 personnes diverses (mixte, 25-40 ans, différentes morphologies) en plein cours de HIIT/cardio dans une salle de sport moderne premium. Mouvement de squat sauté ou burpee, expressions intenses, sueur. Sol bois clair, mur béton brut en arrière-plan, néons roses magenta (#EC4899) en haut. Coach au centre encourageant. Style photo de marque sportive premium type Lululemon/Nike. Lumière naturelle latérale + accent néon. Diversité corporelle célébrée. Format 9:16, palette désaturée avec touches roses.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Slight overhead shot of 10 diverse people (mixed gender, 25-40, varied body types) in HIIT/cardio class in modern premium gym. Jump squat or burpee movement, intense expressions, sweat. Light wood floor, raw concrete wall background, magenta pink (#EC4899) neons on top. Coach in center encouraging. Premium sport brand photo style (Lululemon/Nike). Side natural light + neon accent. Body diversity celebrated. 9:16 vertical, desaturated palette with pink touches.">📋 Copier</button>
+    </div>
+    <div class="block-content">Slight overhead shot of 10 diverse people (mixed gender, 25-40, varied body types) in HIIT/cardio class in modern premium gym. Jump squat or burpee movement, intense expressions, sweat. Light wood floor, raw concrete wall background, magenta pink (#EC4899) neons on top. Coach in center encouraging. Premium sport brand photo style (Lululemon/Nike). Side natural light + neon accent. Body diversity celebrated. 9:16 vertical, desaturated palette with pink touches.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="Ta meilleure version, elle n'arrive jamais seule.
+
+Réserve un cours collectif sur Spordateur. Tu transpires. Tu te dépasses. Et tu rencontres ceux qui te poussent à devenir qui tu veux être.
+
+Pas de jugement. Juste du mouvement et du sourire. 💪
+
+spordateur.com
+
+#FitnessGroup #CardioFun #Wellness #Spordateur #FitnessSuisse #BougerEnsemble">📋 Copier</button>
+    </div>
+    <div class="block-content">Ta meilleure version, elle n'arrive jamais seule.
+
+Réserve un cours collectif sur Spordateur. Tu transpires. Tu te dépasses. Et tu rencontres ceux qui te poussent à devenir qui tu veux être.
+
+Pas de jugement. Juste du mouvement et du sourire. 💪
+
+spordateur.com
+
+#FitnessGroup #CardioFun #Wellness #Spordateur #FitnessSuisse #BougerEnsemble</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 6 ===== -->
+<section id="p6">
+  <h2><span class="num">6</span> Course running au bord du lac</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Plan moyen latéral d'un duo (femme blanche et homme noir, 30-35 ans) courant ensemble au bord du lac de Neuchâtel ou Genève au lever du soleil. Lumière dorée qui rasante, brume légère au-dessus de l'eau. Tenues running modernes noires et grises avec léger accent rose. Sourires complices entre eux, en pleine conversation. Effet de mouvement subtil, focus sur les expressions. Style éditorial sportif premium, palette naturelle. Ambiance lifestyle aspirationnelle. Format 9:16, grain subtil.">📋 Copier</button>
+    </div>
+    <div class="block-content">Plan moyen latéral d'un duo (femme blanche et homme noir, 30-35 ans) courant ensemble au bord du lac de Neuchâtel ou Genève au lever du soleil. Lumière dorée qui rasante, brume légère au-dessus de l'eau. Tenues running modernes noires et grises avec léger accent rose. Sourires complices entre eux, en pleine conversation. Effet de mouvement subtil, focus sur les expressions. Style éditorial sportif premium, palette naturelle. Ambiance lifestyle aspirationnelle. Format 9:16, grain subtil.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Side medium shot of a duo (white woman and black man, 30-35) running together by lake Neuchâtel or Geneva at sunrise. Low golden raking light, light mist over water. Modern black and gray running outfits with slight pink accent. Complicit smiles between them, mid-conversation. Subtle motion effect, focus on expressions. Premium sport editorial style, natural palette. Aspirational lifestyle mood. 9:16 vertical, subtle grain.">📋 Copier</button>
+    </div>
+    <div class="block-content">Side medium shot of a duo (white woman and black man, 30-35) running together by lake Neuchâtel or Geneva at sunrise. Low golden raking light, light mist over water. Modern black and gray running outfits with slight pink accent. Complicit smiles between them, mid-conversation. Subtle motion effect, focus on expressions. Premium sport editorial style, natural palette. Aspirational lifestyle mood. 9:16 vertical, subtle grain.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="Il y a 6 mois, ils ne se connaissaient pas. Aujourd'hui, ils courent 10 km par semaine au lac. Ensemble.
+
+Spordateur t'aide à trouver ton partenaire de sport. Pas ton coach. Pas ton concurrent. Quelqu'un qui te ressemble.
+
+Inscris-toi : spordateur.com 🏃🏽‍♀️🏃🏽‍♂️
+
+#RunningBuddy #LacLeman #RunSuisse #Spordateur #PartenaireDeSport">📋 Copier</button>
+    </div>
+    <div class="block-content">Il y a 6 mois, ils ne se connaissaient pas. Aujourd'hui, ils courent 10 km par semaine au lac. Ensemble.
+
+Spordateur t'aide à trouver ton partenaire de sport. Pas ton coach. Pas ton concurrent. Quelqu'un qui te ressemble.
+
+Inscris-toi : spordateur.com 🏃🏽‍♀️🏃🏽‍♂️
+
+#RunningBuddy #LacLeman #RunSuisse #Spordateur #PartenaireDeSport</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 7 ===== -->
+<section id="p7">
+  <h2><span class="num">7</span> Casques audio gros plan (hero)</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Gros plan macro d'écouteurs over-ear noirs professionnels haut de gamme, posés sur une surface en béton brut foncé. Reflets précis de la lumière studio, léger halo rose magenta (#EC4899) en post-prod, contraste élevé. Une seule branche est visible, l'autre flou en arrière-plan. Détail des coussinets en cuir, étiquette logo discrète et illisible. Style photographie produit premium type Apple. Ambiance silencieuse, mystérieuse. Format 9:16, ultra net.">📋 Copier</button>
+    </div>
+    <div class="block-content">Gros plan macro d'écouteurs over-ear noirs professionnels haut de gamme, posés sur une surface en béton brut foncé. Reflets précis de la lumière studio, léger halo rose magenta (#EC4899) en post-prod, contraste élevé. Une seule branche est visible, l'autre flou en arrière-plan. Détail des coussinets en cuir, étiquette logo discrète et illisible. Style photographie produit premium type Apple. Ambiance silencieuse, mystérieuse. Format 9:16, ultra net.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Macro close-up of premium black over-ear professional headphones, resting on dark raw concrete surface. Precise studio light reflections, slight magenta pink (#EC4899) halo in post-production, high contrast. One earcup visible, other blurred background. Leather cushion detail, unreadable logo subtle. Premium product photography style (Apple-like). Silent mysterious mood. 9:16 vertical, ultra sharp.">📋 Copier</button>
+    </div>
+    <div class="block-content">Macro close-up of premium black over-ear professional headphones, resting on dark raw concrete surface. Precise studio light reflections, slight magenta pink (#EC4899) halo in post-production, high contrast. One earcup visible, other blurred background. Leather cushion detail, unreadable logo subtle. Premium product photography style (Apple-like). Silent mysterious mood. 9:16 vertical, ultra sharp.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="Ces casques-là vont t'emmener loin.
+
+Très loin. Comme dans : tu vas oublier que tu fais du cardio. Tu vas oublier que t'es entouré d'inconnus. Tu vas juste BOUGER.
+
+Bienvenue dans le Silent Afroboost. spordateur.com 🎧
+
+#SilentDisco #Concept #ExpérienceImmersive #Spordateur #InnovationFitness">📋 Copier</button>
+    </div>
+    <div class="block-content">Ces casques-là vont t'emmener loin.
+
+Très loin. Comme dans : tu vas oublier que tu fais du cardio. Tu vas oublier que t'es entouré d'inconnus. Tu vas juste BOUGER.
+
+Bienvenue dans le Silent Afroboost. spordateur.com 🎧
+
+#SilentDisco #Concept #ExpérienceImmersive #Spordateur #InnovationFitness</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 8 ===== -->
+<section id="p8">
+  <h2><span class="num">8</span> BTS — Avant la session</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Photo style derrière les coulisses : 3 personnes en train de mettre leurs casques audio, expressions concentrées et joyeuses, en cercle autour d'une caisse remplie d'écouteurs sur un sol parquet de salle de danse. Lumière chaude orangée en lever de soleil par une grande baie vitrée donnant sur un lac alpin. Tenues sportives noires. Ambiance 5 minutes avant que ça commence, excitation contenue. Style reportage documentaire sportif premium. Format 9:16, grain naturel.">📋 Copier</button>
+    </div>
+    <div class="block-content">Photo style derrière les coulisses : 3 personnes en train de mettre leurs casques audio, expressions concentrées et joyeuses, en cercle autour d'une caisse remplie d'écouteurs sur un sol parquet de salle de danse. Lumière chaude orangée en lever de soleil par une grande baie vitrée donnant sur un lac alpin. Tenues sportives noires. Ambiance 5 minutes avant que ça commence, excitation contenue. Style reportage documentaire sportif premium. Format 9:16, grain naturel.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Behind-the-scenes style: 3 people putting on their headphones, focused and joyful expressions, in a circle around a crate full of earphones on a dance studio parquet floor. Warm orange sunrise light from a large bay window overlooking alpine lake. Black sporty outfits. 5 minutes before it starts energy, contained excitement. Premium documentary sport reportage style. 9:16 vertical, natural grain.">📋 Copier</button>
+    </div>
+    <div class="block-content">Behind-the-scenes style: 3 people putting on their headphones, focused and joyful expressions, in a circle around a crate full of earphones on a dance studio parquet floor. Warm orange sunrise light from a large bay window overlooking alpine lake. Black sporty outfits. 5 minutes before it starts energy, contained excitement. Premium documentary sport reportage style. 9:16 vertical, natural grain.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="5 minutes avant que ça commence.
+
+Ils savent pas encore qu'ils vont vivre l'une des plus belles heures de leur année. Ils vont juste suivre le mouvement. Et nous, on les filme.
+
+Réserve la tienne : spordateur.com 🎥
+
+#BTS #BehindTheScenes #SilentAfroboost #Spordateur #ExpérienceClub">📋 Copier</button>
+    </div>
+    <div class="block-content">5 minutes avant que ça commence.
+
+Ils savent pas encore qu'ils vont vivre l'une des plus belles heures de leur année. Ils vont juste suivre le mouvement. Et nous, on les filme.
+
+Réserve la tienne : spordateur.com 🎥
+
+#BTS #BehindTheScenes #SilentAfroboost #Spordateur #ExpérienceClub</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 9 ===== -->
+<section id="p9">
+  <h2><span class="num">9</span> Rencontre post-session</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Plan moyen d'un duo (un homme noir et une femme métisse, jeunes adultes 25-30 ans) sortant ensemble d'un studio de danse, sacs de sport à l'épaule, échange de regards complices et sourires. Rue urbaine de Genève en soirée, néons et lumières de la ville en arrière-plan, accent rose magenta (#EC4899) dans l'enseigne d'un bar à l'arrière-plan. Eux marchent côte à côte, gestes naturels. Style cinéma urbain européen, lumière mixte naturel + néon. Sentiment de c'est le début de quelque chose. Format 9:16.">📋 Copier</button>
+    </div>
+    <div class="block-content">Plan moyen d'un duo (un homme noir et une femme métisse, jeunes adultes 25-30 ans) sortant ensemble d'un studio de danse, sacs de sport à l'épaule, échange de regards complices et sourires. Rue urbaine de Genève en soirée, néons et lumières de la ville en arrière-plan, accent rose magenta (#EC4899) dans l'enseigne d'un bar à l'arrière-plan. Eux marchent côte à côte, gestes naturels. Style cinéma urbain européen, lumière mixte naturel + néon. Sentiment de c'est le début de quelque chose. Format 9:16.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Medium shot of a duo (Black man and mixed-race woman, young adults 25-30) leaving a dance studio together, gym bags on shoulders, complicit smiles and gazes. Urban Geneva street at evening, neons and city lights background, magenta pink (#EC4899) accent on a bar sign behind. Walking side by side, natural gestures. European urban cinema style, mixed natural + neon light. Beginning of something feeling. 9:16 vertical.">📋 Copier</button>
+    </div>
+    <div class="block-content">Medium shot of a duo (Black man and mixed-race woman, young adults 25-30) leaving a dance studio together, gym bags on shoulders, complicit smiles and gazes. Urban Geneva street at evening, neons and city lights background, magenta pink (#EC4899) accent on a bar sign behind. Walking side by side, natural gestures. European urban cinema style, mixed natural + neon light. Beginning of something feeling. 9:16 vertical.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="Le cours est fini. La rencontre commence.
+
+Tu connais cette sensation de sortir d'un cours en se disant : j'aurais bien voulu parler à cette personne…
+
+Sur Spordateur, t'as le chat intégré. Tu réserves ensemble. Tu danses ensemble. Tu décides ce qui se passe après.
+
+spordateur.com — la vraie rencontre commence ici. ✨
+
+#AfterClass #RealLifeMatch #Spordateur #UrbanLife #DateNight">📋 Copier</button>
+    </div>
+    <div class="block-content">Le cours est fini. La rencontre commence.
+
+Tu connais cette sensation de sortir d'un cours en se disant : j'aurais bien voulu parler à cette personne…
+
+Sur Spordateur, t'as le chat intégré. Tu réserves ensemble. Tu danses ensemble. Tu décides ce qui se passe après.
+
+spordateur.com — la vraie rencontre commence ici. ✨
+
+#AfterClass #RealLifeMatch #Spordateur #UrbanLife #DateNight</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 10 ===== -->
+<section id="p10">
+  <h2><span class="num">10</span> Mockup app iPhone</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Photo réaliste d'une main féminine tenant un iPhone moderne, écran allumé montrant une app mobile en mode sombre, interface élégante avec photo de profil ronde, badges sports en pilules roses, gros bouton rose magenta (#EC4899) Réserver. Fond flou : café cosy, table en bois, latte art en arrière-plan. Lumière naturelle douce. Pas de visage, focus sur la main et le téléphone. Style mockup éditorial premium (type Apple ad), Format 9:16.">📋 Copier</button>
+    </div>
+    <div class="block-content">Photo réaliste d'une main féminine tenant un iPhone moderne, écran allumé montrant une app mobile en mode sombre, interface élégante avec photo de profil ronde, badges sports en pilules roses, gros bouton rose magenta (#EC4899) Réserver. Fond flou : café cosy, table en bois, latte art en arrière-plan. Lumière naturelle douce. Pas de visage, focus sur la main et le téléphone. Style mockup éditorial premium (type Apple ad), Format 9:16.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Realistic photo of a feminine hand holding a modern iPhone, screen lit showing a mobile app in dark mode, elegant interface with round profile photo, pink pill sport badges, large magenta pink (#EC4899) Reserve button. Blurred background: cozy café, wooden table, latte art in background. Soft natural light. No face, focus on hand and phone. Premium editorial mockup style (Apple ad). 9:16 vertical.">📋 Copier</button>
+    </div>
+    <div class="block-content">Realistic photo of a feminine hand holding a modern iPhone, screen lit showing a mobile app in dark mode, elegant interface with round profile photo, pink pill sport badges, large magenta pink (#EC4899) Reserve button. Blurred background: cozy café, wooden table, latte art in background. Soft natural light. No face, focus on hand and phone. Premium editorial mockup style (Apple ad). 9:16 vertical.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="3 minutes pour t'inscrire. 30 secondes pour réserver ta première séance. 1 heure pour rencontrer quelqu'un qui change ta semaine.
+
+Spordateur, c'est l'app suisse de sport + rencontres. 100% gratuit pour s'inscrire.
+
+👉 spordateur.com
+
+#App #Lifestyle #FitnessApp #Spordateur #SwissLife">📋 Copier</button>
+    </div>
+    <div class="block-content">3 minutes pour t'inscrire. 30 secondes pour réserver ta première séance. 1 heure pour rencontrer quelqu'un qui change ta semaine.
+
+Spordateur, c'est l'app suisse de sport + rencontres. 100% gratuit pour s'inscrire.
+
+👉 spordateur.com
+
+#App #Lifestyle #FitnessApp #Spordateur #SwissLife</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 11 ===== -->
+<section id="p11">
+  <h2><span class="num">11</span> Selfie aspirationnel post-effort</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Selfie style décontracté d'une jeune femme métisse, 28 ans, beauté naturelle, cheveux en queue de cheval désordonnée, sueur fraîche sur le front, légère respiration encore visible. Elle sourit largement, regard vers la caméra de son téléphone. Bracelet de sport au poignet, débardeur noir avec petit logo. Arrière-plan flou : studio de sport, miroirs, autres silhouettes. Lumière naturelle directe. Style Instagram authentique, pas filtré. Format 9:16.">📋 Copier</button>
+    </div>
+    <div class="block-content">Selfie style décontracté d'une jeune femme métisse, 28 ans, beauté naturelle, cheveux en queue de cheval désordonnée, sueur fraîche sur le front, légère respiration encore visible. Elle sourit largement, regard vers la caméra de son téléphone. Bracelet de sport au poignet, débardeur noir avec petit logo. Arrière-plan flou : studio de sport, miroirs, autres silhouettes. Lumière naturelle directe. Style Instagram authentique, pas filtré. Format 9:16.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Casual selfie style of a young mixed-race woman, 28, natural beauty, messy ponytail, fresh sweat on forehead, light breathing still visible. Wide smile, gaze towards phone camera. Sport bracelet on wrist, black tank top with small logo. Blurred background: sport studio, mirrors, other silhouettes. Direct natural light. Authentic Instagram style, no filter. 9:16 vertical.">📋 Copier</button>
+    </div>
+    <div class="block-content">Casual selfie style of a young mixed-race woman, 28, natural beauty, messy ponytail, fresh sweat on forehead, light breathing still visible. Wide smile, gaze towards phone camera. Sport bracelet on wrist, black tank top with small logo. Blurred background: sport studio, mirrors, other silhouettes. Direct natural light. Authentic Instagram style, no filter. 9:16 vertical.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="5 minutes après son cours d'Afroboost. Léa sort de ses 60 plus belles minutes de la semaine.
+
+Demain, elle réserve déjà la prochaine. Et elle a trois nouveaux numéros dans son téléphone.
+
+Ça, c'est l'effet Spordateur. spordateur.com
+
+#Aftermath #PostWorkout #GirlPower #Spordateur #DanseFitness">📋 Copier</button>
+    </div>
+    <div class="block-content">5 minutes après son cours d'Afroboost. Léa sort de ses 60 plus belles minutes de la semaine.
+
+Demain, elle réserve déjà la prochaine. Et elle a trois nouveaux numéros dans son téléphone.
+
+Ça, c'est l'effet Spordateur. spordateur.com
+
+#Aftermath #PostWorkout #GirlPower #Spordateur #DanseFitness</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 12 ===== -->
+<section id="p12">
+  <h2><span class="num">12</span> Groupe diversifié au lac (brand photo)</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Plan large d'un groupe de 10 personnes diverses (différentes ethnies, mixte hommes/femmes, 25-40 ans), assis et debout en demi-cercle au bord du lac de Neuchâtel, casques audio noirs autour du cou, certains rient, certains se prennent en photo, ambiance chaleureuse post-session. Coucher de soleil orangé, herbe et galets au sol. Style photo de marque genre Spotify ou Apple Music, ambiance diversité célébrée et joie collective. Format 9:16, lumière dorée magique.">📋 Copier</button>
+    </div>
+    <div class="block-content">Plan large d'un groupe de 10 personnes diverses (différentes ethnies, mixte hommes/femmes, 25-40 ans), assis et debout en demi-cercle au bord du lac de Neuchâtel, casques audio noirs autour du cou, certains rient, certains se prennent en photo, ambiance chaleureuse post-session. Coucher de soleil orangé, herbe et galets au sol. Style photo de marque genre Spotify ou Apple Music, ambiance diversité célébrée et joie collective. Format 9:16, lumière dorée magique.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Wide shot of 10 diverse people (different ethnicities, mixed gender, 25-40), sitting and standing in a semi-circle by lake Neuchâtel, black headphones around their necks, some laughing, some taking selfies, warm post-session mood. Orange sunset, grass and pebbles. Brand photo style (Spotify/Apple Music vibe), celebrated diversity and collective joy. 9:16 vertical, magical golden light.">📋 Copier</button>
+    </div>
+    <div class="block-content">Wide shot of 10 diverse people (different ethnicities, mixed gender, 25-40), sitting and standing in a semi-circle by lake Neuchâtel, black headphones around their necks, some laughing, some taking selfies, warm post-session mood. Orange sunset, grass and pebbles. Brand photo style (Spotify/Apple Music vibe), celebrated diversity and collective joy. 9:16 vertical, magical golden light.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="Ils ne se connaissaient pas il y a 2 heures.
+Maintenant, ils ont créé un groupe WhatsApp.
+
+C'est l'effet d'une session Spordateur. Pas une promesse vide : un fait observé à chaque cours.
+
+Tu réserves ta première séance ? 👉 spordateur.com
+
+#Community #SilentAfroboost #SwissVibes #Spordateur #NewFriends #LakeNeuchatel">📋 Copier</button>
+    </div>
+    <div class="block-content">Ils ne se connaissaient pas il y a 2 heures.
+Maintenant, ils ont créé un groupe WhatsApp.
+
+C'est l'effet d'une session Spordateur. Pas une promesse vide : un fait observé à chaque cours.
+
+Tu réserves ta première séance ? 👉 spordateur.com
+
+#Community #SilentAfroboost #SwissVibes #Spordateur #NewFriends #LakeNeuchatel</div>
+  </div>
+</section>
+
+<!-- ===== PROMPT 13 ===== -->
+<section id="p13">
+  <h2><span class="num">13</span> Flow state — motion blur artistique</h2>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇫🇷 Prompt Gemini</span>
+      <button class="copy-btn" data-copy="Photo artistique avec léger motion blur d'un homme sub-saharien en plein mouvement de danse afro, bras tendu vers le ciel, expression de transcendance/joie pure, sueur visible. Tenue noire sportive moulante. Fond noir total. Lumière de spot blanc d'un côté, néon rose magenta (#EC4899) de l'autre — créant un effet bicolore dramatique. Capture le mouvement avec un flou subtil sur le bras et la jambe. Style art visuel premium, type pub Nike ou Apple ad. Format 9:16, contraste extrême.">📋 Copier</button>
+    </div>
+    <div class="block-content">Photo artistique avec léger motion blur d'un homme sub-saharien en plein mouvement de danse afro, bras tendu vers le ciel, expression de transcendance/joie pure, sueur visible. Tenue noire sportive moulante. Fond noir total. Lumière de spot blanc d'un côté, néon rose magenta (#EC4899) de l'autre — créant un effet bicolore dramatique. Capture le mouvement avec un flou subtil sur le bras et la jambe. Style art visuel premium, type pub Nike ou Apple ad. Format 9:16, contraste extrême.</div>
+  </div>
+
+  <div class="block prompt">
+    <div class="block-header">
+      <span class="block-label">🇬🇧 Prompt Gemini (recommended)</span>
+      <button class="copy-btn" data-copy="Artistic photo with slight motion blur of a sub-Saharan man in afro dance movement, arm reaching to sky, expression of transcendence/pure joy, visible sweat. Tight black sporty outfit. Pure black background. White spotlight from one side, magenta pink (#EC4899) neon from the other — creating dramatic two-color effect. Capture movement with subtle blur on arm and leg. Premium visual art style (Nike ad or Apple ad). 9:16 vertical, extreme contrast.">📋 Copier</button>
+    </div>
+    <div class="block-content">Artistic photo with slight motion blur of a sub-Saharan man in afro dance movement, arm reaching to sky, expression of transcendence/pure joy, visible sweat. Tight black sporty outfit. Pure black background. White spotlight from one side, magenta pink (#EC4899) neon from the other — creating dramatic two-color effect. Capture movement with subtle blur on arm and leg. Premium visual art style (Nike ad or Apple ad). 9:16 vertical, extreme contrast.</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">🔥 Légende Instagram prête</span>
+      <button class="copy-btn" data-copy="Il y a ce moment dans chaque cours où t'oublies tout.
+
+Le boulot. Les factures. Les notifications. Tu deviens juste un corps qui bouge en rythme.
+
+Et c'est précisément ce moment qui te change la semaine.
+
+Réserve ton prochain moment : spordateur.com 🔥
+
+#FlowState #Mindfulness #Movement #Spordateur #DanseTherapy #LâcherPrise">📋 Copier</button>
+    </div>
+    <div class="block-content">Il y a ce moment dans chaque cours où t'oublies tout.
+
+Le boulot. Les factures. Les notifications. Tu deviens juste un corps qui bouge en rythme.
+
+Et c'est précisément ce moment qui te change la semaine.
+
+Réserve ton prochain moment : spordateur.com 🔥
+
+#FlowState #Mindfulness #Movement #Spordateur #DanseTherapy #LâcherPrise</div>
+  </div>
+</section>
+
+<!-- ===== PRO TIPS ===== -->
+<section id="tips">
+  <h2><span class="emoji">💡</span> Pro tips Gemini</h2>
+  <div class="tips">
+    <ol>
+      <li><strong>Toujours ajouter</strong> : <code>editorial photography, premium magazine quality, no AI artifacts, natural skin texture</code> → réduit le côté plastique IA.</li>
+      <li><strong>Pour visages réalistes</strong> : <code>realistic skin texture, natural pores, no airbrushed look, candid expression</code>.</li>
+      <li><strong>Pour éviter mauvaises mains</strong> : <code>hands clearly visible and natural</code>.</li>
+      <li><strong>Format Instagram</strong> : <code>vertical 9:16 aspect ratio</code> (parfois recadrage nécessaire après).</li>
+      <li><strong>⚠️ Si trop violet</strong> : ajoute <code>true magenta hot pink (#EC4899), NOT violet, NOT purple</code> — Gemini confond souvent.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ===== TEMPLATES LÉGENDES ===== -->
+<section id="templates">
+  <h2><span class="emoji">📝</span> Templates de légendes universelles</h2>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">Template 1 — Inscription</span>
+      <button class="copy-btn" data-copy="[Description courte de l'image]
+
+Sur Spordateur, t'as 3 clics pour t'inscrire et 30 secondes pour réserver ton prochain cours. Gratuit. Sans engagement.
+
+👉 spordateur.com
+
+#Spordateur [3 hashtags niche] [3 hashtags géo]">📋 Copier</button>
+    </div>
+    <div class="block-content">[Description courte de l'image]
+
+Sur Spordateur, t'as 3 clics pour t'inscrire et 30 secondes pour réserver ton prochain cours. Gratuit. Sans engagement.
+
+👉 spordateur.com
+
+#Spordateur [3 hashtags niche] [3 hashtags géo]</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">Template 2 — Urgence réservation</span>
+      <button class="copy-btn" data-copy="[Description courte de l'image]
+
+Plus que [X] places sur la session du [date].
+Je ferme la réservation [vendredi soir / dans 48h].
+
+Ton choix : spordateur.com
+
+#Spordateur [3 hashtags niche] [3 hashtags géo]">📋 Copier</button>
+    </div>
+    <div class="block-content">[Description courte de l'image]
+
+Plus que [X] places sur la session du [date].
+Je ferme la réservation [vendredi soir / dans 48h].
+
+Ton choix : spordateur.com
+
+#Spordateur [3 hashtags niche] [3 hashtags géo]</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">Template 3 — Témoignage / social proof</span>
+      <button class="copy-btn" data-copy="[Citation forte d'un membre fictif/réel]
+— Prénom, ville
+
+Toi aussi, t'as droit à ce genre de soirée.
+
+spordateur.com 💗
+
+#Spordateur #Témoignage [3 hashtags niche]">📋 Copier</button>
+    </div>
+    <div class="block-content">[Citation forte d'un membre fictif/réel]
+— Prénom, ville
+
+Toi aussi, t'as droit à ce genre de soirée.
+
+spordateur.com 💗
+
+#Spordateur #Témoignage [3 hashtags niche]</div>
+  </div>
+
+  <div class="block legende">
+    <div class="block-header">
+      <span class="block-label">Template 4 — Concept éducatif</span>
+      <button class="copy-btn" data-copy="[Question accrocheuse]
+[Réponse en 1 phrase courte]
+
+Bienvenue dans [nom du cours].
+
+Découvre-le : spordateur.com
+
+#Spordateur #Concept [hashtags niche]">📋 Copier</button>
+    </div>
+    <div class="block-content">[Question accrocheuse]
+[Réponse en 1 phrase courte]
+
+Bienvenue dans [nom du cours].
+
+Découvre-le : spordateur.com
+
+#Spordateur #Concept [hashtags niche]</div>
+  </div>
+</section>
+
+</div>
+
+<!-- ===== TOAST NOTIFICATION ===== -->
+<div class="toast" id="toast">✅ Copié dans le presse-papier !</div>
+
+<script>
+document.querySelectorAll('.copy-btn').forEach(btn => {
+  btn.addEventListener('click', async () => {
+    const text = btn.getAttribute('data-copy');
+    try {
+      await navigator.clipboard.writeText(text);
+      btn.classList.add('copied');
+      btn.innerHTML = '✓ Copié !';
+      const toast = document.getElementById('toast');
+      toast.classList.add('show');
+      setTimeout(() => {
+        btn.classList.remove('copied');
+        btn.innerHTML = '📋 Copier';
+        toast.classList.remove('show');
+      }, 1800);
+    } catch (err) {
+      // Fallback : créer un textarea temporaire
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      btn.innerHTML = '✓ Copié !';
+      setTimeout(() => { btn.innerHTML = '📋 Copier'; }, 1800);
+    }
+  });
+});
+
+// Smooth scroll pour les ancres
+document.querySelectorAll('a[href^="#"]').forEach(link => {
+  link.addEventListener('click', e => {
+    e.preventDefault();
+    const target = document.querySelector(link.getAttribute('href'));
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+</script>
+
+</body>
+</html>
