@@ -111,7 +111,16 @@ export function VoicePromptRecorder({
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
       const mimeType = pickAudioMimeType();
-      const rec = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+      // Fix audio robotique — force un bitrate audio correct (128 kbps). Sans
+      // `audioBitsPerSecond`, MediaRecorder utilise un défaut navigateur parfois
+      // très bas (VBR agressif) → accroche vocale distordue/robotique. Le
+      // mimeType (opus, fallback mp4 Safari) reste géré par pickAudioMimeType().
+      const rec = new MediaRecorder(
+        stream,
+        mimeType
+          ? { mimeType, audioBitsPerSecond: 128000 }
+          : { audioBitsPerSecond: 128000 },
+      );
       chunksRef.current = [];
       rec.ondataavailable = (e) => {
         if (e.data.size > 0) chunksRef.current.push(e.data);
