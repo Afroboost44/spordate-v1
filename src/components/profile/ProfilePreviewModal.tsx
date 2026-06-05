@@ -20,8 +20,7 @@ import type { UserProfile, SportEntry } from '@/types/firestore';
 import { ProfilePromptsDisplay } from './ProfilePromptsDisplay';
 import { ProfileStatsRow } from './ProfileStatsRow';
 import { ProfileInfoList } from './ProfileInfoList';
-import { VoicePromptPlayer } from './VoicePromptPlayer';
-import { VideoPromptPlayer } from './VideoPromptPlayer';
+import { ProfileMediaStack } from './ProfileMediaStack';
 
 const LEVEL_LABELS: Record<string, string> = {
   beginner: 'Débutant',
@@ -51,20 +50,7 @@ export function ProfilePreviewModal({
   const city = profile.city || '';
   const bio = profile.bio || '';
   const avatarUrl = photos[0] || profile.photoURL || '';
-  // Photos supplémentaires pour intercaler avec les prompts (1ère = avatar, on skip)
-  const extraPhotos = photos.slice(1);
   const prompts = profile.profilePrompts ?? [];
-
-  // Construit la sequence alternée photo / prompt / photo / prompt …
-  const sequence: Array<
-    | { kind: 'photo'; url: string; idx: number }
-    | { kind: 'prompt'; data: { questionId: string; question: string; answer: string }; idx: number }
-  > = [];
-  const maxLen = Math.max(extraPhotos.length, prompts.length);
-  for (let i = 0; i < maxLen; i++) {
-    if (i < extraPhotos.length) sequence.push({ kind: 'photo', url: extraPhotos[i], idx: i });
-    if (i < prompts.length) sequence.push({ kind: 'prompt', data: prompts[i], idx: i });
-  }
 
   // Pseudo-UserProfile pour passer aux composants ProfileStatsRow / InfoList
   // (ils acceptent un Pick<UserProfile, ...> donc seuls les champs nécessaires sont requis).
@@ -123,18 +109,17 @@ export function ProfilePreviewModal({
             )}
           </div>
 
-          {/* BUG #107 — Accroche vocale en 2e position après photo principale,
-              avant les stats. Cohérent avec /profile/[uid] (rendu public). */}
-          {profile.voicePromptUrl && (
-            <VoicePromptPlayer
-              url={profile.voicePromptUrl}
-              question={profile.voicePromptQuestion}
-              duration={profile.voicePromptDuration}
-            />
-          )}
-
-          {/* Accroche vidéo (additif) — affichée sous l'accroche vocale. */}
-          {profile.videoPromptUrl && <VideoPromptPlayer url={profile.videoPromptUrl} />}
+          {/* Pile média ordonnée (photos 2..N + accroches audio/vidéo) selon
+              profileBlocksOrder. La 1ère photo reste l'avatar ci-dessus. */}
+          <ProfileMediaStack
+            photos={photos}
+            voicePromptUrl={profile.voicePromptUrl}
+            voicePromptQuestion={profile.voicePromptQuestion}
+            voicePromptDuration={profile.voicePromptDuration}
+            videoPromptUrl={profile.videoPromptUrl}
+            order={profile.profileBlocksOrder}
+            displayName={displayName}
+          />
 
           {/* Stats horizontales (âge/genre/taille/ville/lifestyle) */}
           <ProfileStatsRow profile={previewProfile} />
@@ -149,33 +134,13 @@ export function ProfilePreviewModal({
             </div>
           )}
 
-          {/* Photos intercalées avec prompts (pattern Hinge) */}
-          {sequence.length > 0 && (
+          {/* Prompts (les photos sont désormais rendues dans la pile média
+              ordonnée ci-dessus, plus d'intercalage). */}
+          {prompts.length > 0 && (
             <div className="flex flex-col gap-4">
-              {sequence.map((item) => {
-                if (item.kind === 'photo') {
-                  return (
-                    <div
-                      key={`photo-${item.idx}-${item.url}`}
-                      className="relative w-full aspect-[4/5] rounded-2xl overflow-hidden border border-white/10 bg-zinc-900"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={item.url}
-                        alt={`${displayName} — photo ${item.idx + 2}`}
-                        className="absolute inset-0 w-full h-full object-cover"
-                        loading="lazy"
-                      />
-                    </div>
-                  );
-                }
-                return (
-                  <ProfilePromptsDisplay
-                    key={`prompt-${item.idx}-${item.data.questionId}`}
-                    prompts={[item.data]}
-                  />
-                );
-              })}
+              {prompts.map((p, i) => (
+                <ProfilePromptsDisplay key={`prompt-${i}-${p.questionId}`} prompts={[p]} />
+              ))}
             </div>
           )}
 

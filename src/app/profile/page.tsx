@@ -28,6 +28,7 @@ import { VoicePromptRecorder } from "@/components/profile/VoicePromptRecorder";
 import { VoicePromptPlayer } from "@/components/profile/VoicePromptPlayer";
 import { VideoPromptRecorder } from "@/components/profile/VideoPromptRecorder";
 import { VideoPromptPlayer } from "@/components/profile/VideoPromptPlayer";
+import { ProfileMediaArranger } from "@/components/profile/ProfileMediaArranger";
 import { VOICE_PROMPT_MAX_SECONDS } from "@/lib/profile/voicePrompt";
 
 // Alias label : "20 secondes" pour le sous-titre profile, avec fallback
@@ -244,6 +245,14 @@ export default function ProfilePage() {
   useEffect(() => {
     if (userProfile) setVideoPromptUrl(userProfile.videoPromptUrl);
   }, [userProfile?.videoPromptUrl]);
+
+  // Ordre des blocs médias (drag-and-drop). Absent → ordre historique.
+  const [profileBlocksOrder, setProfileBlocksOrder] = useState<
+    Array<{ type: 'photo' | 'audio' | 'video'; id: string }> | undefined
+  >(userProfile?.profileBlocksOrder);
+  useEffect(() => {
+    if (userProfile) setProfileBlocksOrder(userProfile.profileBlocksOrder);
+  }, [userProfile?.profileBlocksOrder]);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -653,156 +662,44 @@ export default function ProfilePage() {
         {/* BUG #80 — Card Premium + quick actions Boost / Découvrir en haut */}
         <ProfilePremiumCard isPremium={!!userProfile?.isPremium} />
 
-        {/* BUG #107 — Section "Accroche vocale" (Hinge Voice Prompt).
-            Placée en 2e position après les photos (cf. mockup Bassi 2026-05-22).
-            Si pas d'enregistrement : bouton CTA. Sinon : lecteur + bouton Modifier. */}
+        {/* Médias du profil — drag-and-drop (photos + accroches audio/vidéo).
+            Remplace l'ancienne grille Photos + les Cards Accroche : l'ordre est
+            réordonnable et persisté (profileBlocksOrder). Les recorders
+            audio/vidéo (montés plus bas) restent inchangés ; ils sont ouverts
+            via les mini-cards / CTAs de l'arranger. */}
         <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <AudioLines className="h-5 w-5 text-accent" />
-              Accroche vocale
+              <Camera className="h-5 w-5 text-accent" />
+              {t('arranger_title')}
             </CardTitle>
-            <p className="text-xs text-gray-500">
-              Une voix dit plus qu&apos;un texte. Affiche-toi sous ton meilleur jour en {VOICE_PROMPT_MAX_SECONDS_LABEL} secondes.
-            </p>
+            <p className="text-xs text-gray-500">{t('arranger_subtitle')}</p>
           </CardHeader>
           <CardContent>
-            {voicePromptData.url ? (
-              <div className="space-y-3">
-                <VoicePromptPlayer
-                  url={voicePromptData.url}
-                  question={voicePromptData.question}
-                  duration={voicePromptData.duration}
-                />
-                <button
-                  onClick={() => setVoicePromptModalOpen(true)}
-                  className="w-full h-11 rounded-xl border border-white/10 text-white/70 hover:text-accent hover:border-accent/30 transition-colors text-sm"
-                >
-                  {t('profile_modify_replace')}
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setVoicePromptModalOpen(true)}
-                className="w-full h-14 rounded-2xl border-2 border-dashed border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 hover:border-accent/50 transition-colors flex items-center justify-center gap-2 text-sm font-light"
-              >
-                <AudioLines className="h-5 w-5" />
-                Ajouter mon accroche vocale
-              </button>
-            )}
+            <input
+              type="file"
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*"
+              onChange={handleImageUpload}
+            />
+            <ProfileMediaArranger
+              uid={user?.uid || ''}
+              photos={photos}
+              onPhotosChange={setPhotos}
+              voice={voicePromptData}
+              videoUrl={videoPromptUrl}
+              order={profileBlocksOrder}
+              onOrderChange={setProfileBlocksOrder}
+              onAddPhoto={() => fileInputRef.current?.click()}
+              onRemovePhoto={(url) => setPhotos((prev) => prev.filter((p) => p !== url))}
+              onEditVoice={() => setVoicePromptModalOpen(true)}
+              onEditVideo={() => setVideoPromptModalOpen(true)}
+              uploadingPhoto={uploadingPhoto}
+            />
           </CardContent>
         </Card>
 
-        {/* Section "Accroche vidéo" (additif — complément de l'accroche vocale).
-            Si pas de vidéo : 2 boutons Enregistrer/Uploader (gérés dans le modal).
-            Sinon : player 9:16 + bouton Modifier/Remplacer. */}
-        <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Video className="h-5 w-5 text-accent" />
-              {t('video_prompt_title')}
-            </CardTitle>
-            <p className="text-xs text-gray-500">{t('video_prompt_subtitle')}</p>
-          </CardHeader>
-          <CardContent>
-            {videoPromptUrl ? (
-              <div className="space-y-3">
-                <VideoPromptPlayer url={videoPromptUrl} />
-                <button
-                  onClick={() => setVideoPromptModalOpen(true)}
-                  className="w-full h-11 rounded-xl border border-white/10 text-white/70 hover:text-accent hover:border-accent/30 transition-colors text-sm"
-                >
-                  {t('video_prompt_replace')}
-                </button>
-              </div>
-            ) : (
-              <button
-                onClick={() => setVideoPromptModalOpen(true)}
-                className="w-full h-14 rounded-2xl border-2 border-dashed border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 hover:border-accent/50 transition-colors flex items-center justify-center gap-2 text-sm font-light"
-              >
-                <Video className="h-5 w-5" />
-                {t('video_prompt_add_cta')}
-              </button>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* SECTION PHOTOS */}
-        <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
-          <CardHeader>
-            <CardTitle>Photos</CardTitle>
-            <p className="text-xs text-gray-500">{t('profile_photos_subtitle')}</p>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="image/*"
-                onChange={handleImageUpload}
-              />
-              {photos.map((photo, index) => (
-                <div key={index} className={`relative aspect-square rounded-lg overflow-hidden border group ${index === 0 ? 'border-accent ring-2 ring-accent/30' : 'border-gray-700'}`}>
-                  <img src={photo} alt="User" className="w-full h-full object-cover" />
-                  {/* BUG #107 — Badge "Principale" sur photo[0] + bouton "Mettre en principale"
-                      sur les autres photos. Au click → swap avec photos[0]. */}
-                  {index === 0 && (
-                    <div className="absolute bottom-1 left-1 px-1.5 py-0.5 rounded-full bg-accent text-white text-[9px] uppercase tracking-wider font-medium">
-                      Principale
-                    </div>
-                  )}
-                  {index !== 0 && (
-                    <button
-                      onClick={() => {
-                        // Swap photos[index] avec photos[0] pour mettre en avant
-                        setPhotos(prev => {
-                          const next = [...prev];
-                          [next[0], next[index]] = [next[index], next[0]];
-                          return next;
-                        });
-                      }}
-                      title={t('profile_make_primary_title')}
-                      className="absolute bottom-1 left-1 bg-black/70 backdrop-blur px-1.5 py-0.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity text-[9px] uppercase tracking-wider text-white/80 hover:text-accent"
-                    >
-                      ★ Principale
-                    </button>
-                  )}
-                  <button
-                    onClick={() => removePhoto(index)}
-                    className="absolute top-1 right-1 bg-red-600 p-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    <X className="h-3 w-3 text-white" />
-                  </button>
-                </div>
-              ))}
-              {photos.length < 5 && (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={uploadingPhoto}
-                  className="aspect-square rounded-lg border-2 border-dashed border-gray-700 flex flex-col items-center justify-center text-gray-500 hover:border-accent hover:text-accent transition-colors bg-black/20 disabled:opacity-50 disabled:cursor-wait"
-                >
-                  {uploadingPhoto ? (
-                    <>
-                      <Loader2 className="h-6 w-6 mb-2 animate-spin text-accent" />
-                      <span className="text-xs font-bold">Upload…</span>
-                    </>
-                  ) : (
-                    <>
-                      <Plus className="h-6 w-6 mb-2" />
-                      <span className="text-xs font-bold">{t('profile_add_photo_button')}</span>
-                    </>
-                  )}
-                </button>
-              )}
-              {Array.from({ length: Math.max(0, 5 - (photos.length + 1)) }).map((_, i) => (
-                <div key={`empty-${i}`} className="aspect-square rounded-lg bg-gray-900/50 border border-gray-800 flex items-center justify-center">
-                  <Camera className="h-6 w-6 text-gray-700" />
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
 
         {/* SECTION INFOS */}
         <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
@@ -1274,6 +1171,8 @@ export default function ProfilePage() {
             voicePromptDuration: voicePromptData.duration,
             // Accroche vidéo (live preview) — additif.
             videoPromptUrl: videoPromptUrl,
+            // Ordre des blocs médias (live preview).
+            profileBlocksOrder: profileBlocksOrder,
             // Badge ✓ Vérifié dans l'aperçu (cohérent /profile/[uid])
             selfieVerificationStatus: userProfile?.selfieVerificationStatus,
           }}

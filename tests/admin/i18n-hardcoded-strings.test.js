@@ -97,6 +97,7 @@ const WATCH_LIST = [
   { file: 'src/components/partner/VideoThumbnailPicker.tsx', maxHardcoded: 0 },
   { file: 'src/components/profile/VideoPromptRecorder.tsx', maxHardcoded: 0 },
   { file: 'src/components/profile/VideoPromptPlayer.tsx', maxHardcoded: 0 },
+  { file: 'src/components/profile/ProfileMediaArranger.tsx', maxHardcoded: 0 },
 ];
 
 // ─── Heuristiques détection texte français hardcodé ──────────────────────

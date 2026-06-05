@@ -213,6 +213,10 @@ export interface UserProfile {
   /** Accroche vidéo 9:16 (≤30s) — additif, complément de l'accroche vocale.
    *  Path Storage : users/{uid}/profile/video-prompt-{ts}.{ext}. Optionnel. */
   videoPromptUrl?: string;
+  /** Ordre des blocs médias (photos + audio + vidéo) défini par l'utilisateur
+   *  via drag-and-drop. Absent → ordre historique [photos…, audio, video].
+   *  Photo → id = URL ; audio → id = 'audio' ; video → id = 'video'. Additif. */
+  profileBlocksOrder?: Array<{ type: 'photo' | 'audio' | 'video'; id: string }>;
 
   // ----- BUG #71 — Stats lifestyle + infos perso style Hinge (additif) -----
   /** BUG #71 (additif). Champs étendus pour profil riche style Hinge.

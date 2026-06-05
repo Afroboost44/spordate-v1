@@ -19,8 +19,7 @@ import { ReportButton } from "@/components/reports/ReportButton";
 import { ReviewsList } from "@/components/reviews/ReviewsList";
 import { ProfilePromptsDisplay } from "@/components/profile/ProfilePromptsDisplay";
 import { ProfileStatsRow } from "@/components/profile/ProfileStatsRow";
-import { VoicePromptPlayer } from "@/components/profile/VoicePromptPlayer";
-import { VideoPromptPlayer } from "@/components/profile/VideoPromptPlayer";
+import { ProfileMediaStack } from "@/components/profile/ProfileMediaStack";
 import { ProfileInfoList } from "@/components/profile/ProfileInfoList";
 import type { Review, UserProfile } from "@/types/firestore";
 import { Timestamp } from 'firebase/firestore';
@@ -198,24 +197,25 @@ function PublicProfileContent() {
           )}
         </div>
 
-        {/* BUG #107 — Accroche vocale en 2e position après la photo principale.
-            Affichée si voicePromptUrl présent. Lecteur custom avec icône AudioLines. */}
-        {profile.voicePromptUrl && (
-          <div className="mb-6">
-            <VoicePromptPlayer
-              url={profile.voicePromptUrl}
-              question={profile.voicePromptQuestion}
-              duration={profile.voicePromptDuration}
-            />
-          </div>
-        )}
-
-        {/* Accroche vidéo (additif) — affichée sous l'accroche vocale. */}
-        {profile.videoPromptUrl && (
-          <div className="mb-6">
-            <VideoPromptPlayer url={profile.videoPromptUrl} />
-          </div>
-        )}
+        {/* Pile média ordonnée (photos 2..N + accroches audio/vidéo) selon
+            profileBlocksOrder. La 1ère photo reste l'avatar ci-dessus. */}
+        <div className="mb-6">
+          <ProfileMediaStack
+            photos={
+              profile.photos && profile.photos.length > 0
+                ? profile.photos
+                : profile.photoURL
+                  ? [profile.photoURL]
+                  : []
+            }
+            voicePromptUrl={profile.voicePromptUrl}
+            voicePromptQuestion={profile.voicePromptQuestion}
+            voicePromptDuration={profile.voicePromptDuration}
+            videoPromptUrl={profile.videoPromptUrl}
+            order={profile.profileBlocksOrder}
+            displayName={profile.displayName}
+          />
+        </div>
 
         {/* BUG #71 — Stats horizontales scrollables (âge/genre/taille/ville/lifestyle).
             Tout est null-safe : le composant renvoie null si rien à afficher. */}
@@ -233,54 +233,15 @@ function PublicProfileContent() {
           </div>
         )}
 
-        {/* BUG #71 — Photos additionnelles INTERCALÉES entre les prompts (pattern
-            Hinge feed). Layout : P1 + Q1 + P2 + Q2 + P3 + Q3 + photos restantes.
-            Si moins de photos que de prompts, on affiche ce qu'on a et le reste
-            des prompts s'enchaîne. */}
-        {(() => {
-          const photos = (profile.photos && profile.photos.length > 1)
-            ? profile.photos.slice(1)
-            : [];
-          const prompts = profile.profilePrompts ?? [];
-          // Construit l'ordre alterné : photo / prompt / photo / prompt / ...
-          // Si plus de prompts que de photos, les prompts restants suivent.
-          // Si plus de photos que de prompts, les photos restantes suivent.
-          const sequence: Array<{ kind: 'photo'; url: string; idx: number } | { kind: 'prompt'; data: typeof prompts[number]; idx: number }> = [];
-          const maxLen = Math.max(photos.length, prompts.length);
-          for (let i = 0; i < maxLen; i++) {
-            if (i < photos.length) sequence.push({ kind: 'photo', url: photos[i], idx: i });
-            if (i < prompts.length) sequence.push({ kind: 'prompt', data: prompts[i], idx: i });
-          }
-          if (sequence.length === 0) return null;
-          return (
-            <div className="mb-8 flex flex-col gap-4">
-              {sequence.map((item) => {
-                if (item.kind === 'photo') {
-                  return (
-                    <div
-                      key={`photo-${item.idx}-${item.url}`}
-                      className="relative w-full aspect-[4/5] rounded-2xl overflow-hidden border border-white/10 bg-zinc-900"
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={item.url}
-                        alt={t('profile_uid_photo_alt', { name: profile.displayName, idx: item.idx + 2 })}
-                        className="absolute inset-0 w-full h-full object-cover"
-                        loading={item.idx === 0 ? 'eager' : 'lazy'}
-                      />
-                    </div>
-                  );
-                }
-                return (
-                  <ProfilePromptsDisplay
-                    key={`prompt-${item.idx}-${item.data.questionId}`}
-                    prompts={[item.data]}
-                  />
-                );
-              })}
-            </div>
-          );
-        })()}
+        {/* Prompts (les photos sont désormais rendues dans la pile média
+            ordonnée ci-dessus selon profileBlocksOrder, plus d'intercalage). */}
+        {(profile.profilePrompts ?? []).length > 0 && (
+          <div className="mb-8 flex flex-col gap-4">
+            {(profile.profilePrompts ?? []).map((p, i) => (
+              <ProfilePromptsDisplay key={`prompt-${i}-${p.questionId}`} prompts={[p]} />
+            ))}
+          </div>
+        )}
 
         {/* BUG #71 — Infos perso verticales (profession, religion, origine, etc.) */}
         <div className="mb-8">
