@@ -254,10 +254,26 @@ export function VideoThumbnailPicker({
         setTimeout(() => settle(null), 1500);
       });
 
-    const captureFrame = () => {
+    const captureFrame = (idx: number) => {
       try {
         const w = video.videoWidth;
         const h = video.videoHeight;
+        // ACTION 1 — diagnostic enrichi. actualTime stuck à 0 + buffered
+        // 'none'/0-x sans avancer = proxy ne supporte pas les Range requests
+        // (pas de 206) → seek impossible en prod.
+        // eslint-disable-next-line no-console
+        console.log('frame extracted', {
+          idx,
+          target: targets[idx],
+          actualTime: video.currentTime,
+          readyState: video.readyState,
+          duration: video.duration,
+          networkState: video.networkState,
+          buffered:
+            video.buffered.length > 0
+              ? `${video.buffered.start(0)}-${video.buffered.end(0)}`
+              : 'none',
+        });
         if (!w || !h) return;
         canvas.width = w;
         canvas.height = h;
@@ -298,7 +314,7 @@ export function VideoThumbnailPicker({
           cleanup();
           return;
         }
-        captureFrame();
+        captureFrame(idx);
       }
       finish();
     };
