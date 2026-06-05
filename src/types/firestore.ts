@@ -210,6 +210,9 @@ export interface UserProfile {
   /** Durée mesurée pendant l'enregistrement (secondes). Source de vérité — la
    *  durée d'un Blob webm n'est pas fiable côté Safari iOS. */
   voicePromptDuration?: number;
+  /** Accroche vidéo 9:16 (≤30s) — additif, complément de l'accroche vocale.
+   *  Path Storage : users/{uid}/profile/video-prompt-{ts}.{ext}. Optionnel. */
+  videoPromptUrl?: string;
 
   // ----- BUG #71 — Stats lifestyle + infos perso style Hinge (additif) -----
   /** BUG #71 (additif). Champs étendus pour profil riche style Hinge.

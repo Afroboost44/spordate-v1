@@ -20,6 +20,7 @@ import { ReviewsList } from "@/components/reviews/ReviewsList";
 import { ProfilePromptsDisplay } from "@/components/profile/ProfilePromptsDisplay";
 import { ProfileStatsRow } from "@/components/profile/ProfileStatsRow";
 import { VoicePromptPlayer } from "@/components/profile/VoicePromptPlayer";
+import { VideoPromptPlayer } from "@/components/profile/VideoPromptPlayer";
 import { ProfileInfoList } from "@/components/profile/ProfileInfoList";
 import type { Review, UserProfile } from "@/types/firestore";
 import { Timestamp } from 'firebase/firestore';
@@ -206,6 +207,13 @@ function PublicProfileContent() {
               question={profile.voicePromptQuestion}
               duration={profile.voicePromptDuration}
             />
+          </div>
+        )}
+
+        {/* Accroche vidéo (additif) — affichée sous l'accroche vocale. */}
+        {profile.videoPromptUrl && (
+          <div className="mb-6">
+            <VideoPromptPlayer url={profile.videoPromptUrl} />
           </div>
         )}
 

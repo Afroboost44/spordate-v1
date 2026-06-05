@@ -21,6 +21,7 @@ import { ProfilePromptsDisplay } from './ProfilePromptsDisplay';
 import { ProfileStatsRow } from './ProfileStatsRow';
 import { ProfileInfoList } from './ProfileInfoList';
 import { VoicePromptPlayer } from './VoicePromptPlayer';
+import { VideoPromptPlayer } from './VideoPromptPlayer';
 
 const LEVEL_LABELS: Record<string, string> = {
   beginner: 'Débutant',
@@ -131,6 +132,9 @@ export function ProfilePreviewModal({
               duration={profile.voicePromptDuration}
             />
           )}
+
+          {/* Accroche vidéo (additif) — affichée sous l'accroche vocale. */}
+          {profile.videoPromptUrl && <VideoPromptPlayer url={profile.videoPromptUrl} />}
 
           {/* Stats horizontales (âge/genre/taille/ville/lifestyle) */}
           <ProfileStatsRow profile={previewProfile} />

@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import {
-  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle, Gift, Copy, CreditCard, TrendingUp, ArrowRight, LogOut, Shield, MessageSquareQuote, Sparkles, UserCircle, Crown, Settings, SlidersHorizontal, BadgeCheck, AudioLines
+  Camera, MapPin, Save, Loader2, Plus, X, CheckCircle, Gift, Copy, CreditCard, TrendingUp, ArrowRight, LogOut, Shield, MessageSquareQuote, Sparkles, UserCircle, Crown, Settings, SlidersHorizontal, BadgeCheck, AudioLines, Video
 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -26,6 +26,8 @@ import { UnverifiedBanner } from "@/components/profile/UnverifiedBanner";
 import { ProfileImageCropper } from "@/components/profile/ProfileImageCropper";
 import { VoicePromptRecorder } from "@/components/profile/VoicePromptRecorder";
 import { VoicePromptPlayer } from "@/components/profile/VoicePromptPlayer";
+import { VideoPromptRecorder } from "@/components/profile/VideoPromptRecorder";
+import { VideoPromptPlayer } from "@/components/profile/VideoPromptPlayer";
 import { VOICE_PROMPT_MAX_SECONDS } from "@/lib/profile/voicePrompt";
 
 // Alias label : "20 secondes" pour le sous-titre profile, avec fallback
@@ -233,6 +235,15 @@ export default function ProfilePage() {
       });
     }
   }, [userProfile?.voicePromptUrl, userProfile?.voicePromptQuestion, userProfile?.voicePromptDuration]);
+
+  // Accroche vidéo (additif — VideoPromptRecorder écrit déjà dans Firestore).
+  const [videoPromptModalOpen, setVideoPromptModalOpen] = useState(false);
+  const [videoPromptUrl, setVideoPromptUrl] = useState<string | undefined>(
+    userProfile?.videoPromptUrl,
+  );
+  useEffect(() => {
+    if (userProfile) setVideoPromptUrl(userProfile.videoPromptUrl);
+  }, [userProfile?.videoPromptUrl]);
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -677,6 +688,40 @@ export default function ProfilePage() {
               >
                 <AudioLines className="h-5 w-5" />
                 Ajouter mon accroche vocale
+              </button>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Section "Accroche vidéo" (additif — complément de l'accroche vocale).
+            Si pas de vidéo : 2 boutons Enregistrer/Uploader (gérés dans le modal).
+            Sinon : player 9:16 + bouton Modifier/Remplacer. */}
+        <Card className="bg-[#1A1A1A] border-white/5 hover:border-accent/20 transition-colors">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Video className="h-5 w-5 text-accent" />
+              {t('video_prompt_title')}
+            </CardTitle>
+            <p className="text-xs text-gray-500">{t('video_prompt_subtitle')}</p>
+          </CardHeader>
+          <CardContent>
+            {videoPromptUrl ? (
+              <div className="space-y-3">
+                <VideoPromptPlayer url={videoPromptUrl} />
+                <button
+                  onClick={() => setVideoPromptModalOpen(true)}
+                  className="w-full h-11 rounded-xl border border-white/10 text-white/70 hover:text-accent hover:border-accent/30 transition-colors text-sm"
+                >
+                  {t('video_prompt_replace')}
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setVideoPromptModalOpen(true)}
+                className="w-full h-14 rounded-2xl border-2 border-dashed border-accent/30 bg-accent/5 text-accent hover:bg-accent/10 hover:border-accent/50 transition-colors flex items-center justify-center gap-2 text-sm font-light"
+              >
+                <Video className="h-5 w-5" />
+                {t('video_prompt_add_cta')}
               </button>
             )}
           </CardContent>
@@ -1227,6 +1272,8 @@ export default function ProfilePage() {
             voicePromptUrl: voicePromptData.url,
             voicePromptQuestion: voicePromptData.question,
             voicePromptDuration: voicePromptData.duration,
+            // Accroche vidéo (live preview) — additif.
+            videoPromptUrl: videoPromptUrl,
             // Badge ✓ Vérifié dans l'aperçu (cohérent /profile/[uid])
             selfieVerificationStatus: userProfile?.selfieVerificationStatus,
           }}
@@ -1280,6 +1327,19 @@ export default function ProfilePage() {
           current={voicePromptData}
           onSaved={(data) => setVoicePromptData(data)}
           onDeleted={() => setVoicePromptData({})}
+        />
+      )}
+
+      {/* Modal recorder accroche vidéo (additif). Écrit lui-même dans Firestore
+          via les callbacks ; on synchronise le state local pour réactivité. */}
+      {user && (
+        <VideoPromptRecorder
+          open={videoPromptModalOpen}
+          onOpenChange={setVideoPromptModalOpen}
+          uid={user.uid}
+          currentUrl={videoPromptUrl}
+          onSaved={(url) => setVideoPromptUrl(url)}
+          onDeleted={() => setVideoPromptUrl(undefined)}
         />
       )}
     </div>
