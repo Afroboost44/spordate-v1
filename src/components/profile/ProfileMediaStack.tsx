@@ -85,7 +85,11 @@ export function ProfileMediaStack({
             />
           );
         }
-        return <VideoPromptPlayer key={`video-${i}`} url={videoPromptUrl} />;
+        return (
+          <div key={`video-${i}`} className="w-full">
+            <VideoPromptPlayer url={videoPromptUrl} fullWidth />
+          </div>
+        );
       })}
     </div>
   );

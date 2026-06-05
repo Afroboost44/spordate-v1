@@ -19,9 +19,14 @@ import { formatVideoTime } from '@/lib/profile/videoPrompt';
 interface VideoPromptPlayerProps {
   /** URL Firebase Storage. Null/undefined → composant masqué. */
   url?: string | null;
+  /** Quand true, le player s'étire sur toute la largeur du conteneur (désactive
+   *  le max-width centré). Utilisé dans ProfileMediaStack pour aligner la
+   *  largeur de la vidéo sur celle des photos. Default false (autres usages
+   *  inchangés). */
+  fullWidth?: boolean;
 }
 
-export function VideoPromptPlayer({ url }: VideoPromptPlayerProps) {
+export function VideoPromptPlayer({ url, fullWidth = false }: VideoPromptPlayerProps) {
   const { t } = useLanguage();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -90,7 +95,11 @@ export function VideoPromptPlayer({ url }: VideoPromptPlayerProps) {
   const progressPct = duration > 0 ? Math.min(100, (currentTime / duration) * 100) : 0;
 
   return (
-    <div className="relative w-full max-w-[240px] mx-auto aspect-[9/16] rounded-2xl overflow-hidden bg-black border border-white/10">
+    <div
+      className={`relative w-full aspect-[9/16] rounded-2xl overflow-hidden bg-black border border-white/10 ${
+        fullWidth ? '' : 'max-w-[240px] mx-auto'
+      }`}
+    >
       {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
       <video
         ref={videoRef}
