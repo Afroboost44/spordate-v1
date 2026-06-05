@@ -217,28 +217,60 @@ export function VideoThumbnailPicker({
       video.currentTime = targets[idx];
     };
 
+    // FIX — l'event `seeked` se déclenche AVANT que la frame cible soit décodée
+    // et peinte → drawImage capturait la frame précédente (toutes identiques à
+    // la 1ère). On attend donc la présentation effective de la nouvelle frame :
+    //   1. video.requestVideoFrameCallback (Chrome/Edge/Safari récents) = signal
+    //      exact quand la frame est envoyée au compositeur
+    //   2. fallback double requestAnimationFrame (layout puis paint)
+    //   3. garde-fou 500ms pour ne jamais bloquer l'extraction
+    const waitForPaintedFrame = (): Promise<void> =>
+      new Promise((resolve) => {
+        let done = false;
+        const settle = () => {
+          if (done) return;
+          done = true;
+          resolve();
+        };
+        const rvfc = (
+          video as HTMLVideoElement & {
+            requestVideoFrameCallback?: (cb: () => void) => number;
+          }
+        ).requestVideoFrameCallback;
+        if (typeof rvfc === 'function') {
+          rvfc.call(video, () => settle());
+        } else {
+          requestAnimationFrame(() => requestAnimationFrame(() => settle()));
+        }
+        setTimeout(settle, 500);
+      });
+
     video.onseeked = () => {
       if (cancelled) return;
-      try {
-        const w = video.videoWidth;
-        const h = video.videoHeight;
-        if (w && h) {
-          canvas.width = w;
-          canvas.height = h;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(video, 0, 0, w, h);
-            collected.push({
-              time: video.currentTime,
-              dataUrl: canvas.toDataURL('image/jpeg', 0.6),
-            });
+      void (async () => {
+        await waitForPaintedFrame();
+        if (cancelled) return;
+        try {
+          const w = video.videoWidth;
+          const h = video.videoHeight;
+          if (w && h) {
+            canvas.width = w;
+            canvas.height = h;
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+              ctx.drawImage(video, 0, 0, w, h);
+              collected.push({
+                time: video.currentTime,
+                dataUrl: canvas.toDataURL('image/jpeg', 0.6),
+              });
+            }
           }
+        } catch {
+          /* frame skip (tainted/decode) — on continue */
         }
-      } catch {
-        /* frame skip (tainted/decode) — on continue */
-      }
-      idx += 1;
-      seekNext();
+        idx += 1;
+        seekNext();
+      })();
     };
 
     video.onloadeddata = () => seekNext();
@@ -437,15 +469,15 @@ export function VideoThumbnailPicker({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="bg-zinc-950 border-white/10 max-w-2xl">
-        <DialogHeader>
+      <DialogContent className="bg-zinc-950 border-white/10 max-w-2xl max-h-[90vh] flex flex-col">
+        <DialogHeader className="flex-shrink-0">
           <DialogTitle className="text-white font-light">{t('vtp_title')}</DialogTitle>
           <DialogDescription className="text-white/50 text-sm">
             {t('vtp_desc')}
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-4">
+        <div className="space-y-4 flex-1 overflow-y-auto min-h-0 pr-1 -mr-1">
           {/* ── Rangée de 5 frames suggérées (façon Instagram) ── */}
           {(framesLoading || frames.length > 0) && (
             <div className="space-y-1.5">
@@ -608,7 +640,7 @@ export function VideoThumbnailPicker({
           <canvas ref={canvasRef} className="hidden" />
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-shrink-0">
           <Button
             type="button"
             variant="outline"
