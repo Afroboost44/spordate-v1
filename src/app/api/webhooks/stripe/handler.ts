@@ -450,6 +450,30 @@ async function handleSessionPayment(
     });
   } catch { /* silent */ }
 
+  // Phase 3 push — notif FCM "Nouvelle vente" au partner (fire-and-forget,
+  // best-effort, ne bloque pas le webhook). meta.partnerId == session.partnerId
+  // == uid du partner (convention post-c33) → notifyUser lit users/{uid}.fcmToken.
+  // No-op silencieux si le partner n'a pas activé push (ou legacy partnerId≠uid).
+  if (meta.partnerId && amountTotal > 0) {
+    try {
+      const { notifyUser } = await import('@/lib/notifications/notifyUser');
+      let buyerName = 'Quelqu’un';
+      try {
+        const buyerSnap = await db.collection('users').doc(userId).get();
+        if (buyerSnap.exists) buyerName = (buyerSnap.data()?.displayName as string | undefined) || buyerName;
+      } catch { /* ignore */ }
+      void notifyUser({
+        uid: meta.partnerId,
+        messageKey: 'partner_sale',
+        params: { buyerName, activityTitle: sessionTitleForNotif || 'ton activité', amount: (amountTotal / 100).toFixed(2) },
+        clickUrl: '/partner/dashboard',
+        data: { type: 'partner_sale', sessionId, bookingId: bookingIdResult },
+      }).catch(() => {});
+    } catch (err) {
+      console.warn('[handleSessionPayment] partner_sale push failed (non-bloquant)', err);
+    }
+  }
+
   // Phase 9.5 c47 BUG B — Notification 'duo-invitation' à l'invité (post-commit).
   // L'invitee voit le badge cloche + entrée dans /notifications → click → /sessions/{id}.
   if (isDuoTicket && inviteeUid && inviteeBookingIdResult) {

@@ -28,6 +28,8 @@ export const DEFAULT_LANG: ServerLang = 'fr';
  *  - test_push                     : diagnostique /api/test-push
  *  - like_received                 : like simple reçu (ANONYME, cooldown 60 min)
  *  - activity_invite_received      : "{senderName} t'invite" à {activityTitle}
+ *  - partner_sale                  : vente payante reçue par un partner (+{amount} CHF)
+ *  - reservation_received          : réservation gratuite reçue par un partner
  *  - referral_commission_received  : commission CHF reçue (creator ou invite)
  *  - referral_free_class_creator   : N cours offerts via lien créateur
  *  - referral_free_class_invite    : N cours offerts via parrainage user
@@ -41,6 +43,8 @@ export type MessageKey =
   | 'test_push'
   | 'like_received'
   | 'activity_invite_received'
+  | 'partner_sale'
+  | 'reservation_received'
   | 'referral_commission_received'
   | 'referral_free_class_creator_one'
   | 'referral_free_class_creator_other'
@@ -91,6 +95,14 @@ export const PUSH_TEMPLATES: Record<ServerLang, Record<MessageKey, PushTemplate>
     activity_invite_received: {
       title: "{senderName} t'invite",
       body: 'Invitation à {activityTitle}',
+    },
+    partner_sale: {
+      title: 'Nouvelle vente 🎉',
+      body: '{buyerName} a réservé {activityTitle} — +{amount} CHF',
+    },
+    reservation_received: {
+      title: 'Nouvelle réservation',
+      body: '{userName} a réservé {activityTitle}',
     },
     referral_commission_received: {
       title: 'Commission reçue !',
@@ -146,6 +158,14 @@ export const PUSH_TEMPLATES: Record<ServerLang, Record<MessageKey, PushTemplate>
       title: '{senderName} invited you',
       body: 'Invitation to {activityTitle}',
     },
+    partner_sale: {
+      title: 'New sale 🎉',
+      body: '{buyerName} booked {activityTitle} — +{amount} CHF',
+    },
+    reservation_received: {
+      title: 'New booking',
+      body: '{userName} booked {activityTitle}',
+    },
     referral_commission_received: {
       title: 'Commission received!',
       body: '+{amount} CHF commission on a purchase by your referral',
@@ -199,6 +219,14 @@ export const PUSH_TEMPLATES: Record<ServerLang, Record<MessageKey, PushTemplate>
     activity_invite_received: {
       title: '{senderName} lädt dich ein',
       body: 'Einladung zu {activityTitle}',
+    },
+    partner_sale: {
+      title: 'Neuer Verkauf 🎉',
+      body: '{buyerName} hat {activityTitle} gebucht — +{amount} CHF',
+    },
+    reservation_received: {
+      title: 'Neue Buchung',
+      body: '{userName} hat {activityTitle} gebucht',
     },
     referral_commission_received: {
       title: 'Provision erhalten!',

@@ -780,6 +780,30 @@ async function handleSessionFreeMode(
       console.warn('[handleSessionFreeMode] sendEmail failed (non-blocking)', err);
     }
 
+    // Phase 3 push — notif FCM "Nouvelle réservation" au partner (gratuit,
+    // fire-and-forget, best-effort). activity.partnerId == uid du partner
+    // (convention post-c33) → notifyUser lit users/{uid}.fcmToken. No-op
+    // silencieux si pas d'opt-in (ou legacy partnerId≠uid).
+    if (activity.partnerId) {
+      try {
+        const { notifyUser } = await import('@/lib/notifications/notifyUser');
+        let bookerName = 'Quelqu’un';
+        try {
+          const bSnap = await db.collection('users').doc(body.userId!).get();
+          if (bSnap.exists) bookerName = (bSnap.data()?.displayName as string | undefined) || bookerName;
+        } catch { /* ignore */ }
+        void notifyUser({
+          uid: activity.partnerId,
+          messageKey: 'reservation_received',
+          params: { userName: bookerName, activityTitle: activityLabel },
+          clickUrl: '/partner/dashboard',
+          data: { type: 'reservation', bookingId },
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('[handleSessionFreeMode] reservation push failed (non-bloquant)', err);
+      }
+    }
+
     return NextResponse.json(
       { ok: true, bookingId, creditsGranted: bundleCredits },
       { status: 200 },
