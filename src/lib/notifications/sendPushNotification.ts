@@ -133,8 +133,16 @@ export async function sendPushNotification(input: SendPushInput): Promise<SendPu
       },
     } as Record<string, unknown>,
   };
-  if (input.data) {
-    message.data = input.data;
+  // FIX click — on dépose clickUrl À LA FOIS dans data.click_action (canal
+  // brut toujours livré au handler push de sw.js, fiable sans SDK Firebase)
+  // ET dans webpush.fcmOptions.link. Avant : seul fcmOptions.link, qui n'est
+  // pas garanti d'être réexposé dans le payload Web Push brut → le SW
+  // retombait sur '/' au clic.
+  if (input.data || input.clickUrl) {
+    message.data = {
+      ...(input.data || {}),
+      ...(input.clickUrl ? { click_action: input.clickUrl } : {}),
+    };
   }
   if (input.clickUrl) {
     message.webpush.fcmOptions = { link: input.clickUrl };

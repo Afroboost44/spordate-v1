@@ -22,7 +22,7 @@
 // SW_VERSION sert aussi à invalider tous les caches existants à l'install
 // (le suffix BUILD_ID injecté par next.config.ts garantit un body distinct
 // à chaque build, donc updatefound + SKIP_WAITING à chaque déploiement).
-const SW_VERSION = 'v38';
+const SW_VERSION = 'v39';
 const CACHE_NAME = `spordate-${SW_VERSION}`;
 // Cache séparé pour assets long-life (/_next/static/* immuables). Reste utile
 // même quand on bump CACHE_NAME car ces fichiers sont addressés par hash unique.
@@ -114,19 +114,39 @@ self.addEventListener('push', (event) => {
   event.waitUntil(self.registration.showNotification(n.title || 'Spordateur', options));
 });
 
-// FIX push (v38) — clic notif : focus un onglet Spordateur existant sinon ouvre
-// le lien (click_action déposé dans data par le handler push ci-dessus).
+// FIX push click (v39) — clic notif : navigue vers la cible (click_action déposé
+// dans data par le handler push). BUG v38 corrigé : avant, `c.navigate()` n'était
+// PAS awaité (waitUntil n'attendait que focus) ET sa rejection ASYNCHRONE (quand
+// le client n'est pas contrôlé par ce SW) n'était pas attrapée par le try/catch
+// synchrone → la navigation échouait en silence, l'app se contentait de focus.
+// Maintenant : navigate awaité + rejection attrapée + fallback openWindow + URL
+// absolue + log du target.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
-  const target = (event.notification.data && event.notification.data.click_action) || '/';
-  event.waitUntil(
-    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
-      for (const c of list) {
-        if ('focus' in c) { try { c.navigate(target); } catch (e) {} return c.focus(); }
+  const data = event.notification.data || {};
+  const rawTarget = data.click_action || '/';
+  // URL absolue (navigate/openWindow la résolvent contre l'origine du SW).
+  const target = new URL(rawTarget, self.location.origin).href;
+  console.log('[sw notificationclick] target =', target);
+  event.waitUntil((async () => {
+    const list = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+    for (const c of list) {
+      // Réutilise une fenêtre Spordateur existante : navigate PUIS focus.
+      // navigate() rejette (async) si le client n'est pas contrôlé par ce SW
+      // → on attrape et on tombe sur openWindow (fallback fiable).
+      if ('navigate' in c) {
+        try {
+          const navigated = await c.navigate(target);
+          const win = navigated || c;
+          return ('focus' in win) ? win.focus() : undefined;
+        } catch (e) {
+          console.warn('[sw notificationclick] navigate failed → openWindow', e);
+          break;
+        }
       }
-      if (self.clients.openWindow) return self.clients.openWindow(target);
-    })
-  );
+    }
+    if (self.clients.openWindow) return self.clients.openWindow(target);
+  })());
 });
 
 // Helpers de stratégies (Fix #204 v2). Trois stratégies cohabitent :
