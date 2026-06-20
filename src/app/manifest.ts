@@ -21,7 +21,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const brand = await getServerBrand();
   // Fix #209 — bump fallback version v32 → v35 cohérent avec SW_VERSION pour
   // forcer cache-bust sur la prochaine visite mobile (Bassi).
-  const v = brand?.version ? `?v=${brand.version}` : '?v=35';
+  const v = brand?.version ? `?v=${brand.version}` : '?v=40';
 
   // Icons : si brand configuré, on utilise les URLs Firebase Storage. Sinon
   // on retombe sur les PNG statiques de public/icons/ (cohérent legacy).
@@ -85,7 +85,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     // qui invite le launcher Android à appliquer son thème clair (bug carré
     // blanc home screen).
     icons.push({
-      src: '/icons/placeholder.png?v=35',
+      src: '/icons/placeholder.png?v=40',
       sizes: '192x192',
       type: 'image/png',
       purpose: 'any',
@@ -96,7 +96,7 @@ export default async function manifest(): Promise<MetadataRoute.Manifest> {
     name: 'Spordateur',
     short_name: 'Spordateur',
     description: 'La plateforme suisse de rencontres par le sport et la danse.',
-    start_url: '/?v=35',
+    start_url: '/?v=40',
     display: 'standalone',
     background_color: '#000000',
     theme_color: '#000000',

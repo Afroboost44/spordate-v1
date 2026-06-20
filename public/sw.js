@@ -22,7 +22,7 @@
 // SW_VERSION sert aussi à invalider tous les caches existants à l'install
 // (le suffix BUILD_ID injecté par next.config.ts garantit un body distinct
 // à chaque build, donc updatefound + SKIP_WAITING à chaque déploiement).
-const SW_VERSION = 'v39';
+const SW_VERSION = 'v40';
 const CACHE_NAME = `spordate-${SW_VERSION}`;
 // Cache séparé pour assets long-life (/_next/static/* immuables). Reste utile
 // même quand on bump CACHE_NAME car ces fichiers sont addressés par hash unique.
@@ -102,8 +102,11 @@ self.addEventListener('push', (event) => {
     (payload.fcmOptions && payload.fcmOptions.link) || data.click_action || '/';
   const options = {
     body: n.body || '',
+    // placeholder.png contient désormais le logo Spordateur (cœur+flèche #D91CD2,
+    // 192px opaque) — plus le carré rose neutre. badge = silhouette monochrome
+    // dédiée 96px (Android masque le badge sur son canal alpha).
     icon: n.icon || '/icons/placeholder.png',
-    badge: n.badge || '/icons/placeholder.png',
+    badge: n.badge || '/icons/logo-badge-96.png',
     data: Object.assign({}, data, { click_action: link }),
     tag: data.tag || ('spordate-' + Date.now()),
     renotify: true,

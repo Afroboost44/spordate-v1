@@ -107,11 +107,27 @@ export default async function Icon() {
     console.warn('[icon.tsx] Brand custom fetch failed, fallback placeholder:', err instanceof Error ? err.message : err);
   }
 
-  // 2. Fallback placeholder neutre (aucun brand uploadé encore).
-  // Fix #209 (Hypothèse E) — on garantit un PNG OPAQUE (aucun pixel alpha)
-  // via background-color noir sous le carré accent. Si jamais l'ImageResponse
-  // produisait du semi-transparent en bord, le fond noir est composé dessous
-  // → aucun risque que le launcher Android ajoute un fond blanc système.
+  // 2. Fallback (aucun brand admin uploadé) — on sert le logo statique
+  // `public/icons/placeholder.png`, qui contient désormais le logo Spordateur
+  // cœur+flèche (#D91CD2 192px opaque) et NON plus un carré rose. Même pattern
+  // que la branche brand custom (fetch + stream le PNG, préserve l'opacité).
+  try {
+    const base = (process.env.NEXT_PUBLIC_APP_URL || 'https://spordateur.com').replace(/\/$/, '');
+    const res = await fetch(`${base}/icons/placeholder.png`, { next: { revalidate: 60 } });
+    if (res.ok) {
+      const buf = await res.arrayBuffer();
+      return new Response(buf, {
+        headers: {
+          'Content-Type': 'image/png',
+          'Cache-Control': 'public, max-age=60, s-maxage=60',
+        },
+      });
+    }
+  } catch (err) {
+    console.warn('[icon.tsx] logo statique fetch failed, fallback ImageResponse:', err instanceof Error ? err.message : err);
+  }
+
+  // 3. Ultime filet (si le fetch du logo statique échoue) — carré accent opaque.
   const color = await getAccentColor();
   return new ImageResponse(
     (
