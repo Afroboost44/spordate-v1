@@ -35,6 +35,11 @@ export default function PWARegister() {
   // beforeinstallprompt). Sur Android/Chrome, l'install natif passe par
   // `showInstall` (bouton → deferredPrompt.prompt()), plus de bannière ⋮.
   const [showIOSBanner, setShowIOSBanner] = useState(false);
+  // FIX fallback Android — bannière "Menu ⋮ → Ajouter à l'écran d'accueil"
+  // affichée UNIQUEMENT si beforeinstallprompt n'a pas fired après 5s (Chrome
+  // ne le fire pas toujours : engagement score + cooldown). Sinon le bouton
+  // natif (showInstall) prend le dessus.
+  const [showAndroidFallback, setShowAndroidFallback] = useState(false);
   const [deviceType, setDeviceType] = useState<'ios' | 'android' | null>(null);
   const [hasNativePrompt, setHasNativePrompt] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
@@ -45,6 +50,8 @@ export default function PWARegister() {
     // Fix #204 — handles à nettoyer au unmount.
     let updateInterval: number | null = null;
     let controllerChangeHandler: (() => void) | null = null;
+    // FIX fallback Android — timer 5s à nettoyer au unmount.
+    let androidFallbackTimer: number | null = null;
 
     if ('serviceWorker' in navigator) {
       // Fix #204 — cache-bust du body /sw.js à chaque déploiement. Le
@@ -230,6 +237,32 @@ export default function PWARegister() {
       }
     }
 
+    // FIX fallback Android — Chrome ne fire pas toujours beforeinstallprompt
+    // (engagement score + cooldown). Si après 5s l'event n'a PAS fired
+    // (deferredPrompt reste null) ET Android non-standalone → on affiche la
+    // bannière fallback "Menu ⋮ → Ajouter à l'écran d'accueil" (texte seul,
+    // aucun prompt natif dispo). Si l'event fire (avant OU après ce délai),
+    // handleBeforeInstall masque ce fallback et affiche le bouton natif
+    // (showInstall). deferredPrompt est module-level → sa valeur est lue à
+    // jour dans le setTimeout (pas de stale closure).
+    if (forceDebug || (isAndroid && !isStandalone)) {
+      try {
+        const dismissedAt = window.localStorage.getItem(IOS_BANNER_DISMISS_KEY);
+        const dismissedMs = dismissedAt ? parseInt(dismissedAt, 10) : 0;
+        const cooldownExpired = !dismissedMs || Date.now() - dismissedMs > IOS_BANNER_DISMISS_COOLDOWN_MS;
+        console.log('[PWARegister] android fallback check', { dismissedMs, cooldownExpired });
+        if (forceDebug || cooldownExpired) {
+          androidFallbackTimer = window.setTimeout(() => {
+            if (!deferredPrompt) setShowAndroidFallback(true);
+          }, 5000);
+        }
+      } catch {
+        androidFallbackTimer = window.setTimeout(() => {
+          if (!deferredPrompt) setShowAndroidFallback(true);
+        }, 5000);
+      }
+    }
+
     const handleBeforeInstall = (e: Event) => {
       e.preventDefault();
       deferredPrompt = e;
@@ -243,12 +276,16 @@ export default function PWARegister() {
       // L'event natif rend la bannière texte iOS superflue (edge: navigateur
       // hybride se déclarant iOS) — on la masque.
       setShowIOSBanner(false);
+      // L'event natif a fired (avant ou après le timer 5s) → on retire le
+      // fallback ⋮ Android au profit du bouton « Installer » natif.
+      setShowAndroidFallback(false);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
 
     window.addEventListener('appinstalled', () => {
       setShowInstall(false);
       setShowIOSBanner(false);
+      setShowAndroidFallback(false);
       setHasNativePrompt(false);
       deferredPrompt = null;
     });
@@ -266,6 +303,10 @@ export default function PWARegister() {
       }
       if (updateInterval !== null) {
         window.clearInterval(updateInterval);
+      }
+      // FIX fallback Android — nettoyer le timer 5s si la page se démonte avant.
+      if (androidFallbackTimer !== null) {
+        window.clearTimeout(androidFallbackTimer);
       }
     };
   }, []);
@@ -311,6 +352,17 @@ export default function PWARegister() {
 
   const handleIOSDismiss = () => {
     setShowIOSBanner(false);
+    try {
+      window.localStorage.setItem(IOS_BANNER_DISMISS_KEY, String(Date.now()));
+    } catch {
+      // ignore (private browsing)
+    }
+  };
+
+  // FIX fallback Android — dismiss du bouton « OK » : ferme + écrit le cooldown
+  // (réutilise IOS_BANNER_DISMISS_KEY, axe cooldown commun aux bannières).
+  const handleAndroidFallbackDismiss = () => {
+    setShowAndroidFallback(false);
     try {
       window.localStorage.setItem(IOS_BANNER_DISMISS_KEY, String(Date.now()));
     } catch {
@@ -665,6 +717,93 @@ export default function PWARegister() {
           }}
         >
           ×
+        </button>
+      </div>
+      </>
+    );
+  }
+
+  if (showAndroidFallback) {
+    // FIX fallback Android — affiché UNIQUEMENT quand beforeinstallprompt n'a
+    // pas fired après 5s (Chrome : engagement score + cooldown). Aucun prompt
+    // natif dispo → on guide vers le menu ⋮ de Chrome. Si l'event fire
+    // (avant/après), handleBeforeInstall masque ce fallback et montre le bouton
+    // natif (showInstall). Bouton « OK » = dismiss + cooldown.
+    return (
+      <>
+      {updateToast}
+      <div
+        style={{
+          position: 'fixed',
+          bottom: 20,
+          left: 16,
+          right: 16,
+          zIndex: 9998,
+          background: 'rgba(0, 0, 0, 0.95)',
+          backdropFilter: 'blur(12px)',
+          borderRadius: 16,
+          padding: '16px 20px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: 12,
+          boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+          border: '1px solid rgb(var(--accent-color-rgb) / 0.3)',
+        }}
+      >
+        {/* Badge rond logo PWA (accent dynamique via /admin "Couleur principale"). */}
+        <div
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: '50%',
+            flexShrink: 0,
+            backgroundColor: 'rgb(var(--accent-color-rgb) / 0.12)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <SpordateurLogo className="h-7 w-7 text-accent" />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p style={{ color: 'white', margin: 0, fontWeight: 600, fontSize: 14 }}>
+            {t('pwa_install_title')}
+          </p>
+          <p style={{ color: '#aaa', margin: '4px 0 0', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+            <span>{t('pwa_android_install_step1')}</span>
+            {/* 3-dots vertical (icône menu Chrome Android) */}
+            <svg
+              width="4"
+              height="16"
+              viewBox="0 0 4 16"
+              fill="var(--accent-color)"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ display: 'inline-block', verticalAlign: 'middle' }}
+              aria-label="menu icon"
+            >
+              <circle cx="2" cy="2" r="2" />
+              <circle cx="2" cy="8" r="2" />
+              <circle cx="2" cy="14" r="2" />
+            </svg>
+            <span>{t('pwa_android_install_step2')}</span>
+          </p>
+        </div>
+        <button
+          onClick={handleAndroidFallbackDismiss}
+          style={{
+            background: 'var(--accent-color)',
+            color: 'white',
+            border: 'none',
+            borderRadius: 12,
+            padding: '8px 16px',
+            fontWeight: 600,
+            fontSize: 13,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+            flexShrink: 0,
+          }}
+        >
+          {t('common_ok')}
         </button>
       </div>
       </>
