@@ -4,7 +4,9 @@
  * Pipeline registerPushNotifications(uid) :
  *   1. Detect browser support : 'serviceWorker' in navigator + 'Notification' in window
  *      (Q6=A silent skip si non-supporté — ex: Safari iOS <16.4)
- *   2. Register Firebase Messaging Service Worker `/firebase-messaging-sw.js` (scope `/`)
+ *   2. Réutilise le SW PWA sw.js déjà enregistré (scope `/`) via `serviceWorker.ready`
+ *      — sw.js v38 gère push/notificationclick (fin de la collision de scope avec
+ *      l'ancien /firebase-messaging-sw.js qui se faisait écraser)
  *   3. Notification.requestPermission() → si denied/default → return ok=false
  *   4. firebase/messaging client SDK getToken({vapidKey: NEXT_PUBLIC_FIREBASE_VAPID_KEY})
  *   5. Persist users/{uid}.fcmToken via Firestore client SDK
@@ -80,37 +82,30 @@ export async function registerPushNotifications(uid: string): Promise<RegisterPu
   }
   console.log('[registerPush] vapidKey length', vapidKey.length);
 
-  // 1. Service Worker registration
+  // 1. Service Worker — FIX collision de scope (push) : on RÉUTILISE le SW PWA
+  // déjà enregistré par PWARegister (public/sw.js, scope '/') au lieu
+  // d'enregistrer un 2e SW (/firebase-messaging-sw.js) au MÊME scope '/'. Les
+  // registrations étant keyées par scope, sw.js (ré-enregistré à chaque page
+  // load) écrasait le SW Firebase → la push subscription pointait sur sw.js qui
+  // n'avait pas de handler 'push' → notif jamais affichée (FCM renvoyait pourtant
+  // ok:true). Depuis sw.js v38, sw.js gère lui-même 'push' + 'notificationclick',
+  // donc `serviceWorker.ready` (= la registration de sw.js) est la bonne cible
+  // pour getToken : la subscription sera liée au SW qui affiche les notifs.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let swRegistration: any;
   try {
-    console.log('[registerPush] step1: SW register /firebase-messaging-sw.js');
-    swRegistration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
-      scope: '/',
-    });
-    console.log('[registerPush] step1 ok, swRegistration', {
-      installing: !!swRegistration.installing,
-      waiting: !!swRegistration.waiting,
+    console.log('[registerPush] step1: réutilise le SW sw.js (serviceWorker.ready)');
+    swRegistration = await navigator.serviceWorker.ready;
+    console.log('[registerPush] step1 ok', {
+      scope: swRegistration.scope,
       active: !!swRegistration.active,
     });
-    // Wait until SW activé (sinon getToken fail)
-    if (swRegistration.installing) {
-      console.log('[registerPush] waiting for SW activation...');
-      await new Promise<void>((resolve) => {
-        const sw = swRegistration.installing;
-        if (!sw) return resolve();
-        sw.addEventListener('statechange', () => {
-          console.log('[registerPush] SW statechange', sw.state);
-          if (sw.state === 'activated') resolve();
-        });
-      });
-    }
   } catch (err) {
-    console.error('[registerPush] FAIL step1 SW register', err);
+    console.error('[registerPush] FAIL step1 SW ready', err);
     return {
       ok: false,
       reason: 'fcm-error',
-      detail: `SW register failed: ${err instanceof Error ? err.message : String(err)}`,
+      detail: `SW ready failed: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 

@@ -22,7 +22,7 @@
 // SW_VERSION sert aussi à invalider tous les caches existants à l'install
 // (le suffix BUILD_ID injecté par next.config.ts garantit un body distinct
 // à chaque build, donc updatefound + SKIP_WAITING à chaque déploiement).
-const SW_VERSION = 'v37';
+const SW_VERSION = 'v38';
 const CACHE_NAME = `spordate-${SW_VERSION}`;
 // Cache séparé pour assets long-life (/_next/static/* immuables). Reste utile
 // même quand on bump CACHE_NAME car ces fichiers sont addressés par hash unique.
@@ -83,6 +83,50 @@ self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
     self.skipWaiting();
   }
+});
+
+// FIX push (v38) — handler 'push' : sw.js (SW PWA, scope '/') affiche désormais
+// les notifications FCM. Avant, AUCUN handler push → les messages FCM (ok:true
+// côté API) arrivaient au SW mais étaient ignorés → notif jamais visible. On
+// réunifie : UN SEUL SW au scope '/' gère cache PWA + push (fin de la collision
+// avec /firebase-messaging-sw.js, qui se faisait écraser à chaque page load par
+// l'enregistrement de sw.js). Pas besoin du SDK Firebase ici : on lit le payload
+// Web Push brut, mêmes champs que sendPushNotification.ts émet :
+//   { notification:{title,body,icon,badge}, data:{...}, fcmOptions:{link} }
+self.addEventListener('push', (event) => {
+  let payload = {};
+  try { payload = event.data ? event.data.json() : {}; } catch (e) { payload = {}; }
+  const n = payload.notification || {};
+  const data = payload.data || {};
+  const link =
+    (payload.fcmOptions && payload.fcmOptions.link) || data.click_action || '/';
+  const options = {
+    body: n.body || '',
+    icon: n.icon || '/icons/placeholder.png',
+    badge: n.badge || '/icons/placeholder.png',
+    data: Object.assign({}, data, { click_action: link }),
+    tag: data.tag || ('spordate-' + Date.now()),
+    renotify: true,
+    requireInteraction: false,
+    vibrate: [200, 100, 200],
+    silent: false,
+  };
+  event.waitUntil(self.registration.showNotification(n.title || 'Spordateur', options));
+});
+
+// FIX push (v38) — clic notif : focus un onglet Spordateur existant sinon ouvre
+// le lien (click_action déposé dans data par le handler push ci-dessus).
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  const target = (event.notification.data && event.notification.data.click_action) || '/';
+  event.waitUntil(
+    self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((list) => {
+      for (const c of list) {
+        if ('focus' in c) { try { c.navigate(target); } catch (e) {} return c.focus(); }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(target);
+    })
+  );
 });
 
 // Helpers de stratégies (Fix #204 v2). Trois stratégies cohabitent :
