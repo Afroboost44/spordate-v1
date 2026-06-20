@@ -31,8 +31,10 @@ function detectIOS(): boolean {
 export default function PWARegister() {
   const { t } = useLanguage();
   const [showInstall, setShowInstall] = useState(false);
-  // Phase 9.5 c51 — banner mobile générique (iOS + Android sans beforeinstallprompt fired)
-  const [showMobileBanner, setShowMobileBanner] = useState(false);
+  // FIX install natif — bannière texte iOS UNIQUEMENT (Safari ne supporte pas
+  // beforeinstallprompt). Sur Android/Chrome, l'install natif passe par
+  // `showInstall` (bouton → deferredPrompt.prompt()), plus de bannière ⋮.
+  const [showIOSBanner, setShowIOSBanner] = useState(false);
   const [deviceType, setDeviceType] = useState<'ios' | 'android' | null>(null);
   const [hasNativePrompt, setHasNativePrompt] = useState(false);
   const [showSplash, setShowSplash] = useState(false);
@@ -208,23 +210,23 @@ export default function PWARegister() {
       setTimeout(() => setShowSplash(false), 800);
     }
 
-    // Phase 9.5 c51 BUG B — banner mobile (iOS OU Android) après 1.2s.
-    // Avant c51 : seulement iOS. Cause BUG B : Chrome Android ne fire pas
-    // beforeinstallprompt sans interaction user heuristique → banner attendait
-    // indéfiniment. Maintenant : on affiche aussi le banner Android avec
-    // instructions menu ⋮ ; si l'event finit par fire, le bouton "Installer"
-    // dans le banner utilisera deferredPrompt.prompt() pour le natif.
-    if (forceDebug || (isMobile && !isStandalone)) {
+    // FIX install natif — Android/Chrome/Edge/Samsung supportent
+    // beforeinstallprompt : on N'AFFICHE PLUS de bannière "instructions ⋮".
+    // On attend l'event natif (handleBeforeInstall → showInstall, bouton →
+    // prompt()). iOS Safari NE supporte PAS beforeinstallprompt → après 2.5s
+    // sans event natif, on affiche la bannière texte iOS (icône partage →
+    // « Sur l'écran d'accueil »), seule méthode d'install possible sur iOS.
+    if (forceDebug || (isIOS && !isStandalone)) {
       try {
         const dismissedAt = window.localStorage.getItem(IOS_BANNER_DISMISS_KEY);
         const dismissedMs = dismissedAt ? parseInt(dismissedAt, 10) : 0;
         const cooldownExpired = !dismissedMs || Date.now() - dismissedMs > IOS_BANNER_DISMISS_COOLDOWN_MS;
-        console.log('[PWARegister c51] mobile banner check', { dismissedMs, cooldownExpired });
+        console.log('[PWARegister] iOS banner check', { dismissedMs, cooldownExpired });
         if (forceDebug || cooldownExpired) {
-          setTimeout(() => setShowMobileBanner(true), 1200);
+          setTimeout(() => setShowIOSBanner(true), 2500);
         }
       } catch {
-        setTimeout(() => setShowMobileBanner(true), 1200);
+        setTimeout(() => setShowIOSBanner(true), 2500);
       }
     }
 
@@ -232,18 +234,21 @@ export default function PWARegister() {
       e.preventDefault();
       deferredPrompt = e;
       setHasNativePrompt(true);
-      // Phase 9.5 c51 — Sur desktop (pas mobile) garde le comportement c46 :
-      // banner "showInstall" dédié. Sur mobile, le banner showMobileBanner est
-      // déjà affiché et son bouton "Installer" lira deferredPrompt s'il existe.
-      if (!isMobile) {
-        setShowInstall(true);
-      }
+      // FIX install natif — beforeinstallprompt supporté (Chrome Android, Edge,
+      // Samsung, Chrome desktop) : on affiche la bannière "showInstall" avec
+      // UNIQUEMENT le bouton « Installer » (aucune instruction ⋮). Le clic
+      // appelle deferredPrompt.prompt() → modal d'installation native. Vaut
+      // pour mobile ET desktop. iOS n'arrive jamais ici (event non supporté).
+      setShowInstall(true);
+      // L'event natif rend la bannière texte iOS superflue (edge: navigateur
+      // hybride se déclarant iOS) — on la masque.
+      setShowIOSBanner(false);
     };
     window.addEventListener('beforeinstallprompt', handleBeforeInstall);
 
     window.addEventListener('appinstalled', () => {
       setShowInstall(false);
-      setShowMobileBanner(false);
+      setShowIOSBanner(false);
       setHasNativePrompt(false);
       deferredPrompt = null;
     });
@@ -279,7 +284,7 @@ export default function PWARegister() {
         const result = await deferredPrompt.userChoice;
         if (result?.outcome === 'accepted') {
           setShowInstall(false);
-          setShowMobileBanner(false);
+          setShowIOSBanner(false);
           setHasNativePrompt(false);
           deferredPrompt = null;
           return;
@@ -291,7 +296,7 @@ export default function PWARegister() {
           // ignore (private browsing)
         }
         setShowInstall(false);
-        setShowMobileBanner(false);
+        setShowIOSBanner(false);
         deferredPrompt = null;
         setHasNativePrompt(false);
         return;
@@ -304,8 +309,8 @@ export default function PWARegister() {
     setShowManualTutorial(true);
   };
 
-  const handleMobileDismiss = () => {
-    setShowMobileBanner(false);
+  const handleIOSDismiss = () => {
+    setShowIOSBanner(false);
     try {
       window.localStorage.setItem(IOS_BANNER_DISMISS_KEY, String(Date.now()));
     } catch {
@@ -582,21 +587,12 @@ export default function PWARegister() {
     );
   }
 
-  if (showMobileBanner) {
-    // Phase 9.5 c51 — banner mobile générique avec contenu adapté par OS :
-    //  - iOS Safari : icône partage + instruction "Tap [share] → Ajouter…"
-    //  - Android Chrome + deferredPrompt fired : bouton "Installer" natif
-    //  - Android Chrome sans event : icône menu ⋮ + instruction "Tap ⋮ → …"
-    // Fix #208 BUG 2 — bouton "Installer" maintenant affiché sur Android
-    // EN PERMANENCE (même sans event beforeinstallprompt déjà fired).
-    // Le clic appelle handleInstall qui :
-    //   - utilise deferredPrompt.prompt() si dispo (Chrome Android, Edge,
-    //     Samsung Browser…)
-    //   - bascule sur showManualTutorial sinon (Safari iOS, fallback).
-    // Sur iOS, on n'affiche pas de bouton "Installer" (l'API n'existe pas
-    // et iOS exige une action manuelle dans le menu partage de Safari) —
-    // on garde les instructions visuelles avec l'icône share natif.
-    const showInstallButton = deviceType === 'android';
+  if (showIOSBanner) {
+    // FIX install natif — bannière iOS Safari UNIQUEMENT. iOS ne supporte pas
+    // beforeinstallprompt : la seule méthode d'install est manuelle via le menu
+    // partage. On affiche l'icône partage + « Sur l'écran d'accueil ». Aucun
+    // bouton « Installer » (l'API n'existe pas sur iOS). Sur Android, l'install
+    // natif passe désormais par la bannière `showInstall` (bouton → prompt()).
     return (
       <>
       {updateToast}
@@ -618,9 +614,7 @@ export default function PWARegister() {
           border: '1px solid rgb(var(--accent-color-rgb) / 0.3)',
         }}
       >
-        {/* Accent feature : inline SVG SpordateurLogo suit text-accent
-            (dynamique via /admin "Couleur principale"). Wrapper rounded bg
-            pour conserver visuellement le "badge" rond du logo PWA. */}
+        {/* Badge rond logo PWA (accent dynamique via /admin "Couleur principale"). */}
         <div
           style={{
             width: 48,
@@ -637,73 +631,27 @@ export default function PWARegister() {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <p style={{ color: 'white', margin: 0, fontWeight: 600, fontSize: 14 }}>
-            {t('pwa_install_title') || 'Installer Spordateur'}
+            {t('pwa_install_title')}
           </p>
-          {deviceType === 'ios' && (
-            <p style={{ color: '#aaa', margin: '4px 0 0', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-              <span>{t('pwa_ios_install_step1') || 'Tap'}</span>
-              <svg
-                width="14"
-                height="18"
-                viewBox="0 0 14 18"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ display: 'inline-block', verticalAlign: 'middle' }}
-                aria-label="share icon"
-              >
-                <path d="M7 1L4 4M7 1L10 4M7 1V11" stroke="var(--accent-color)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                <path d="M2 8H1V16C1 16.5523 1.44772 17 2 17H12C12.5523 17 13 16.5523 13 16V8H12" stroke="var(--accent-color)" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-              <span>{t('pwa_ios_install_step2') || "puis « Ajouter à l'écran d'accueil »"}</span>
-            </p>
-          )}
-          {deviceType === 'android' && !hasNativePrompt && (
-            <p style={{ color: '#aaa', margin: '4px 0 0', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-              <span>{t('pwa_android_install_step1') || 'Tap'}</span>
-              {/* Phase 9.5 c51 — 3-dots vertical (Chrome Android menu icon) */}
-              <svg
-                width="4"
-                height="16"
-                viewBox="0 0 4 16"
-                fill="var(--accent-color)"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ display: 'inline-block', verticalAlign: 'middle' }}
-                aria-label="menu icon"
-              >
-                <circle cx="2" cy="2" r="2" />
-                <circle cx="2" cy="8" r="2" />
-                <circle cx="2" cy="14" r="2" />
-              </svg>
-              <span>{t('pwa_android_install_step2') || "puis « Ajouter à l'écran d'accueil »"}</span>
-            </p>
-          )}
-          {deviceType === 'android' && hasNativePrompt && (
-            <p style={{ color: '#aaa', margin: '4px 0 0', fontSize: 12 }}>
-              {t('pwa_install_subtitle') || "Accès rapide depuis ton écran d'accueil"}
-            </p>
-          )}
+          <p style={{ color: '#aaa', margin: '4px 0 0', fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+            <span>{t('pwa_ios_install_step1')}</span>
+            <svg
+              width="14"
+              height="18"
+              viewBox="0 0 14 18"
+              fill="none"
+              xmlns="http://www.w3.org/2000/svg"
+              style={{ display: 'inline-block', verticalAlign: 'middle' }}
+              aria-label="share icon"
+            >
+              <path d="M7 1L4 4M7 1L10 4M7 1V11" stroke="var(--accent-color)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 8H1V16C1 16.5523 1.44772 17 2 17H12C12.5523 17 13 16.5523 13 16V8H12" stroke="var(--accent-color)" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <span>{t('pwa_ios_install_step2')}</span>
+          </p>
         </div>
-        {showInstallButton && (
-          <button
-            onClick={handleInstall}
-            style={{
-              background: 'var(--accent-color)',
-              color: 'white',
-              border: 'none',
-              borderRadius: 12,
-              padding: '8px 14px',
-              fontWeight: 600,
-              fontSize: 13,
-              cursor: 'pointer',
-              whiteSpace: 'nowrap',
-              flexShrink: 0,
-            }}
-          >
-            {t('pwa_install_button') || 'Installer'}
-          </button>
-        )}
         <button
-          onClick={handleMobileDismiss}
+          onClick={handleIOSDismiss}
           aria-label={t('common_close')}
           style={{
             background: 'none',
