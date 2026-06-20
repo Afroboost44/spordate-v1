@@ -44,7 +44,7 @@ export interface UserProfile {
     invite:  { mode: 'percent' | 'free-class'; value: number };
   };
   isCreator: boolean;
-  role: 'user' | 'creator' | 'admin';
+  role: 'user' | 'creator' | 'admin' | 'partner';
   isPremium: boolean;
   fcmToken: string;
   language: 'fr' | 'en' | 'de';

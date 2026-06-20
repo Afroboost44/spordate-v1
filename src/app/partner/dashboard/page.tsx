@@ -13,6 +13,7 @@ import {
 import type { Session, Activity } from '@/types/firestore';
 import { CoInscribedWarning } from '@/components/partner/CoInscribedWarning';
 import { PartnerDiscoveryOptInCard } from '@/components/partner/PartnerDiscoveryOptInCard';
+import { PushOptInSwitch } from '@/components/profile/PushOptInSwitch';
 import { useLanguage } from '@/context/LanguageContext';
 
 interface RecentSessionForCheckIn {
@@ -24,7 +25,7 @@ interface RecentSessionForCheckIn {
 
 export default function PartnerDashboardPage() {
   const { t } = useLanguage();
-  const { user } = useAuth();
+  const { user, userProfile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ activities: 0, bookings: 0, revenue: 0 });
   const [recentBookings, setRecentBookings] = useState<any[]>([]);
@@ -255,6 +256,18 @@ export default function PartnerDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Phase 3 push — opt-in notifications partenaire. Réutilise PushOptInSwitch
+          (composant user inchangé) : écrit users/{uid}.fcmToken, le même doc que
+          session.partnerId cible côté webhook. Pas de titre de card (BUG #82 : le
+          composant a déjà son label + description + icône → un titre ferait doublon). */}
+      {user?.uid && (
+        <Card className="bg-[#1A1A1A] border-white/5">
+          <CardContent className="p-5">
+            <PushOptInSwitch uid={user.uid} initialEnabled={userProfile?.pushNotificationsEnabled} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
