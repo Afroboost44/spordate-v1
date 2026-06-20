@@ -163,6 +163,38 @@ export async function POST(request: NextRequest) {
     if (!fwdSnap.exists || !revSnap.exists) {
       // Pas mutuel encore — le client a juste créé son like, l'autre n'a pas
       // (encore) liké en retour. Toast soft "Like envoyé" côté UI.
+      // Phase 2 push — like simple reçu → notif ANONYME au destinataire
+      // (fire-and-forget, ne bloque pas la réponse). Cooldown 60 min via
+      // users/{targetUid}.lastLikePushAt pour éviter le spam si plusieurs
+      // likes rapprochés. Best-effort : si pas de token → no-op silencieux.
+      if (fwdSnap.exists && targetUid !== fromUid) {
+        void (async () => {
+          try {
+            const recipSnap = await db.collection('users').doc(targetUid).get();
+            const recip = recipSnap.exists ? recipSnap.data() || {} : {};
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const lastTs = (recip as any).lastLikePushAt;
+            const lastMs = lastTs?.toMillis?.() ?? 0;
+            if (Date.now() - lastMs < 60 * 60 * 1000) return; // cooldown 60 min
+            const { FieldValue } = await import('firebase-admin/firestore');
+            const { notifyUser } = await import('@/lib/notifications/notifyUser');
+            const push = await notifyUser({
+              uid: targetUid,
+              messageKey: 'like_received',
+              clickUrl: '/discovery',
+              data: { type: 'like' },
+            });
+            if (push.ok) {
+              await db.collection('users').doc(targetUid).set(
+                { lastLikePushAt: FieldValue.serverTimestamp() },
+                { merge: true },
+              );
+            }
+          } catch (err) {
+            console.warn('[create-mutual] like push failed', err);
+          }
+        })();
+      }
       return NextResponse.json({ ok: true, mutual: false }, { status: 200 });
     }
 

@@ -300,6 +300,21 @@ export async function POST(request: NextRequest) {
       } catch (err) {
         console.warn('[/api/invites] createNotification failed (non-bloquant)', err);
       }
+
+      // 6. Phase 2 push — notif FCM "invitation reçue" au destinataire
+      // (fire-and-forget, best-effort, ne bloque jamais la réponse).
+      try {
+        const { notifyUser } = await import('@/lib/notifications/notifyUser');
+        void notifyUser({
+          uid: body.toUserId,
+          messageKey: 'activity_invite_received',
+          params: { senderName: fromUserName, activityTitle },
+          clickUrl: `/invite/${inviteId}`,
+          data: { type: 'invite', inviteId },
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('[/api/invites] push notify failed (non-bloquant)', err);
+      }
     } catch (err) {
       // Reads Admin SDK fail (rare) — skip notifs entirely
       console.warn('[/api/invites] Admin SDK reads failed (notifs skipped)', err);

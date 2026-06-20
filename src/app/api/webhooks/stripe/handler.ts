@@ -630,6 +630,28 @@ async function handleSessionPayment(
           createdAt: FV.serverTimestamp(),
         });
       } catch { /* best-effort */ }
+
+      // Phase 2 push — notif FCM "invitation reçue" au destinataire (duo payé,
+      // fire-and-forget, best-effort). senderName = displayName de l'inviteur.
+      try {
+        const { notifyUser } = await import('@/lib/notifications/notifyUser');
+        let inviterName = 'Quelqu’un';
+        try {
+          const inviterSnap = await db.collection('users').doc(userId).get();
+          if (inviterSnap.exists) {
+            inviterName = (inviterSnap.data()?.displayName as string | undefined) || inviterName;
+          }
+        } catch { /* ignore */ }
+        void notifyUser({
+          uid: inviteeUid,
+          messageKey: 'activity_invite_received',
+          params: { senderName: inviterName, activityTitle: meta.activityInviteActivityTitle || 'une activité' },
+          clickUrl: `/chat?match=${activityInviteMatchId}`,
+          data: { type: 'invite', matchId: activityInviteMatchId, messageId: inviteMessageId },
+        }).catch(() => {});
+      } catch (err) {
+        console.warn('[handler duo-invite] push notify failed (non-bloquant)', err);
+      }
     } catch (e) {
       await logErr(db, FV, `Erreur create activity_invite message duo: ${e}`, stripeSessionId);
     }

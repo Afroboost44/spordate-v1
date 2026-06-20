@@ -26,6 +26,8 @@ export const DEFAULT_LANG: ServerLang = 'fr';
  *  - chat_new_message              : "{senderName} t'a écrit" / preview
  *  - match_mutual                  : "C'est un match !" — match mutuel détecté
  *  - test_push                     : diagnostique /api/test-push
+ *  - like_received                 : like simple reçu (ANONYME, cooldown 60 min)
+ *  - activity_invite_received      : "{senderName} t'invite" à {activityTitle}
  *  - referral_commission_received  : commission CHF reçue (creator ou invite)
  *  - referral_free_class_creator   : N cours offerts via lien créateur
  *  - referral_free_class_invite    : N cours offerts via parrainage user
@@ -37,6 +39,8 @@ export type MessageKey =
   | 'chat_new_message'
   | 'match_mutual'
   | 'test_push'
+  | 'like_received'
+  | 'activity_invite_received'
   | 'referral_commission_received'
   | 'referral_free_class_creator_one'
   | 'referral_free_class_creator_other'
@@ -79,6 +83,14 @@ export const PUSH_TEMPLATES: Record<ServerLang, Record<MessageKey, PushTemplate>
     test_push: {
       title: '🎉 Test Spordateur',
       body: 'Si tu lis ceci, les push fonctionnent. Tu peux fermer cette notif.',
+    },
+    like_received: {
+      title: 'Nouveau like 💜',
+      body: "Quelqu'un t'a liké sur Spordateur",
+    },
+    activity_invite_received: {
+      title: "{senderName} t'invite",
+      body: 'Invitation à {activityTitle}',
     },
     referral_commission_received: {
       title: 'Commission reçue !',
@@ -126,6 +138,14 @@ export const PUSH_TEMPLATES: Record<ServerLang, Record<MessageKey, PushTemplate>
       title: '🎉 Spordateur test',
       body: 'If you can read this, push notifications work. You can close this notification.',
     },
+    like_received: {
+      title: 'New like 💜',
+      body: 'Someone liked you on Spordateur',
+    },
+    activity_invite_received: {
+      title: '{senderName} invited you',
+      body: 'Invitation to {activityTitle}',
+    },
     referral_commission_received: {
       title: 'Commission received!',
       body: '+{amount} CHF commission on a purchase by your referral',
@@ -171,6 +191,14 @@ export const PUSH_TEMPLATES: Record<ServerLang, Record<MessageKey, PushTemplate>
     test_push: {
       title: '🎉 Spordateur-Test',
       body: 'Wenn du dies lesen kannst, funktionieren die Push-Benachrichtigungen. Du kannst diese Mitteilung schliessen.',
+    },
+    like_received: {
+      title: 'Neues Like 💜',
+      body: 'Jemand hat dich auf Spordateur geliked',
+    },
+    activity_invite_received: {
+      title: '{senderName} lädt dich ein',
+      body: 'Einladung zu {activityTitle}',
     },
     referral_commission_received: {
       title: 'Provision erhalten!',
