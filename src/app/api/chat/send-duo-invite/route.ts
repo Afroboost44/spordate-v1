@@ -194,7 +194,9 @@ export async function POST(request: NextRequest) {
       early: 'Early Bird', standard: 'Standard', last_minute: 'Last Minute',
     };
 
-    const paymentMethodTypes = resolvePaymentMethodTypes('all'); // ['card', 'twint']
+    // TODO(twint): le resolver force 'card' tant que TWINT n'est pas éligible côté
+    // Stripe — il renverra de nouveau ['card', 'twint'] à la réactivation.
+    const paymentMethodTypes = resolvePaymentMethodTypes('all'); // → ['card']
 
     const stripe = await getSharedStripe();
     const stripeSession = await stripe.checkout.sessions.create({

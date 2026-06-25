@@ -128,7 +128,9 @@ export async function POST(request: NextRequest) {
     const locationLabel = country ? `${city}, ${country}` : city;
 
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ['card', 'twint'],
+      // TODO(twint): réactiver TWINT quand l'éligibilité Stripe du compte est OK
+      // (restaurer ['card', 'twint']). 'card' inclut Apple Pay / Google Pay.
+      payment_method_types: ['card'],
       mode: 'payment',
       success_url: `${baseUrl}/partner/boost?status=success&session_id={CHECKOUT_SESSION_ID}&duration=${duration}&city=${encodeURIComponent(city)}`,
       cancel_url: `${baseUrl}/partner/boost?status=cancel`,

@@ -173,7 +173,11 @@ export async function POST(request: NextRequest) {
       ? `${baseUrl}/activities?payment=cancelled`
       : `${baseUrl}/payment?status=cancel`;
 
-    const paymentMethodTypes: ('card' | 'twint')[] = isSubscription ? ['card'] : ['card', 'twint'];
+    // TODO(twint): réactiver TWINT quand l'éligibilité Stripe du compte est OK.
+    // Tant que TWINT n'est pas éligible, on force 'card' (Stripe rejette toute
+    // session contenant 'twint'). 'card' inclut Apple Pay / Google Pay.
+    // → restaurer : isSubscription ? ['card'] : ['card', 'twint']
+    const paymentMethodTypes: ('card' | 'twint')[] = ['card'];
 
     // BUG #93 — `durationHours` propagé jusqu'au webhook pour les Premium
     // one_time (24h, 1 semaine). Le webhook calcule
@@ -987,7 +991,9 @@ async function handleInviteAcceptMode(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const checkoutParams: any = {
       mode: 'payment',
-      payment_method_types: ['card', 'twint'],
+      // TODO(twint): réactiver TWINT quand l'éligibilité Stripe du compte est OK
+      // (restaurer ['card', 'twint']). 'card' inclut Apple Pay / Google Pay.
+      payment_method_types: ['card'],
       success_url: successUrl,
       cancel_url: cancelUrl,
       line_items: [
@@ -1159,7 +1165,9 @@ async function handleInvitePrepayMode(
     const stripeSession = await (await getStripe()).checkout.sessions.create(
       {
         mode: 'payment',
-        payment_method_types: ['card', 'twint'],
+        // TODO(twint): réactiver TWINT quand l'éligibilité Stripe du compte est OK
+        // (restaurer ['card', 'twint']). 'card' inclut Apple Pay / Google Pay.
+        payment_method_types: ['card'],
         success_url: successUrl,
         cancel_url: cancelUrl,
         line_items: [
