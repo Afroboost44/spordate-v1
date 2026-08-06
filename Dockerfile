@@ -26,16 +26,15 @@ ARG NODE_VERSION=20-alpine
 FROM node:${NODE_VERSION} AS deps
 WORKDIR /app
 
-# libc6-compat : requis par certaines deps natives (sharp, satori, resvg-js,
-# Prisma engines) compilées contre glibc. Alpine utilise musl, ce compat layer
+# libc6-compat : filet de sécurité pour d'éventuelles deps natives compilées
+# contre glibc. Alpine utilise musl, ce compat layer
 # évite "Error loading shared library ld-linux-x86-64.so.2".
 RUN apk add --no-cache libc6-compat
 
 COPY package.json package-lock.json ./
 # `--prefer-offline` : utilise le cache npm local quand dispo (gain Docker layer)
 # `--no-audit` / `--no-fund` : skip étapes inutiles dans CI/build
-# `--ignore-scripts` : on évite les postinstall scripts ici, on les déclenche
-# explicitement au stage builder (prisma generate notamment, idempotent).
+# `--ignore-scripts` : on évite les postinstall scripts ici.
 # BUG #50 — cache mount sur /root/.npm pour persister le cache npm entre builds.
 # Combiné avec --prefer-offline, npm ci ne re-télécharge JAMAIS les paquets déjà vus.
 # Gain typique : 30-60s par rebuild (était 50s sur cold cache).
@@ -82,10 +81,6 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 # Hetzner 4 Go partagés → cap V8 heap à 3 Go pour laisser de la marge OS/Afroboost
 ENV NODE_OPTIONS=--max-old-space-size=3072
-
-# Prisma client (legacy, src/lib/prisma.ts) — generate pour éviter
-# "@prisma/client did not initialize yet" si jamais chargé au runtime.
-RUN npx prisma generate
 
 # BUG #50 — cache mount sur .next/cache pour PERSISTER l'incremental cache
 # Next.js entre les builds. Next.js stocke les .js compilés par SWC dans
