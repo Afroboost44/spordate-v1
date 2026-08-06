@@ -10,11 +10,28 @@ const isExport = process.env.NEXT_OUTPUT === 'export';
 // à comparer un body de SW différent → updatefound déclenché → SKIP_WAITING.
 const BUILD_ID = process.env.BUILD_ID || String(Date.now());
 
+// Spordate est servi à DEUX endroits depuis ce même dépôt :
+//   - spordateur.com          -> à la racine,         NEXT_BASE_PATH absente
+//   - afroboost.com/rencontre -> sous un sous-chemin, NEXT_BASE_PATH=/rencontre
+//
+// `basePath` est indispensable au second cas, et un stripPrefix côté proxy ne
+// peut PAS le remplacer : celui-ci réécrit l'URL entrante, jamais celles que
+// Next.js GÉNÈRE. Sans basePath, l'application émet `/_next/static/…` et
+// `fetch('/api/…')` en absolu — ces requêtes quittent alors le sous-chemin et
+// atterrissent sur afroboost : assets remplacés par son index.html, et 60 appels
+// d'API détournés vers son backend, routes d'administration comprises. Mesuré.
+//
+// Vide par défaut : le déploiement de spordateur.com ne change en RIEN.
+const basePath = (process.env.NEXT_BASE_PATH || '').replace(/\/+$/, '');
+
 const nextConfig: NextConfig = {
   // Static export for GitHub Pages preview, sinon `standalone` pour Docker/Coolify
   // (output: 'standalone' produit .next/standalone autonome ~200 Mo vs ~1 Go,
   // critique pour Hetzner 4 Go RAM partagés avec Afroboost).
   ...(isExport ? { output: 'export', basePath: '/spordate-v1' } : { output: 'standalone' }),
+  // `assetPrefix` en plus de `basePath` : le premier préfixe les fichiers
+  // statiques, le second les routes et les appels d'API. Il faut les deux.
+  ...(!isExport && basePath ? { basePath, assetPrefix: basePath } : {}),
   // Phase 8 SC2 hotfix : isolation Genkit + dépendances Node-only côté serveur.
   // Sans ça, webpack tente de bundler @grpc/grpc-js + @opentelemetry/sdk-node
   // dans le client → "Module not found: 'fs'/'tls'/'net'" au build Vercel.
