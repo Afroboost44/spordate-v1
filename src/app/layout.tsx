@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
 import ApiBasePathPatch from "@/components/ApiBasePathPatch";
+import BridgeAutoLogin from "@/components/BridgeAutoLogin"; // V387
 import PWARegister from "@/components/PWARegister";
 import { SanctionBanner } from "@/components/SanctionBanner";
 import AdminBroadcastModal from "@/components/AdminBroadcastModal";
@@ -201,6 +202,9 @@ export default async function RootLayout({
         {/* Tout PREMIER enfant : le module s'exécute avant qu'AuthProvider,
             monté juste après, ne déclenche son premier appel d'API. */}
         <ApiBasePathPatch />
+        {/* V387 : APRES ApiBasePathPatch — l'echange passe par /api/bridge/verify,
+            qui doit deja etre reecrit vers /rencontre/api/... */}
+        <BridgeAutoLogin />
         <AuthProvider>
           <LanguageProvider>
             <ThemeProvider>
