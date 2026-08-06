@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
   // critique pour Hetzner 4 Go RAM partagés avec Afroboost).
   ...(isExport ? { output: 'export', basePath: '/spordate-v1' } : { output: 'standalone' }),
   // `assetPrefix` en plus de `basePath` : le premier préfixe les fichiers
-  // statiques, le second les routes et les appels d'API. Il faut les deux.
+  // statiques, le second les routes. Il faut les deux.
   ...(!isExport && basePath ? { basePath, assetPrefix: basePath } : {}),
   // Phase 8 SC2 hotfix : isolation Genkit + dépendances Node-only côté serveur.
   // Sans ça, webpack tente de bundler @grpc/grpc-js + @opentelemetry/sdk-node
@@ -53,6 +53,14 @@ const nextConfig: NextConfig = {
     ignoreDuringBuilds: true,
   },
   env: {
+    // Exposé au CLIENT. `basePath` ne réécrit PAS les `fetch('/api/…')` écrits
+    // en dur — Next.js ne touche qu'aux liens, aux assets et au routeur. Sans ce
+    // relais, les routes appelées par le client partiraient à la racine du
+    // domaine hôte : mesuré, 8 familles entrent en collision avec de vraies
+    // routes d'afroboost (/api/users, /api/credits, /api/admin, /api/checkout,
+    // /api/chat, /api/contacts, /api/notifications, /api/reviews).
+    // Consommé par src/components/ApiBasePathPatch.tsx.
+    NEXT_PUBLIC_BASE_PATH: basePath,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
     STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
     // Fix #204 — exposé côté client (NEXT_PUBLIC_) pour cache-bust du SW.

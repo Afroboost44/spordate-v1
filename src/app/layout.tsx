@@ -4,6 +4,7 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
 import { LanguageProvider } from "@/context/LanguageContext";
 import { AuthProvider } from "@/context/AuthContext";
+import ApiBasePathPatch from "@/components/ApiBasePathPatch";
 import PWARegister from "@/components/PWARegister";
 import { SanctionBanner } from "@/components/SanctionBanner";
 import AdminBroadcastModal from "@/components/AdminBroadcastModal";
@@ -197,6 +198,9 @@ export default async function RootLayout({
             avec splash dynamique inline, on pourra revenir à un splash custom. */}
       </head>
       <body className="font-body" style={{ backgroundColor: '#000000' }}>
+        {/* Tout PREMIER enfant : le module s'exécute avant qu'AuthProvider,
+            monté juste après, ne déclenche son premier appel d'API. */}
+        <ApiBasePathPatch />
         <AuthProvider>
           <LanguageProvider>
             <ThemeProvider>
