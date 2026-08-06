@@ -113,6 +113,13 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
+# Le HEALTHCHECK doit viser le chemin REELLEMENT servi. Avec basePath, l'app ne
+# repond plus sur `/` : la sonde recevait un 404, le conteneur etait declare
+# malsain et Coolify annulait le deploiement — alors que l'application demarrait
+# parfaitement. Vide pour spordateur.com (racine), "/rencontre" pour l'autre.
+ARG NEXT_BASE_PATH
+ENV NEXT_BASE_PATH=${NEXT_BASE_PATH}
+
 # User non-root (security best practice)
 RUN addgroup --system --gid 1001 nodejs \
   && adduser --system --uid 1001 nextjs
@@ -129,7 +136,7 @@ USER nextjs
 EXPOSE 3000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/ || exit 1
+  CMD wget --no-verbose --tries=1 --spider "http://127.0.0.1:3000${NEXT_BASE_PATH}/" || exit 1
 
 # server.js est le point d'entrée généré par output:'standalone'
 CMD ["node", "server.js"]
