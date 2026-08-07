@@ -15,6 +15,7 @@ import { useAuth } from '@/context/AuthContext';
 import { useLanguage } from '@/context/LanguageContext';
 import { resolveActiveReferralCode } from '@/lib/referral/refStorage';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
+import MobileMoneyButton from '@/components/payment/MobileMoneyButton';
 import { collection, getDocs } from 'firebase/firestore';
 
 // BUG #93 — Visuals des 4 nouveaux plans Premium (PRICING-PROPOSAL.md §5).
@@ -399,6 +400,50 @@ export default function PremiumPage() {
               </div>
             );
           })}
+        </div>
+
+        {/* ═══ V407 — PREMIUM 1 MOIS, MOBILE MONEY ═══
+            ⚠️ HORS DE LA GRILLE CI-DESSUS, ET C'EST LE POINT. Les quatre paliers
+            au-dessus se reconduisent ; celui-ci NON. Le poser dans la meme grille
+            aurait laisse croire a une cinquieme formule equivalente, alors que la
+            difference — l'absence de reconduction — est justement ce qui compte.
+            Le mot « abonnement » n'apparait ni ici, ni dans le bouton, ni dans le
+            libelle du forfait : pawaPay ne preleve pas automatiquement, promettre
+            le contraire serait un litige garanti. */}
+        <div className="mt-12 max-w-2xl mx-auto">
+          <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.04] p-6 sm:p-7">
+            <div className="flex items-start justify-between gap-4 mb-1">
+              <div>
+                <h3 className="text-white text-lg font-medium">Premium 1 mois — Mobile Money</h3>
+                <p className="text-white/45 text-sm mt-1">Payé d'avance, depuis ton mobile.</p>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-white text-2xl font-light">29.90</div>
+                <div className="text-white/40 text-xs">CHF</div>
+              </div>
+            </div>
+
+            <ul className="mt-4 space-y-1.5 text-sm text-white/60">
+              <li>30 jours d'accès Premium</li>
+              <li>200 crédits inclus</li>
+            </ul>
+
+            <p className="mt-4 text-sm text-emerald-300/90 font-medium">
+              Sans reconduction — ton accès s'arrête à la date, rien n'est prélevé ensuite.
+            </p>
+
+            <div className="mt-5">
+              <MobileMoneyButton
+                packageId="premium_month_mm"
+                user={user}
+                referralCode={resolveActiveReferralCode(userProfile?.referredBy)}
+              />
+            </div>
+
+            <p className="mt-3 text-[11px] text-white/30 text-center">
+              Tu recevras un rappel avant la fin de ton accès. Aucun prélèvement automatique.
+            </p>
+          </div>
         </div>
 
         {/* Comparison Section */}

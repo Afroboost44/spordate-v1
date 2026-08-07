@@ -53,6 +53,28 @@ export const DEFAULT_PACKAGES: Record<string, {
   'premium_week':  { price: 1490,  credits: 100, label: 'Premium Découverte 1 semaine', description: 'Accès Premium 7 jours + 100 crédits',    type: 'one_time', durationHours: 24 * 7 },
   'premium_month': { price: 2990,  credits: 200, label: 'Premium Standard 1 mois',  description: 'Premium mensuel + 200 crédits / mois',   type: 'subscription', interval: 'month' },
   'premium_year':  { price: 19990, credits: 250, label: 'Premium Fidélité 1 an',    description: 'Premium annuel + 250 crédits / mois (16.65 CHF/mois)', type: 'subscription', interval: 'year' },
+
+  // ----- V407 — PREMIUM 1 MOIS, MOBILE MONEY -----
+  // ⚠️ CE N'EST PAS UN ABONNEMENT, ET LE MOT NE DOIT APPARAITRE NULLE PART.
+  // pawaPay encaisse, il ne PRELEVE pas : aucun mandat, aucune reconduction.
+  // C'est donc un `one_time` a duree fixe — exactement le mecanisme deja utilise
+  // par `premium_24h` et `premium_week`, ou le webhook pose
+  // `premiumExpiresAt = maintenant + durationHours` puis l'utilisateur redevient
+  // gratuit. Aucun mecanisme nouveau.
+  //
+  // MEME PRIX que `premium_month` (29.90) : pas de surcout pour le client, decide
+  // par le proprietaire. MEME nombre de credits, pour que le produit soit
+  // comparable — seule la reconduction change.
+  //
+  // L'ANNUEL n'a PAS d'equivalent Mobile Money : 199.90 payes d'avance sans
+  // reconduction est une somme lourde et un risque de litige eleve. L'annuel
+  // reste en carte uniquement.
+  'premium_month_mm': {
+    price: 2990, credits: 200,
+    label: 'Premium 1 mois — Mobile Money',
+    description: 'Premium 30 jours + 200 crédits — sans reconduction',
+    type: 'one_time', durationHours: 24 * 30,
+  },
 };
 
 export async function getDb() {

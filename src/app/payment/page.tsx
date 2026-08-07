@@ -13,6 +13,7 @@ import { resolveActiveReferralCode } from '@/lib/referral/refStorage';
 import Link from 'next/link';
 import { db, isFirebaseConfigured } from '@/lib/firebase';
 import BackButton from '@/components/BackButton';
+import MobileMoneyButton from '@/components/payment/MobileMoneyButton';
 import { computeVat, type VatBreakdown } from '@/lib/pricing/vat';
 import { DEFAULT_SITE_PRICING, sanitizeVatEnabled, sanitizeVatRate, sanitizeVatMode } from '@/lib/pricing/sitePricing';
 
@@ -446,6 +447,18 @@ export default function PaymentPage() {
                 >
                   {t(pkg.cta)}
                 </button>
+
+                  {/* V407 — Mobile Money A COTE de la carte. Les packs de credits
+                      sont des achats PONCTUELS : aucun dilemme de reconduction. Le
+                      composant se rend `null` tant que pawaPay n'est pas configure
+                      — jamais un bouton qui echoue au clic. */}
+                  <div className="mt-2">
+                    <MobileMoneyButton
+                      packageId={pkg.id}
+                      user={user}
+                      referralCode={resolveActiveReferralCode(userProfile?.referredBy)}
+                    />
+                  </div>
               </CardContent>
             </Card>
           ))}
