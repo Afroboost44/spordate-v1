@@ -48,7 +48,8 @@ export type TemplateName =
   | 'sessionReminderTMinus0' // Phase 9 SC3 c1/5 — rappel T-0 (1h avant session) Q2=A window 30-90min
   | 'passwordResetCustom' // Phase 9.5 c3 — reset password Resend (anti SPAM Firebase Auth default)
   | 'chatMessageReceived' // Fix #118 — fallback email quand push FCM échoue ou opt-out push
-  | 'partnerContactRequest'; // Fix #127 — formulaire "Nous contacter" home (section partenaires)
+  | 'partnerContactRequest' // Fix #127 — formulaire "Nous contacter" home (section partenaires)
+  | 'premiumFixedEnding'; // V408 — fin d'acces Premium a duree fixe (Mobile Money), SANS reconduction
 
 /** SanctionLevel cohérent src/types/firestore.ts (utilisé par userSanctionNotice). */
 export type SanctionLevelEmail = 'warning' | 'suspension_7d' | 'suspension_30d' | 'ban_permanent';
@@ -57,6 +58,21 @@ export type SanctionLevelEmail = 'warning' | 'suspension_7d' | 'suspension_30d' 
 export type SanctionReasonEmail = 'reports_threshold' | 'no_show_threshold' | 'manual_admin';
 
 export interface TemplateDataMap {
+  /**
+   * V408 — fin d'un acces Premium A DUREE FIXE (paye en Mobile Money).
+   *
+   * ⚠️ CE N'EST PAS LE TEXTE DU RENOUVELLEMENT, ET IL NE DOIT PAS LE DEVENIR.
+   * Cet acces a ete PAYE D'AVANCE et ne se reconduit pas : le message ne promet
+   * aucun prelevement, et le dit explicitement. Confondre les deux textes
+   * reviendrait a annoncer un debit qui n'aura jamais lieu.
+   */
+  premiumFixedEnding: {
+    firstName: string;
+    /** Date de fin, deja formatee pour l'affichage (ex. « 8 septembre 2026 »). */
+    endDate: string;
+    /** Lien pour reprendre un acces. */
+    link: string;
+  };
   bookingConfirmation: {
     customerName: string;
     sessionTitle: string;
@@ -1289,6 +1305,31 @@ function renderInviteReceivedGift(d: TemplateDataMap['inviteReceivedGift'], lang
 // Phase 9 SC3 c1/5 — Session reminders J-1 + T-0
 // =====================================================================
 
+/**
+ * V408 — texte VALIDE par le proprietaire, mot pour mot. Ne pas reformuler :
+ * la mention « sans reconduction / rien ne sera preleve » a une portee
+ * contractuelle.
+ */
+function renderPremiumFixedEnding(d: TemplateDataMap['premiumFixedEnding'], _lang: EmailLang) {
+  const subject = 'Ton accès Premium Spordateur se termine bientôt';
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;padding:28px 24px;background:#0a0a0a;color:#e9e9e9;font-size:15px;line-height:1.65;border-radius:16px;">
+  <p style="margin:0 0 18px;">Bonjour ${d.firstName},</p>
+  <p style="margin:0 0 18px;">
+    ton accès <strong style="color:#fff;">Premium 1 mois</strong> se termine le
+    <strong style="color:#fff;">${d.endDate}</strong>.
+  </p>
+  <p style="margin:0 0 18px;padding:14px;background:rgba(16,185,129,0.10);border:1px solid rgba(16,185,129,0.30);border-radius:10px;">
+    Accès payé d'avance, sans reconduction — <strong>rien ne sera prélevé automatiquement</strong>.
+  </p>
+  <p style="margin:0 0 18px;">
+    Pour continuer, reprends un accès quand tu veux :
+    <a href="${d.link}" style="color:#10b981;font-weight:bold;">${d.link}</a>
+  </p>
+  <p style="margin:0;">À bientôt sur Spordateur&nbsp;!</p>
+</div>`;
+  return { subject, html };
+}
+
 function renderSessionReminderJMinus1(d: TemplateDataMap['sessionReminderJMinus1'], lang: EmailLang) {
   const T = {
     fr: {
@@ -1620,6 +1661,8 @@ export function renderTemplate<T extends TemplateName>(
       return renderInviteReceivedSplit(data as TemplateDataMap['inviteReceivedSplit'], lang);
     case 'inviteReceivedGift':
       return renderInviteReceivedGift(data as TemplateDataMap['inviteReceivedGift'], lang);
+    case 'premiumFixedEnding':
+      return renderPremiumFixedEnding(data as TemplateDataMap['premiumFixedEnding'], lang);
     case 'sessionReminderJMinus1':
       return renderSessionReminderJMinus1(data as TemplateDataMap['sessionReminderJMinus1'], lang);
     case 'sessionReminderTMinus0':

@@ -5,16 +5,14 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
+import { BOOST_PRICES } from '@/lib/payment/packages';
 import { safeStripeProductName } from '@/lib/stripe/safeProductName';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-const BOOST_PRICES: Record<string, { price: number; label: string; description: string }> = {
-  '24h': { price: 1500, label: 'Boost 24h', description: 'Visibilité boostée pendant 24 heures' },
-  '3d':  { price: 3500, label: 'Boost 3 jours', description: 'Visibilité boostée pendant 3 jours' },
-  '7d':  { price: 5000, label: 'Boost 1 semaine', description: 'Visibilité boostée pendant 1 semaine' },
-};
+// V408 : la grille vit dans `@/lib/payment/packages` — partagee avec le
+// chemin Mobile Money, pour qu'un boost ne puisse pas avoir deux prix.
 
 export async function POST(request: NextRequest) {
   try {

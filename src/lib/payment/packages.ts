@@ -121,3 +121,17 @@ export async function loadPackages(): Promise<typeof DEFAULT_PACKAGES> {
   _cacheTs = Date.now();
   return DEFAULT_PACKAGES;
 }
+
+
+/**
+ * Grille tarifaire du BOOST — source unique.
+ *
+ * ⚠️ EXTRAITE DE `api/boost-checkout/route.ts` pour la même raison que le
+ * catalogue : carte et Mobile Money doivent facturer le MÊME montant. Valeurs
+ * reprises À L'IDENTIQUE.
+ */
+export const BOOST_PRICES: Record<string, { price: number; label: string; description: string }> = {
+  '24h': { price: 1500, label: 'Boost 24h', description: 'Visibilité boostée pendant 24 heures' },
+  '3d':  { price: 3500, label: 'Boost 3 jours', description: 'Visibilité boostée pendant 3 jours' },
+  '7d':  { price: 5000, label: 'Boost 1 semaine', description: 'Visibilité boostée pendant 1 semaine' },
+};
