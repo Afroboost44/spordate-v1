@@ -24,6 +24,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { useToast } from '@/hooks/use-toast';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import MobileMoneyButton from '@/components/payment/MobileMoneyButton';
 
 interface InviteActionsClientProps {
   inviteId: string;
@@ -167,6 +168,7 @@ export function InviteActionsClient({
   };
 
   return (
+    <div className="space-y-2">
     <div className="flex flex-col sm:flex-row gap-2">
       <Button
         onClick={handleAccept}
@@ -203,6 +205,17 @@ export function InviteActionsClient({
           </>
         )}
       </Button>
+    </div>
+
+      {/* V409 — Mobile Money A COTE de la carte, sur l'acceptation d'invitation.
+          Le montant suit le palier de SA session (`computePricingTier`), pas le
+          prix d'un pack de credits. Seul l'`inviteId` voyage. */}
+      <MobileMoneyButton
+        mode="invite-accept"
+        inviteId={inviteId}
+        user={user}
+        libelle="Accepter et payer en Mobile Money"
+      />
     </div>
   );
 }

@@ -147,7 +147,9 @@ async function devis(
         activityId,
         duration,
         city,
-        country: String(body.country || 'Suisse'),
+        // ⚠️ `country` porte le pays MOBILE MONEY (ex. « CIV ») ; le pays du
+        // boost voyage sous `boostCountry` pour ne pas l'ecraser.
+        country: String(body.boostCountry || 'Suisse'),
         locationLabel: String(body.locationLabel || city),
       },
     };

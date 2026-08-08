@@ -12,6 +12,7 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 // Phase 9.5 c30 — constants partagées avec /api/boost-credits/route.ts via lib.
 import { BOOST_CREDITS_COST, CHF_PER_CREDIT } from '@/lib/billing/boostCredits';
+import MobileMoneyButton from '@/components/payment/MobileMoneyButton';
 
 type PaymentMethod = 'stripe' | 'credits';
 
@@ -621,6 +622,23 @@ export default function PartnerBoostPage() {
                       <><Zap className="mr-2 h-5 w-5" /> {t('partner_boost_pay_and_activate')}</>
                     )}
                   </Button>
+
+                  {/* V409 — Mobile Money A COTE de la carte, pour le boost.
+                      Le montant suit la grille de DUREE (BOOST_PRICES), partagee
+                      avec le chemin Stripe : 24h/3j/7j, jamais un prix de credits.
+                      Le pays du boost voyage separement du pays Mobile Money. */}
+                  {selectedActivityId && selectedCity && selectedDuration && (
+                    <div className="mt-2">
+                      <MobileMoneyButton
+                        mode="boost"
+                        user={user}
+                        activityId={selectedActivityId}
+                        duration={selectedDuration}
+                        city={selectedCity}
+                        country={selectedCountry || undefined}
+                      />
+                    </div>
+                  )}
                   {/* Phase 9.5 c32 — raison contextuelle si bouton désactivé */}
                   {disabledReason && (
                     <p className="text-center text-xs text-amber-400/80">

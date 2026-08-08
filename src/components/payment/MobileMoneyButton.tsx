@@ -20,15 +20,38 @@ import type { User } from 'firebase/auth';
 
 interface Pays { code: string; currency: string; label: string }
 
+/**
+ * V409 — quatre origines d'achat, un seul bouton.
+ *
+ * `mode` decide de ce que le serveur facture : un pack de credits, une
+ * reservation de session (palier x places), une invitation duo, ou un boost.
+ * Le composant ne transporte QUE des identifiants — jamais un montant : c'est le
+ * serveur qui calcule, et c'est ce qui empeche un prix trafique cote navigateur.
+ */
 export default function MobileMoneyButton({
   packageId, user, matchId, referralCode, partnerId, className = '',
+  mode = 'package', sessionId, isDuoTicket, inviteId,
+  activityId, duration, city, country, locationLabel,
+  libelle,
 }: {
-  packageId: string;
+  packageId?: string;
   user: User | null | undefined;
   matchId?: string;
   referralCode?: string;
   partnerId?: string;
   className?: string;
+  /** 'package' (defaut) | 'session' | 'invite-accept' | 'boost' */
+  mode?: 'package' | 'session' | 'invite-accept' | 'boost';
+  sessionId?: string;
+  isDuoTicket?: boolean;
+  inviteId?: string;
+  activityId?: string;
+  duration?: string;
+  city?: string;
+  country?: string;
+  locationLabel?: string;
+  /** Libelle du bouton ferme. Defaut : « Payer en Mobile Money ». */
+  libelle?: string;
 }) {
   const [pays, setPays] = useState<Pays[]>([]);
   const [choisi, setChoisi] = useState('');
@@ -59,7 +82,18 @@ export default function MobileMoneyButton({
       const r = await fetch('/api/pawapay/checkout', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
-        body: JSON.stringify({ packageId, country: choisi, matchId, referralCode, partnerId }),
+        body: JSON.stringify({
+          mode,
+          country: choisi,
+          // Selon le mode, le serveur ne lit que ce qui le concerne ; les
+          // champs absents sont simplement ignores.
+          packageId, matchId, referralCode, partnerId,
+          sessionId, isDuoTicket, inviteId,
+          activityId, duration, city,
+          // `country` est deja pris par le pays Mobile Money : le pays du boost
+          // voyage sous un autre nom pour ne pas l'ecraser.
+          boostCountry: country, locationLabel,
+        }),
       });
       const d = await r.json();
       if (!r.ok || !d?.url) throw new Error(d?.error || 'Paiement indisponible');
@@ -75,10 +109,10 @@ export default function MobileMoneyButton({
       <button
         type="button"
         onClick={(e) => { e.stopPropagation(); setOuvert(true); }}
-        data-testid={`mm-open-${packageId}`}
+        data-testid={`mm-open-${mode === 'package' ? packageId : mode}`}
         className={`w-full h-11 rounded-full text-sm font-light tracking-wider uppercase flex items-center justify-center gap-2 bg-white/5 border border-white/10 text-white/80 hover:bg-white/10 transition ${className}`}
       >
-        <Smartphone className="h-4 w-4" /> Payer en Mobile Money
+        <Smartphone className="h-4 w-4" /> {libelle || 'Payer en Mobile Money'}
       </button>
     );
   }
@@ -88,7 +122,7 @@ export default function MobileMoneyButton({
       <select
         value={choisi}
         onChange={(e) => setChoisi(e.target.value)}
-        data-testid={`mm-country-${packageId}`}
+        data-testid={`mm-country-${mode === 'package' ? packageId : mode}`}
         className="w-full h-11 rounded-xl bg-white/5 border border-white/15 text-white text-sm px-3"
       >
         <option value="" className="bg-black">Choisis ton pays</option>
@@ -102,7 +136,7 @@ export default function MobileMoneyButton({
         type="button"
         onClick={payer}
         disabled={enCours || !choisi}
-        data-testid={`mm-pay-${packageId}`}
+        data-testid={`mm-pay-${mode === 'package' ? packageId : mode}`}
         className="w-full h-11 rounded-full text-sm font-light tracking-wider uppercase flex items-center justify-center gap-2 bg-gradient-to-r from-emerald-500 to-teal-500 text-white disabled:opacity-50 transition"
       >
         {enCours ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}

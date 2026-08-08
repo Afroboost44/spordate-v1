@@ -48,6 +48,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import { resolveActiveReferralCode } from '@/lib/referral/refStorage';
 import type { Session, PricingTierKind } from '@/types/firestore';
 import type { SessionPhase } from '@/hooks/useSessionWindow';
+import MobileMoneyButton from '@/components/payment/MobileMoneyButton';
 
 export interface ReserveButtonProps {
   session: Session;
@@ -220,6 +221,7 @@ export function ReserveButton({
   const loadingClass = loading ? 'opacity-50' : '';
 
   return (
+    <>
     <button
       type="button"
       onClick={handleClick}
@@ -247,5 +249,21 @@ export function ReserveButton({
         </span>
       )}
     </button>
+
+    {/* V409 — Mobile Money A COTE de la carte, sur la reservation de session.
+        Le montant n'est PAS celui des credits : le serveur applique le palier
+        (`computePricingTier`) x le nombre de places. Le composant ne transporte
+        que le `sessionId` — jamais un prix. */}
+    {state.enabled && (
+      <div className="mt-2">
+        <MobileMoneyButton
+          mode="session"
+          sessionId={session.sessionId}
+          user={user}
+          referralCode={resolveActiveReferralCode(userProfile?.referredBy)}
+        />
+      </div>
+    )}
+    </>
   );
 }
