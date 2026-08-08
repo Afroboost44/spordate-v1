@@ -29,8 +29,15 @@ export async function envoyerRappelsFinPremium(apercu: boolean): Promise<Resulta
   const debut = new Date(maintenant.getTime() + (JOURS_AVANT - 0.5) * 86400000);
   const fin = new Date(maintenant.getTime() + (JOURS_AVANT + 0.5) * 86400000);
 
+  // ⚠️ UN SEUL CHAMP DANS LA REQUÊTE, ET C'EST DÉLIBÉRÉ. Croiser `isPremium`
+  // avec la plage sur `premiumExpiresAt` exige un INDEX COMPOSITE que Firestore
+  // refuse tant qu'il n'est pas créé à la main — constaté en production, la
+  // boucle échouait à chaque tour (« FAILED_PRECONDITION: The query requires an
+  // index »). Le champ de plage est auto-indexé : on interroge sur lui seul et
+  // on filtre `isPremium` en mémoire. La fenêtre ne fait qu'une journée, le
+  // surcoût de lecture est négligeable — et la tâche ne dépend plus d'un index
+  // qu'un redéploiement pourrait ne pas avoir.
   const snap = await db.collection('users')
-    .where('isPremium', '==', true)
     .where('premiumExpiresAt', '>=', debut)
     .where('premiumExpiresAt', '<=', fin)
     .limit(500)
@@ -42,6 +49,7 @@ export async function envoyerRappelsFinPremium(apercu: boolean): Promise<Resulta
 
   for (const doc of snap.docs) {
     const u = doc.data() as Record<string, unknown>;
+    if (u.isPremium !== true) continue;   // filtre déplacé de la requête vers ici
     const email = String(u.email || '').trim();
     if (!email) continue;
 
