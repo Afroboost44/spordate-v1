@@ -30,6 +30,38 @@ function SLogo({ className = "h-7 w-7" }: { className?: string }) {
   return <SpordateurLogo className={`${className} text-accent`} />;
 }
 
+// ─── RETOUR VERS AFROBOOST (mode intégré) ────────────────────────────────
+// Spordateur est servi sous `afroboost.com/rencontre`. Un membre venu de là
+// n'avait AUCUN chemin de retour : ni bouton, ni logo cliquable, ni route.
+// Le seul moyen était la flèche « précédent » du navigateur — absente en PWA
+// installée, où l'on se retrouvait donc enfermé.
+//
+// Le lien n'apparaît QUE dans le mode intégré, décidé par le `basePath` : en
+// accès direct sur le domaine propre de Spordateur, il n'aurait aucun sens et
+// reste donc invisible. Aucune condition codée en dur sur un domaine.
+//
+// `<a>` et non `<Link>` : on QUITTE l'application Next, on ne navigue pas
+// dedans. Un `Link` tenterait une navigation cliente vers une route qui
+// n'existe pas de ce côté.
+const EN_MODE_INTEGRE = Boolean(process.env.NEXT_PUBLIC_BASE_PATH);
+
+function RetourAfroboost({ compact = false }: { compact?: boolean }) {
+  if (!EN_MODE_INTEGRE) return null;
+  return (
+    <a
+      href="/"
+      aria-label="Retour à Afroboost"
+      title="Retour à Afroboost"
+      className={`flex items-center gap-1 text-white/60 hover:text-white transition-colors
+                  ${compact ? 'text-xs pr-1' : 'text-sm mr-4'}`}
+      data-testid="retour-afroboost"
+    >
+      <span aria-hidden="true">&larr;</span>
+      <span>Afroboost</span>
+    </a>
+  );
+}
+
 export default function Header() {
   const { t, setLanguage, language } = useLanguage();
   const { isLoggedIn, loading, logout, user, userProfile } = useAuth();
@@ -88,10 +120,13 @@ export default function Header() {
           style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}
         >
           <div className="flex items-center justify-between h-12 px-3">
-            <Link href="/" className="flex items-center gap-1.5">
-              <SLogo className="h-6 w-6" />
-              <span className="text-sm font-medium text-white">Spordateur</span>
-            </Link>
+            <div className="flex items-center gap-2 min-w-0">
+              <RetourAfroboost compact />
+              <Link href="/" className="flex items-center gap-1.5">
+                <SLogo className="h-6 w-6" />
+                <span className="text-sm font-medium text-white">Spordateur</span>
+              </Link>
+            </div>
             <div className="flex items-center gap-1">
               <CreditsBadge />
               <NotificationBadge />
@@ -115,6 +150,7 @@ export default function Header() {
     <header className="hidden md:block sticky top-0 z-50 w-full border-b border-border/40 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
       <div className="container flex h-14 items-center">
         <div className="flex items-center md:flex-1">
+          <RetourAfroboost />
           <Link href="/" className="mr-6 flex items-center space-x-2">
             <SLogo className="h-7 w-7" />
             <span className="font-bold">Spordateur</span>
