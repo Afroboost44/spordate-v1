@@ -110,6 +110,14 @@ const defaultTranslations: any = {
     discovery_no_profiles_title: "Tu as vu tous les profils disponibles",
     discovery_no_profiles_subtitle: "De nouveaux profils apparaîtront ici lorsqu'ils seront disponibles.",
     discovery_reset_button: "Revoir les profils passés",
+    // LOT R1 — fin de pile. Le dernier profil vu RESTE affiché ; ce bandeau
+    // se pose par-dessus sa photo. Texte honnête : aucune notification
+    // « nouveau profil » n'existe, on ne promet donc aucune alerte.
+    discovery_end_banner_title: "Tu as vu tous les profils pour le moment.",
+    discovery_end_banner_text: "De nouveaux profils apparaîtront ici dès qu'ils seront disponibles.",
+    // LOT R1 — cas « jamais aucun profil éligible » (aucun dernier profil).
+    discovery_empty_title: "Aucun profil correspondant pour le moment.",
+    discovery_empty_subtitle: "De nouveaux profils apparaîtront ici dès qu'ils seront disponibles.",
     discovery_reset_confirm_title: "Revoir les profils passés ?",
     discovery_reset_confirm_text: "Cette action réinitialisera les profils que tu as passés afin qu'ils puissent réapparaître. Tes likes et tes matchs ne seront pas supprimés.",
     discovery_reset_confirm_cancel: "Annuler",
@@ -1947,6 +1955,11 @@ invited_banner_title: "Invitation acceptée 🎉",
     discovery_no_profiles_title: "You've seen every available profile",
     discovery_no_profiles_subtitle: "New profiles will appear here as they join.",
     discovery_reset_button: "See profiles I passed",
+    // LOT R1 — end of stack (see FR comment).
+    discovery_end_banner_title: "You've seen every profile for now.",
+    discovery_end_banner_text: "New profiles will appear here as soon as they are available.",
+    discovery_empty_title: "No matching profile right now.",
+    discovery_empty_subtitle: "New profiles will appear here as soon as they are available.",
     discovery_reset_confirm_title: "See the profiles you passed?",
     discovery_reset_confirm_text: "This will reset the profiles you passed so they can show up again. Your likes and matches will not be deleted.",
     discovery_reset_confirm_cancel: "Cancel",
@@ -3763,6 +3776,11 @@ invited_banner_title: "Invitation accepted 🎉",
     discovery_no_profiles_title: "Du hast alle verfügbaren Profile gesehen",
     discovery_no_profiles_subtitle: "Neue Profile erscheinen hier, sobald sie verfügbar sind.",
     discovery_reset_button: "Übersprungene Profile ansehen",
+    // LOT R1 — Ende des Stapels (siehe FR-Kommentar).
+    discovery_end_banner_title: "Du hast im Moment alle Profile gesehen.",
+    discovery_end_banner_text: "Neue Profile erscheinen hier, sobald sie verfügbar sind.",
+    discovery_empty_title: "Derzeit kein passendes Profil.",
+    discovery_empty_subtitle: "Neue Profile erscheinen hier, sobald sie verfügbar sind.",
     discovery_reset_confirm_title: "Übersprungene Profile erneut ansehen?",
     discovery_reset_confirm_text: "Damit werden die von dir übersprungenen Profile zurückgesetzt, sodass sie wieder erscheinen können. Deine Likes und Matches werden nicht gelöscht.",
     discovery_reset_confirm_cancel: "Abbrechen",
