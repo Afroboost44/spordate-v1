@@ -78,6 +78,7 @@ export async function getAdminDb(): Promise<any> {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function getAdminAuth(): Promise<any> {
+  if (_adminAuthOverride) return _adminAuthOverride;
   await ensureAdminApp();
   const { getAuth } = await import('firebase-admin/auth');
   return getAuth();
@@ -87,4 +88,23 @@ export async function getAdminAuth(): Promise<any> {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function __setAdminDbForTesting(mock: any | null): void {
   _adminDb = mock;
+}
+
+/**
+ * @internal — DI seam pour tests, pendant de `__setAdminDbForTesting`.
+ *
+ * STRICTEMENT ADDITIF : la variable reste `null` en production, donc
+ * `getAdminAuth()` s'y comporte exactement comme avant — aucun cache n'est
+ * introduit sur le chemin réel, la seule branche nouvelle est celle qu'un test
+ * doit armer explicitement. Elle existe pour qu'on puisse éprouver la ROUTE DU
+ * PONT elle-même, et pas seulement les fonctions qu'elle appelle : c'est
+ * l'ordre des gardes (signature, audience, expiration, anti-rejeu, puis
+ * seulement la liaison) qui doit être prouvé, et il ne vit que dans la route.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _adminAuthOverride: any = null;
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function __setAdminAuthForTesting(mock: any | null): void {
+  _adminAuthOverride = mock;
 }

@@ -87,7 +87,9 @@
     "test:components:session-unavailable-ui": "npx tsx --tsconfig tsconfig.test.json tests/components/session-unavailable-ui.test.tsx",
     "test:referral:storage": "npx tsx tests/referral/ref-storage.test.ts",
     "test:storage:upload-activity-media": "npx tsx tests/storage/upload-activity-media.test.ts",
-    "test:components:bridge-destination": "npx tsx tests/components/bridge-destination.test.ts"
+    "test:components:bridge-destination": "npx tsx tests/components/bridge-destination.test.ts",
+    "test:bridge:identity-link": "npx tsx tests/bridge/identity-link.test.ts",
+    "test:bridge:verify-route": "npx tsx tests/bridge/verify-route.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
