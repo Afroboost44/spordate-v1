@@ -103,9 +103,84 @@ export default function Header() {
       { href: "/notifications", label: t('nav_notifications') || "Notifications" },
   ];
 
+  // ── LE MENU DU MODE INTÉGRÉ ────────────────────────────────────────────
+  // Simplifier la navigation ne doit JAMAIS revenir à supprimer un accès. Le
+  // lot précédent avait retiré Activités, Profil, Premium et Notifications de
+  // la barre : ils n'étaient plus atteignables qu'en tapant l'URL. Ils
+  // reviennent ici, derrière une seule icône, au lieu de six liens alignés.
+  //
+  // CE SONT LES MÊMES ROUTES, pas des copies : `/activities`, `/discovery`,
+  // `/chat`, `/profile`, `/premium`, `/notifications` existent déjà et ne sont
+  // ni dupliquées ni réécrites. On ne fait que rouvrir la porte.
+  //
+  // « Messages » y figure alors qu'il n'est pas dans `navLinks` : il vivait
+  // seulement dans la barre du bas, donc invisible sur desktop. Ajouter le lien
+  // ICI plutôt que dans `navLinks` laisse le mode autonome strictement inchangé.
+  const liensMenuIntegre = [
+    ...navLinks.filter((l) => l.href !== '/profile'),
+    { href: "/chat", label: t('nav_messages') || "Messages" },
+    { href: "/profile", label: t('nav_profile') || "Mon Profil" },
+    ...authenticatedLinks,
+  ];
+
   const handleLogout = async () => {
     await logout();
   };
+
+  /** Le menu compact du mode intégré : une icône, toutes les fonctions. */
+  const MenuIntegre = () => (
+    <Sheet>
+      <SheetTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Menu" data-testid="menu-integre">
+          <Menu className="h-5 w-5" />
+          <span className="sr-only">Menu</span>
+        </Button>
+      </SheetTrigger>
+      <SheetContent side="right" className="pt-12 bg-background w-[min(20rem,85vw)]">
+        <SheetHeader>
+          <SheetTitle className="sr-only">Menu</SheetTitle>
+        </SheetHeader>
+        {isLoggedIn && user?.displayName && (
+          <div className="px-4 pb-4 mb-2 border-b border-border/20">
+            <p className="text-sm font-medium truncate">{user.displayName}</p>
+            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+          </div>
+        )}
+        <nav className="flex flex-col text-base">
+          {isLoggedIn && liensMenuIntegre.map((link) => (
+            <Link
+              key={link.href}
+              href={link.href}
+              className="px-4 py-3 rounded-md hover:bg-accent/10 flex items-center gap-2"
+              data-testid={`menu-integre-${link.href.replace('/', '')}`}
+            >
+              {(link as { isPremium?: boolean }).isPremium && <Crown className="h-4 w-4 text-accent" />}
+              <span className="truncate">{link.label}</span>
+            </Link>
+          ))}
+          {/* L'espace partenaire et la console admin restent proposés à qui y a
+              droit : les masquer serait retirer un accès, pas simplifier. */}
+          {isLoggedIn && isPartner && (
+            <Link href="/partner/offers" className="px-4 py-3 rounded-md hover:bg-accent/10 text-accent flex items-center gap-2">
+              <Building className="h-4 w-4 shrink-0" />
+              <span className="truncate">{t('header_partner_space')}</span>
+            </Link>
+          )}
+          {isLoggedIn && <AdminMenuLink variant="mobile" />}
+          {isLoggedIn && (
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="px-4 py-3 rounded-md hover:bg-accent/10 flex items-center gap-2 text-left text-muted-foreground"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              <span>{t('nav_logout') || 'Déconnexion'}</span>
+            </button>
+          )}
+        </nav>
+      </SheetContent>
+    </Sheet>
+  );
 
   return (
     <>
@@ -134,6 +209,7 @@ export default function Header() {
             <div className="flex items-center gap-1">
               <CreditsBadge />
               <NotificationBadge />
+              {EN_MODE_INTEGRE && <MenuIntegre />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="icon" className="h-9 w-9">
@@ -210,6 +286,7 @@ export default function Header() {
         )}
 
         <div className="hidden items-center space-x-2 md:flex">
+            {EN_MODE_INTEGRE && isLoggedIn && <MenuIntegre />}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon">

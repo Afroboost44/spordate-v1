@@ -16,6 +16,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Sheet, SheetContent } from "@/components/ui/sheet"
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog"
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
    Carousel, 
@@ -137,6 +147,10 @@ export default function DiscoveryPage() {
   // pour ne pas casser le comportement normal des swipes suivants.
   const [bypassSwipeFilter, setBypassSwipeFilter] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
+  // La confirmation avant `resetProfiles()`. Ce bouton SUPPRIME des documents
+  // `passes` en base : personne ne doit pouvoir le déclencher d'un clic
+  // distrait, et surtout pas sans savoir ce qu'il efface.
+  const [confirmerReprise, setConfirmerReprise] = useState(false);
   // Phase 9.5 c38b CH5 — isMatch state retiré (modal "Tu veux rencontrer X" supprimée)
   const [showPaymentModal, setShowPaymentModal] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -1896,12 +1910,44 @@ END:VCALENDAR`;
           </div>
           <h2 className="text-2xl font-semibold text-white mb-2">{t('discovery_no_profiles_title')}</h2>
           <p className="text-white/40 mb-6">{t('discovery_no_profiles_subtitle')}</p>
-          <Button onClick={resetProfiles} variant="outline" className="border-white/20 text-white hover:bg-white/10">
-            <Undo2 className="mr-2 h-4 w-4" />
-            {t('discovery_reset_button')}
+          {/* CE BOUTON NE SUPPRIME PLUS RIEN DIRECTEMENT. Il ouvre une
+              confirmation qui NOMME l'effet réel : les profils passés sont
+              réinitialisés en base. Avant, « Recommencer » effaçait ces
+              documents sans un mot, et le libellé laissait croire à un simple
+              rafraîchissement. */}
+          <Button
+            onClick={() => setConfirmerReprise(true)}
+            variant="outline"
+            className="border-white/20 text-white hover:bg-white/10 max-w-full whitespace-normal h-auto py-2"
+            data-testid="discovery-revoir-passes"
+          >
+            <Undo2 className="mr-2 h-4 w-4 shrink-0" />
+            <span className="text-left">{t('discovery_reset_button')}</span>
           </Button>
         </div>
       )}
+
+      <AlertDialog open={confirmerReprise} onOpenChange={setConfirmerReprise}>
+        <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t('discovery_reset_confirm_title')}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t('discovery_reset_confirm_text')}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="flex-col-reverse gap-2 sm:flex-row">
+            <AlertDialogCancel data-testid="discovery-revoir-annuler">
+              {t('discovery_reset_confirm_cancel')}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => { void resetProfiles(); }}
+              data-testid="discovery-revoir-confirmer"
+            >
+              {t('discovery_reset_confirm_ok')}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Payment Modal */}
       <Dialog open={showPaymentModal} onOpenChange={(o) => {
