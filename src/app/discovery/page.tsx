@@ -58,6 +58,14 @@ import type { UserProfile, SportEntry } from '@/types/firestore';
 import { groupBoostedActivitiesByCity } from '@/lib/discovery/whereToPractice';
 import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/cardImage';
 import { extractSwipedUids } from '@/lib/discovery/swipedUids';
+// LOT R1 — décision unique « quel profil afficher / quelles actions bloquer »
+// quand la pile est épuisée. Partagée par le rendu ET par l'effet qui charge
+// les activités du partenaire affiché (sinon « Réserver » propose les
+// activités d'un autre profil que celui montré).
+import {
+  resolveDiscoveryView,
+  rankSwipesByRecency,
+} from '@/lib/discovery/endOfStack';
 import { buildActivityListUrl } from '@/lib/activities/listUrl';
 import {
   getActivityThumbnail,
@@ -159,6 +167,17 @@ export default function DiscoveryPage() {
   // Real partners chargés via getPartners() Firestore au mount.
   const [partners, setPartners] = useState<Partner[]>([]);
   const [loadingProfiles, setLoadingProfiles] = useState(true);
+  // LOT R1 — Dernier profil réellement vu, reconstruit depuis l'historique
+  // like/pass quand la pile revient vide après un rechargement. Ce n'est PAS
+  // un profil fabriqué : c'est la fiche `users/{uid}` du dernier profil sur
+  // lequel l'utilisateur a agi, relue en base. Aucun champ Firestore ajouté.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const [lastSeenProfile, setLastSeenProfile] = useState<any | null>(null);
+  // LOT R1 — Vrai pendant la résolution du repli. Sans ce drapeau, l'écran
+  // « Aucun profil correspondant » clignoterait une fraction de seconde avant
+  // que la dernière carte revienne : exactement l'impression de panne qu'on
+  // cherche à supprimer.
+  const [repliEnCours, setRepliEnCours] = useState(false);
   const [boostedPartnerIds, setBoostedPartnerIds] = useState<Set<string>>(new Set());
   // BUG #69 — Set des activityId boostés (nouveau modèle par-activité).
   // Un boost peut désormais cibler 1 activity précise au lieu de tout le compte.
@@ -472,7 +491,21 @@ export default function DiscoveryPage() {
   //   - Si le profil n'est pas un partenaire (ou n'a aucune activité active),
   //     la query retourne [] → le fallback boostées-only (#183) reprend la main.
   useEffect(() => {
-    const profile = profiles[currentIndex] as any;
+    // LOT R1 — MÊME décision que le rendu (index clampé + repli). Lire
+    // `profiles[currentIndex]` en direct rouvrirait le piège : en fin de pile
+    // l'index dépasse, le profil devient `undefined`, et « Réserver » retombe
+    // sur le fallback « toutes les activités boostées » alors que la carte
+    // affichée est celle d'un partenaire précis.
+    const vue = resolveDiscoveryView({
+      profilesLength: profiles.length,
+      currentIndex,
+      hasLastSeenFallback: lastSeenProfile !== null,
+    });
+    const profile = (vue.displayIndex !== null
+      ? profiles[vue.displayIndex]
+      : vue.useFallbackProfile
+        ? lastSeenProfile
+        : null) as any;
     const uid = profile?.firestoreUid as string | undefined;
     if (!uid || !db || !isFirebaseConfigured) {
       setPartnerOwnedActivities([]);
@@ -507,7 +540,72 @@ export default function DiscoveryPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profiles, currentIndex, db]);
+  }, [profiles, currentIndex, lastSeenProfile, db]);
+
+  // LOT R1 — Repli « dernier profil vu » APRÈS un rechargement.
+  //
+  // Au retour sur la page, la pile revient vide : les profils déjà likés ou
+  // passés sont filtrés à la source (BUG #25). Sans repli, l'utilisateur
+  // retombait sur l'écran noir. On ne stocke rien de nouveau : les collections
+  // `likes` et `passes` portent déjà `toUid` + `createdAt`, ce qui suffit à
+  // désigner le dernier profil sur lequel l'utilisateur a agi. On relit sa
+  // fiche `users/{uid}` telle quelle — jamais de profil fabriqué.
+  //
+  // Pas d'`orderBy` Firestore ici : le tri se fait côté client via le module
+  // pur, pour ne dépendre d'AUCUN index composite supplémentaire.
+  useEffect(() => {
+    if (loadingProfiles) return;
+    if (profiles.length > 0) {
+      setLastSeenProfile((prev: any) => (prev === null ? prev : null));
+      return;
+    }
+    if (!user || !userProfile || !db || !isFirebaseConfigured) return;
+
+    let cancelled = false;
+    setRepliEnCours(true);
+    (async () => {
+      try {
+        const fbDb = db;
+        const [likesSnap, passesSnap] = await Promise.all([
+          getDocs(query(collection(fbDb, 'likes'), where('fromUid', '==', user.uid))),
+          getDocs(query(collection(fbDb, 'passes'), where('fromUid', '==', user.uid))),
+        ]);
+        const classe = rankSwipesByRecency(
+          likesSnap.docs.map((d) => d.data() as { toUid?: string; createdAt?: unknown }),
+          passesSnap.docs.map((d) => d.data() as { toUid?: string; createdAt?: unknown }),
+        );
+        if (classe.length === 0) {
+          if (!cancelled) setLastSeenProfile(null);
+          return;
+        }
+        // Mêmes garde-fous que le chargement normal : jamais soi-même, jamais
+        // un profil bloqué, jamais un onboarding incomplet.
+        const blockSet = await getMutualBlockSet(user.uid).catch(() => new Set<string>());
+        for (const { toUid } of classe.slice(0, 10)) {
+          if (cancelled) return;
+          if (toUid === user.uid || blockSet.has(toUid)) continue;
+          const snap = await getDoc(doc(fbDb, 'users', toUid));
+          if (!snap.exists()) continue;
+          const data = { ...(snap.data() as UserProfile), uid: snap.id };
+          if (data.onboardingComplete !== true) continue;
+          const card = firestoreProfileToCard(data, 0);
+          card.matchScore = computeMatchScore(userProfile, data);
+          if (!cancelled) setLastSeenProfile(card);
+          return;
+        }
+        if (!cancelled) setLastSeenProfile(null);
+      } catch (err) {
+        console.warn('[Discovery] repli dernier profil vu indisponible:', err);
+      } finally {
+        if (!cancelled) setRepliEnCours(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadingProfiles, profiles.length, user, userProfile, refreshTick]);
 
   // Load confirmed tickets and partners
   useEffect(() => {
@@ -596,6 +694,9 @@ export default function DiscoveryPage() {
   // (skip-if-exists, défensif). Le filter loadFirestoreProfiles exclut
   // ces toUid au prochain mount.
   const handlePass = async () => {
+    // LOT R1 — ceinture : en fin de pile la carte reste affichée, mais l'action
+    // a déjà été consommée. Rien ne doit être ré-écrit en base.
+    if (actionsConsommees) return;
     if (user && db && currentProfile) {
       const targetUid = (currentProfile as any).firestoreUid as string | undefined;
       if (targetUid && typeof targetUid === 'string' && targetUid.length >= 5 && targetUid !== user.uid) {
@@ -629,6 +730,8 @@ export default function DiscoveryPage() {
   //         match mutuel). Sinon toast soft "Like envoyé".
   // Le crédit est désormais débité UNIQUEMENT à l'envoi de message dans le chat.
   const handleLike = async () => {
+    // LOT R1 — voir handlePass : action déjà consommée en fin de pile.
+    if (actionsConsommees) return;
     if (!user || !db || !currentProfile) {
       handleNextProfile();
       return;
@@ -713,6 +816,8 @@ export default function DiscoveryPage() {
   // Server-side via /api/chat/unlock-direct (Bearer + runTransaction atomic).
   const DIRECT_CHAT_COST = 5;
   const handleDirectChat = async () => {
+    // LOT R1 — voir handlePass : action déjà consommée en fin de pile.
+    if (actionsConsommees) return;
     // Fix #198 — Remplace les silent-returns par des toasts diagnostiques
     // visibles. Avant : si user/db/currentProfile manquait OU firestoreUid
     // absent OU targetUid === self, le clic ne déclenchait RIEN (pas de toast,
@@ -1597,7 +1702,23 @@ END:VCALENDAR`;
     setShowPartnerModal(true);
   };
 
-  const currentProfile = profiles[currentIndex];
+  // LOT R1 — Source unique de la décision d'affichage. `profiles[currentIndex]`
+  // n'est plus lu en direct : en fin de pile il valait `undefined`, et tout le
+  // bloc carte basculait sur la page noire.
+  const vueDiscovery = resolveDiscoveryView({
+    profilesLength: profiles.length,
+    currentIndex,
+    hasLastSeenFallback: lastSeenProfile !== null,
+  });
+  const currentProfile = vueDiscovery.displayIndex !== null
+    ? profiles[vueDiscovery.displayIndex]
+    : vueDiscovery.useFallbackProfile
+      ? lastSeenProfile
+      : undefined;
+  /** Fin de pile : la carte reste, le bandeau s'affiche, les actions se ferment. */
+  const finDePile = vueDiscovery.showEndBanner;
+  /** Pass / Like / Chat direct ont déjà été consommés sur cette carte. */
+  const actionsConsommees = vueDiscovery.actionsDisabled;
   const profileImage = discoveryImages.find(img => img.id === currentProfile?.imageId);
   const hasTicket = currentProfile && confirmedTickets.includes(currentProfile.id);
 
@@ -1768,6 +1889,31 @@ END:VCALENDAR`;
                 )}
               </div>
 
+              {/* LOT R1 — Bandeau de fin de pile. Discret, posé sur le BAS de la
+                  photo (au-dessus du nom, sous le visage), non bloquant
+                  (pointer-events-none) : la carte, ses infos et « Réserver »
+                  restent entiers. Il remplace l'ancienne page noire.
+                  Texte volontairement HONNÊTE : aucune notification « nouveau
+                  profil » n'existe aujourd'hui, on ne promet donc pas d'alerte. */}
+              {finDePile && (
+                <div
+                  className="absolute left-3 right-3 bottom-28 md:bottom-32 z-20 pointer-events-none flex justify-center"
+                  data-testid="discovery-fin-de-pile-bandeau"
+                >
+                  <div className="w-full max-w-sm rounded-2xl bg-black/70 backdrop-blur-md border border-accent/30 px-4 py-2.5 shadow-lg">
+                    <p className="flex items-start gap-2 text-[13px] leading-snug font-light text-white break-words">
+                      <Info className="h-4 w-4 mt-0.5 shrink-0 text-accent" />
+                      <span className="min-w-0">
+                        <span className="block">{t('discovery_end_banner_title')}</span>
+                        <span className="block text-white/55 text-[11px] mt-0.5">
+                          {t('discovery_end_banner_text')}
+                        </span>
+                      </span>
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Name + Location — name cliquable vers /profile/[uid] (BUG #18).
                   BUG #84 — Badge ✓ Vérifié à droite du nom si le user a passé
                   la reconnaissance faciale (selfieVerificationStatus='verified').
@@ -1809,8 +1955,11 @@ END:VCALENDAR`;
                     de handleNextProfile (advance local seul, le profil revenait). */}
                 <button
                   onClick={handlePass}
+                  disabled={actionsConsommees}
+                  aria-disabled={actionsConsommees}
                   aria-label="Passer"
-                  className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/60 hover:text-red-400 hover:border-red-400/40 transition-all active:scale-90"
+                  data-testid="discovery-action-pass"
+                  className="w-12 h-12 rounded-full bg-black/40 backdrop-blur-md border border-white/10 flex items-center justify-center text-white/60 hover:text-red-400 hover:border-red-400/40 transition-all active:scale-90 disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed"
                 >
                   <X size={22} />
                 </button>
@@ -1824,17 +1973,23 @@ END:VCALENDAR`;
                     inline accent par fallback). */}
                 <button
                   onClick={handleLike}
+                  disabled={actionsConsommees}
+                  aria-disabled={actionsConsommees}
                   aria-label="Like"
-                  className="w-12 h-12 rounded-full bg-[#782a41]/60 backdrop-blur-md border border-[#782a41]/70 flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
+                  data-testid="discovery-action-like"
+                  className="w-12 h-12 rounded-full bg-[#782a41]/60 backdrop-blur-md border border-[#782a41]/70 flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90 disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   <SpordateurLogo className="h-8 w-8 text-white" bare ariaLabel="Like" />
                 </button>
                 {/* Phase 9.5 c38b CH1 — 3e bouton : Chat direct payant (5 crédits) */}
                 <button
                   onClick={handleDirectChat}
+                  disabled={actionsConsommees}
+                  aria-disabled={actionsConsommees}
                   aria-label={`${t('discovery_direct_chat_button')} — ${t('discovery_direct_chat_cost')}`}
                   title={`${t('discovery_direct_chat_button')} — ${t('discovery_direct_chat_cost')}`}
-                  className="w-12 h-12 rounded-full bg-accent backdrop-blur-md border border-accent flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90"
+                  data-testid="discovery-action-chat"
+                  className="w-12 h-12 rounded-full bg-accent backdrop-blur-md border border-accent flex items-center justify-center text-white hover:scale-110 transition-all active:scale-90 disabled:opacity-40 disabled:pointer-events-none disabled:cursor-not-allowed disabled:hover:scale-100"
                 >
                   <MessageCircle size={20} />
                 </button>
@@ -1903,27 +2058,40 @@ END:VCALENDAR`;
               + selectedMeetingPlace + bottom-sheet mobile (Sheet shadcn fix #11)
               restent en place pour le flow booking (pre-select meeting place). */}
         </div>
+      ) : loadingProfiles || repliEnCours ? (
+        /* LOT R1 — Chargement / résolution du repli : on ne montre AUCUN
+           message tant qu'on ne sait pas s'il existe une dernière carte.
+           Annoncer « aucun profil » puis se dédire fait un écran qui clignote. */
+        <div
+          className="flex items-center justify-center py-16"
+          data-testid="discovery-chargement"
+        >
+          <Loader2 className="h-6 w-6 animate-spin text-white/25" />
+        </div>
       ) : (
-        <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-          <div className="w-20 h-20 rounded-full bg-white/5 flex items-center justify-center mb-6">
-            <Heart className="h-10 w-10 text-white/20" />
+        /* LOT R1 — Ce cas ne se produit plus QUE pour un utilisateur qui n'a
+           jamais eu le moindre profil éligible : dès qu'un profil a été vu, la
+           carte reste affichée avec son bandeau (repli `lastSeenProfile`).
+           État volontairement COMPACT — pas de grande page noire, pas
+           d'impression de panne : « Où pratiquer ? » reste juste au-dessus,
+           l'interface est visible.
+           Le bouton « Revoir les profils passés » a été RETIRÉ de ce parcours :
+           il proposait d'effacer des documents `passes` pour peupler un écran
+           qui n'a plus lieu d'être. `resetProfiles()` et sa confirmation
+           restent dans le code, intacts. */
+        <div
+          className="flex flex-col items-center justify-center text-center px-6 py-12"
+          data-testid="discovery-aucun-profil"
+        >
+          <div className="w-14 h-14 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mb-4">
+            <Heart className="h-6 w-6 text-white/25" />
           </div>
-          <h2 className="text-2xl font-semibold text-white mb-2">{t('discovery_no_profiles_title')}</h2>
-          <p className="text-white/40 mb-6">{t('discovery_no_profiles_subtitle')}</p>
-          {/* CE BOUTON NE SUPPRIME PLUS RIEN DIRECTEMENT. Il ouvre une
-              confirmation qui NOMME l'effet réel : les profils passés sont
-              réinitialisés en base. Avant, « Recommencer » effaçait ces
-              documents sans un mot, et le libellé laissait croire à un simple
-              rafraîchissement. */}
-          <Button
-            onClick={() => setConfirmerReprise(true)}
-            variant="outline"
-            className="border-white/20 text-white hover:bg-white/10 max-w-full whitespace-normal h-auto py-2"
-            data-testid="discovery-revoir-passes"
-          >
-            <Undo2 className="mr-2 h-4 w-4 shrink-0" />
-            <span className="text-left">{t('discovery_reset_button')}</span>
-          </Button>
+          <h2 className="text-lg font-light tracking-tight text-white break-words">
+            {t('discovery_empty_title')}
+          </h2>
+          <p className="text-white/40 text-sm font-light mt-1.5 max-w-xs break-words">
+            {t('discovery_empty_subtitle')}
+          </p>
         </div>
       )}
 
