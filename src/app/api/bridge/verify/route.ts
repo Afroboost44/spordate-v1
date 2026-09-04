@@ -21,6 +21,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
+import { enregistrerLiaison } from '@/lib/bridge/identityLink';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -31,7 +32,17 @@ function depuisB64Url(s: string): Buffer {
   return Buffer.from(s.replace(/-/g, '+').replace(/_/g, '/'), 'base64');
 }
 
-type Charge = { email?: string; jti?: string; aud?: string; iss?: string; exp?: number };
+type Charge = {
+  email?: string;
+  jti?: string;
+  aud?: string;
+  iss?: string;
+  exp?: number;
+  /** LOT U2b — par quelle porte afroboost a reconnu le membre. Purement
+   *  descriptif : AUCUNE décision de ce fichier ne le lit. Absent des jetons
+   *  émis avant, et c'est sans conséquence. */
+  origine?: string;
+};
 
 /** Vérifie la signature HS256 et renvoie la charge utile, ou null. */
 function verifierHs256(jeton: string, secret: string): Charge | null {
@@ -118,6 +129,30 @@ export async function POST(req: NextRequest) {
   } catch {
     const cree = await auth.createUser({ email, emailVerified: true });
     uid = cree.uid;
+  }
+
+  // ─── LOT U2b — liaison d'identité persistante ─────────────────────────────
+  // ON N'EN EST ICI QUE SI TOUT A ÉTÉ PROUVÉ : signature HS256 vérifiée en
+  // temps constant, `aud`/`iss` attendus, jeton non expiré, `jti` consommé une
+  // seule fois, et `uid` confirmé par Firebase Auth lui-même. Une identité de
+  // ChatWidget non authentifiée n'arrive jamais jusqu'ici : afroboost lui
+  // refuse le jeton (403 `identity_required`), donc il n'y a rien à vérifier
+  // de plus de ce côté — et rien à desserrer.
+  //
+  // NON BLOQUANTE, DÉLIBÉRÉMENT. Le pont prime : si l'écriture échoue
+  // (Firestore indisponible, conflit de droits), le membre entre quand même.
+  // Une correspondance manquante se rattrape au passage suivant ; une session
+  // refusée, non. C'est pour cela que ce bloc vient APRÈS tout le reste et
+  // qu'il n'a aucun pouvoir sur la réponse.
+  try {
+    const r = await enregistrerLiaison(db, { uid, email, origine: charge.origine });
+    if (r.action === 'conflit') {
+      // Consigné en base ET dans les journaux : c'est une information à
+      // trancher par un humain, pas une panne à réessayer.
+      console.warn(`[U2b] liaison en conflit (${r.motif}) uid=${uid}`);
+    }
+  } catch (e) {
+    console.warn('[U2b] liaison non écrite — le pont continue :', e);
   }
 
   // `via` sert au client à savoir qu'il faut proposer l'onboarding minimal si le
