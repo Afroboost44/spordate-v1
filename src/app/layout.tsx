@@ -197,6 +197,54 @@ export default async function RootLayout({
             fond noir uni + icône logo centrée — premium et cohérent dark mode.
             Quand iOS 17+ implementera la spec PWA `display_override: ["browser"]`
             avec splash dynamique inline, on pourra revenir à un splash custom. */}
+        {/* ── LE VOILE DU PONT — avant le premier pixel ──────────────────
+            Un membre venu d'afroboost arrive sur `/rencontre?t=…`, c'est-à-dire
+            sur la RACINE de cette application : la landing. Et cette page est
+            `force-dynamic`, donc rendue par le serveur et peinte tout de suite.
+            `BridgeAutoLogin` est un composant CLIENT : son effet n'agit qu'après
+            l'hydratation, puis attend deux allers-retours réseau — la
+            vérification du jeton, puis Firebase. Entre les deux, la landing
+            reste à l'écran une à deux secondes, avec son bouton « Rejoindre »
+            proposé à quelqu'un qui est déjà en train d'entrer.
+
+            Aucun composant React ne peut couvrir ce moment : ils arrivent tous
+            APRÈS l'hydratation, c'est-à-dire après le début du flash. D'où ce
+            script inline, exécuté pendant l'analyse du document, avant le
+            premier paint. Même motif que l'anti-FOUC du thème sur afroboost.
+
+            IL NE MASQUE QUE SI UN JETON EST PRÉSENT. Une visite normale de la
+            landing n'est jamais touchée. Et il ne fait que CACHER : il ne
+            redirige pas, ne décide rien, ne lit aucune identité. La sécurité
+            reste entièrement du côté de `/api/bridge/verify` — ce lot ne change
+            que ce qu'on voit pendant l'attente.
+
+            LE VOILE SE LÈVE TOUJOURS. Si l'échange échoue, `BridgeAutoLogin`
+            retire l'attribut et la landing réapparaît : le repli normal. Et par
+            sécurité, une animation le lève au bout de 8 s même si le script
+            client ne s'exécutait jamais — un écran noir mort serait pire que le
+            flash qu'on corrige. */}
+        <style dangerouslySetInnerHTML={{ __html: `
+html[data-pont-afroboost] body > * { visibility: hidden !important; }
+html[data-pont-afroboost]::before {
+  content: ''; position: fixed; inset: 0; background: #000; z-index: 2147483646;
+  animation: pont-abandon 0s linear 8s forwards;
+}
+html[data-pont-afroboost]::after {
+  content: ''; position: fixed; top: 50%; left: 50%;
+  width: 26px; height: 26px; margin: -13px 0 0 -13px; border-radius: 50%;
+  border: 2px solid rgba(255,255,255,0.18); border-top-color: rgba(255,255,255,0.75);
+  z-index: 2147483647; animation: pont-tourne 0.7s linear infinite,
+                                  pont-abandon 0s linear 8s forwards;
+}
+@keyframes pont-tourne { to { transform: rotate(360deg); } }
+@keyframes pont-abandon { to { opacity: 0; visibility: hidden; } }
+        `.trim() }} />
+        <script dangerouslySetInnerHTML={{ __html: `
+(function(){try{
+  if(!/[?&]t=/.test(window.location.search)) return;
+  document.documentElement.setAttribute('data-pont-afroboost','1');
+}catch(e){}})();
+        `.trim() }} />
       </head>
       <body className="font-body" style={{ backgroundColor: '#000000' }}>
         {/* Tout PREMIER enfant : le module s'exécute avant qu'AuthProvider,

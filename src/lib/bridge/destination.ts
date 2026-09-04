@@ -39,3 +39,23 @@ export function destinationApresPont(ctx: ContextePont): string | null {
 export function drapeauActif(valeur?: string | null): boolean {
   return String(valeur || '').trim().toLowerCase() === 'true';
 }
+
+/**
+ * Sommes-nous dans l'expérience INTÉGRÉE à afroboost, ou sur le Spordateur
+ * autonome ?
+ *
+ * LA RÉPONSE VIENT DU `basePath`, jamais d'un nom de domaine codé en dur :
+ * l'application n'est servie sous un préfixe QUE lorsqu'elle est montée dans
+ * un autre site. Un test sur « afroboost.com » serait faux le jour d'un
+ * domaine de recette, et muet en local.
+ *
+ * CE QUE CE MODE CHANGE : ce qu'on AFFICHE, et rien d'autre. Aucune route
+ * n'est supprimée, aucune fonction n'est coupée — le mode autonome garde sa
+ * navigation entière, et c'est ce qui rend ce lot réversible.
+ */
+export function estModeIntegre(basePath?: string | null): boolean {
+  return Boolean((basePath || '').trim());
+}
+
+/** La valeur pour l'application en cours, lue au build. */
+export const EN_MODE_INTEGRE = estModeIntegre(process.env.NEXT_PUBLIC_BASE_PATH);

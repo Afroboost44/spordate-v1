@@ -25,6 +25,7 @@ import { AdminMenuLink } from '@/components/layout/AdminMenuLink';
 // Accent feature : remplace l'ancien <img PNG> statique par le SVG inline
 // SpordateurLogo qui suit text-accent (dynamique via /admin "Couleur principale").
 import { SpordateurLogo } from '@/components/SpordateurLogo';
+import { EN_MODE_INTEGRE } from '@/lib/bridge/destination';
 
 function SLogo({ className = "h-7 w-7" }: { className?: string }) {
   return <SpordateurLogo className={`${className} text-accent`} />;
@@ -43,8 +44,6 @@ function SLogo({ className = "h-7 w-7" }: { className?: string }) {
 // `<a>` et non `<Link>` : on QUITTE l'application Next, on ne navigue pas
 // dedans. Un `Link` tenterait une navigation cliente vers une route qui
 // n'existe pas de ce côté.
-const EN_MODE_INTEGRE = Boolean(process.env.NEXT_PUBLIC_BASE_PATH);
-
 function RetourAfroboost({ compact = false }: { compact?: boolean }) {
   if (!EN_MODE_INTEGRE) return null;
   return (
@@ -122,9 +121,14 @@ export default function Header() {
           <div className="flex items-center justify-between h-12 px-3">
             <div className="flex items-center gap-2 min-w-0">
               <RetourAfroboost compact />
-              <Link href="/" className="flex items-center gap-1.5">
-                <SLogo className="h-6 w-6" />
-                <span className="text-sm font-medium text-white">Spordateur</span>
+              <Link
+                href={EN_MODE_INTEGRE ? '/discovery' : '/'}
+                className="flex items-center gap-1.5 min-w-0"
+              >
+                <SLogo className="h-6 w-6 shrink-0" />
+                <span className="text-sm font-medium text-white truncate">
+                  {EN_MODE_INTEGRE ? 'Rencontres' : 'Spordateur'}
+                </span>
               </Link>
             </div>
             <div className="flex items-center gap-1">
@@ -151,12 +155,30 @@ export default function Header() {
       <div className="container flex h-14 items-center">
         <div className="flex items-center md:flex-1">
           <RetourAfroboost />
-          <Link href="/" className="mr-6 flex items-center space-x-2">
+          {/* En mode intégré le logo ne ramène pas à la landing — il n'y a
+              plus de landing dans ce parcours. Il mène aux Rencontres, seule
+              destination de ce mode. */}
+          <Link
+            href={EN_MODE_INTEGRE ? '/discovery' : '/'}
+            className="mr-6 flex items-center space-x-2"
+          >
             <SLogo className="h-7 w-7" />
-            <span className="font-bold">Spordateur</span>
+            <span className="font-bold">
+              {EN_MODE_INTEGRE ? 'Rencontres' : 'Spordateur'}
+            </span>
           </Link>
-          <nav className="hidden items-center space-x-6 text-sm font-medium md:flex">
-            {isLoggedIn && navLinks.map((link) => (
+          {/* MODE INTÉGRÉ : la navigation historique de Spordateur disparaît.
+              Sous `afroboost.com/rencontre`, une barre « Activités · Rencontres ·
+              Mon Profil · Premium · Notifications » donne l'impression d'être
+              entré dans un SECOND SITE — c'est précisément ce que le pont
+              cherche à effacer.
+              RIEN N'EST SUPPRIMÉ : ces routes existent toujours et restent
+              atteignables depuis les actions qui en ont besoin (une carte mène
+              au profil, un match ouvre le chat, une offre mène à la
+              réservation). Seule la barre de navigation est retirée, et
+              seulement ici. En mode autonome, elle est intacte. */}
+          <nav className={`${EN_MODE_INTEGRE ? 'hidden' : 'hidden md:flex'} items-center space-x-6 text-sm font-medium`}>
+            {!EN_MODE_INTEGRE && isLoggedIn && navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -170,7 +192,7 @@ export default function Header() {
                 {link.label}
               </Link>
             ))}
-             {isLoggedIn && authenticatedLinks.map((link) => (
+             {!EN_MODE_INTEGRE && isLoggedIn && authenticatedLinks.map((link) => (
               <Link key={link.href} href={link.href} className="transition-colors hover:text-foreground/80 text-foreground/60">
                 {link.label}
               </Link>

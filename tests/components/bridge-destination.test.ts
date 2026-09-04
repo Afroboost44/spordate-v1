@@ -103,5 +103,16 @@ egal('D5f. "yes" -> inactif', drapeauActif('yes'), false);
 egal('D5g. undefined -> inactif', drapeauActif(undefined), false);
 egal('D5h. chaîne vide -> inactif', drapeauActif(''), false);
 
+// ─── D6. Le mode intégré : ce qu'on AFFICHE, jamais ce qu'on supprime ─────
+// Le mode se décide sur le `basePath`, jamais sur un nom de domaine : un test
+// sur « afroboost.com » serait faux en recette et muet en local.
+import { estModeIntegre } from '../../src/lib/bridge/destination';
+
+egal('D6. basePath « /rencontre » -> mode intégré', estModeIntegre('/rencontre'), true);
+egal('D6b. basePath vide -> mode autonome', estModeIntegre(''), false);
+egal('D6c. basePath absent -> mode autonome', estModeIntegre(undefined), false);
+egal('D6d. basePath fait d\'espaces -> mode autonome', estModeIntegre('   '), false);
+egal('D6e. un autre préfixe compte aussi', estModeIntegre('/spordate-v1'), true);
+
 console.log(`\n${_passes} passés, ${_failures} échoués`);
 if (_failures > 0) process.exit(1);

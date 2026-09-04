@@ -65,13 +65,24 @@ const DESTINATION = destinationApresPont({
   basePath: process.env.NEXT_PUBLIC_BASE_PATH,
 });
 
+/** Lève le voile posé par le script inline du `layout`. Idempotent. */
+function leverLeVoile() {
+  try {
+    document.documentElement.removeAttribute('data-pont-afroboost');
+  } catch {
+    /* document indisponible : rien à lever */
+  }
+}
+
 export default function BridgeAutoLogin() {
   useEffect(() => {
     let annule = false;
 
     const params = new URLSearchParams(window.location.search);
     const jeton = params.get('t');
-    if (!jeton) return;
+    // Le script inline masque dès qu'il voit un `t=` dans l'URL. Si ce `t`
+    // n'est pas le nôtre, personne ne lèverait le voile : on le fait ici.
+    if (!jeton) { leverLeVoile(); return; }
 
     // Nettoyage de l'URL AVANT tout appel réseau.
     try {
@@ -90,18 +101,19 @@ export default function BridgeAutoLogin() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ t: jeton }),
         });
-        if (!r.ok || annule) return;
+        if (!r.ok || annule) { leverLeVoile(); return; }
 
         const { token } = await r.json();
-        if (!token || annule) return;
+        if (!token || annule) { leverLeVoile(); return; }
 
         const [{ signInWithCustomToken }, { auth }] = await Promise.all([
           import('firebase/auth'),
           import('@/lib/firebase'),
         ]);
-        if (!auth || annule) return;
+        if (!auth || annule) { leverLeVoile(); return; }
         await signInWithCustomToken(auth, token);
-        if (annule || !DESTINATION) return;
+        // Session ouverte mais drapeau fermé : on reste ici, donc on montre.
+        if (annule || !DESTINATION) { leverLeVoile(); return; }
         // `replace` et non `push` : la landing ne doit pas rester dans
         // l'historique, sinon le « retour » du navigateur y ramène le membre
         // et lui redemande de « Rejoindre » alors qu'il est déjà connecté.
@@ -111,9 +123,14 @@ export default function BridgeAutoLogin() {
         // `/discovery` avant que `onAuthStateChanged` n'ait propagé l'état —
         // `AuthGuard` renverrait alors vers le login. Un vrai chargement de
         // page repart d'un état propre.
+        // Le voile reste posé JUSQU'AU BOUT : le lever avant la navigation
+        // ferait apparaître la landing pendant la fraction de seconde qui
+        // sépare l'ordre de redirection du chargement de la page suivante —
+        // c'est-à-dire exactement le flash qu'on corrige.
         window.location.replace(DESTINATION);
       } catch {
         /* silencieux : le login normal de Spordate prend le relais */
+        leverLeVoile();
       }
     })();
 

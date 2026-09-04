@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { EN_MODE_INTEGRE } from '@/lib/bridge/destination';
 import { Home, Dumbbell, MessageCircle, User } from 'lucide-react';
 import { useFeatureFlags } from '@/lib/site/useFeatureFlags';
 import { SpordateurLogo } from '@/components/icons/SpordateurLogo';
@@ -31,12 +32,24 @@ export default function BottomNav() {
 
   // Phase 9.5 c8 — Activités en premier (default landing post-login).
   // Rencontres conditionné à discoveryEnabled (feature flag /admin).
-  const navItems: NavItem[] = [
-    ACTIVITIES_ITEM,
-    ...(discoveryEnabled ? [DISCOVERY_ITEM] : []),
-    CHAT_ITEM,
-    PROFILE_ITEM,
-  ];
+  // MODE INTÉGRÉ : deux entrées, pas quatre. « Activités » et « Profil »
+  // sortent de la barre permanente — l'expérience est centrée sur les
+  // Rencontres, et ces deux pages restent atteignables par les actions qui y
+  // mènent (une carte ouvre un profil). « Messages » reste : un match sans
+  // moyen d'y revenir serait une conversation perdue.
+  //
+  // MODE AUTONOME : les quatre entrées, exactement comme avant.
+  const navItems: NavItem[] = EN_MODE_INTEGRE
+    ? [
+      ...(discoveryEnabled ? [DISCOVERY_ITEM] : []),
+      CHAT_ITEM,
+    ]
+    : [
+      ACTIVITIES_ITEM,
+      ...(discoveryEnabled ? [DISCOVERY_ITEM] : []),
+      CHAT_ITEM,
+      PROFILE_ITEM,
+    ];
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 border-t border-accent/30 bg-black/80 backdrop-blur-xl safe-area-bottom">
