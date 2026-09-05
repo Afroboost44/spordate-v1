@@ -90,7 +90,8 @@
     "test:components:bridge-destination": "npx tsx tests/components/bridge-destination.test.ts",
     "test:bridge:identity-link": "npx tsx tests/bridge/identity-link.test.ts",
     "test:bridge:verify-route": "npx tsx tests/bridge/verify-route.test.ts",
-    "test:discovery:end-of-stack": "npx tsx tests/discovery/end-of-stack.test.ts"
+    "test:discovery:end-of-stack": "npx tsx tests/discovery/end-of-stack.test.ts",
+    "test:afroboost:offers": "npx tsx tests/afroboost/offers-adapter.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
