@@ -57,6 +57,7 @@ import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { groupBoostedActivitiesByCity } from '@/lib/discovery/whereToPractice';
 import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/cardImage';
+import { activitesDuProfil } from '@/lib/discovery/profileActivities';
 import { extractSwipedUids } from '@/lib/discovery/swipedUids';
 // LOT R1 — décision unique « quel profil afficher / quelles actions bloquer »
 // quand la pile est épuisée. Partagée par le rendu ET par l'effet qui charge
@@ -1734,36 +1735,25 @@ END:VCALENDAR`;
     : null;
   const profileHref = currentProfile ? buildProfileHref(cp?.firestoreUid) : null;
 
-  // Phase 9.5 c38b CH3 — Activités boostées DU PARTNER ACTUELLEMENT REGARDÉ.
-  // Sous-ensemble de visibleActivities, filtré sur Activity.partnerId ==
-  // currentProfile.firestoreUid (= le user/partner dont la card est affichée).
-  // Bug A (post Fix A) — Si le profil visualisé n'est pas partenaire d'une
-  // activité boostée (cas user normal qu'on swipe), fallback intelligent :
-  // proposer toutes les activités actives du système. Permet à l'utilisateur
-  // de réserver une activité Spordateur même si le profil swipé n'est pas
-  // partenaire — le profil sert alors juste à matcher l'invitee Duo / partage.
-  const partnerActivities = currentProfile
-    ? (() => {
-        // Fix #207 (BUG B) — Si le profil affiché EST un partenaire, on propose
-        // TOUTES ses activités ACTIVES (boostées + non-boostées), chargées par
-        // le useEffect dédié (query partnerId + filtre isActive). Permet de
-        // réserver "Silent Afroboost" (active, non boostée) depuis le profil
-        // BASSI. partnerOwnedActivities est déjà filtré sur firestoreUid courant.
-        if (partnerOwnedActivities.length > 0) return partnerOwnedActivities;
-        // Sinon : activités boostées de ce partenaire (cas legacy boost partner
-        // sans activité isActive renvoyée, ou course de chargement).
-        const owned = visibleActivities.filter(
-          (act) => act.partnerId === (currentProfile as any).firestoreUid,
-        );
-        if (owned.length > 0) return owned;
-        // Fix #183 — Fallback (profil NON partenaire / user swipé) : on retourne
-        // SEULEMENT les activités boostées (= visibleActivities). Avant : on
-        // retournait realActivities filtré isActive, ce qui faisait apparaître
-        // des comptes non-boostés (ex: Studio Zen). Les activités non-boostées
-        // d'AUTRES partenaires ne doivent JAMAIS apparaître ici.
-        return visibleActivities;
-      })()
-    : [];
+  // FIX ATTRIBUTION — les activités montrées sous un profil sont les SIENNES.
+  //
+  // Le repli « Fix #183 » vivait ici : quand ni les activités actives du
+  // partenaire ni ses activités boostées ne rendaient quoi que ce soit, on
+  // retournait `visibleActivities` — TOUTES les activités boostées du système.
+  // Une carte d'utilisateur ordinaire proposait donc les activités payantes
+  // d'autres partenaires, et « Réserver » présélectionnait `partnerActivities[0]`,
+  // c'est-à-dire l'activité de quelqu'un d'autre, juste avant un paiement.
+  //
+  // La décision vit désormais dans `activitesDuProfil`, PURE et testée :
+  // Fix #207 conservé (les activités ACTIVES d'abord, boostées ou non), repli
+  // boosté ensuite, et sans attribution prouvée -> liste vide. Les deux points
+  // d'appel savent déjà l'afficher : état vide explicite dans le wizard,
+  // toast au lieu d'une fenêtre vide dans `handleBookSession`.
+  const partnerActivities = activitesDuProfil({
+    profilUid: (currentProfile as any)?.firestoreUid,
+    activitesPossedees: partnerOwnedActivities,
+    activitesBoostees: visibleActivities,
+  });
 
   // Fix 1bis — prefetch sessions futures pour toutes les activités du modal
   // "Où pratiquer" dès qu'il s'ouvre, afin d'afficher le prix effectif via

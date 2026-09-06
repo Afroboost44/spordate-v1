@@ -91,6 +91,7 @@
     "test:bridge:identity-link": "npx tsx tests/bridge/identity-link.test.ts",
     "test:bridge:verify-route": "npx tsx tests/bridge/verify-route.test.ts",
     "test:discovery:end-of-stack": "npx tsx tests/discovery/end-of-stack.test.ts",
+    "test:discovery:attribution": "npx tsx tests/discovery/profile-attribution.test.ts",
     "test:afroboost:offers": "npx tsx tests/afroboost/offers-adapter.test.ts",
     "test:afroboost:ownership": "npx tsx tests/afroboost/ownership.test.ts"
   },
