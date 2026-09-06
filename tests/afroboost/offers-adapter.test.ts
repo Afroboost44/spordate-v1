@@ -99,6 +99,16 @@ const OFFRE_REELLE: OffreAfroboostBrute = {
   linked_course_ids: ['c1', 'c2'],
   duration_value: null,
   duration_unit: null,
+  // R2c / R3a — mesures le 06/09 sur https://afroboost.com/api/offers.
+  // ⚠️ Afroboost ecrit `location_lng`, PAS `location_lon`. Chercher `lon`
+  // rendrait une longitude toujours nulle, sans la moindre erreur visible.
+  owner_type: 'admin',
+  owner_id: null,
+  offer_type: 'single_class',
+  location_city: 'Neuchâtel',
+  location_address: 'Salle du Pommier 1',
+  location_lat: 46.9925,
+  location_lng: 6.9315,
   // 🔴 CE CHAMP EST UNE ADRESSE E-MAIL. Il ne doit jamais ressortir.
   coach_id: 'contact.artboost@gmail.com',
 };
@@ -174,8 +184,28 @@ section('E — AUCUN TYPE NI PROPRIÉTAIRE DEVINÉ (R2c)');
 {
   const src = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'lib', 'afroboost', 'offers.ts'), 'utf-8');
   const code = src.split('\n').filter((l) => !l.trim().startsWith('*') && !l.trim().startsWith('//')).join('\n');
-  ['offer_type', 'single_class', 'subscription', 'owner_type', 'isAdmin', 'estAdmin', 'abonnement']
-    .forEach((mot, i) => vrai(`E${i + 1}. « ${mot} » absent du code`, !code.includes(mot)));
+  // R3b-1 — CES QUATRE MOTS SONT DÉSORMAIS ATTENDUS, ET C'EST LE LOT.
+  // En R2, l'adaptateur ne devait connaître NI le type NI le propriétaire :
+  // les champs n'existaient pas encore côté Afroboost, et les inventer ici
+  // aurait été une heuristique. Depuis R2c/R3a ils sont DÉCLARÉS à la source ;
+  // les lire n'est plus deviner, c'est transporter.
+  //
+  // CE QUI RESTE INTERDIT N'A PAS BOUGÉ D'UN POUCE : tout marqueur de
+  // DÉDUCTION. C'était le vrai objet de cette section, et il tient toujours.
+  ['isAdmin', 'estAdmin', 'abonnement', 'devine', 'heuristique']
+    .forEach((mot, i) => vrai(`E${i + 1}. aucun marqueur de déduction : « ${mot} »`,
+      !code.includes(mot)));
+
+  // Et la preuve positive : le type comme le propriétaire ne sortent QUE de
+  // la valeur reçue, jamais du nom, du prix ou de la durée de l'offre.
+  vrai('E6. le type se LIT sur `offer_type`', code.includes('brute.offer_type'));
+  vrai('E7. le propriétaire se LIT sur `owner_type`', code.includes('brute.owner_type'));
+  vrai('E8. aucune décision de type à partir du NOM de l’offre',
+    !/name[\s\S]*(single_class|subscription|pack|event)/.test(code));
+  vrai('E9. aucune décision de type à partir du PRIX',
+    !/price[\s\S]*(single_class|subscription|pack|event)/.test(code));
+  vrai('E10. une valeur non reconnue retombe sur `unknown`, jamais sur un type métier',
+    code.includes("'unknown'"));
   const o = versOffrePublique({ ...OFFRE_REELLE, duration_value: 3, duration_unit: 'months' })!;
   vrai('E8. une durée est transportée comme un FAIT, pas comme « abonnement »',
     o.aUneDuree === true && !('type' in (o as object)) && !('owner' in (o as object)));
@@ -270,6 +300,100 @@ section('I — aucune écriture, aucune UI, R1 intact');
     !page.includes('afroboost/offers') && !page.includes('lireOffres'));
   vrai('I10. R1 est toujours branché dans la page',
     page.includes('resolveDiscoveryView') && page.includes('displayIndex'));
+}
+
+// =====================================================================
+section('R3b-1 — le proprietaire, le type et le lieu traversent l’adaptateur');
+{
+  // CE QUE CE LOT REPARE. R2 ne transportait que `lieuTexte` — le texte libre
+  // que R3a devait justement remplacer. `owner_type`, `owner_id`,
+  // `offer_type` et les quatre champs de lieu etaient EXPOSES par Afroboost
+  // et JETES ici. Un lot en aval ne pouvait donc ni dire a qui est une offre,
+  // ni ce qu'elle est, ni ou elle se passe.
+  const o = versOffrePublique(OFFRE_REELLE)!;
+
+  vrai('R1. l’offre est bien retenue', o !== null);
+  egal('A. owner_type=admin reste admin', o.proprietaire, 'admin');
+  egal('D. owner_id transporte sans transformation', o.proprietaireId, null);
+  egal('F. offer_type=single_class reste single_class', o.typeOffre, 'single_class');
+  egal('I. location_city transporte', o.ville, 'Neuchâtel');
+  egal('J. location_address transporte', o.adresse, 'Salle du Pommier 1');
+  egal('K. location_lat transporte', o.latitude, 46.9925);
+  egal('L. location_lng transporte', o.longitude, 6.9315);
+  egal('O. l’ancien lieuTexte reste disponible', o.lieuTexte, 'Salle du Pommier, Neuchâtel');
+
+  // B — un partenaire reste un partenaire, avec SON identifiant opaque.
+  const part = versOffrePublique({
+    ...OFFRE_REELLE, owner_type: 'partner', owner_id: 'uuid-opaque-42',
+  })!;
+  egal('B. owner_type=partner reste partner', part.proprietaire, 'partner');
+  egal('D-bis. owner_id opaque transporte tel quel', part.proprietaireId, 'uuid-opaque-42');
+
+  // C + H — `unknown` n’est JAMAIS promu. C’est 100 % du catalogue avant
+  // R3b-0 : le promouvoir rendrait visible tout ce qui n’a pas ete classe.
+  const inc = versOffrePublique({
+    ...OFFRE_REELLE, owner_type: 'unknown', offer_type: 'unknown',
+  })!;
+  egal('C. owner_type=unknown reste unknown', inc.proprietaire, 'unknown');
+  egal('H. offer_type=unknown reste unknown', inc.typeOffre, 'unknown');
+
+  // Une valeur inventee par la source ne devient pas un type metier.
+  const bidon = versOffrePublique({
+    ...OFFRE_REELLE, owner_type: 'root', offer_type: 'gratuit',
+  })!;
+  egal('C-bis. un proprietaire inconnu retombe sur unknown', bidon.proprietaire, 'unknown');
+  egal('H-bis. un type invente retombe sur unknown', bidon.typeOffre, 'unknown');
+
+  egal('G. offer_type=event reste event',
+    versOffrePublique({ ...OFFRE_REELLE, offer_type: 'event' })!.typeOffre, 'event');
+
+  // E + N — une offre anterieure a R2c/R3a ne porte AUCUN de ces champs.
+  const ancienne = { ...OFFRE_REELLE };
+  ['owner_type', 'owner_id', 'offer_type', 'location_city',
+   'location_address', 'location_lat', 'location_lng']
+    .forEach((c) => { delete (ancienne as Record<string, unknown>)[c]; });
+  const vieille = versOffrePublique(ancienne);
+  vrai('N. une ancienne offre ne fait pas planter l’adaptateur', vieille !== null);
+  egal('C-ter. sans owner_type -> unknown, jamais admin', vieille!.proprietaire, 'unknown');
+  egal('H-ter. sans offer_type -> unknown', vieille!.typeOffre, 'unknown');
+  egal('E. owner_id absent reste null', vieille!.proprietaireId, null);
+  egal('I-bis. ville absente reste null', vieille!.ville, null);
+  egal('K-bis. latitude absente reste null', vieille!.latitude, null);
+  egal('O-bis. et lieuTexte survit', vieille!.lieuTexte, 'Salle du Pommier, Neuchâtel');
+
+  // M — LE PIEGE DE NOMMAGE. Afroboost ecrit `location_lng`. Une offre qui
+  // porterait `location_lon` (la convention de l’autre depot) ne doit pas
+  // fabriquer une longitude : on ne lit QUE la cle reelle.
+  const piege = versOffrePublique({
+    ...OFFRE_REELLE, location_lng: undefined, location_lon: 6.9315,
+  })!;
+  egal('M. `location_lon` n’est pas lu — seul `location_lng` compte',
+    piege.longitude, null);
+  egal('M-bis. et la latitude seule ne survit pas : les coordonnees sont solidaires',
+    piege.latitude, null);
+
+  // Les coordonnees vont par deux, dans les deux sens.
+  egal('M-ter. longitude sans latitude -> les deux nulles',
+    versOffrePublique({ ...OFFRE_REELLE, location_lat: undefined })!.longitude, null);
+
+  // P — la garde de visibilite n’a pas bouge.
+  egal('P. visible=false toujours rejete',
+    versOffrePublique({ ...OFFRE_REELLE, visible: false }), null);
+
+  // Q — aucune donnee privee n’entre par la nouvelle porte.
+  const serialise = JSON.stringify(o);
+  vrai('Q. aucune adresse e-mail dans la sortie', !serialise.includes('@'));
+  vrai('Q-bis. `coach_id` n’est pas ressorti sous un autre nom',
+    !serialise.includes('artboost'));
+
+  // La liste blanche reste la seule porte : aucun champ clandestin.
+  const attendues = new Set(CLES_PUBLIQUES as readonly string[]);
+  const surplus = Object.keys(o).filter((c) => !attendues.has(c));
+  egal('Q-ter. aucune cle hors de la liste blanche', surplus.length, 0);
+  ['proprietaire', 'proprietaireId', 'typeOffre', 'ville', 'adresse',
+   'latitude', 'longitude'].forEach((c) => {
+    vrai(`Q-quater. « ${c} » est declaree dans CLES_PUBLIQUES`, attendues.has(c));
+  });
 }
 
 console.log(`\n=== ${_passes} PASS / ${_failures} FAIL ===`);
