@@ -100,7 +100,8 @@
     "test:boost:cible-afroboost": "npx tsx tests/boost/cible-afroboost.test.ts",
     "test:boost:selection": "npx tsx tests/boost/selection-explicite.test.ts",
     "test:discovery:offres-afroboost": "npx tsx tests/discovery/offres-afroboost-ou-pratiquer.test.ts",
-    "test:discovery:reservation-afroboost": "npx tsx tests/discovery/reservation-afroboost.test.ts"
+    "test:discovery:reservation-afroboost": "npx tsx tests/discovery/reservation-afroboost.test.ts",
+    "test:discovery:rencontre": "npx tsx tests/discovery/activites-de-rencontre.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

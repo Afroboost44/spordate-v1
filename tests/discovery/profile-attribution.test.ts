@@ -286,8 +286,17 @@ section('I — le repli global a bien disparu du source');
   );
   vrai(
     'I4. les deux points d\'appel savent afficher le vide (wizard + toast)',
-    SOURCE_PAGE.includes("{partnerActivities.length === 0 ? (") &&
+    // LOT D — l'etat vide du wizard depend desormais des DEUX listes : les
+    // activites du profil ET les lieux de rendez-vous. Ce qui compte n'a pas
+    // change : un profil sans activite ne se voit attribuer aucune activite,
+    // et l'ecran sait le dire quand il n'y a vraiment rien a proposer.
+    /\{partnerActivities\.length === 0(\s*&&\s*optionsDeRencontre\.length === 0)? \? \(/.test(SOURCE_PAGE) &&
       /if \(!activity && partnerActivities\.length === 0\) \{[\s\S]{0,200}toast\(/.test(SOURCE_PAGE),
+  );
+  vrai(
+    'I4b. et l\'etat vide n\'apparait QUE si les deux listes sont vides',
+    !/\{partnerActivities\.length === 0 \? \(/.test(SOURCE_PAGE)
+      || !SOURCE_PAGE.includes('optionsDeRencontre'),
   );
   vrai(
     'I5. « Réserver » ne présélectionne plus jamais l\'activité d\'un autre',

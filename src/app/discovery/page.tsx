@@ -67,6 +67,9 @@ import type { OffrePublique } from '@/lib/afroboost/offers';
 // R4 — l'adresse du VRAI parcours de reservation d'Afroboost. Spordateur ne
 // reserve pas, ne paie pas, ne resout aucune disponibilite : il conduit.
 import { destinationReservationOffre } from '@/lib/discovery/reservationAfroboost';
+// LOT D — « où pourrait-on se retrouver ? » n'est PAS « que possède ce profil ? ».
+// Deux questions, deux listes, deux modules. Celui-ci ne répond qu'à la seconde.
+import { offresDeRencontre } from '@/lib/discovery/activitesDeRencontre';
 import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/cardImage';
 import { activitesDuProfil } from '@/lib/discovery/profileActivities';
 import { extractSwipedUids } from '@/lib/discovery/swipedUids';
@@ -1835,6 +1838,21 @@ END:VCALENDAR`;
     [offresAfroboost, boostedAfroboostOfferIds],
   );
 
+  // LOT D — LES LIEUX OÙ SE DONNER RENDEZ-VOUS.
+  //
+  // Liste SÉPARÉE de `partnerActivities`, et c'est structurel : y verser ces
+  // offres ferait croire que le profil affiché les possède, ce qui est
+  // exactement la faute que le FIX ATTRIBUTION a corrigée. Elles sont
+  // proposées à TOUT LE MONDE parce qu'elles n'appartiennent à personne
+  // d'affiché — leur organisateur est Afroboost.
+  //
+  // Même source que « Où pratiquer ? » : quand la mise en avant expire, elles
+  // disparaissent des deux écrans en même temps.
+  const optionsDeRencontre = useMemo(
+    () => offresDeRencontre(offresAfroboost, boostedAfroboostOfferIds),
+    [offresAfroboost, boostedAfroboostOfferIds],
+  );
+
   const wherePracticeGroups = useMemo(() => {
     // BUG #69 — passe les 2 sets (per-activity + legacy partner) au helper
     // R3c — la liste fusionnée : natives d'abord (l'ordre décide de la casse
@@ -2235,7 +2253,7 @@ END:VCALENDAR`;
                   <Zap className="h-4 w-4 text-accent" />
                   {t('discovery_choose_activity')}
                 </Label>
-                {partnerActivities.length === 0 ? (
+                {partnerActivities.length === 0 && optionsDeRencontre.length === 0 ? (
                   <div className="text-center py-6 text-white/50 text-sm">
                     {t('discovery_no_active_activity_partner')}
                   </div>
@@ -2378,6 +2396,78 @@ END:VCALENDAR`;
                         </button>
                       );
                     })}
+                  </div>
+                )}
+
+                {/* LOT D — LES LIEUX OÙ SE RETROUVER.
+                    Section SÉPARÉE, et le libellé le dit : ces activités ne
+                    sont pas celles de la personne affichée. L'organisateur est
+                    nommé sur chaque carte pour qu'aucune attribution implicite
+                    ne soit possible. */}
+                {optionsDeRencontre.length > 0 && (
+                  <div className="space-y-2 pt-4">
+                    <Label className="text-sm text-gray-400 flex items-center gap-2">
+                      <Building2 className="h-4 w-4 text-accent" />
+                      {t('discovery_meeting_venues_label')}
+                    </Label>
+                    <p className="text-[11px] text-white/35 leading-snug">
+                      {t('discovery_meeting_venues_hint')}
+                    </p>
+                    <div className="space-y-2">
+                      {optionsDeRencontre.map((o) => {
+                        if (o.source !== 'afroboost') return null;
+                        // R4, inchangé : la réservation reste chez Afroboost.
+                        const dest = destinationReservationOffre({
+                          id: o.afroboostOfferId,
+                          typeOffre: 'single_class',
+                          prix: o.prix,
+                        } as never);
+                        return (
+                          <div
+                            key={`afroboost:${o.afroboostOfferId}`}
+                            data-testid={`meeting-venue-${o.afroboostOfferId}`}
+                            className="flex items-stretch gap-2 rounded-xl bg-white/5 border border-white/10 overflow-hidden"
+                          >
+                            <div className="flex-1 min-w-0 flex items-start gap-3 p-3">
+                              {o.image ? (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={o.image}
+                                  alt={o.titre}
+                                  className="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-white/5"
+                                  loading="lazy"
+                                />
+                              ) : null}
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm text-white font-medium break-words">{o.titre}</p>
+                                <p className="text-[11px] text-white/40 break-words">
+                                  {o.lieu || o.ville || ''}
+                                </p>
+                                <p className="text-[11px] mt-0.5">
+                                  <span className="text-accent">
+                                    {o.prix === 0 ? t('payment_free_label') : typeof o.prix === 'number' ? `${o.prix} CHF` : ''}
+                                  </span>
+                                  {/* L'ORGANISATEUR, NOMMÉ. Jamais le profil affiché. */}
+                                  <span className="text-white/35">
+                                    {' · '}{t('discovery_meeting_venue_by', { owner: o.organisateur })}
+                                  </span>
+                                </p>
+                              </div>
+                            </div>
+                            {dest.ok && (
+                              <a
+                                href={dest.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-shrink-0 self-center mr-2 px-3 py-2 rounded-full text-[11px] font-medium bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25 transition whitespace-nowrap"
+                              >
+                                {t('discovery_reserve_button')}
+                              </a>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
