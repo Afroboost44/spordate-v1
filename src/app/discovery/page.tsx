@@ -69,7 +69,7 @@ import type { OffrePublique } from '@/lib/afroboost/offers';
 import { destinationReservationOffre } from '@/lib/discovery/reservationAfroboost';
 // LOT D — « où pourrait-on se retrouver ? » n'est PAS « que possède ce profil ? ».
 // Deux questions, deux listes, deux modules. Celui-ci ne répond qu'à la seconde.
-import { offresDeRencontre } from '@/lib/discovery/activitesDeRencontre';
+import { ORGANISATEUR_AFROBOOST, offresDeRencontre } from '@/lib/discovery/activitesDeRencontre';
 // LOT D2 — l'intention « proposer cette offre » voyage par l'URL du chat,
 // le meme chemin que le deverrouillage existant emprunte deja.
 import { urlChatAvecOffre } from '@/lib/chat/urlParams';
@@ -3240,6 +3240,28 @@ END:VCALENDAR`;
                               <p className="text-[11px] text-white/40 break-words">
                                 {a.sport ? `${a.sport} · ` : ''}{a.partnerName || ''}
                               </p>
+                              {/* MICRO-FIX ORGANISATEUR — LA LIGNE QUI MANQUAIT.
+                                  La carte disait le quoi, le ou et le combien, jamais
+                                  le QUI. Or c'est la seule ligne qui empeche la carte
+                                  de sembler appartenir au profil affiche : sans elle,
+                                  une offre du catalogue Afroboost, montree sur le
+                                  profil de quelqu'un d'autre, n'a plus de proprietaire
+                                  visible.
+                                  ⚠️ `partnerName` NE PEUT PAS servir : pour une offre
+                                  Afroboost il porte deja le LIEU (voir
+                                  `versElementAPratiquer`, « la seconde ligne de la
+                                  carte : le lieu, pas une marque »), et `partnerId`
+                                  est vide par construction.
+                                  On reutilise donc l'autorite qui existe deja pour
+                                  l'autre surface — `ORGANISATEUR_AFROBOOST` et la
+                                  meme cle de traduction — au lieu d'ecrire un nom en
+                                  dur ici. Un seul nom, deux ecrans, aucun risque de
+                                  divergence. Rien n'est deduit du profil affiche. */}
+                              {estAfroboost && (
+                                <p className="text-[11px] text-white/35 break-words mt-0.5">
+                                  {t('discovery_meeting_venue_by', { owner: ORGANISATEUR_AFROBOOST })}
+                                </p>
+                              )}
                               {/* Fix 1bis — prix effectif via getBookingPriceCHF
                                   (réuse sessionsByActivityId déjà prefetched).
                                   Reflète les overrides per-session du partner (B2)

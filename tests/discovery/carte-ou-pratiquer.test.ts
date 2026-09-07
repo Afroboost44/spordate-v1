@@ -204,5 +204,21 @@ vrai('V6 « Découvrir » natif inchangé', /router\.push\(`\/activities\/\$\{na
 vrai('V7 le garde `disabled` est conservé', /disabled=\{estAfroboost && !reservable\}/.test(MODAL));
 faux('V8 aucun domaine écrit en dur', /afroboost\.com/i.test(MODAL));
 
+
+section('W — L\'ORGANISATEUR, NOMMÉ AUSSI DANS « OÙ PRATIQUER ? »');
+// La carte disait le quoi, le où et le combien, jamais le QUI. C'est pourtant
+// la seule ligne qui empêche une offre du catalogue Afroboost, montrée sur le
+// profil de quelqu'un d'autre, de sembler appartenir à cette personne.
+vrai('W1 la ligne « par … » est rendue', /t\('discovery_meeting_venue_by', \{ owner: ORGANISATEUR_AFROBOOST \}\)/.test(MODAL));
+vrai('W2 elle n\'apparaît que pour une offre Afroboost', /\{estAfroboost && \(/.test(MODAL));
+vrai('W3 elle est secondaire, jamais concurrente du titre', /text-\[11px\] text-white\/35 break-words/.test(MODAL));
+vrai('W4 elle ne se coupe pas', /className="text-\[11px\] text-white\/35 break-words mt-0\.5"/.test(MODAL));
+faux('W5 aucun nom d\'organisateur écrit en dur', /owner: ['"`]Afroboost['"`]/.test(MODAL));
+faux('W6 l\'organisateur ne vient JAMAIS du profil affiché', /owner: (currentProfile|a\.partnerName|nomDuProfil)/.test(MODAL));
+vrai('W7 le nom vient de l\'autorité partagée avec l\'autre surface', /import \{ ORGANISATEUR_AFROBOOST, offresDeRencontre \}/.test(SRC));
+// `partnerName` porte le LIEU pour une offre Afroboost (`versElementAPratiquer`) :
+// s'en servir comme organisateur afficherait une adresse à la place d'un nom.
+vrai('W8 la ligne du lieu reste distincte de celle de l\'organisateur', /\{a\.sport \? `\$\{a\.sport\} · ` : ''\}\{a\.partnerName \|\| ''\}/.test(MODAL));
+
 console.log(`\n${_p} PASS · ${_f} FAIL`);
 process.exit(_f === 0 ? 0 : 1);
