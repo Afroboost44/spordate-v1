@@ -46,7 +46,29 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'user-not-found' }, { status: 404 });
     }
     const userData = userSnap.data() as { email?: string; role?: string };
-    const email = userData?.email;
+
+    // P0 — L'ADRESSE VIENT DE L'ANNUAIRE D'IDENTITE, PLUS DU DOCUMENT.
+    //
+    // Elle etait lue dans `users/{uid}`. Or ce document est cree par le
+    // NAVIGATEUR, et `firestore.rules` ne contraint pas `email` a la creation :
+    // un compte neuf pouvait donc s'y inscrire l'adresse de l'administrateur,
+    // appeler cette route, et se faire promouvoir par l'Admin SDK. Fermer la
+    // creation de `role` ne suffisait pas — cette porte-ci restait ouverte.
+    //
+    // Firebase Authentication, lui, ne se laisse pas ecrire par le client.
+    // Si le compte n'y est plus lisible, `email` reste indefini :
+    // `isAdminEmail` rend alors false, ce qui REFUSE la promotion et AUTORISE
+    // la retrogradation — les deux fois dans le sens le plus sur.
+    let email: string | undefined;
+    try {
+      const { getAdminAuth } = await import('@/lib/firebase/admin');
+      const auth = await getAdminAuth();
+      const compte = await auth.getUser(uid);
+      email = compte?.email || undefined;
+    } catch (errAuth) {
+      console.warn('[admin-self-promote] annuaire d\'identite illisible', errAuth);
+      email = undefined;
+    }
 
     const { Timestamp, FieldValue } = await import('firebase-admin/firestore');
 

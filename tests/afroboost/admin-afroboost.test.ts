@@ -173,6 +173,19 @@ section('H — aucun compte ne peut se declarer administrateur');
   // qui pourrait elargir la liste sans revue de code.
   const module_ = codeSeul('src/lib/afroboost/adminAfroboost.ts');
   faux('H5. aucune liste parallele via l\'environnement', /process\.env/.test(module_));
+
+  // P0 — LA SECONDE PORTE DE LA MEME ESCALADE.
+  // /api/auth/admin-self-promote est la SEULE route qui pose `role: 'admin'`.
+  // Elle lisait l'adresse dans `users/{uid}` — un document que le navigateur
+  // cree, et dont `firestore.rules` ne contraint pas le champ `email`. Fermer
+  // la creation de `role` ne suffisait donc pas : il fallait aussi que cette
+  // route cesse de croire le document sur parole.
+  const promote = codeSeul('src/app/api/auth/admin-self-promote/route.ts');
+  vrai('H6. la promotion lit l\'adresse dans l\'annuaire d\'identite',
+       promote.includes('auth.getUser(uid)'));
+  faux('H7. et plus dans le document Firestore',
+       /email\s*=\s*userData\?\.email/.test(promote));
+  vrai('H8. elle confronte toujours a la liste centralisee', promote.includes('isAdminEmail'));
 }
 
 section('I — rien n\'est ecrit, rien n\'est expose, aucun achat n\'est ouvert');

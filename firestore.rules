@@ -104,6 +104,50 @@ service cloud.firestore {
     //
     // Owner peut toujours édit ses softDeletedAt + softDeleteReason
     // (cf. softDeleteUser service Phase 9 SC6) — pas dans la liste protected.
+    // P0 — LES CHAMPS QU'UN CLIENT NE PEUT PAS SE DONNER EN CREANT SON DOCUMENT.
+    //
+    // Deux traitements, et la difference est voulue :
+    //  - les champs que l'inscription ECRIT REELLEMENT sont autorises, mais a
+    //    une VALEUR IMPOSEE (`role`, `credits`, `isCreator`, `isPremium`,
+    //    `referralCount`). Les interdire casserait l'inscription ;
+    //  - les champs qu'aucun chemin d'inscription n'ecrit sont simplement
+    //    INTERDITS. Rien de legitime ne les pose a la creation.
+    //
+    // `role` accepte `user` et `partner`, et EUX SEULS. Ce sont les deux seules
+    // valeurs qu'un ecran d'inscription ecrit aujourd'hui (`createUser` pose
+    // `user`, /partner/login et /setup-partner posent `partner`). `admin` et
+    // `creator` ne s'obtiennent que par un chemin serveur : /api/auth/admin-self-promote
+    // apres confrontation a ADMIN_EMAILS, ou l'Admin SDK — qui, lui, ne passe
+    // pas par ces regles.
+    //
+    // La liste des interdits reprend celle de `onlyMutatesNonProtectedUserFields`
+    // pour que les deux portes disent la MEME chose. `referralCode` et
+    // `referredBy` en sont volontairement absents : l'inscription les pose, et
+    // aucun avantage n'en decoule sans une ecriture serveur (les commissions et
+    // les credits de parrainage sont accordes par l'Admin SDK).
+    function creationUtilisateurSansPrivilege() {
+      let d = request.resource.data;
+      return (!('role' in d) || d.role == 'user' || d.role == 'partner')
+        && (!('credits' in d) || d.credits == 0)
+        && (!('isCreator' in d) || d.isCreator == false)
+        && (!('isPremium' in d) || d.isPremium == false)
+        && (!('referralCount' in d) || d.referralCount == 0)
+        && !d.keys().hasAny([
+          'commission',
+          'lastPaymentId',
+          'lastPaymentAt',
+          'activeSanctionId',
+          'activeSanctionLevel',
+          'activeSanctionEndsAt',
+          'bioModeration',
+          'leakFlagged',
+          'averageRatingAsReviewee',
+          'reviewCountAsReviewee',
+          'anonymizedAt',
+          'softDeleteScheduledPurgeAt'
+        ]);
+    }
+
     function onlyMutatesNonProtectedUserFields() {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'credits',
@@ -130,7 +174,18 @@ service cloud.firestore {
 
     match /users/{userId} {
       allow read: if isAuth();
-      allow create: if isOwner(userId);
+      // P0 — LA CREATION NE DOIT PAS POUVOIR OCTROYER UN PRIVILEGE.
+      //
+      // Cette regle etait `if isOwner(userId)`, SANS aucune contrainte de champ,
+      // alors que la creation du document se fait dans le NAVIGATEUR
+      // (src/services/firestore.ts `createUser`, src/lib/db.ts, /partner/login,
+      // /setup-partner). Un compte dont le document n'existait pas encore
+      // pouvait donc se creer `role: 'admin'` — et une vingtaine de gardes du
+      // projet, dont /api/admin/delete-user, lisent exactement ce champ.
+      // La protection posee sur l'UPDATE ne servait a rien : il suffisait de
+      // ne jamais passer par un update.
+      allow create: if isAuth() && isOwner(userId)
+                    && creationUtilisateurSansPrivilege();
       // Update : owner ne peut PAS muter les champs server-only (credits, role, commission, etc.)
       // OU admin (bypass complet via isAdmin()).
       // Audit R0 : empêche un client malveillant de s'auto-créditer via SDK DevTools.

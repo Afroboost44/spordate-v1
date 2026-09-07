@@ -27,6 +27,7 @@
     "test:admin-actions": "firebase emulators:exec --only firestore 'npx tsx tests/admin-actions/service.test.ts'",
     "test:admin-actions:rules": "firebase emulators:exec --only firestore 'npx tsx tests/admin-actions/rules.test.ts'",
     "test:profile:rules": "firebase emulators:exec --only firestore 'npx tsx tests/profile/rules.test.ts'",
+    "test:users:create-rules": "firebase emulators:exec --only firestore 'npx tsx tests/rules/users-create.test.ts'",
     "test:genkit": "npx tsx src/ai/__tests__/genkit.test.ts",
     "test:chat:rules": "firebase emulators:exec --only firestore 'npx tsx tests/chat/rules.test.ts'",
     "test:anti-leak:regex": "npx tsx src/lib/anti-leak/__tests__/regex.test.ts",
