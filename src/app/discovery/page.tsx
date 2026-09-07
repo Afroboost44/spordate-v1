@@ -2446,7 +2446,14 @@ END:VCALENDAR`;
                     <p className="text-[11px] text-white/35 leading-snug">
                       {t('discovery_meeting_venues_hint')}
                     </p>
-                    <div className="space-y-2">
+                    {/* LOT E — LA REGLE DE COLONNES, ECRITE UNE FOIS.
+                        `auto-fill` + un minimum de 260 px : deux colonnes
+                        UNIQUEMENT si chaque carte garde 260 px, sinon une seule.
+                        Dans ce modal (`max-w-md`, ~400 px utiles) cela vaut
+                        toujours UNE colonne — une offre seule n'est donc jamais
+                        coincee dans une demi-colonne etroite. La regle tient
+                        d'elle-meme si le modal s'elargit un jour. */}
+                    <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]">
                       {optionsDeRencontre.map((o) => {
                         if (o.source !== 'afroboost') return null;
                         // R4, inchangé : la réservation reste chez Afroboost.
@@ -2459,55 +2466,90 @@ END:VCALENDAR`;
                           <div
                             key={`afroboost:${o.afroboostOfferId}`}
                             data-testid={`meeting-venue-${o.afroboostOfferId}`}
-                            className="flex items-stretch gap-2 rounded-xl bg-white/5 border border-white/10 overflow-hidden"
+                            className="flex flex-col gap-3 rounded-xl bg-white/5 border border-white/10 p-3 overflow-hidden"
                           >
-                            <div className="flex-1 min-w-0 flex items-start gap-3 p-3">
+                            {/* LOT E — LE CONTENU, SUR TOUTE LA LARGEUR.
+                                AVANT : la carte etait `flex items-stretch` avec, a
+                                droite, un rail `flex-shrink-0 flex-col` qui portait
+                                les DEUX boutons empiles. Ce rail prenait sa largeur
+                                intrinseque et ne cedait jamais (`flex-shrink-0`,
+                                `whitespace-nowrap`) : sous 400 px il mangeait le
+                                tiers de la carte, le titre et le lieu se pliaient en
+                                trois lignes, et « Reserver » — l'action principale —
+                                finissait en 11 px sur 26 px de haut, sous le seuil
+                                tactile. Le rail a disparu : le contenu prend toute
+                                la largeur, les CTA ont leur propre rangee dessous. */}
+                            <div className="flex items-start gap-3 min-w-0">
                               {o.image ? (
                                 // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                   src={o.image}
                                   alt={o.titre}
-                                  className="w-12 h-12 rounded-lg object-cover flex-shrink-0 bg-white/5"
+                                  className="w-14 h-14 rounded-lg object-cover flex-shrink-0 bg-white/5"
                                   loading="lazy"
                                 />
-                              ) : null}
+                              ) : (
+                                // Meme forme que la vignette de secours d'une activite
+                                // NATIVE (w-14, rounded-lg, bg-zinc-800) : les deux
+                                // listes du meme ecran doivent se ressembler.
+                                <div className="w-14 h-14 rounded-lg bg-zinc-800 flex items-center justify-center flex-shrink-0">
+                                  <Building2 className="h-5 w-5 text-white/30" />
+                                </div>
+                              )}
                               <div className="flex-1 min-w-0">
-                                <p className="text-sm text-white font-medium break-words">{o.titre}</p>
-                                <p className="text-[11px] text-white/40 break-words">
-                                  {o.lieu || o.ville || ''}
-                                </p>
-                                <p className="text-[11px] mt-0.5">
-                                  <span className="text-accent">
+                                <div className="flex items-start justify-between gap-2">
+                                  <h4 className="text-sm text-white font-medium break-words min-w-0">
+                                    {o.titre}
+                                  </h4>
+                                  {/* Le prix a droite du titre, comme sur la carte native. */}
+                                  <span className="text-accent text-sm font-semibold whitespace-nowrap flex-shrink-0">
                                     {o.prix === 0 ? t('payment_free_label') : typeof o.prix === 'number' ? `${o.prix} CHF` : ''}
                                   </span>
-                                  {/* L'ORGANISATEUR, NOMMÉ. Jamais le profil affiché. */}
-                                  <span className="text-white/35">
-                                    {' · '}{t('discovery_meeting_venue_by', { owner: o.organisateur })}
-                                  </span>
+                                </div>
+                                {(o.lieu || o.ville) && (
+                                  <div className="flex items-start gap-1 mt-1 text-white/50 text-xs">
+                                    <MapPin className="h-3 w-3 mt-0.5 flex-shrink-0" />
+                                    {/* `break-words` et non `truncate` : l'adresse doit
+                                        etre LUE, pas coupee a l'ellipse. */}
+                                    <span className="break-words min-w-0">{o.lieu || o.ville}</span>
+                                  </div>
+                                )}
+                                {/* L'ORGANISATEUR, NOMME. Jamais le profil affiche. */}
+                                <p className="text-[11px] text-white/35 mt-1 break-words">
+                                  {t('discovery_meeting_venue_by', { owner: o.organisateur })}
                                 </p>
                               </div>
                             </div>
-                            <div className="flex-shrink-0 self-center mr-2 flex flex-col gap-1.5">
-                              {/* LOT D2 — proposer ce cours à la personne affichée.
-                                  N'envoie rien : conduit à la conversation, où la
-                                  proposition sera confirmée. */}
-                              <button
-                                type="button"
-                                onClick={() => handleProposerOffre(o.afroboostOfferId)}
-                                className="px-3 py-2 rounded-full text-[11px] font-medium bg-accent text-white hover:bg-accent/80 transition whitespace-nowrap"
-                              >
-                                {t('discovery_propose_this_course')}
-                              </button>
+
+                            {/* LOT E — LES DEUX ACTIONS, SUR LEUR PROPRE RANGEE.
+                                « Reserver » est l'action PRINCIPALE : c'est elle qui
+                                porte le remplissage plein. « Proposer » reste
+                                accessible, en contour. En colonne sous 380 px, en
+                                rangee au-dela ; dans les deux cas l'ordre du DOM suit
+                                l'ordre visuel, donc le clavier ne saute jamais. */}
+                            <div className="flex flex-col gap-2 min-[380px]:flex-row">
                               {dest.ok && (
                                 <a
                                   href={dest.url}
                                   target="_blank"
                                   rel="noopener noreferrer"
-                                  className="px-3 py-1.5 rounded-full text-[11px] text-white/60 border border-white/15 hover:text-white hover:bg-white/5 transition whitespace-nowrap text-center"
+                                  aria-label={`${t('discovery_reserve_button')} — ${o.titre}`}
+                                  className="flex-1 inline-flex items-center justify-center min-h-[44px] px-4 py-2.5 rounded-full text-sm font-semibold bg-accent text-white hover:bg-accent/80 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
                                 >
                                   {t('discovery_reserve_button')}
                                 </a>
                               )}
+                              {/* LOT D2 — proposer ce cours a la personne affichee.
+                                  N'envoie rien : conduit a la conversation, ou la
+                                  proposition sera confirmee. Handler INCHANGE. */}
+                              <button
+                                type="button"
+                                onClick={() => handleProposerOffre(o.afroboostOfferId)}
+                                aria-label={`${t('discovery_propose_this_course')} — ${o.titre}`}
+                                className="flex-1 inline-flex items-center justify-center min-h-[44px] px-4 py-2.5 rounded-full text-sm font-medium text-white/80 border border-white/20 hover:text-white hover:bg-white/10 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-900"
+                              >
+                                {t('discovery_propose_this_course')}
+                              </button>
                             </div>
                           </div>
                         );
@@ -3087,7 +3129,8 @@ END:VCALENDAR`;
                     <h3 className="text-base font-medium text-white tracking-wide">{group.city}</h3>
                     <span className="text-[10px] text-white/30">({group.activities.length})</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {/* LOT E — deux colonnes seulement si chaque carte garde 260 px. */}
+                  <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]">
                     {group.activities.map((act) => {
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       const a = act as any;
@@ -3125,8 +3168,10 @@ END:VCALENDAR`;
                       // Découvrir secondaire à droite (pattern cohérent avec
                       // ActivitySelectorModal). Main button = liste activités en
                       // contexte ; Découvrir = détail direct /activities/[id].
+                      // LOT E — le CTA n'est plus un rail lateral `border-l` de
+                      // 85 px : il a sa propre rangee, pleine largeur.
                       return (
-                        <div key={navId} className="flex items-stretch gap-2 rounded-xl bg-white/5 border border-white/10 hover:border-accent/40 hover:bg-accent/5 transition">
+                        <div key={navId} className="flex flex-col rounded-xl bg-white/5 border border-white/10 hover:border-accent/40 hover:bg-accent/5 transition overflow-hidden">
                         <button
                           type="button"
                           disabled={estAfroboost && !reservable}
@@ -3148,7 +3193,7 @@ END:VCALENDAR`;
                             setShowWherePracticeModal(false);
                             router.push(buildActivityListUrl(navId));
                           }}
-                          className={`flex-1 text-left p-3 transition ${estAfroboost && !reservable ? 'cursor-default' : 'active:scale-[0.98]'}`}
+                          className={`w-full text-left p-3 transition ${estAfroboost && !reservable ? 'cursor-default' : 'active:scale-[0.98]'}`}
                         >
                           <div className="flex items-start gap-3">
                             {thumb ? (
@@ -3156,7 +3201,7 @@ END:VCALENDAR`;
                               <img
                                 src={thumb}
                                 alt={a.title || a.name || 'Activité'}
-                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-white/5"
+                                className="w-14 h-14 rounded-lg object-cover flex-shrink-0 bg-white/5"
                                 loading="lazy"
                                 onError={(e) => {
                                   // Si la miniature 404, on retombe sur le badge accent
@@ -3177,18 +3222,18 @@ END:VCALENDAR`;
                                 muted
                                 playsInline
                                 preload="metadata"
-                                className="w-10 h-10 rounded-lg object-cover flex-shrink-0 bg-zinc-900 pointer-events-none"
+                                className="w-14 h-14 rounded-lg object-cover flex-shrink-0 bg-zinc-900 pointer-events-none"
                               />
                             ) : null}
                             <div
-                              className="w-10 h-10 rounded-lg bg-gradient-to-br from-accent to-[#E91E63] flex-shrink-0 items-center justify-center text-white text-xs font-semibold"
+                              className="w-14 h-14 rounded-lg bg-gradient-to-br from-accent to-[#E91E63] flex-shrink-0 items-center justify-center text-white text-xs font-semibold"
                               style={{ display: thumb || videoThumb ? 'none' : 'flex' }}
                             >
-                              <Zap className="h-4 w-4" />
+                              <Zap className="h-5 w-5" />
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-sm text-white font-medium truncate">{a.title || a.name || 'Activité'}</p>
-                              <p className="text-[11px] text-white/40 truncate">
+                              <p className="text-sm text-white font-medium break-words">{a.title || a.name || 'Activité'}</p>
+                              <p className="text-[11px] text-white/40 break-words">
                                 {a.sport ? `${a.sport} · ` : ''}{a.partnerName || ''}
                               </p>
                               {/* Fix 1bis — prix effectif via getBookingPriceCHF
@@ -3210,6 +3255,13 @@ END:VCALENDAR`;
                             </div>
                           </div>
                         </button>
+                        {/* LOT E — LA RANGEE D'ACTION. Le CTA occupait une bande
+                            verticale de ~85 px collee au bord droit (`px-2.5`,
+                            `border-l`, aucun padding vertical) : a 11 px et sans
+                            hauteur propre, « Reserver » etait le plus petit
+                            element d'une carte dont il est l'action principale,
+                            et il volait au titre la largeur qui lui manquait. */}
+                        <div className="px-3 pb-3">
                         {/* Fix #172 — Bouton "Découvrir" : ouvre la fiche détail
                             /activities/[id] (pattern cohérent ActivitySelectorModal).
                             Le ChevronRight est retiré du main button — c'est ce
@@ -3224,15 +3276,15 @@ END:VCALENDAR`;
                             target="_blank"
                             rel="noopener noreferrer"
                             onClick={() => setShowWherePracticeModal(false)}
-                            className="flex-shrink-0 px-2.5 rounded-r-xl text-[11px] text-white/60 hover:text-white hover:bg-white/5 flex items-center gap-1 transition border-l border-white/10"
+                            className="w-full min-h-[44px] px-4 py-2.5 rounded-full inline-flex items-center justify-center gap-2 text-sm transition font-semibold bg-accent text-white hover:bg-accent/80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]"
                           >
-                            <Calendar className="h-3.5 w-3.5" />
+                            <Calendar className="h-4 w-4" />
                             {t('discovery_reserve_button')}
                           </a>
                           ) : (
                           // Repli sûr : une offre dont on ne sait pas construire
                           // l'adresse ne reçoit AUCUN bouton menant nulle part.
-                          <span className="flex-shrink-0 px-2.5 rounded-r-xl text-[11px] text-white/40 flex items-center gap-1 border-l border-white/10">
+                          <span className="w-full min-h-[44px] px-4 py-2.5 rounded-full inline-flex items-center justify-center gap-2 text-sm transition text-white/40 border border-white/10">
                             <Info className="h-3.5 w-3.5" />
                             {t('where_practice_booking_soon')}
                           </span>
@@ -3244,13 +3296,14 @@ END:VCALENDAR`;
                             setShowWherePracticeModal(false);
                             router.push(`/activities/${navId}`);
                           }}
-                          className="flex-shrink-0 px-2.5 rounded-r-xl text-[11px] text-white/60 hover:text-white hover:bg-white/5 flex items-center gap-1 transition border-l border-white/10"
+                          className="w-full min-h-[44px] px-4 py-2.5 rounded-full inline-flex items-center justify-center gap-2 text-sm transition font-medium text-white/80 border border-white/20 hover:text-white hover:bg-white/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-[#0A0A0A]"
                           aria-label={t('activity_selector_aria_discover', { title: a.title || a.name || 'Activité' })}
                         >
                           <Info className="h-3.5 w-3.5" />
                           {t('activity_selector_discover')}
                         </button>
                         )}
+                        </div>
                         </div>
                       );
                     })}
