@@ -71,6 +71,20 @@ export default function PartnerBoostPage() {
   // la cible d'un boost. Aucune offre n'est copiée ni persistée nulle part.
   const [offresAfroboost, setOffresAfroboost] = useState<Array<{ id: string; nom: string }>>([]);
   const [selectedActivityId, setSelectedActivityId] = useState('');
+  // LOT B — LE RÉFÉRENTIEL CHOISI, EXPLICITEMENT. Deux catalogues étrangers ne
+  // partagent pas un champ « id » : on nomme la source, puis on lit le bon
+  // identifiant. C'est la même règle que le contrat Boost de R3b-2.
+  const [sourceCible, setSourceCible] = useState<'spordate' | 'afroboost'>('spordate');
+  const [offresSelectionnables, setOffresSelectionnables] = useState<Array<{
+    id: string; nom: string; prix: number | null; ville: string | null;
+    lieuTexte: string | null; image: string | null; typeOffre: string;
+    proprietaire: string; voie: 'admin-gratuit' | 'partenaire-achete';
+  }>>([]);
+  const [selectedOffreId, setSelectedOffreId] = useState('');
+  // Fait sur le compte courant, résolu par le SERVEUR. L'écran s'en sert pour
+  // savoir s'il doit proposer un paiement ; la route d'activation ne le croit
+  // jamais sur parole et refait la preuve.
+  const [compteAdmin, setCompteAdmin] = useState(false);
   // BUG #95 — Prix Boost partenaire chargés depuis settings/pricing (admin-éditable).
   // Fallback sur DEFAULT_DURATIONS si Firestore down ou champs absents. Charge au mount.
   const [durations, setDurations] = useState(DEFAULT_DURATIONS);
@@ -109,6 +123,35 @@ export default function PartnerBoostPage() {
     })();
   }, []);
 
+  // LOT B — les offres que CE compte peut mettre en avant. La décision est
+  // prise côté serveur : elle demande la preuve d'administration du LOT A ou la
+  // liaison d'identité de R3b-ID, dont aucune n'est lisible d'ici.
+  useEffect(() => {
+    if (!user) return;
+    let annule = false;
+    (async () => {
+      try {
+        const idToken = await user.getIdToken();
+        const rep = await fetch('/api/boost/afroboost-offers', {
+          headers: { Authorization: `Bearer ${idToken}` },
+          cache: 'no-store',
+        });
+        if (!rep.ok) return;
+        const d = await rep.json();
+        if (annule) return;
+        setOffresSelectionnables(Array.isArray(d?.offres) ? d.offres : []);
+        setCompteAdmin(d?.admin === true);
+      } catch {
+        // silence volontaire : sans catalogue, l'écran garde son chemin natif.
+      }
+    })();
+    return () => { annule = true; };
+  }, [user]);
+
+  const offreChoisie = offresSelectionnables.find(o => o.id === selectedOffreId) || null;
+  /** LOT B — la mise en avant d'une offre de la plateforme ne se paie pas. */
+  const miseEnAvantGratuite = sourceCible === 'afroboost' && offreChoisie?.voie === 'admin-gratuit';
+
   const currentPrice = durations.find(d => d.value === selectedDuration)?.price || 0;
   const currentCreditCost = selectedDuration ? BOOST_CREDITS_COST[selectedDuration] || 0 : 0;
   const hasEnoughCredits = credits >= currentCreditCost;
@@ -119,6 +162,14 @@ export default function PartnerBoostPage() {
   // Branche `credits` saute le check hasEnoughCredits (déjà géré par le bouton
   // alternatif "Solde insuffisant — Recharger" qui remplace le bouton normal).
   const getDisabledReason = (): string | null => {
+    // LOT B — la cible dépend du référentiel choisi, et la ville d'une offre
+    // Afroboost vient de l'offre elle-même : on ne la redemande pas.
+    if (sourceCible === 'afroboost') {
+      if (!selectedOffreId) return t('partner_boost_disabled_offer');
+      if (!selectedDuration) return t('partner_boost_disabled_duration');
+      if (isLoading) return t('partner_boost_disabled_loading');
+      return null;
+    }
     if (!selectedActivityId) return t('partner_boost_disabled_activity');
     if (!selectedCity) return t('partner_boost_disabled_city');
     if (!selectedDuration) return t('partner_boost_disabled_duration');
@@ -237,6 +288,49 @@ export default function PartnerBoostPage() {
     }
   }, [searchParams, partnerId, user]);
 
+  /**
+   * LOT B — LA MISE EN AVANT GRATUITE D'UNE OFFRE DE LA PLATEFORME.
+   *
+   * Aucun Stripe, aucun crédit, aucun règlement à somme nulle : l'activation
+   * naît directement côté serveur, qui refait lui-même la preuve
+   * d'administration. Ce bouton n'apparaît que pour une offre `admin-gratuit`.
+   */
+  const handleMiseEnAvantGratuite = async () => {
+    if (!user) return;
+    setIsLoading(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/boost/admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+        body: JSON.stringify({
+          afroboostOfferId: selectedOffreId,
+          duration: selectedDuration,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || data.error);
+      toast({
+        title: t('partner_boost_free_done_title'),
+        description: data.avertissement === 'sans-ville-structuree'
+          ? t('partner_boost_free_done_no_city')
+          : t('partner_boost_free_done_desc'),
+      });
+      setPaymentStatus('success');
+      setIsLoading(false);
+      // Rafraîchit la liste des mises en avant actives.
+      router.refresh();
+    } catch (err: any) {
+      console.error('[Boost admin]', err);
+      toast({
+        title: t('partner_boost_error'),
+        description: err.message || t('partner_boost_payment_failed'),
+        variant: 'destructive',
+      });
+      setIsLoading(false);
+    }
+  };
+
   const handleBoost = async () => {
     if (!user) return;
     setIsLoading(true);
@@ -251,12 +345,15 @@ export default function PartnerBoostPage() {
         },
         body: JSON.stringify({
           duration: selectedDuration,
-          city: selectedCity,
+          city: sourceCible === 'afroboost' ? (offreChoisie?.ville || '') : selectedCity,
           country: selectedCountry || undefined,
           // BUG #69 — activityId envoyée au /api/boost-checkout qui la passe en
           // Stripe metadata. Le webhook handleBoostPayment lit metadata.activityId
           // et persiste sur le doc boosts/ → Discovery filter (partnerId, activityId).
-          activityId: selectedActivityId,
+          // LOT B — la cible, sous le champ de SON référentiel. Jamais les deux.
+          ...(sourceCible === 'afroboost'
+            ? { afroboostOfferId: selectedOffreId }
+            : { activityId: selectedActivityId }),
         }),
       });
 
@@ -293,11 +390,14 @@ export default function PartnerBoostPage() {
         body: JSON.stringify({
           // Phase 9.5 c33 BUG#4 — partnerId retiré du body (server force = uid Bearer).
           duration: selectedDuration,
-          city: selectedCity,
+          city: sourceCible === 'afroboost' ? (offreChoisie?.ville || '') : selectedCity,
           country: selectedCountry || undefined,
           // BUG #69 — activityId persistée directement dans boosts/ par l'API
           // (mode credits = pas de Stripe, pas de webhook, écriture inline).
-          activityId: selectedActivityId,
+          // LOT B — la cible, sous le champ de SON référentiel. Jamais les deux.
+          ...(sourceCible === 'afroboost'
+            ? { afroboostOfferId: selectedOffreId }
+            : { activityId: selectedActivityId }),
         }),
       });
       const data = await res.json();
@@ -403,8 +503,106 @@ export default function PartnerBoostPage() {
               {t('partner_boost_configure_title')}
             </h3>
 
+            {/* LOT B — LE RÉFÉRENTIEL, D'ABORD. Deux catalogues étrangers : une
+                activité Spordateur vit dans Firestore, une offre Afroboost dans
+                son propre catalogue. Les mélanger sous un champ « id » commun
+                serait la faute que le contrat R3b-2 a écartée. */}
+            {offresSelectionnables.length > 0 && (
+              <div className="space-y-3">
+                <span className="text-xs text-white/30 uppercase tracking-wider font-light flex items-center gap-1.5">
+                  <ListChecks className="h-3 w-3" /> {t('partner_boost_source_label')}
+                </span>
+                <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('partner_boost_source_label')}>
+                  <button
+                    type="button" role="radio" aria-checked={sourceCible === 'spordate'}
+                    onClick={() => { setSourceCible('spordate'); setSelectedOffreId(''); }}
+                    className={`rounded-xl px-4 py-3 text-sm font-light border transition ${
+                      sourceCible === 'spordate'
+                        ? 'border-accent/50 bg-accent/10 text-white'
+                        : 'border-white/10 bg-white/5 text-white/50 hover:text-white/80'
+                    }`}
+                  >
+                    {t('partner_boost_source_spordate')}
+                  </button>
+                  <button
+                    type="button" role="radio" aria-checked={sourceCible === 'afroboost'}
+                    onClick={() => { setSourceCible('afroboost'); setSelectedActivityId(''); }}
+                    className={`rounded-xl px-4 py-3 text-sm font-light border transition ${
+                      sourceCible === 'afroboost'
+                        ? 'border-accent/50 bg-accent/10 text-white'
+                        : 'border-white/10 bg-white/5 text-white/50 hover:text-white/80'
+                    }`}
+                  >
+                    {t('partner_boost_source_afroboost')}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* LOT B — le sélecteur d'offre Afroboost. Ne propose QUE ce que le
+                serveur a jugé sélectionnable par ce compte : les offres de la
+                plateforme pour un administrateur prouvé, les siennes pour un
+                partenaire dont R3b-ID a résolu l'identité. */}
+            {sourceCible === 'afroboost' && (
+              <div className="space-y-3">
+                <label
+                  htmlFor="boost-offer-select"
+                  className="text-xs text-white/30 uppercase tracking-wider font-light flex items-center gap-1.5"
+                >
+                  <ListChecks className="h-3 w-3" /> {t('partner_boost_offer_label')}
+                </label>
+                <select
+                  id="boost-offer-select"
+                  value={selectedOffreId}
+                  onChange={(e) => setSelectedOffreId(e.target.value)}
+                  className="w-full bg-white/5 border border-white/10 text-white rounded-xl px-4 py-3 text-sm font-light focus:outline-none focus:border-accent/40"
+                >
+                  <option value="">{t('partner_boost_offer_choose_option')}</option>
+                  {offresSelectionnables.map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.nom}
+                      {typeof o.prix === 'number' ? ` · ${o.prix === 0 ? t('payment_free_label') : `${o.prix} CHF`}` : ''}
+                      {o.ville ? ` · ${o.ville}` : ''}
+                    </option>
+                  ))}
+                </select>
+
+                {offreChoisie && (
+                  <div className="flex items-start gap-3 rounded-xl bg-white/5 border border-white/10 p-3">
+                    {offreChoisie.image ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={offreChoisie.image.startsWith('http') ? offreChoisie.image : `https://afroboost.com${offreChoisie.image}`}
+                        alt={offreChoisie.nom}
+                        className="w-14 h-14 rounded-lg object-cover flex-shrink-0 bg-white/5"
+                        loading="lazy"
+                      />
+                    ) : null}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm text-white font-medium truncate">{offreChoisie.nom}</p>
+                      <p className="text-[11px] text-white/40 truncate">
+                        {offreChoisie.lieuTexte || offreChoisie.ville || ''}
+                      </p>
+                      <p className="text-[11px] text-accent mt-0.5">
+                        {offreChoisie.prix === 0
+                          ? t('payment_free_label')
+                          : typeof offreChoisie.prix === 'number' ? `${offreChoisie.prix} CHF` : ''}
+                      </p>
+                      {!offreChoisie.ville && (
+                        <p className="text-[11px] text-amber-300/80 mt-1">
+                          {t('partner_boost_offer_no_city')}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* BUG #69 — Activity selector. Le partenaire DOIT choisir QUELLE
-                activité booster (avant : boost s'appliquait à tout le compte). */}
+                activité booster (avant : boost s'appliquait à tout le compte).
+                LOT B — masqué quand la cible est une offre Afroboost. */}
+            {sourceCible === 'spordate' && (
             <div className="space-y-3">
               <label
                 htmlFor="boost-activity-select"
@@ -440,8 +638,11 @@ export default function PartnerBoostPage() {
                 </select>
               )}
             </div>
+            )}
 
-            {/* Location selection */}
+            {/* Location selection — LOT B : sans objet pour une offre Afroboost,
+                dont la ville est celle du catalogue, résolue par le serveur. */}
+            {sourceCible === 'spordate' && (
             <div className="space-y-3">
               <label className="text-xs text-white/30 uppercase tracking-wider font-light flex items-center gap-1.5">
                 <MapPin className="h-3 w-3" /> {t('partner_boost_target_city_label')}
@@ -550,6 +751,7 @@ export default function PartnerBoostPage() {
                 </div>
               )}
             </div>
+            )}
 
             {/* Duration selection */}
             <div className="space-y-3">
@@ -578,7 +780,10 @@ export default function PartnerBoostPage() {
               </div>
             </div>
 
-            {/* Phase 9.5 c29b BUG FF — Méthode de paiement (Stripe ou Crédits Spordate) */}
+            {/* Phase 9.5 c29b BUG FF — Méthode de paiement (Stripe ou Crédits Spordate)
+                LOT B — masqué quand la mise en avant est gratuite : proposer un
+                moyen de paiement pour une somme nulle n'aurait aucun sens. */}
+            {!miseEnAvantGratuite && (
             <div className="border-t border-white/5 pt-6 space-y-3">
               <label className="text-xs text-white/30 uppercase tracking-wider font-light">
                 {t('partner_boost_payment_method_label')}
@@ -620,9 +825,41 @@ export default function PartnerBoostPage() {
               )}
             </div>
 
+            )}
+
             {/* Price + CTA */}
             <div className="pt-2 space-y-4">
-              {paymentMethod === 'stripe' ? (
+              {miseEnAvantGratuite ? (
+                /* LOT B — LA VOIE GRATUITE. Aucun Stripe, aucun crédit, aucun
+                   règlement à zéro franc : le serveur crée directement la mise
+                   en avant, après avoir refait lui-même la preuve d'administration. */
+                <>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/40 font-light">{t('partner_boost_price_label')}</span>
+                    <span className="text-2xl font-extralight text-emerald-300">
+                      {t('partner_boost_free_label')}
+                    </span>
+                  </div>
+                  <Button
+                    onClick={handleMiseEnAvantGratuite}
+                    disabled={!selectedOffreId || !selectedDuration || isLoading}
+                    className={`w-full rounded-full h-14 text-base font-semibold ${
+                      selectedOffreId && selectedDuration
+                        ? 'bg-accent hover:bg-accent/80 text-white'
+                        : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
+                    }`}
+                  >
+                    {isLoading ? (
+                      <><Loader2 className="animate-spin mr-2 h-5 w-5" /> {t('partner_boost_disabled_loading')}</>
+                    ) : (
+                      <><Zap className="mr-2 h-5 w-5" /> {t('partner_boost_free_cta')}</>
+                    )}
+                  </Button>
+                  {disabledReason && (
+                    <p className="text-xs text-white/30 text-center font-light">{disabledReason}</p>
+                  )}
+                </>
+              ) : paymentMethod === 'stripe' ? (
                 <>
                   <div className="flex items-center justify-between">
                     <span className="text-white/40 font-light">{t('partner_boost_price_label')}</span>
@@ -632,9 +869,9 @@ export default function PartnerBoostPage() {
                   </div>
                   <Button
                     onClick={handleBoost}
-                    disabled={!selectedActivityId || !selectedCity || !selectedDuration || isLoading}
+                    disabled={!!disabledReason}
                     className={`w-full rounded-full h-14 text-base font-semibold ${
-                      selectedActivityId && selectedCity && selectedDuration
+                      !disabledReason
                         ? 'bg-accent hover:bg-accent/80 text-white'
                         : 'bg-white/5 text-white/20 border border-white/5 cursor-not-allowed'
                     }`}
