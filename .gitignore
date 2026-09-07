@@ -76,3 +76,10 @@ memory/
 /README-original.md
 .tmp-i18n-*.md
 .tmp-i18n-*.md
+
+# Rotation du 07/09/2026 — aucun credential de compte de service dans Git.
+# La cle vit hors depot : ~/afroboost-keystore-PRIVE/spordate/
+service-account*.json
+firebase-admin*.json
+credentials*.json
+*-sa-*.json
