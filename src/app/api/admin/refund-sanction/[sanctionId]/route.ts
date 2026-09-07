@@ -17,6 +17,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
+import { estAdminAfroboostAutorise } from '@/lib/afroboost/adminAfroboost';
 import { refundAllForSanction } from '@/lib/stripe/refundForSanction';
 import { getAdminDb } from '@/lib/firebase/admin';
 
@@ -28,12 +29,16 @@ export const maxDuration = 60;
 // Lazy Admin SDK init (cohérent /api/admin/blocks)
 // =====================================================================
 
+// P0.1 — LA PREUVE ADMIN NE SE LIT PLUS DANS UN DOCUMENT QUE LE CLIENT ECRIT.
+//
+// Ce helper local lisait `users/{uid}.role`. Ce drapeau est desormais contraint
+// a la creation (P0) — mais il reste une DERIVEE : sa seule racine est
+// ADMIN_EMAILS, confrontee a l'annuaire d'identite. On interroge donc la racine
+// directement, par le helper unique du LOT A, qui exige LES DEUX : l'adresse du
+// compte lue dans Firebase Authentication ET le role. Le chemin systeme
+// (Bearer CRON_SECRET) plus bas n'est pas touche.
 async function isAdmin(uid: string): Promise<boolean> {
-  if (!uid) return false;
-  const db = await getAdminDb();
-  const snap = await db.collection('users').doc(uid).get();
-  if (!snap.exists) return false;
-  return snap.data()?.role === 'admin';
+  return estAdminAfroboostAutorise(uid);
 }
 
 export async function POST(

@@ -11,6 +11,7 @@
  */
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
+import { estAdminAfroboostAutorise } from '@/lib/afroboost/adminAfroboost';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 30;
@@ -46,10 +47,20 @@ export async function POST(request: NextRequest) {
   try {
     const db = await getDb();
 
-    // Authz : caller doit être admin
-    const callerUserSnap = await db.collection('users').doc(callerUid).get();
-    const isAdmin = callerUserSnap.exists && (callerUserSnap.data()?.role === 'admin' || callerUserSnap.data()?.isAdmin === true);
-    if (!isAdmin) {
+    // P0.1 — LA PREUVE ADMIN NE SE LIT PLUS DANS UN DOCUMENT QUE LE CLIENT ECRIT.
+    //
+    // Cette route lisait `users/{uid}.role`. Ce drapeau est desormais contraint
+    // a la creation (P0) — mais il reste une DERIVEE : sa seule racine est
+    // ADMIN_EMAILS, confrontee a l'annuaire d'identite. On interroge donc la
+    // racine directement, par le helper unique du LOT A, qui exige LES DEUX :
+    // l'adresse du compte lue dans Firebase Authentication ET le role. Aucune
+    // valeur venue du navigateur n'entre dans cette decision.
+    //
+    // CETTE ROUTE ACCEPTAIT AUSSI `users/{uid}.isAdmin === true`. Ce champ-la
+    // n'etait protege NULLE PART — ni a la creation, ni a la modification :
+    // n'importe quel compte pouvait se le donner et valider un versement.
+    // Il n'est plus consulte ici, et les regles l'interdisent desormais.
+    if (!(await estAdminAfroboostAutorise(callerUid))) {
       return NextResponse.json({ error: 'forbidden' }, { status: 403 });
     }
 

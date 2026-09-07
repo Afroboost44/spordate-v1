@@ -132,7 +132,17 @@ service cloud.firestore {
         && (!('isCreator' in d) || d.isCreator == false)
         && (!('isPremium' in d) || d.isPremium == false)
         && (!('referralCount' in d) || d.referralCount == 0)
+        // P0.1 — le statut de verification ne se DECLARE pas : a la creation,
+        // seule la valeur que pose le formulaire d'envoi du selfie est admise.
+        && (!('selfieVerificationStatus' in d) || d.selfieVerificationStatus == 'pending')
         && !d.keys().hasAny([
+          // P0.1 — `isAdmin` : trois routes le lisaient comme une preuve
+          // (/api/admin/payouts/complete, /api/wallet/request-payout,
+          // /api/wallet/update-iban) alors qu'il n'etait protege NULLE PART.
+          // Aucun chemin d'inscription ne l'ecrit, et aucun document de
+          // production ne le porte (mesure du 07/09) : on l'interdit.
+          'isAdmin',
+          'selfieVerificationDecidedAt',
           'commission',
           'lastPaymentId',
           'lastPaymentAt',
@@ -152,6 +162,12 @@ service cloud.firestore {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'credits',
         'role',
+        // P0.1 — lu comme une preuve d'administration par trois routes, et
+        // modifiable par n'importe qui jusqu'ici. Serveur uniquement.
+        'isAdmin',
+        // P0.1 — la DECISION de verification appartient a l'administrateur
+        // (branche `isAdmin()` du `allow update`), jamais au proprietaire.
+        'selfieVerificationDecidedAt',
         'isCreator',
         'isPremium',
         'commission',
@@ -170,6 +186,24 @@ service cloud.firestore {
         'softDeleteScheduledPurgeAt',
         'referralCount'
       ]);
+    }
+
+    // P0.1 — LE PROPRIETAIRE PEUT DEMANDER SA VERIFICATION, PAS SE L'ACCORDER.
+    //
+    // `selfieVerificationStatus` ne pouvait etre protege comme les autres : le
+    // parcours reel a DEUX ecrivains legitimes, et tous deux passent par le
+    // navigateur. /profile/verify-selfie pose `pending` au nom du proprietaire ;
+    // l'ecran de revue (AdminSelfieReviewSection) pose `verified` ou `rejected`
+    // au nom de l'administrateur, par la branche `isAdmin()` du `allow update`.
+    // L'interdire tout court aurait casse l'envoi du selfie ; le laisser libre
+    // permettait a chacun de s'attribuer le badge bleu.
+    //
+    // La regle nomme donc la SEULE transition que le proprietaire a le droit
+    // d'ecrire : `pending`. Revenir a `pending` depuis `verified` reste permis —
+    // c'est un renoncement a son propre badge, pas un privilege.
+    function transitionSelfieDuProprietaire() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['selfieVerificationStatus'])
+        || request.resource.data.selfieVerificationStatus == 'pending';
     }
 
     match /users/{userId} {
@@ -195,7 +229,9 @@ service cloud.firestore {
       //   - /api/chat/unlock-direct (debit -5)
       //   - /api/boost-credits (debit -cost)
       //   - /api/admin/* (admin manual adjust)
-      allow update: if (isOwner(userId) && onlyMutatesNonProtectedUserFields())
+      allow update: if (isOwner(userId)
+                        && onlyMutatesNonProtectedUserFields()
+                        && transitionSelfieDuProprietaire())
                     || isAdmin();
       allow delete: if isAdmin();
 

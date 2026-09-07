@@ -231,6 +231,90 @@ async function main(): Promise<void> {
       selfieVerificationSubmittedAt: Timestamp.now(), updatedAt: Timestamp.now(),
     }, { merge: true }));
 
+  section('N — selfieVerificationStatus : demander, pas s\'accorder');
+  // CREATION : seule la valeur du formulaire d'envoi est admise.
+  await neuf();
+  await doitPasser('N1. creation sans le champ',
+    setDoc(doc(alice(), 'users', ALICE), inscriptionReelle(ALICE)));
+  await neuf();
+  await doitPasser('N2. creation avec « pending » (/profile/verify-selfie)',
+    setDoc(doc(alice(), 'users', ALICE), inscriptionReelle(ALICE, { selfieVerificationStatus: 'pending' })));
+  for (const st of ['verified', 'rejected', 'approved', 'not_started']) {
+    await neuf();
+    await doitEchouer(`N3. creation avec « ${st} » -> refusee`,
+      setDoc(doc(alice(), 'users', ALICE), inscriptionReelle(ALICE, { selfieVerificationStatus: st })));
+  }
+  await neuf();
+  await doitEchouer('N4. creation avec la date de DECISION -> refusee',
+    setDoc(doc(alice(), 'users', ALICE), inscriptionReelle(ALICE, { selfieVerificationDecidedAt: Timestamp.now() })));
+
+  section('O — la MODIFICATION du statut par le proprietaire');
+  await neuf();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(asFirestore(ctx.firestore()), 'users', ALICE),
+      inscriptionReelle(ALICE, { selfieVerificationStatus: 'not_started' }));
+  });
+  await doitPasser('O1. le proprietaire demande sa verification (-> pending)',
+    updateDoc(doc(alice(), 'users', ALICE), {
+      selfieVerificationStatus: 'pending',
+      selfieVerificationUrl: 'https://x/y.jpg',
+      selfieVerificationSubmittedAt: Timestamp.now(),
+    }));
+  await doitEchouer('O2. mais il ne se declare PAS verifie',
+    updateDoc(doc(alice(), 'users', ALICE), { selfieVerificationStatus: 'verified' }));
+  await doitEchouer('O3. ni rejete',
+    updateDoc(doc(alice(), 'users', ALICE), { selfieVerificationStatus: 'rejected' }));
+  await doitEchouer('O4. ni une valeur inventee',
+    updateDoc(doc(alice(), 'users', ALICE), { selfieVerificationStatus: 'approved' }));
+  await doitEchouer('O5. ni la date de decision',
+    updateDoc(doc(alice(), 'users', ALICE), { selfieVerificationDecidedAt: Timestamp.now() }));
+  // Depuis « verified », revenir a « pending » reste permis : on renonce a son
+  // propre badge, ce n'est pas un privilege.
+  await neuf();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(asFirestore(ctx.firestore()), 'users', ALICE),
+      inscriptionReelle(ALICE, { selfieVerificationStatus: 'verified' }));
+  });
+  await doitPasser('O6. verified -> pending (renoncement) autorise',
+    updateDoc(doc(alice(), 'users', ALICE), { selfieVerificationStatus: 'pending' }));
+  await doitPasser('O7. et les champs ordinaires restent libres',
+    updateDoc(doc(alice(), 'users', ALICE), { bio: 'x', city: 'Lausanne' }));
+
+  section('P — le champ isAdmin, lu comme une preuve par trois routes');
+  await neuf();
+  await doitEchouer('P1. creation avec isAdmin=true -> refusee',
+    setDoc(doc(alice(), 'users', ALICE), inscriptionReelle(ALICE, { isAdmin: true })));
+  await neuf();
+  await doitEchouer('P2. creation avec isAdmin=false -> refusee aussi (champ serveur)',
+    setDoc(doc(alice(), 'users', ALICE), inscriptionReelle(ALICE, { isAdmin: false })));
+  await neuf();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    await setDoc(doc(asFirestore(ctx.firestore()), 'users', ALICE), inscriptionReelle(ALICE));
+  });
+  await doitEchouer('P3. modification isAdmin=true -> refusee',
+    updateDoc(doc(alice(), 'users', ALICE), { isAdmin: true }));
+
+  section('Q — l\'ecran de revue de l\'administrateur fonctionne encore');
+  await neuf();
+  await env.withSecurityRulesDisabled(async (ctx) => {
+    const fbDb = asFirestore(ctx.firestore());
+    await setDoc(doc(fbDb, 'users', BOB), inscriptionReelle(BOB, { selfieVerificationStatus: 'pending' }));
+    await setDoc(doc(fbDb, 'users', ALICE), inscriptionReelle(ALICE, { role: 'admin' }));
+  });
+  {
+    // Alice est administratrice : la branche `isAdmin()` du allow update.
+    await doitPasser('Q1. l\'administratrice pose « verified » sur Bob',
+      updateDoc(doc(alice(), 'users', BOB), {
+        selfieVerificationStatus: 'verified',
+        selfieVerificationDecidedAt: Timestamp.now(),
+      }));
+    await doitPasser('Q2. et « rejected »',
+      updateDoc(doc(alice(), 'users', BOB), {
+        selfieVerificationStatus: 'rejected',
+        selfieVerificationDecidedAt: Timestamp.now(),
+      }));
+  }
+
   section('M — l\'Admin SDK n\'est pas concerne par ces regles');
   await neuf();
   await env.withSecurityRulesDisabled(async (ctx) => {

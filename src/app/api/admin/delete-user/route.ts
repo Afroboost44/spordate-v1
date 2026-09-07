@@ -19,6 +19,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth } from '@/lib/auth/verifyAuth';
+import { estAdminAfroboostAutorise } from '@/lib/afroboost/adminAfroboost';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -68,9 +69,15 @@ export async function POST(request: NextRequest) {
     const db = getFirestore();
     const auth = getAuth();
 
-    // Vérif caller est admin
-    const callerSnap = await db.collection('users').doc(callerUid).get();
-    if (!callerSnap.exists || callerSnap.data()?.role !== 'admin') {
+    // P0.1 — LA PREUVE ADMIN NE SE LIT PLUS DANS UN DOCUMENT QUE LE CLIENT ECRIT.
+    //
+    // Cette route lisait `users/{uid}.role`. Ce drapeau est desormais contraint
+    // a la creation (P0) — mais il reste une DERIVEE : sa seule racine est
+    // ADMIN_EMAILS, confrontee a l'annuaire d'identite. On interroge donc la
+    // racine directement, par le helper unique du LOT A, qui exige LES DEUX :
+    // l'adresse du compte lue dans Firebase Authentication ET le role. Aucune
+    // valeur venue du navigateur n'entre dans cette decision.
+    if (!(await estAdminAfroboostAutorise(callerUid))) {
       return NextResponse.json(
         { error: 'not-admin', detail: 'admin role required' },
         { status: 403 },
