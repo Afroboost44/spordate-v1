@@ -121,7 +121,15 @@ vrai('K2 le prix ne se coupe pas', /text-accent text-sm font-semibold whitespace
 vrai('L1 l\'organisateur est nommé', /t\('discovery_meeting_venue_by', \{ owner: o\.organisateur \}\)/.test(CARTE));
 
 section('M — une offre seule ne doit pas être coincée');
-vrai('M1 la règle de colonnes est explicite', /repeat\(auto-fill,minmax\(260px,1fr\)\)/.test(CARTE));
+vrai('M1 la règle de colonnes est explicite', /repeat\(auto-fit,minmax\(260px,1fr\)\)/.test(CARTE));
+// ⚠️ MESURÉ EN PRODUCTION : avec `auto-fill`, les pistes vides sont créées, et
+// l'offre unique occupait 307 px sur 672 à 768 px de large — la demi-colonne
+// étroite que le lot devait supprimer. `auto-fit` replie les pistes vides.
+// On lit l'ATTRIBUT, jamais la prose : le commentaire du code nomme
+// volontairement `auto-fill` pour dire de ne pas y revenir.
+const GRILLE = (CARTE.match(/className="grid gap-2 \[grid-template-columns:([^\]]*)\]"/) || [])[1] || '';
+vrai('M1a la grille est lisible', GRILLE.length > 0);
+faux('M1b `auto-fill` interdit : il coince une carte seule', GRILLE.includes('auto-fill'));
 faux('M2 aucune colonne fixe imposée', /grid-cols-2/.test(CARTE));
 
 section('N/O/P — LA LOGIQUE MÉTIER N\'A PAS BOUGÉ');
@@ -180,7 +188,10 @@ vrai('U2 le titre est en `break-words`', /text-sm text-white font-medium break-w
 faux('U3 le sous-titre n\'est plus tronqué', /text-\[11px\] text-white\/40 truncate/.test(MODAL));
 faux('U4 plus de vignette 40 px', /w-10 h-10 rounded-lg/.test(MODAL));
 vrai('U5 vignette 56 px, comme partout ailleurs', (MODAL.match(/w-14 h-14 rounded-lg/g) || []).length === 3);
-vrai('U6 la règle de colonnes est la même que dans l\'autre liste', /repeat\(auto-fill,minmax\(260px,1fr\)\)/.test(MODAL));
+vrai('U6 la règle de colonnes est la même que dans l\'autre liste', /repeat\(auto-fit,minmax\(260px,1fr\)\)/.test(MODAL));
+const GRILLE_M = (MODAL.match(/className="grid gap-2 \[grid-template-columns:([^\]]*)\]"/) || [])[1] || '';
+vrai('U6a la grille du modal est lisible', GRILLE_M.length > 0);
+faux('U6b `auto-fill` interdit ici aussi', GRILLE_M.includes('auto-fill'));
 faux('U7 plus de colonnes imposées par la largeur de fenêtre', /sm:grid-cols-2/.test(MODAL));
 
 section('V — « OÙ PRATIQUER ? » : LA LOGIQUE MÉTIER N\'A PAS BOUGÉ');

@@ -2447,13 +2447,15 @@ END:VCALENDAR`;
                       {t('discovery_meeting_venues_hint')}
                     </p>
                     {/* LOT E — LA REGLE DE COLONNES, ECRITE UNE FOIS.
-                        `auto-fill` + un minimum de 260 px : deux colonnes
-                        UNIQUEMENT si chaque carte garde 260 px, sinon une seule.
-                        Dans ce modal (`max-w-md`, ~400 px utiles) cela vaut
-                        toujours UNE colonne — une offre seule n'est donc jamais
-                        coincee dans une demi-colonne etroite. La regle tient
-                        d'elle-meme si le modal s'elargit un jour. */}
-                    <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]">
+                        Un minimum de 260 px : deux colonnes UNIQUEMENT si chaque
+                        carte les garde, sinon une seule.
+                        ⚠️ `auto-fit`, PAS `auto-fill` — la difference se voit en
+                        production. `auto-fill` cree les pistes vides : mesure a
+                        768 px, l'offre unique occupait 307 px sur 672 et laissait
+                        une colonne vide a cote — la demi-colonne etroite qu'on
+                        voulait justement eviter. `auto-fit` replie les pistes
+                        vides, donc une carte seule prend toute la largeur. */}
+                    <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
                       {optionsDeRencontre.map((o) => {
                         if (o.source !== 'afroboost') return null;
                         // R4, inchangé : la réservation reste chez Afroboost.
@@ -3129,8 +3131,10 @@ END:VCALENDAR`;
                     <h3 className="text-base font-medium text-white tracking-wide">{group.city}</h3>
                     <span className="text-[10px] text-white/30">({group.activities.length})</span>
                   </div>
-                  {/* LOT E — deux colonnes seulement si chaque carte garde 260 px. */}
-                  <div className="grid gap-2 [grid-template-columns:repeat(auto-fill,minmax(260px,1fr))]">
+                  {/* LOT E — deux colonnes seulement si chaque carte garde 260 px,
+                      et `auto-fit` pour qu'une carte seule prenne toute la place
+                      au lieu d'une demi-colonne (voir le commentaire jumeau). */}
+                  <div className="grid gap-2 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
                     {group.activities.map((act) => {
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       const a = act as any;
