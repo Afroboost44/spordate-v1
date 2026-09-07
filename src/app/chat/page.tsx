@@ -55,6 +55,12 @@ import {
 } from '@/services/firestore';
 import { getMutualBlockSet } from '@/lib/blocks';
 import { resolveChatUrlAction } from '@/lib/chat/urlParams';
+// LOT D2 — proposer une offre Afroboost dans la conversation.
+import { PARAM_PROPOSER_OFFRE, lireOffreAProposer } from '@/lib/chat/urlParams';
+import { offresDeRencontre } from '@/lib/discovery/activitesDeRencontre';
+import { classerBoosts } from '@/lib/boost/cible';
+import { sendInvitationAfroboost } from '@/services/activityInvite';
+import type { OffrePublique } from '@/lib/afroboost/offers';
 import { buildOtherUser } from '@/lib/chat/buildOtherUser';
 import { ActivitySelectorModal, type ActivitySelectorPick } from '@/components/chat/ActivitySelectorModal';
 import { InviteModeModal } from '@/components/chat/InviteModeModal';
@@ -322,6 +328,103 @@ function ChatWindow({
   const inputRef = useRef<HTMLInputElement>(null);
 
   const isLocked = !match.chatUnlocked;
+
+  // ═══ LOT D2 — LA PROPOSITION D'UNE OFFRE AFROBOOST ═══════════════════
+  //
+  // L'intention arrive par l'URL (`?proposer=<offerId>`), le meme chemin que
+  // le deverrouillage existant emprunte deja. Elle ne fait AUTORITE SUR RIEN :
+  // l'offre est revalidee ici contre le catalogue ET ses mises en avant (regle
+  // du LOT C) avant qu'un bouton n'apparaisse, et l'envoi demande une action
+  // explicite. Un identifiant tape a la main dans la barre d'adresse ne peut
+  // donc rien produire.
+  const parametresUrl = useSearchParams();
+  const offreDemandee = lireOffreAProposer(parametresUrl.get(PARAM_PROPOSER_OFFRE));
+  const [offreAProposer, setOffreAProposer] = useState<ReturnType<typeof offresDeRencontre>[number] | null>(null);
+  const [envoiProposition, setEnvoiProposition] = useState(false);
+
+  useEffect(() => {
+    if (!offreDemandee || isLocked) { setOffreAProposer(null); return; }
+    let annule = false;
+    (async () => {
+      try {
+        // Le catalogue, par la porte unique du LOT R2.
+        const rep = await fetch('/api/afroboost/offers', { cache: 'no-store' });
+        if (!rep.ok) return;
+        const donnees = await rep.json();
+        if (annule || donnees?.etat !== 'ok') return;
+
+        // Les mises en avant vivantes, par le service unique (#204).
+        const { getBoostedActivities } = await import('@/lib/activities/getBoostedActivities');
+        const { boostedAfroboostOfferIds } = await getBoostedActivities({ max: 200 });
+        if (annule) return;
+
+        const proposables = offresDeRencontre(
+          donnees.offres as OffrePublique[],
+          boostedAfroboostOfferIds,
+        );
+        const trouvee = proposables.find(
+          (o) => o.source === 'afroboost' && o.afroboostOfferId === offreDemandee,
+        );
+        // Offre disparue, masquee, ou mise en avant expiree pendant le parcours :
+        // on ne propose rien, et on le DIT plutot que de laisser un bouton mort.
+        if (!trouvee) {
+          toast({
+            title: 'Activité indisponible',
+            description: "Cette activité n'est plus disponible.",
+            variant: 'destructive',
+          });
+          return;
+        }
+        setOffreAProposer(trouvee);
+      } catch (err) {
+        console.warn('[LOT D2] resolution de l\'offre a proposer echouee', err);
+      }
+    })();
+    return () => { annule = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offreDemandee, isLocked]);
+
+  /**
+   * L'ENVOI, ET SEULEMENT SUR ACTION EXPLICITE.
+   *
+   * Aucune session, aucun booking, aucun paiement, aucun credit : les regles
+   * exemptent `activity_invite` du cout d'un message. L'invitation dit « ca te
+   * dit ? » — la reservation reelle reste chez Afroboost.
+   */
+  const proposerOffre = async () => {
+    if (!offreAProposer || offreAProposer.source !== 'afroboost' || envoiProposition) return;
+    setEnvoiProposition(true);
+    try {
+      await sendInvitationAfroboost({
+        matchId: match.matchId,
+        senderId: currentUserId,
+        afroboostOfferId: offreAProposer.afroboostOfferId,
+        titre: offreAProposer.titre,
+        inviteMode: 'individual',
+        ville: offreAProposer.ville ?? undefined,
+        lieu: offreAProposer.lieu ?? undefined,
+        imageUrl: offreAProposer.image ?? undefined,
+        prix: offreAProposer.prix,
+        receiverUid: otherUser.uid,
+        senderName: otherUser.displayName ? undefined : undefined,
+      });
+      setOffreAProposer(null);
+      toast({
+        title: 'Proposition envoyée ✓',
+        description: `${offreAProposer.titre} a été proposé dans la conversation.`,
+        className: 'bg-zinc-900 border-accent/40 text-white',
+      });
+    } catch (err) {
+      console.warn('[LOT D2] envoi de la proposition echoue', err);
+      toast({
+        title: 'Erreur',
+        description: "Impossible d'envoyer la proposition. Réessaie.",
+        variant: 'destructive',
+      });
+    } finally {
+      setEnvoiProposition(false);
+    }
+  };
   // Phase 8 SC1 — defense UX : input désactivé si crédits insuffisants (rule re-rejette aussi)
   const insufficientCredits = credits < 1;
   // BUG #74 — Coût d'un audio (par défaut 2 crédits, configurable admin via
@@ -945,6 +1048,59 @@ function ChatWindow({
             )}
             <div ref={messagesEndRef} />
           </div>
+
+          {/* LOT D2 — LA CONFIRMATION. Rien n'a encore été envoyé : la personne
+              voit ce qu'elle s'apprête à proposer, et à qui, avant d'agir. */}
+          {offreAProposer && offreAProposer.source === 'afroboost' && (
+            <div className="mx-3 mb-2 rounded-xl border border-accent/30 bg-accent/[0.07] p-3">
+              <p className="text-[11px] text-white/50 mb-1.5">
+                Proposer à {otherUser.displayName || 'cette personne'} :
+              </p>
+              <div className="flex items-center gap-3">
+                {offreAProposer.image ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={offreAProposer.image}
+                    alt={offreAProposer.titre}
+                    className="w-11 h-11 rounded-lg object-cover flex-shrink-0 bg-white/5"
+                    loading="lazy"
+                  />
+                ) : null}
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-white font-medium break-words">{offreAProposer.titre}</p>
+                  <p className="text-[11px] text-white/40 break-words">
+                    {offreAProposer.lieu || offreAProposer.ville || ''}
+                  </p>
+                  <p className="text-[11px] mt-0.5">
+                    {typeof offreAProposer.prix === 'number' && (
+                      <span className="text-accent">
+                        {offreAProposer.prix === 0 ? 'Gratuit' : `${offreAProposer.prix} CHF`}
+                      </span>
+                    )}
+                    {typeof offreAProposer.prix === 'number' && ' · '}
+                    <span className="text-white/35">proposé par Afroboost</span>
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 mt-2.5">
+                <button
+                  type="button"
+                  onClick={proposerOffre}
+                  disabled={envoiProposition}
+                  className="flex-1 px-3 py-2 rounded-full text-xs font-semibold bg-accent text-white hover:bg-accent/80 transition disabled:opacity-50"
+                >
+                  {envoiProposition ? 'Envoi…' : 'Envoyer la proposition'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setOffreAProposer(null)}
+                  className="px-3 py-2 rounded-full text-xs text-white/50 hover:text-white/80 transition"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* Input */}
           <form

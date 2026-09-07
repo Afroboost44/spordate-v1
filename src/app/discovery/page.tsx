@@ -70,6 +70,9 @@ import { destinationReservationOffre } from '@/lib/discovery/reservationAfroboos
 // LOT D — « où pourrait-on se retrouver ? » n'est PAS « que possède ce profil ? ».
 // Deux questions, deux listes, deux modules. Celui-ci ne répond qu'à la seconde.
 import { offresDeRencontre } from '@/lib/discovery/activitesDeRencontre';
+// LOT D2 — l'intention « proposer cette offre » voyage par l'URL du chat,
+// le meme chemin que le deverrouillage existant emprunte deja.
+import { urlChatAvecOffre } from '@/lib/chat/urlParams';
 import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/cardImage';
 import { activitesDuProfil } from '@/lib/discovery/profileActivities';
 import { extractSwipedUids } from '@/lib/discovery/swipedUids';
@@ -1489,6 +1492,31 @@ export default function DiscoveryPage() {
   };
 
   // Process payment with Stripe
+  /**
+   * LOT D2 — PROPOSER UNE OFFRE À LA PERSONNE AFFICHÉE.
+   *
+   * Ce bouton n'écrit RIEN et n'envoie AUCUNE invitation. Il conduit vers la
+   * conversation en emportant l'intention : c'est là, une fois le chat ouvert,
+   * que la personne confirmera. Rien ne part d'un seul clic depuis Discovery.
+   *
+   * Si aucune conversation n'existe encore, on n'en force pas l'ouverture :
+   * `firestore.rules` exige `chatUnlocked`, et le déverrouillage a son propre
+   * parcours, à son propre tarif — sans aucun rapport avec le prix de l'offre,
+   * qui reste chez Afroboost.
+   */
+  const handleProposerOffre = (offreId: string) => {
+    setShowPaymentModal(false);
+    if (currentMatchId) {
+      router.push(urlChatAvecOffre(currentMatchId, offreId));
+      return;
+    }
+    toast({
+      title: t('discovery_propose_needs_chat_title'),
+      description: t('discovery_propose_needs_chat_desc'),
+      className: 'bg-zinc-900 border-accent/40 text-white',
+    });
+  };
+
   const handlePayment = async () => {
     if (typeof window === 'undefined' || !currentProfile) return;
 
@@ -2459,16 +2487,28 @@ END:VCALENDAR`;
                                 </p>
                               </div>
                             </div>
-                            {dest.ok && (
-                              <a
-                                href={dest.url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="flex-shrink-0 self-center mr-2 px-3 py-2 rounded-full text-[11px] font-medium bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25 transition whitespace-nowrap"
+                            <div className="flex-shrink-0 self-center mr-2 flex flex-col gap-1.5">
+                              {/* LOT D2 — proposer ce cours à la personne affichée.
+                                  N'envoie rien : conduit à la conversation, où la
+                                  proposition sera confirmée. */}
+                              <button
+                                type="button"
+                                onClick={() => handleProposerOffre(o.afroboostOfferId)}
+                                className="px-3 py-2 rounded-full text-[11px] font-medium bg-accent text-white hover:bg-accent/80 transition whitespace-nowrap"
                               >
-                                {t('discovery_reserve_button')}
-                              </a>
-                            )}
+                                {t('discovery_propose_this_course')}
+                              </button>
+                              {dest.ok && (
+                                <a
+                                  href={dest.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="px-3 py-1.5 rounded-full text-[11px] text-white/60 border border-white/15 hover:text-white hover:bg-white/5 transition whitespace-nowrap text-center"
+                                >
+                                  {t('discovery_reserve_button')}
+                                </a>
+                              )}
+                            </div>
                           </div>
                         );
                       })}

@@ -54,6 +54,45 @@ export function displayActivityTitle(input: {
 // buildActivityInvitePayload
 // =====================================================================
 
+/**
+ * LOT D2 — LA CIBLE D'UNE INVITATION, TYPÉE.
+ *
+ * Union discriminée : une invitation native vise une activité Spordate et peut
+ * viser une session ; une invitation Afroboost vise une OFFRE, et ne peut
+ * porter ni activité, ni session — l'offre n'en a pas, et en fabriquer une est
+ * interdit depuis R3c. Le compilateur rend l'erreur impossible plutôt que de
+ * compter sur la vigilance de l'appelant.
+ */
+export type CibleInvitation =
+  | {
+      source?: 'spordate';
+      activityId: string;
+      nextSessionId?: string;
+      nextSessionAt?: Date | { toDate(): Date } | null;
+    }
+  | {
+      source: 'afroboost';
+      afroboostOfferId: string;
+      /** INFORMATIF. Ne fait autorité sur rien : Afroboost seul facture. */
+      offrePrix?: number | null;
+      offreLieu?: string;
+    };
+
+/** La cible vise-t-elle une offre du catalogue Afroboost ? */
+export function cibleEstAfroboost(
+  c: CibleInvitation | null | undefined,
+): c is Extract<CibleInvitation, { source: 'afroboost' }> {
+  return c?.source === 'afroboost';
+}
+
+/**
+ * La clé d'anti-doublon d'une cible : sa source ET son identifiant.
+ * Jamais le titre — deux offres peuvent s'appeler pareil.
+ */
+export function cleCibleInvitation(c: CibleInvitation): string {
+  return cibleEstAfroboost(c) ? `afroboost:${c.afroboostOfferId}` : `spordate:${c.activityId}`;
+}
+
 export interface BuildInviteInput {
   senderId: string;
   activityId: string;
@@ -112,6 +151,56 @@ export function buildActivityInvitePayload(input: BuildInviteInput): ActivityInv
   if (input.activityCity) invite.activityCity = input.activityCity;
   if (input.activitySport) invite.activitySport = input.activitySport;
   if (input.activityImageUrl) invite.activityImageUrl = input.activityImageUrl;
+
+  return {
+    senderId: input.senderId,
+    text: '',
+    type: 'activity_invite',
+    readBy: [input.senderId],
+    invite,
+    inviteStatus: 'pending',
+  };
+}
+
+/**
+ * LOT D2 — LA CHARGE UTILE D'UNE INVITATION VERS UNE OFFRE AFROBOOST.
+ *
+ * Volontairement SÉPARÉE de `buildActivityInvitePayload`, qui n'a pas bougé
+ * d'un octet : le chemin natif est utilisé par tout le produit depuis des mois,
+ * et une union mal refermée y aurait fait passer un `activityId` absent.
+ *
+ * CE QUI EST DÉNORMALISÉ, ET CE QUI NE L'EST PAS. Le titre, le lieu et le prix
+ * sont recopiés pour que la carte s'affiche sans appeler le catalogue à chaque
+ * rendu. AUCUN d'eux ne fait autorité : le prix est marqué informatif, et la
+ * réservation passe par R4, qui ne transporte aucun montant. Le propriétaire
+ * n'est PAS recopié — il est constant et connu : c'est Afroboost.
+ */
+export interface BuildInviteAfroboostInput {
+  senderId: string;
+  afroboostOfferId: string;
+  titre: string;
+  inviteMode: ActivityInviteMode;
+  ville?: string;
+  lieu?: string;
+  imageUrl?: string;
+  /** INFORMATIF. Jamais une autorité de facturation. */
+  prix?: number | null;
+}
+
+export function buildInvitationAfroboostPayload(
+  input: BuildInviteAfroboostInput,
+): ActivityInvitePayload {
+  const invite: ActivityInviteData = {
+    source: 'afroboost',
+    afroboostOfferId: input.afroboostOfferId,
+    inviteMode: input.inviteMode,
+    activityTitle: displayActivityTitle({ title: input.titre, city: input.ville }),
+  };
+  // Firestore refuse les `undefined` : on n'écrit que ce qui existe.
+  if (input.ville) invite.activityCity = input.ville;
+  if (input.imageUrl) invite.activityImageUrl = input.imageUrl;
+  if (input.lieu) invite.offreLieu = input.lieu;
+  if (typeof input.prix === 'number') invite.offrePrix = input.prix;
 
   return {
     senderId: input.senderId,

@@ -937,12 +937,8 @@ export type ActivityInviteMode = 'individual' | 'duo';
  *  Invite — on le réutilise tel quel ici sans dupliquer la déclaration. */
 
 /** BUG #36 — Données d'invitation dénormalisées (snapshot pour rendu card sans extra fetch). */
-export interface ActivityInviteData {
-  activityId: string;
-  /** Optionnel — sessionId de la prochaine session future si résolu. */
-  nextSessionId?: string;
-  /** Optionnel — timestamp prochaine session (pour rendu card + expiration check). */
-  nextSessionAt?: Timestamp;
+/** Ce que toute invitation porte, quelle que soit la provenance de la cible. */
+export interface ActivityInviteBase {
   /** Mode choisi par le sender. */
   inviteMode: ActivityInviteMode;
   /** Titre de l'activité (dénormalisé snapshot). */
@@ -954,6 +950,42 @@ export interface ActivityInviteData {
   /** Image principale (dénormalisé snapshot pour preview card, optionnel). */
   activityImageUrl?: string;
 }
+
+/**
+ * LOT D2 — UNE INVITATION VISE DEUX SORTES DE CHOSES, ET LE TYPE LE DIT.
+ *
+ * Union DISCRIMINÉE sur `source`. Une invitation native porte un `activityId`
+ * et peut porter une session ; une invitation Afroboost porte un
+ * `afroboostOfferId` et NE PEUT PAS porter de session — l'offre n'en a pas, et
+ * en fabriquer une est interdit depuis R3c.
+ *
+ * `source` est OPTIONNEL sur la branche native : les invitations écrites avant
+ * ce lot n'ont pas ce champ, et doivent continuer d'être lues exactement comme
+ * avant. Son absence signifie donc « native », et c'est la seule lecture
+ * possible d'un document d'hier.
+ *
+ * Le compilateur refuse désormais `invite.activityId` sans avoir écarté le cas
+ * Afroboost — c'est précisément ce qu'on veut : la confusion entre les deux
+ * référentiels ne doit pas dépendre de la vigilance du lecteur.
+ */
+export type ActivityInviteData =
+  | (ActivityInviteBase & {
+      source?: 'spordate';
+      activityId: string;
+      /** Optionnel — sessionId de la prochaine session future si résolu. */
+      nextSessionId?: string;
+      /** Optionnel — timestamp prochaine session (pour rendu card + expiration check). */
+      nextSessionAt?: Timestamp;
+    })
+  | (ActivityInviteBase & {
+      source: 'afroboost';
+      /** `offers.id` du catalogue Afroboost. JAMAIS un activityId. */
+      afroboostOfferId: string;
+      /** Prix affiché, INFORMATIF. Ne fait autorité sur rien : Afroboost seul facture. */
+      offrePrix?: number | null;
+      /** Lieu affiché (dénormalisé snapshot). */
+      offreLieu?: string;
+    });
 
 /** Phase 8 SC3 (additif). Card suggestion bot IA pour next-activity (1-3 par message).
  *  Snapshot dénormalisé au moment de la génération (rendu rapide client). */

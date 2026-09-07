@@ -30,6 +30,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { db } from '@/lib/firebase';
+// LOT D2 — la reservation reelle reste chez Afroboost : on reutilise R4.
+import { destinationReservationOffre } from '@/lib/discovery/reservationAfroboost';
 import {
   getActivityThumbnailChain,
   getActivityThumbnailMedia,
@@ -66,7 +68,12 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [activityDoc, setActivityDoc] = useState<Record<string, any> | null>(null);
   const [thumbIndex, setThumbIndex] = useState(0);
-  const activityId = invite?.activityId;
+  // LOT D2 — DEUX SORTES DE CIBLES, ET UNE SEULE LECTURE POSSIBLE A LA FOIS.
+  // Une invitation Afroboost n'a pas d'activite Firestore : aller la chercher
+  // renverrait toujours `not found`, et lire `invite.activityId` dessus serait
+  // une erreur que le type interdit desormais.
+  const estInvitationAfroboost = invite?.source === 'afroboost';
+  const activityId = invite && !estInvitationAfroboost ? invite.activityId : undefined;
   useEffect(() => {
     if (!activityId || !db) return;
     let cancelled = false;
@@ -116,7 +123,11 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
   const videoPosterUrl =
     videoFallback?.kind === 'video' ? videoFallback.url : null;
 
-  const sessionLabel = formatNextSessionLabel(invite.nextSessionAt ?? null);
+  // Une offre Afroboost n'a AUCUNE session Spordateur — il n'y a donc pas de
+  // date a annoncer ici ; la date reelle vit chez Afroboost.
+  const sessionLabel = formatNextSessionLabel(
+    !estInvitationAfroboost ? (invite.nextSessionAt ?? null) : null,
+  );
   const isDuoSponsored = invite.inviteMode === 'duo' && !!msg.sponsorPaidAt;
 
   const doAccept = async () => {
@@ -131,6 +142,19 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
         toast({
           title: 'Invitation acceptée ✓',
           description: `Ta place pour ${invite.activityTitle} est confirmée.`,
+          className: 'bg-zinc-900 border-accent/40 text-white',
+        });
+        return;
+      }
+      // LOT D2 — ACCEPTER UNE OFFRE AFROBOOST N'ACHETE RIEN ICI.
+      // Aucune session, aucun booking, aucun debit : accepter veut dire « oui,
+      // ca m'interesse ». La reservation reelle reste chez Afroboost, et la
+      // carte affiche pour cela son propre bouton (R4). On ne redirige donc pas
+      // vers `/activities/{id}`, qui n'existe pas pour une offre.
+      if (estInvitationAfroboost) {
+        toast({
+          title: 'Invitation acceptée 🎉',
+          description: `Tu peux maintenant réserver ${invite.activityTitle} chez Afroboost.`,
           className: 'bg-zinc-900 border-accent/40 text-white',
         });
         return;
@@ -240,6 +264,40 @@ export function ActivityInviteMessage({ msg, matchId, currentUserId }: ActivityI
           <div className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-gradient-to-r from-accent/15 to-[#E91E63]/15 border border-accent/40 text-accent">
             <Sparkles className="h-2.5 w-2.5" />
             {view.isReceiver ? 'Ton ami a payé pour toi 💝' : 'Tu paies pour les 2 ✓'}
+          </div>
+        )}
+        {/* LOT D2 — L'ORGANISATEUR, NOMMÉ. Une offre Afroboost n'appartient ni à
+            celui qui invite, ni à celui qui reçoit : le dire évite l'attribution
+            implicite que le FIX ATTRIBUTION a corrigée ailleurs. */}
+        {estInvitationAfroboost && (
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-[11px] text-white/45">
+              {typeof invite.offrePrix === 'number' && (
+                <span className="text-accent">
+                  {invite.offrePrix === 0 ? 'Gratuit' : `${invite.offrePrix} CHF`}
+                </span>
+              )}
+              {typeof invite.offrePrix === 'number' && ' · '}
+              proposé par Afroboost
+            </p>
+            {(() => {
+              const dest = destinationReservationOffre({
+                id: invite.afroboostOfferId,
+                typeOffre: 'single_class',
+                prix: invite.offrePrix ?? null,
+              } as never);
+              if (!dest.ok) return null;
+              return (
+                <a
+                  href={dest.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-full text-[11px] font-medium bg-accent/15 text-accent border border-accent/30 hover:bg-accent/25 transition whitespace-nowrap"
+                >
+                  Réserver chez Afroboost
+                </a>
+              );
+            })()}
           </div>
         )}
         <div className="flex items-center gap-2 text-[11px] text-white/40 flex-wrap">

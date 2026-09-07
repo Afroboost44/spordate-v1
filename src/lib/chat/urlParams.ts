@@ -56,3 +56,46 @@ export function resolveChatUrlAction(
     shouldShowPaymentToast: isPaymentSuccess,
   };
 }
+
+// =====================================================================
+// LOT D2 — L'INTENTION « PROPOSER CETTE OFFRE », PORTÉE PAR L'URL
+// =====================================================================
+
+/**
+ * L'utilisateur choisit une offre depuis Discovery, puis doit peut-être passer
+ * par le déverrouillage du chat avant de pouvoir écrire. Son intention doit
+ * survivre à ce détour.
+ *
+ * ELLE VOYAGE DANS L'URL, pas dans un stockage parallèle : le parcours existant
+ * revient DÉJÀ sur `/chat?match=<id>` après un déverrouillage réussi. Ajouter
+ * un paramètre à cette adresse réutilise un chemin éprouvé au lieu d'en inventer
+ * un second qui divergerait au premier incident.
+ *
+ * CE PARAMÈTRE NE FAIT AUTORITÉ SUR RIEN. Il dit seulement « la personne
+ * voulait proposer cette offre ». Avant la moindre écriture, l'offre est
+ * revalidée contre le catalogue et ses mises en avant (règle du LOT C), et
+ * l'envoi demande une action explicite. Un identifiant fabriqué à la main dans
+ * la barre d'adresse ne peut donc rien produire.
+ */
+export const PARAM_PROPOSER_OFFRE = 'proposer';
+
+/** La forme d'un identifiant d'offre. Même garde que R4 : rien d'autre ne passe. */
+const FORME_IDENTIFIANT_OFFRE = /^[A-Za-z0-9._~-]{1,128}$/;
+
+/**
+ * L'offre que l'utilisateur voulait proposer, ou `null`.
+ *
+ * PURE. `null` couvre tous les cas d'incertitude — absent, vide, forme
+ * invalide — et un appelant ne peut donc pas confondre « rien demandé » et
+ * « demande illisible » : les deux ne proposent rien.
+ */
+export function lireOffreAProposer(param: string | null | undefined): string | null {
+  const valeur = String(param || '').trim();
+  if (!valeur || !FORME_IDENTIFIANT_OFFRE.test(valeur)) return null;
+  return valeur;
+}
+
+/** L'adresse du chat portant l'intention. Les deux valeurs sont encodées. */
+export function urlChatAvecOffre(matchId: string, offreId: string): string {
+  return `/chat?match=${encodeURIComponent(matchId)}&${PARAM_PROPOSER_OFFRE}=${encodeURIComponent(offreId)}`;
+}

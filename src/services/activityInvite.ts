@@ -32,9 +32,11 @@ import {
 import { db } from '@/lib/firebase';
 import {
   buildActivityInvitePayload,
+  buildInvitationAfroboostPayload,
   type BuildInviteInput,
 } from '@/lib/chat/activityInvite';
 import { checkInviteRateLimit } from '@/lib/chat/inviteExtras';
+import type { ActivityInviteMode } from '@/types/firestore';
 import { createNotification } from '@/services/firestore';
 
 // =====================================================================
@@ -250,4 +252,115 @@ export async function acceptActivityInvite(input: FinalizeInviteInput): Promise<
 
 export async function declineActivityInvite(input: FinalizeInviteInput): Promise<void> {
   return finalizeInvite(input, 'declined');
+}
+
+// =====================================================================
+// LOT D2 — INVITATION VERS UNE OFFRE AFROBOOST
+// =====================================================================
+
+/**
+ * Envoie une invitation qui vise une OFFRE du catalogue Afroboost.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * POURQUOI UNE FONCTION SÉPARÉE
+ * ─────────────────────────────────────────────────────────────────────────
+ * `sendActivityInvite` n'a pas bougé. Elle exige un `activityId`, résout des
+ * sessions et alimente un parcours de réservation Spordate — trois choses
+ * qu'une offre Afroboost n'a pas et ne doit pas avoir. Les fondre aurait
+ * demandé d'assouplir la première, alors qu'elle sert tout le produit depuis
+ * des mois.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * CE QUI N'ARRIVE PAS ICI
+ * ─────────────────────────────────────────────────────────────────────────
+ * Aucune session Firestore n'est créée ni résolue. Aucun booking. Aucun
+ * paiement, ni Spordate ni Afroboost. Aucun crédit débité — les règles
+ * exemptent explicitement `activity_invite` du coût d'un message. L'invitation
+ * est un MESSAGE : elle dit « ça te dit ? », elle n'achète rien.
+ *
+ * Le chat doit déjà être déverrouillé : c'est `firestore.rules` qui l'exige
+ * (`matches/{id}.chatUnlocked == true`), et ce lot ne touche pas à cette règle.
+ * Le déverrouillage passe par le mécanisme existant, inchangé, à son tarif
+ * existant — sans aucun rapport avec le prix de l'offre.
+ */
+export interface SendInvitationAfroboostInput {
+  matchId: string;
+  senderId: string;
+  afroboostOfferId: string;
+  titre: string;
+  inviteMode: ActivityInviteMode;
+  ville?: string;
+  lieu?: string;
+  imageUrl?: string;
+  /** INFORMATIF. N'est jamais utilisé pour facturer quoi que ce soit. */
+  prix?: number | null;
+  receiverUid?: string;
+  senderName?: string;
+}
+
+export async function sendInvitationAfroboost(
+  input: SendInvitationAfroboostInput,
+): Promise<SendActivityInviteResult> {
+  if (!input.matchId || !input.senderId || !input.afroboostOfferId) {
+    throw new Error('sendInvitationAfroboost: matchId, senderId, afroboostOfferId requis');
+  }
+  const fsdb = getDb();
+  const messagesRef = collection(fsdb, 'chats', input.matchId, 'messages');
+
+  // Anti-doublon : une invitation en attente pour LA MÊME offre, du même
+  // expéditeur, ne se re-écrit pas. Même règle que le chemin natif, appliquée
+  // au champ de CE référentiel — jamais à `invite.activityId`, qui n'existe pas.
+  const existantes = await getDocs(
+    query(
+      messagesRef,
+      where('type', '==', 'activity_invite'),
+      where('senderId', '==', input.senderId),
+      where('invite.afroboostOfferId', '==', input.afroboostOfferId),
+      where('inviteStatus', '==', 'pending'),
+      firestoreLimit(1),
+    ),
+  );
+  if (!existantes.empty) {
+    return { messageId: existantes.docs[0].id, replaced: true };
+  }
+
+  const nouveau = doc(messagesRef);
+  await setDoc(nouveau, {
+    ...buildInvitationAfroboostPayload({
+      senderId: input.senderId,
+      afroboostOfferId: input.afroboostOfferId,
+      titre: input.titre,
+      inviteMode: input.inviteMode,
+      ville: input.ville,
+      lieu: input.lieu,
+      imageUrl: input.imageUrl,
+      prix: input.prix,
+    }),
+    messageId: nouveau.id,
+    createdAt: serverTimestamp(),
+  });
+
+  // Notification : le mécanisme existant, tel quel. Best-effort, non bloquant.
+  if (input.receiverUid) {
+    try {
+      const nom = input.senderName || 'Un utilisateur';
+      await createNotification(
+        input.receiverUid,
+        'activity_invite',
+        'Nouvelle invitation',
+        `${nom} te propose ${input.titre}`,
+        {
+          matchId: input.matchId,
+          messageId: nouveau.id,
+          // La cible sous SON champ. Jamais `activityId`.
+          afroboostOfferId: input.afroboostOfferId,
+          clickUrl: `/chat?match=${input.matchId}`,
+        },
+      );
+    } catch (err) {
+      console.warn('[sendInvitationAfroboost] notification create failed (non-bloquant)', err);
+    }
+  }
+
+  return { messageId: nouveau.id, replaced: false };
 }
