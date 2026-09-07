@@ -22,6 +22,8 @@
  */
 
 const { initializeApp, cert } = require('firebase-admin/app');
+// Fuite du 07/09 : un `JSON.parse` nu ici imprimait la cle entiere.
+const { chargerCleServiceAccount } = require('./_serviceAccount.cjs');
 const { getFirestore } = require('firebase-admin/firestore');
 
 const args = process.argv.slice(2);
@@ -38,7 +40,7 @@ const IDS = args.filter((a) => !a.startsWith('--'));
   }
 
   initializeApp({
-    credential: cert(JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT_KEY)),
+    credential: cert(chargerCleServiceAccount()),
   });
 
   const db = getFirestore();
