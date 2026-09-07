@@ -296,8 +296,16 @@ section('I — aucune écriture, aucune UI, R1 intact');
 
   const page = fs.readFileSync(
     path.join(__dirname, '..', '..', 'src', 'app', 'discovery', 'page.tsx'), 'utf-8');
-  vrai('I9. discovery/page.tsx N’IMPORTE PAS ce module (aucune UI en R2)',
-    !page.includes('afroboost/offers') && !page.includes('lireOffres'));
+  // R3c a ouvert la porte : la page CONSOMME desormais le catalogue pour
+  // « Ou pratiquer ? ». Ce qui doit rester vrai, et que cette garde verifie
+  // maintenant, c'est la MANIERE : par la route unique du LOT R2, en lecture
+  // seule, et jamais en important la lecture serveur dans un composant client.
+  vrai('I9. discovery/page.tsx passe par la route unique du LOT R2',
+    page.includes("fetch('/api/afroboost/offers'"));
+  vrai('I9b. et n’importe PAS la lecture serveur dans le client',
+    !page.includes('lireOffres'));
+  vrai('I9c. la page n’ecrit rien vers le catalogue',
+    !/fetch\('\/api\/afroboost\/offers'[^)]*method:\s*'(POST|PUT|PATCH|DELETE)'/.test(page));
   vrai('I10. R1 est toujours branché dans la page',
     page.includes('resolveDiscoveryView') && page.includes('displayIndex'));
 }

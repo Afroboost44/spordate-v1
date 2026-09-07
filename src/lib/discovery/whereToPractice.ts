@@ -22,6 +22,8 @@ export interface ActivityLike {
   partnerId: string;
   city?: string;
   isActive: boolean;
+  /** R3c — droit d'entrée déjà tranché en amont (offres Afroboost). */
+  estDejaEligible?: boolean;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   [key: string]: any;
 }
@@ -44,6 +46,18 @@ export interface GroupOptions {
  * BUG #69 — Si `boostedActivityIds` est fourni (Set d'IDs d'activités), une
  * activité est aussi considérée boostée si SON id y figure (modèle per-activity).
  * Sans ce param : fallback comportement historique (partner-level seul).
+ *
+ * R3c — `estDejaEligible` : un élément peut arriver AVEC son droit d'entrée
+ * déjà tranché ailleurs. C'est le cas des offres Afroboost, dont l'éligibilité
+ * dépend de règles que ce helper ne connaît pas et ne doit pas apprendre
+ * (type métier, propriétaire admin vs partenaire, boost R3b-2 visant
+ * précisément cette offre). Le refiltrer ici, ce serait dupliquer la décision
+ * à deux endroits — exactement la divergence que les fix #146/#155/#186/#203/
+ * #204 ont passé leur temps à réparer.
+ *
+ * Ce drapeau ne CONTOURNE rien : il est posé par `elementsAfroboostAPratiquer`,
+ * qui n'admet que les offres ayant franchi toutes les portes. Une activité
+ * native ne le porte jamais, et reste donc soumise aux deux jeux de boosts.
  */
 export function groupBoostedActivitiesByCity<T extends ActivityLike & { id?: string }>(
   activities: readonly T[],
@@ -52,8 +66,13 @@ export function groupBoostedActivitiesByCity<T extends ActivityLike & { id?: str
 ): Array<CityGroup<T>> {
   const max = opts.max ?? 50;
   const boostedActivityIds = opts.boostedActivityIds;
+  // R3c — la sortie anticipée doit aussi compter les éléments déjà éligibles :
+  // une offre admin Afroboost entre SANS le moindre boost, et le raccourci
+  // « aucun boost donc rien à montrer » la ferait disparaître.
   const hasAnyBoost =
-    boostedPartnerIds.size > 0 || (boostedActivityIds?.size ?? 0) > 0;
+    boostedPartnerIds.size > 0 ||
+    (boostedActivityIds?.size ?? 0) > 0 ||
+    activities.some((a) => a?.estDejaEligible === true);
   if (max <= 0 || activities.length === 0 || !hasAnyBoost) {
     return [];
   }
@@ -66,7 +85,9 @@ export function groupBoostedActivitiesByCity<T extends ActivityLike & { id?: str
     if (totalKept >= max) break;
     if (!activity.isActive) continue;
     // BUG #69 — accepte aussi si l'activity est explicitement boostée par son id
+    // R3c — ou si son droit d'entrée a déjà été tranché en amont.
     const isActBoosted =
+      activity.estDejaEligible === true ||
       (activity.id && boostedActivityIds?.has(activity.id)) ||
       boostedPartnerIds.has(activity.partnerId);
     if (!isActBoosted) continue;

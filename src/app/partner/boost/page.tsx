@@ -12,6 +12,8 @@ import { db } from '@/lib/firebase';
 import { doc, getDoc, collection, query, where, getDocs, limit } from 'firebase/firestore';
 // Phase 9.5 c30 — constants partagées avec /api/boost-credits/route.ts via lib.
 import { BOOST_CREDITS_COST, CHF_PER_CREDIT } from '@/lib/billing/boostCredits';
+// R3c — nomme la cible d'un boost : activité Spordate OU offre Afroboost.
+import { libelleCibleBoost } from '@/lib/boost/cible';
 import MobileMoneyButton from '@/components/payment/MobileMoneyButton';
 
 type PaymentMethod = 'stripe' | 'credits';
@@ -65,6 +67,9 @@ export default function PartnerBoostPage() {
   // BUG #69 — Liste des activités actives du partenaire + ID sélectionné.
   // Le boost cible désormais 1 activité précise (pas tout le compte).
   const [partnerActivities, setPartnerActivities] = useState<Array<{ id: string; name: string; sport?: string; city?: string }>>([]);
+  // R3c — le catalogue Afroboost, en LECTURE SEULE, uniquement pour nommer
+  // la cible d'un boost. Aucune offre n'est copiée ni persistée nulle part.
+  const [offresAfroboost, setOffresAfroboost] = useState<Array<{ id: string; nom: string }>>([]);
   const [selectedActivityId, setSelectedActivityId] = useState('');
   // BUG #95 — Prix Boost partenaire chargés depuis settings/pricing (admin-éditable).
   // Fallback sur DEFAULT_DURATIONS si Firestore down ou champs absents. Charge au mount.
@@ -170,6 +175,24 @@ export default function PartnerBoostPage() {
           };
         });
         setPartnerActivities(acts);
+
+        // R3c — le catalogue Afroboost, par la porte unique du LOT R2. Sert
+        // UNIQUEMENT à nommer la cible d'un boost qui vise une offre. Un échec
+        // est sans conséquence : le libellé retombe alors sur « indisponible ».
+        try {
+          const rep = await fetch('/api/afroboost/offers', { cache: 'no-store' });
+          if (rep.ok) {
+            const donnees = await rep.json();
+            if (donnees?.etat === 'ok' && Array.isArray(donnees?.offres)) {
+              setOffresAfroboost(
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                (donnees.offres as any[]).map((o) => ({ id: String(o?.id || ''), nom: String(o?.nom || '') })),
+              );
+            }
+          }
+        } catch {
+          // silence volontaire : nommer une cible n'est pas une dépendance.
+        }
         // Auto-sélection si une seule activité (cas le plus simple côté UX)
         if (acts.length === 1) {
           setSelectedActivityId(acts[0].id);
@@ -763,11 +786,17 @@ export default function PartnerBoostPage() {
             {activeBoosts.length > 0 ? (
               <div className="space-y-3">
                 {activeBoosts.map(b => {
-                  // BUG #69 — Map activityId → nom (résolu via partnerActivities chargées au mount).
-                  // Si activityId absent (boost legacy avant fix #69) → label spécifique.
-                  const actName = b.activityId
-                    ? partnerActivities.find(a => a.id === b.activityId)?.name || t('partner_boost_deleted_activity')
-                    : t('partner_boost_all_activities_legacy');
+                  // BUG #69 / R3c — le nom de la cible, quelle que soit sa sorte.
+                  // Avant R3c, un boost visant une offre Afroboost affichait
+                  // « activité supprimée » : un message FAUX, qui accusait le
+                  // partenaire d'avoir effacé une cible en parfaite santé.
+                  const actName = libelleCibleBoost(b, {
+                    activite: (id) => partnerActivities.find(a => a.id === id)?.name,
+                    offreAfroboost: (id) => offresAfroboost.find(o => o.id === id)?.nom,
+                    repliActiviteAbsente: t('partner_boost_deleted_activity'),
+                    repliOffreAbsente: t('partner_boost_afroboost_offer_unavailable'),
+                    repliToutLeCompte: t('partner_boost_all_activities_legacy'),
+                  });
                   const matchedDuration = durations.find(d => d.value === b.duration);
                   return (
                     <div key={b.id} className="flex items-center gap-3 p-3 bg-accent/5 border border-accent/10 rounded-xl">

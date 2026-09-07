@@ -307,9 +307,24 @@ section('J — « Où pratiquer ? » n\'a jamais eu ce repli, et n\'y touche pas
       SOURCE_PAGE,
     ),
   );
+  // R3c — la liste passee au regroupement est desormais une FUSION
+  // (activites natives + offres Afroboost eligibles). Ce qui compte n'a pas
+  // change d'un iota : elle part de `realActivities` et des jeux de boost, et
+  // jamais des activites du profil affiche — c'est precisement le melange qui
+  // faisait vendre a un inconnu les activites d'un autre.
   vrai(
-    'J2. il lit realActivities + les sets de boost, pas partnerActivities',
-    /groupBoostedActivitiesByCity\(\s*realActivities,\s*boostedPartnerIds,/.test(SOURCE_PAGE),
+    'J2. il lit realActivities + les sets de boost',
+    /groupBoostedActivitiesByCity\(\s*(?:fusionnerSansDoublon\(\s*)?realActivities[\s\S]{0,120}boostedPartnerIds,/.test(
+      SOURCE_PAGE,
+    ),
+  );
+  const blocMemo = SOURCE_PAGE.match(/const wherePracticeGroups = useMemo\(\(\) => \{[\s\S]{0,900}?\}, \[[^\]]*\]\);/);
+  vrai(
+    'J2b. et JAMAIS les activites du profil affiche',
+    blocMemo !== null
+      && !blocMemo[0].includes('partnerActivities')
+      && !blocMemo[0].includes('partnerOwnedActivities')
+      && !blocMemo[0].includes('visibleActivities'),
   );
   const blocOu = SOURCE_PAGE.match(/const wherePracticeGroups = useMemo\(\(\) => \{[\s\S]{0,600}?\}, \[/);
   vrai(
@@ -335,9 +350,19 @@ section('K — R1 et le reste de discovery restent en place');
     'K3. le pont U2b / R3b-ID n\'est pas touché ici',
     !/bridge_identity_links/.test(SOURCE_PAGE),
   );
+  // R3c — les offres Afroboost SONT branchees maintenant, mais uniquement dans
+  // « Ou pratiquer ? ». Elles ne doivent jamais atteindre l'attribution d'un
+  // profil : une carte swipee ne vend que ce qui appartient a la personne
+  // qu'elle montre.
   vrai(
-    'K4. aucune offre Afroboost n\'est branchée dans ce lot (R3c reste fermé)',
-    !/afroboostOffers|offresAfroboost/.test(SOURCE_PAGE),
+    'K4. les offres Afroboost ne touchent PAS l\'attribution du profil',
+    !/activitesPossedees\s*:[^,\n]*(offresAfroboost|elementsAfroboost)/.test(SOURCE_PAGE)
+      && !/activitesBoostees\s*:[^,\n]*(offresAfroboost|elementsAfroboost)/.test(SOURCE_PAGE),
+  );
+  vrai(
+    'K5. elles ne servent QUE le regroupement par ville',
+    (SOURCE_PAGE.match(/elementsAfroboost/g) || []).length > 0
+      && /groupBoostedActivitiesByCity\([\s\S]{0,200}elementsAfroboost/.test(SOURCE_PAGE),
   );
 }
 

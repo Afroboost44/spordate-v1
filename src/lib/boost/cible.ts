@@ -217,3 +217,49 @@ export function classerBoosts(
   }
   return classement;
 }
+
+/**
+ * ─────────────────────────────────────────────────────────────────────────
+ * COMMENT S'APPELLE CE QUE CE BOOST VISE — R3c
+ * ─────────────────────────────────────────────────────────────────────────
+ * L'écran des boosts d'un partenaire ne savait résoudre qu'`activityId`. Un
+ * boost visant une offre du catalogue Afroboost y affichait donc « activité
+ * supprimée » : un message FAUX, qui accuse le partenaire d'avoir effacé
+ * quelque chose alors que sa cible se porte très bien.
+ *
+ * La résolution est passée en paramètre, sous forme de deux recherches. Ce
+ * module ne connaît donc toujours ni catalogue, ni base, ni réseau — il ne
+ * fait que choisir LAQUELLE interroger, ce qui est exactement la question à
+ * laquelle il répond depuis le début.
+ *
+ * Le cas « introuvable » ne se confond jamais avec le cas « autre sorte de
+ * cible » : chacun a son libellé, parce que « l'offre n'est plus au
+ * catalogue » et « ce boost date d'avant les cibles » appellent des réactions
+ * différentes de la part du partenaire.
+ */
+export interface ResolutionLibelleCible {
+  /** Nom d'une activité Spordate, ou `null` si elle n'existe plus. */
+  activite: (id: string) => string | null | undefined;
+  /** Nom d'une offre du catalogue Afroboost, ou `null` si absente. */
+  offreAfroboost: (id: string) => string | null | undefined;
+  /** Libellés de repli, fournis par l'appelant (donc traduits). */
+  repliActiviteAbsente: string;
+  repliOffreAbsente: string;
+  repliToutLeCompte: string;
+}
+
+export function libelleCibleBoost(
+  doc: Record<string, any> | null | undefined,
+  resolution: ResolutionLibelleCible,
+): string {
+  const cible = lireCibleBoost(doc);
+  if (cible.genre === 'activite') {
+    return texte(resolution.activite(cible.id)) || resolution.repliActiviteAbsente;
+  }
+  if (cible.genre === 'offreAfroboost') {
+    return texte(resolution.offreAfroboost(cible.id)) || resolution.repliOffreAbsente;
+  }
+  // `ambigu` comme `partenaireLegacy` : aucune cible unique à nommer. Le
+  // libellé historique reste le moins trompeur des deux.
+  return resolution.repliToutLeCompte;
+}

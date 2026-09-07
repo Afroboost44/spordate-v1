@@ -56,6 +56,14 @@ import { collection, query, where, getDocs, getDoc, doc, setDoc, deleteDoc, serv
 import { useLanguage } from '@/context/LanguageContext';
 import type { UserProfile, SportEntry } from '@/types/firestore';
 import { groupBoostedActivitiesByCity } from '@/lib/discovery/whereToPractice';
+// R3c — les offres Afroboost entrent dans « Où pratiquer ? » sans jamais être
+// copiées dans Firestore : la normalisation est en mémoire, le temps du rendu.
+import {
+  SOURCE_AFROBOOST,
+  elementsAfroboostAPratiquer,
+  fusionnerSansDoublon,
+} from '@/lib/discovery/offresAfroboostAPratiquer';
+import type { OffrePublique } from '@/lib/afroboost/offers';
 import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/cardImage';
 import { activitesDuProfil } from '@/lib/discovery/profileActivities';
 import { extractSwipedUids } from '@/lib/discovery/swipedUids';
@@ -186,6 +194,12 @@ export default function DiscoveryPage() {
   const [boostedActivityIds, setBoostedActivityIds] = useState<Set<string>>(new Set());
   const [boostedActivities_db, setBoostedActivities_db] = useState<any[]>([]);
   const [realActivities, setRealActivities] = useState<any[]>([]);
+  // R3c — le catalogue Afroboost, lu une fois, gardé en mémoire de page.
+  const [offresAfroboost, setOffresAfroboost] = useState<OffrePublique[]>([]);
+  // R3c — les offres du catalogue actuellement boostées (contrat R3b-2). Jeu
+  // DISJOINT de boostedActivityIds et boostedPartnerIds : un boost « compte
+  // entier » n'a jamais rendu visible une offre Afroboost, et ne le fera pas.
+  const [boostedAfroboostOfferIds, setBoostedAfroboostOfferIds] = useState<Set<string>>(new Set());
   // Fix #207 (BUG B) — activités ACTIVES du partenaire dont le profil est
   // actuellement affiché (boostées OU non). Source SÉPARÉE de realActivities
   // (qui ne contient que les boostées via getBoostedActivities). Permet de
@@ -462,10 +476,13 @@ export default function DiscoveryPage() {
 
     const loadBoostedData = async () => {
       try {
-        const { activities, boostedActivityIds, boostedPartnerIds } =
+        const { activities, boostedActivityIds, boostedPartnerIds, boostedAfroboostOfferIds } =
           await getBoostedActivities({ max: 200 });
         setBoostedActivityIds(boostedActivityIds);
         setBoostedPartnerIds(boostedPartnerIds);
+        // R3c — même source unique (#204) : le jeu vient du service, jamais
+        // d'une seconde requête `boosts` écrite ici.
+        setBoostedAfroboostOfferIds(boostedAfroboostOfferIds);
         // Note : on stocke uniquement les activités boostées dans realActivities.
         // Les call sites en aval (visibleActivities, effectiveBoostedPartnerIds,
         // wherePracticeGroups) re-filtrent par boostedActivityIds/PartnerIds —
@@ -482,6 +499,27 @@ export default function DiscoveryPage() {
     };
 
     loadBoostedData();
+  }, []);
+
+  // R3c — LECTURE SEULE du catalogue Afroboost, par la porte unique du LOT R2.
+  // Aucune écriture, aucune activité créée : ce qui revient est normalisé en
+  // mémoire au moment du rendu, et rien n'en survit. Un échec est silencieux —
+  // « Où pratiquer ? » doit rester utilisable quand Afroboost est lent ou
+  // absent, avec les seules activités natives.
+  useEffect(() => {
+    let annule = false;
+    (async () => {
+      try {
+        const r = await fetch('/api/afroboost/offers', { cache: 'no-store' });
+        if (!r.ok) return;
+        const donnees = await r.json();
+        if (annule || donnees?.etat !== 'ok' || !Array.isArray(donnees?.offres)) return;
+        setOffresAfroboost(donnees.offres as OffrePublique[]);
+      } catch {
+        // silence volontaire : le catalogue est un bonus, pas une dépendance.
+      }
+    })();
+    return () => { annule = true; };
   }, []);
 
   // Fix #207 (BUG B) — Charge les activités ACTIVES du partenaire dont le profil
@@ -1764,7 +1802,11 @@ END:VCALENDAR`;
     if (!showWherePracticeModal) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const acts: any[] = [];
-    wherePracticeGroups.forEach((g) => g.activities.forEach((a) => acts.push(a)));
+    // R3c — les offres Afroboost n'ont aucune séance Firestore : les inclure
+    // lancerait autant de requêtes vouées à ne rien trouver.
+    wherePracticeGroups.forEach((g) => g.activities.forEach((a) => {
+      if ((a as any)?.source !== SOURCE_AFROBOOST) acts.push(a);
+    }));
     if (acts.length > 0) {
       void prefetchSessionsForActivities(acts);
     }
@@ -1782,14 +1824,24 @@ END:VCALENDAR`;
   // n'est boostée. Cohérent avec ActivitySelectorModal qui utilise le même
   // service unifié `getBoostedActivities()`. Plus de divergence entre les
   // 2 fenêtres pour les mêmes données.
+  // R3c — les offres Afroboost éligibles, mises à la forme du modal. La
+  // décision (type pratiquable, admin gratuit vs partenaire boosté, ville
+  // structurée) vit dans `elementsAfroboostAPratiquer` — pas ici.
+  const elementsAfroboost = useMemo(
+    () => elementsAfroboostAPratiquer(offresAfroboost, boostedAfroboostOfferIds),
+    [offresAfroboost, boostedAfroboostOfferIds],
+  );
+
   const wherePracticeGroups = useMemo(() => {
     // BUG #69 — passe les 2 sets (per-activity + legacy partner) au helper
+    // R3c — la liste fusionnée : natives d'abord (l'ordre décide de la casse
+    // d'affichage d'une ville), offres ensuite, dédoublonnées sur source+id.
     return groupBoostedActivitiesByCity(
-      realActivities,
+      fusionnerSansDoublon(realActivities as any[], elementsAfroboost as any[]),
       boostedPartnerIds,
       { max: 50, boostedActivityIds },
     );
-  }, [realActivities, boostedPartnerIds, boostedActivityIds]);
+  }, [realActivities, elementsAfroboost, boostedPartnerIds, boostedActivityIds]);
 
   return (
     <div className="min-h-[calc(100vh-4rem)] bg-black">
@@ -2902,6 +2954,13 @@ END:VCALENDAR`;
                       // eslint-disable-next-line @typescript-eslint/no-explicit-any
                       const a = act as any;
                       const navId = a.id || a.activityId;
+                      // R3c — une offre Afroboost n'a AUCUNE page Spordate :
+                      // `/activities/{id}` renverrait sur un document qui
+                      // n'existe pas. Tant que R4 n'a pas branché la
+                      // réservation, la carte informe sans promettre un clic
+                      // qui casserait. On ne fabrique surtout pas de session
+                      // Firestore juste pour rendre le bouton cliquable.
+                      const estAfroboost = a.source === SOURCE_AFROBOOST;
                       // Fix #146 — utilise le helper unique getActivityThumbnail
                       // (chaîne unifiée : thumbnailUrl → mediaItems image → video
                       // thumb → imageUrl legacy). Plus jamais de carré rose Zap.
@@ -2922,6 +2981,7 @@ END:VCALENDAR`;
                         <div key={navId} className="flex items-stretch gap-2 rounded-xl bg-white/5 border border-white/10 hover:border-accent/40 hover:bg-accent/5 transition">
                         <button
                           type="button"
+                          disabled={estAfroboost}
                           onClick={() => {
                             // BUG #20 — direction modifiée : la modal renvoie vers la
                             // page liste activités (avec hash scroll vers la card
@@ -2932,7 +2992,7 @@ END:VCALENDAR`;
                             setShowWherePracticeModal(false);
                             router.push(buildActivityListUrl(navId));
                           }}
-                          className="flex-1 text-left p-3 active:scale-[0.98] transition"
+                          className={`flex-1 text-left p-3 transition ${estAfroboost ? 'cursor-default' : 'active:scale-[0.98]'}`}
                         >
                           <div className="flex items-start gap-3">
                             {thumb ? (
@@ -2998,6 +3058,15 @@ END:VCALENDAR`;
                             /activities/[id] (pattern cohérent ActivitySelectorModal).
                             Le ChevronRight est retiré du main button — c'est ce
                             bouton qui sert maintenant de hint visuel "voir plus". */}
+                        {estAfroboost ? (
+                          // R3c — CTA neutre, assumé : la réservation d'une offre
+                          // Afroboost appartient à R4. Mieux vaut le dire que
+                          // proposer un bouton qui mènerait nulle part.
+                          <span className="flex-shrink-0 px-2.5 rounded-r-xl text-[11px] text-white/40 flex items-center gap-1 border-l border-white/10">
+                            <Info className="h-3.5 w-3.5" />
+                            {t('where_practice_booking_soon')}
+                          </span>
+                        ) : (
                         <button
                           type="button"
                           onClick={() => {
@@ -3010,6 +3079,7 @@ END:VCALENDAR`;
                           <Info className="h-3.5 w-3.5" />
                           {t('activity_selector_discover')}
                         </button>
+                        )}
                         </div>
                       );
                     })}
