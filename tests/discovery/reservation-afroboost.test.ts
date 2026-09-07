@@ -250,8 +250,14 @@ section('O / P / Q — rien d\'autre n\'a bouge');
     owner_type: 'admin', location_city: 'Auvernier', price: 0,
   } as any)!;
   egal('P1. l\'offre reelle traverse toujours l\'adaptateur', reelle.id, ESSAI);
-  egal('P2. et reste affichee dans « Ou pratiquer ? »',
-       elementsAfroboostAPratiquer([reelle], new Set()).length, 1);
+  // LOT C — une offre n'entre plus dans « Ou pratiquer ? » du seul fait d'etre
+  // publiee : il lui faut une mise en avant vivante. Ce que R4 doit garantir
+  // n'a pas change pour autant — une offre AFFICHEE sait construire sa
+  // destination. On lui donne donc sa mise en avant, puis on verifie.
+  egal('P2. sans mise en avant -> absente (regle du LOT C)',
+       elementsAfroboostAPratiquer([reelle], new Set()).length, 0);
+  egal('P2b. avec mise en avant -> affichee',
+       elementsAfroboostAPratiquer([reelle], new Set([ESSAI])).length, 1);
   const carte: any = versElementAPratiquer(reelle);
   const d: any = destinationReservationOffre(carte);
   vrai('P3. la carte affichee sait construire sa destination', d.ok);

@@ -105,15 +105,20 @@ function titresParVille(groupes: Array<{ city: string; activities: any[] }>) {
 
 function principal() {
 
-section('A / B — l\'admin entre gratuitement');
+section('A / B — LOT C : l\'admin n\'entre PLUS automatiquement');
 {
+  // C'ETAIT LA REGLE D'AVANT : publiee + pratiquable = affichee, sans que
+  // personne ne l'ait choisie. Elle est retiree.
   for (const type of ['single_class', 'event']) {
     const o = offre({ typeOffre: type });
-    vrai(`A1. admin ${type} -> affichee`, verdictAffichageOffre(o, jeu()).affichee);
-    // Le point qui compte : AUCUN boost n'est requis.
-    egal(`A2. admin ${type} : le jeu de boosts est vide`, jeu().size, 0);
+    const v: any = verdictAffichageOffre(o, jeu());
+    faux(`A1. admin ${type} SANS mise en avant -> exclue`, v.affichee);
+    egal(`A2. motif ${type}`, v.motif, 'sans-mise-en-avant');
+    // Et avec une mise en avant vivante, elle entre.
+    vrai(`A3. admin ${type} AVEC mise en avant -> affichee`,
+         verdictAffichageOffre(o, jeu(OFFRE_A)).affichee);
   }
-  const elems = elementsAfroboostAPratiquer([offre({ typeOffre: 'event' })], jeu());
+  const elems = elementsAfroboostAPratiquer([offre({ typeOffre: 'event' })], jeu(OFFRE_A));
   egal('B1. une offre retenue', elems.length, 1);
   egal('B2. marquee comme venant du catalogue', elems[0].source, SOURCE_AFROBOOST);
   egal('B3. son droit d\'entree est deja tranche', elems[0].estDejaEligible, true);
@@ -147,7 +152,7 @@ section('F / G / H — le partenaire n\'entre que boosté, et que vivant');
 
   const sans = verdictAffichageOffre(o, jeu());
   faux('G1. meme offre, aucun boost -> absente', sans.affichee);
-  egal('G2. motif', (sans as any).motif, 'partenaire-sans-boost-actif');
+  egal('G2. motif', (sans as any).motif, 'sans-mise-en-avant');
 
   // H — l'expiration est tranchee par classerBoosts (R3b-2), pas ici : on
   // fait donc passer un vrai document de boost perime par la vraie fonction.
@@ -256,7 +261,7 @@ section('R / S — les villes');
     offre({ id: 'o-3', nom: 'Cours auvernier bis', ville: ' auvernier ' }),
   ];
   const groupes = groupBoostedActivitiesByCity(
-    elementsAfroboostAPratiquer(offres, jeu()) as any, new Set(), {});
+    elementsAfroboostAPratiquer(offres, jeu('o-1', 'o-2', 'o-3')) as any, new Set(), {});
   egal('R1. deux villes distinctes', groupes.length, 2);
   // Casse d'affichage : le PREMIER rencontre gagne, comportement historique.
   egal('R2. regroupement insensible a la casse et aux blancs',
@@ -267,13 +272,13 @@ section('R / S — les villes');
   // contient « Auvernier ». Deviner une ville dans une phrase creerait un
   // groupe que personne n'a declare.
   const sansVille = offre({ ville: null, lieuTexte: 'Bord du Lac, Auvernier, Neuchâtel' });
-  const v = verdictAffichageOffre(sansVille, jeu());
+  const v = verdictAffichageOffre(sansVille, jeu(OFFRE_A));
   faux('S1. offre sans ville structuree -> absente', v.affichee);
   egal('S2. motif', (v as any).motif, 'sans-ville');
   egal('S3. aucune ville inventee depuis le texte du lieu',
-       elementsAfroboostAPratiquer([sansVille], jeu()).length, 0);
+       elementsAfroboostAPratiquer([sansVille], jeu(OFFRE_A)).length, 0);
   faux('S4. ville faite de blancs -> absente',
-       verdictAffichageOffre(offre({ ville: '   ' }), jeu()).affichee);
+       verdictAffichageOffre(offre({ ville: '   ' }), jeu(OFFRE_A)).affichee);
 }
 
 section('T / U — la deduplication, sur des identifiants, jamais sur un titre');
@@ -282,7 +287,7 @@ section('T / U — la deduplication, sur des identifiants, jamais sur un titre')
     offre({ id: 'o-1', nom: 'Cours d\'essai' }),
     offre({ id: 'o-2', nom: 'Cours d\'essai' }),
   ];
-  const elems = elementsAfroboostAPratiquer(memeTitre, jeu());
+  const elems = elementsAfroboostAPratiquer(memeTitre, jeu('o-1', 'o-2'));
   egal('T1. deux offres de meme titre restent deux offres',
        fusionnerSansDoublon([], elems as any).length, 2);
   const nat = native({ id: 'act-1', name: 'Cours d\'essai' });
@@ -365,25 +370,126 @@ section('MEDIAS — un chemin relatif ne suit pas le domaine qui affiche');
   egal('Y8. le prix traverse', versElementAPratiquer(offre({ prix: 0 })).price, 0);
 }
 
-section('PRODUCTION — le catalogue reel du 07/09, juge par les regles');
+section('LOT C — la mise en avant est la SEULE porte, pour tout le monde');
 {
-  // Les trois offres publiques mesurees en production, a l'identique.
+  const admin = offre({ id: OFFRE_A, proprietaire: 'admin', proprietaireId: null });
+  const part  = offre({ id: OFFRE_B, proprietaire: 'partner', proprietaireId: OWNER_A, ville: 'Lausanne' });
+
+  // C / I — avec une mise en avant vivante, les deux entrent.
+  vrai('LC1. admin + mise en avant exacte -> affichee', verdictAffichageOffre(admin, jeu(OFFRE_A)).affichee);
+  vrai('LC2. partenaire + mise en avant exacte -> affichee', verdictAffichageOffre(part, jeu(OFFRE_B)).affichee);
+
+  // A / B / J — sans elle, aucun des deux.
+  for (const [qui, o] of [['admin', admin], ['partenaire', part]] as Array<[string, any]>) {
+    const v: any = verdictAffichageOffre(o, jeu());
+    faux(`LC3. ${qui} sans mise en avant -> exclue`, v.affichee);
+    egal(`LC4. motif ${qui}`, v.motif, 'sans-mise-en-avant');
+  }
+
+  // D / K — la mise en avant de A ne fait jamais entrer B.
+  faux('LC5. mise en avant de B -> A reste exclue', verdictAffichageOffre(admin, jeu(OFFRE_B)).affichee);
+  faux('LC6. mise en avant de A -> B reste exclue', verdictAffichageOffre(part, jeu(OFFRE_A)).affichee);
+  egal('LC7. deux offres, une seule choisie -> une seule affichee',
+       elementsAfroboostAPratiquer([admin, part], jeu(OFFRE_A)).length, 1);
+
+  // E / F / V — expiree, ou desactivee : la porte se referme d'elle-meme.
+  const expire = classerBoosts(
+    [{ partnerId: UID_A, afroboostOfferId: OFFRE_A, active: true, expiresAt: horodatage(MAINTENANT - 1) }],
+    MAINTENANT).offresAfroboost;
+  faux('LC8. mise en avant expiree -> exclue', verdictAffichageOffre(admin, expire).affichee);
+  const desactive = classerBoosts(
+    [{ partnerId: UID_A, afroboostOfferId: OFFRE_A, active: false, expiresAt: horodatage(MAINTENANT + HEURE) }],
+    MAINTENANT).offresAfroboost;
+  faux('LC9. mise en avant desactivee -> exclue', verdictAffichageOffre(admin, desactive).affichee);
+
+  // L / M / N / O — un type interdit ne s'achete pas une place.
+  for (const type of ['pack', 'subscription', 'membership', 'product', 'other', 'unknown']) {
+    const v: any = verdictAffichageOffre(offre({ id: OFFRE_A, typeOffre: type }), jeu(OFFRE_A));
+    faux(`LC10. ${type} MIS EN AVANT -> reste exclu`, v.affichee);
+    egal(`LC11. motif ${type}`, v.motif, 'type-non-pratiquable');
+  }
+
+  // R / S — un boost « compte entier » ou d'activite n'ouvre aucune offre.
+  const legacy = classerBoosts(
+    [{ partnerId: UID_A, active: true, expiresAt: horodatage(MAINTENANT + HEURE) }], MAINTENANT);
+  egal('LC12. boost « compte entier » -> aucune offre', legacy.offresAfroboost.size, 0);
+  faux('LC13. et l\'offre du meme compte reste exclue',
+       verdictAffichageOffre(admin, legacy.offresAfroboost).affichee);
+  const parActivite = classerBoosts(
+    [{ partnerId: UID_A, activityId: OFFRE_A, active: true, expiresAt: horodatage(MAINTENANT + HEURE) }], MAINTENANT);
+  egal('LC14. un boost d\'activite ne remplit pas le jeu des offres', parActivite.offresAfroboost.size, 0);
+  faux('LC15. meme si l\'identifiant se ressemble',
+       verdictAffichageOffre(admin, parActivite.offresAfroboost).affichee);
+
+  // P — une offre invisible n'atteint pas ce module, meme mise en avant.
+  egal('LC16. visible=false -> aucune offre publique',
+       versOffrePublique({ id: OFFRE_A, name: 'Cachee', visible: false } as any), null);
+
+  // Q — la ville : comportement R3c preserve, verifie APRES la mise en avant.
+  const sansVille: any = verdictAffichageOffre(
+    offre({ id: OFFRE_A, ville: null }), jeu(OFFRE_A));
+  faux('LC17. choisie mais sans ville -> exclue', sansVille.affichee);
+  egal('LC18. et le motif reste celui de la ville', sansVille.motif, 'sans-ville');
+
+  // Plusieurs offres choisies -> plusieurs affichees. Aucune limite arbitraire.
+  egal('LC19. deux mises en avant -> deux offres',
+       elementsAfroboostAPratiquer([admin, part], jeu(OFFRE_A, OFFRE_B)).length, 2);
+}
+
+section('PRODUCTION — le catalogue reel du 07/09, juge par la regle du LOT C');
+{
+  // Les QUATRE offres publiques mesurees en production apres que Bassi a rendu
+  // visible « Cours a l'unite », et la SEULE mise en avant vivante : celle
+  // qu'il a creee lui-meme depuis l'ecran du LOT B.
+  const UNITE = 'fea0ab6a-8adc-460d-9d7d-bbff57059ca5';
+  const ESSAI = 'c1e5f73c-0f16-402e-a746-2041e23f72e8';
   const reelles = [
+    offre({ id: UNITE, nom: "Cours à l'unité", typeOffre: 'single_class', ville: 'Auvernier', prix: 30 }),
     offre({ id: 'a687ce86-94d6-4ba9-a847-c8a20e787491', nom: 'PULSE x10 cours', typeOffre: 'pack', ville: null, prix: 250 }),
-    offre({ id: '84b7d8c6-b859-410a-8a09-0d1ee0069404', nom: 'T-shirt + 1 cours offert!', typeOffre: 'product', ville: null, lieuTexte: null, prix: 59.99, estProduit: true }),
-    offre({ id: 'c1e5f73c-0f16-402e-a746-2041e23f72e8', nom: "🎁 Cours d'essai GRATUIT", typeOffre: 'single_class', ville: 'Auvernier', prix: 0 }),
+    offre({ id: '84b7d8c6-b859-410a-8a09-0d1ee0069404', nom: 'T-shirt + 1 cours offert!', typeOffre: 'product', ville: null, prix: 59.99, estProduit: true }),
+    offre({ id: ESSAI, nom: "🎁 Cours d'essai GRATUIT", typeOffre: 'single_class', ville: 'Auvernier', prix: 0 }),
   ];
-  const retenues = elementsAfroboostAPratiquer(reelles, jeu());
+
+  // La mise en avant reelle, telle qu'elle existe en base : un document
+  // `boosts` visant l'offre a 30 CHF, actif, non expire.
+  const misesEnAvant = classerBoosts(
+    [{ partnerId: 'BvvVC4Ac8q', afroboostOfferId: UNITE, active: true, expiresAt: horodatage(MAINTENANT + HEURE) }],
+    MAINTENANT,
+  ).offresAfroboost;
+
+  const retenues = elementsAfroboostAPratiquer(reelles, misesEnAvant);
   egal('Z1. exactement UNE offre affichee', retenues.length, 1);
-  egal('Z2. et c\'est le cours d\'essai', retenues[0].title, "🎁 Cours d'essai GRATUIT");
-  egal('Z3. le pack est ecarte',
-       (verdictAffichageOffre(reelles[0], jeu()) as any).motif, 'type-non-pratiquable');
-  egal('Z4. le produit aussi',
-       (verdictAffichageOffre(reelles[1], jeu()) as any).motif, 'type-non-pratiquable');
+  egal('Z2. et c\'est celle que Bassi a choisie', retenues[0].title, "Cours à l'unité");
+  egal('Z3. a son prix reel', retenues[0].prix, 30);
+
+  // LE CHANGEMENT DU LOT C, EN UNE ASSERTION : le cours d'essai est toujours
+  // publie, toujours du bon type, toujours a Auvernier — mais personne ne l'a
+  // choisi, donc il n'apparait plus.
+  const essai: any = verdictAffichageOffre(reelles[3], misesEnAvant);
+  faux('Z4. le cours d\'essai gratuit n\'est plus affiche', essai.affichee);
+  egal('Z5. et le motif le dit', essai.motif, 'sans-mise-en-avant');
+  vrai('Z6. il reste pourtant visible et pratiquable',
+       reelles[3].typeOffre === 'single_class' && reelles[3].ville === 'Auvernier');
+
+  egal('Z7. le pack reste ecarte par son type',
+       (verdictAffichageOffre(reelles[1], misesEnAvant) as any).motif, 'type-non-pratiquable');
+  egal('Z8. le produit aussi',
+       (verdictAffichageOffre(reelles[2], misesEnAvant) as any).motif, 'type-non-pratiquable');
+
   const groupes = groupBoostedActivitiesByCity(retenues as any, new Set(), {});
-  egal('Z5. une seule ville', groupes.length, 1);
-  egal('Z6. Auvernier', groupes[0].city, 'Auvernier');
-  egal('Z7. gratuit', retenues[0].price, 0);
+  egal('Z9. une seule ville', groupes.length, 1);
+  egal('Z10. Auvernier', groupes[0].city, 'Auvernier');
+  egal('Z11. une seule carte', groupes[0].activities.length, 1);
+
+  // Quand la mise en avant expirera, l'offre sortira d'elle-meme — sans que
+  // rien ne soit modifie au catalogue.
+  const apresExpiration = classerBoosts(
+    [{ partnerId: 'BvvVC4Ac8q', afroboostOfferId: UNITE, active: true, expiresAt: horodatage(MAINTENANT - 1) }],
+    MAINTENANT,
+  ).offresAfroboost;
+  egal('Z12. mise en avant expiree -> plus aucune offre',
+       elementsAfroboostAPratiquer(reelles, apresExpiration).length, 0);
+  egal('Z13. et l\'offre est intacte dans le catalogue', reelles[0].prix, 30);
 }
 
 console.log(`\n=== ${_passes} PASS / ${_failures} FAIL ===`);

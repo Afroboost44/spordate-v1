@@ -13,14 +13,26 @@
  * violer ici créerait le catalogue parallèle qu'on évite depuis le début.
  *
  * ─────────────────────────────────────────────────────────────────────────
- * DEUX PORTES, ET UNE SEULE EST PAYANTE
+ * LOT C — UNE SEULE PORTE : AVOIR ÉTÉ CHOISIE
  * ─────────────────────────────────────────────────────────────────────────
- * • `admin` — l'offre de la plateforme entre GRATUITEMENT. Elle n'a jamais eu
- *   à acheter sa visibilité, et R3b-2 refuse déjà de lui vendre un boost.
- * • `partner` — l'offre n'entre QUE si un boost R3b-2 vise CETTE offre,
- *   précisément, et qu'il est encore vivant.
- * • `unknown` — n'entre pas. Une propriété qu'on ne sait pas nommer ne
- *   s'affiche pas juste avant un lot qui fera réserver.
+ * La règle précédente admettait AUTOMATIQUEMENT toute offre `admin` publique
+ * et pratiquable. Personne ne l'avait choisie : il suffisait de la publier sur
+ * la vitrine Afroboost pour qu'elle apparaisse ici. Le jour où « Cours à
+ * l'unité » est passée visible, elle est arrivée toute seule à côté du cours
+ * d'essai — et rien ne permettait de dire laquelle mettre en avant.
+ *
+ * Désormais, UNE OFFRE N'ENTRE QUE SI UNE MISE EN AVANT VIVANTE LA VISE,
+ * précisément, par son identifiant. Cela vaut pour tout le monde.
+ *
+ * La différence entre l'administrateur et un partenaire ne se joue plus ici :
+ * elle a lieu au moment de l'ACTIVATION (LOT B). L'administrateur active
+ * gratuitement (`POST /api/boost/admin`), le partenaire paie. Une fois le
+ * document écrit, ce module ne sait plus — et n'a pas à savoir — lequel des
+ * deux a payé. Il lit une seule chose : « cette offre a-t-elle été choisie,
+ * et ce choix est-il encore vivant ? »
+ *
+ * `unknown` n'entre toujours pas : une propriété qu'on ne sait pas nommer ne
+ * s'affiche pas juste avant un écran qui fait réserver.
  *
  * LE POINT QUI COMPTE LE PLUS : la propriété d'une offre partenaire n'est PAS
  * revérifiée ici, et ce n'est pas un oubli. Un boost portant
@@ -69,7 +81,14 @@ export type MotifExclusion =
   | 'type-non-pratiquable'
   | 'proprietaire-inconnu'
   | 'partenaire-sans-identifiant'
-  | 'partenaire-sans-boost-actif'
+  /**
+   * LOT C — l'offre n'a pas été choisie, ou son choix a expiré.
+   *
+   * Remplace `partenaire-sans-boost-actif`, dont le nom disait que seuls les
+   * partenaires avaient à être choisis. Ce n'est plus vrai : l'administrateur
+   * aussi doit sélectionner ce qu'il met en avant.
+   */
+  | 'sans-mise-en-avant'
   | 'sans-ville';
 
 export type VerdictAffichage =
@@ -96,15 +115,29 @@ export function verdictAffichageOffre(
   }
 
   if (offre.proprietaire === 'partner') {
+    // Une offre partenaire sans identifiant de propriétaire n'a pas pu être
+    // mise en avant légitimement : aucun boost n'aurait franchi R3b-ID. La
+    // trouver choisie signalerait une donnée corrompue, et le doute se ferme.
     if (!String(offre.proprietaireId || '').trim()) {
       return { affichee: false, motif: 'partenaire-sans-identifiant' };
     }
-    if (!offresBoostees.has(offre.id)) {
-      return { affichee: false, motif: 'partenaire-sans-boost-actif' };
-    }
   } else if (offre.proprietaire !== 'admin') {
-    // `unknown` : ni gratuit comme l'admin, ni achetable comme un partenaire.
     return { affichee: false, motif: 'proprietaire-inconnu' };
+  }
+
+  // LOT C — LA CONDITION QUI VAUT POUR TOUT LE MONDE : avoir été choisie.
+  //
+  // `offresBoostees` vient de `classerBoosts` (R3b-2), qui n'y met QUE les
+  // mises en avant `active === true` dont la date n'est pas passée, et qui les
+  // range par `afroboostOfferId` — jamais par `activityId`, jamais par
+  // propriétaire. Une offre A choisie ne peut donc pas faire entrer l'offre B,
+  // et un boost « compte entier » n'en fait entrer aucune.
+  //
+  // Rien n'est refait ici sur QUI avait le droit de choisir : cette preuve a
+  // été exigée à l'écriture du document (LOT A pour l'administrateur, R3b-ID
+  // pour un partenaire). La présence du document EST la preuve.
+  if (!offresBoostees.has(offre.id)) {
+    return { affichee: false, motif: 'sans-mise-en-avant' };
   }
 
   // La ville STRUCTURÉE est la seule clé de regroupement. `lieuTexte` sert à
