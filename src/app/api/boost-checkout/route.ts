@@ -7,6 +7,16 @@ import { NextRequest, NextResponse } from 'next/server';
 import { verifyAuth, parseServiceAccountKeyDefensive } from '@/lib/auth/verifyAuth';
 import { BOOST_PRICES } from '@/lib/payment/packages';
 import { safeStripeProductName } from '@/lib/stripe/safeProductName';
+// R3b-2 — la cible d'un boost est lue par un seul module, partagé avec le
+// chemin crédits et avec la lecture Discovery.
+import { cibleDemandee, champsCibleBoost, lireCibleBoost, memeCible } from '@/lib/boost/cible';
+import {
+  autoriserBoostSurOffre,
+  messageDuRefus,
+  statutHttpDuRefus,
+} from '@/lib/boost/autorisationAfroboost';
+import { resoudreProprietaireAfroboost } from '@/lib/afroboost/ownership';
+import { lireOffres } from '@/app/api/afroboost/offers/route';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -24,7 +34,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'unauthenticated' }, { status: 401 });
     }
 
-    const { duration, city, country, activityId } = await request.json();
+    const { duration, city, country, activityId, afroboostOfferId } = await request.json();
+
+    // R3b-2 — une cible, UNE SEULE. `activityId` = activité native Spordate,
+    // `afroboostOfferId` = offre du catalogue Afroboost (référencée, jamais
+    // recopiée). Les deux ensemble sont une erreur d'appel, pas un choix.
+    const cible = cibleDemandee({ activityId, afroboostOfferId });
 
     if (!duration || !BOOST_PRICES[duration]) {
       return NextResponse.json({ error: 'Durée invalide' }, { status: 400 });
@@ -32,9 +47,15 @@ export async function POST(request: NextRequest) {
     if (!city) {
       return NextResponse.json({ error: 'Ville requise' }, { status: 400 });
     }
-    // BUG #69 — activityId obligatoire désormais (boost par activité). Si absent,
+    if (cible.genre === 'ambigu') {
+      return NextResponse.json(
+        { error: 'target-ambiguous', detail: 'Choisis soit une activité, soit une offre Afroboost.' },
+        { status: 400 },
+      );
+    }
+    // BUG #69 — une cible obligatoire désormais (boost par activité). Si absente,
     // refus côté API pour forcer le client à passer la valeur (le form l'envoie déjà).
-    if (!activityId || typeof activityId !== 'string') {
+    if (cible.genre === 'partenaireLegacy') {
       return NextResponse.json(
         { error: 'activity-required', detail: 'Choisis l\'activité à booster.' },
         { status: 400 },
@@ -62,21 +83,39 @@ export async function POST(request: NextRequest) {
     }
     const adminDb = getFirestore();
 
-    // BUG #69 — Validation : l'activity doit exister + appartenir au partner.
-    // Empêche un partner de booster une activité d'un autre compte.
-    const activitySnap = await adminDb.collection('activities').doc(activityId).get();
-    if (!activitySnap.exists) {
-      return NextResponse.json(
-        { error: 'activity-not-found', detail: 'Activité introuvable.' },
-        { status: 404 },
-      );
-    }
-    const activityData = activitySnap.data();
-    if (activityData?.partnerId !== partnerId) {
-      return NextResponse.json(
-        { error: 'activity-not-owned', detail: 'Cette activité ne t\'appartient pas.' },
-        { status: 403 },
-      );
+    if (cible.genre === 'activite') {
+      // BUG #69 — Validation : l'activity doit exister + appartenir au partner.
+      // Empêche un partner de booster une activité d'un autre compte.
+      const activitySnap = await adminDb.collection('activities').doc(cible.id).get();
+      if (!activitySnap.exists) {
+        return NextResponse.json(
+          { error: 'activity-not-found', detail: 'Activité introuvable.' },
+          { status: 404 },
+        );
+      }
+      const activityData = activitySnap.data();
+      if (activityData?.partnerId !== partnerId) {
+        return NextResponse.json(
+          { error: 'activity-not-owned', detail: 'Cette activité ne t\'appartient pas.' },
+          { status: 403 },
+        );
+      }
+    } else {
+      // R3b-2 — cible = offre Afroboost. La propriété n'est JAMAIS déduite du
+      // corps de la requête : elle est résolue côté serveur, à partir du `uid`
+      // authentifié, par la liaison d'identité signée du LOT U2b (R3b-ID).
+      // Aujourd'hui aucune liaison n'existe en production : cette porte est
+      // donc fermée pour tout le monde, et c'est le bon défaut.
+      const proprietaireAfroboost = await resoudreProprietaireAfroboost(adminDb, uid);
+      const { offres } = await lireOffres();
+      const offre = offres.find((o) => o.id === cible.id) || null;
+      const verdict = autoriserBoostSurOffre(offre, proprietaireAfroboost);
+      if (!verdict.ok) {
+        return NextResponse.json(
+          { error: verdict.refus, detail: messageDuRefus(verdict.refus) },
+          { status: statutHttpDuRefus(verdict.refus) },
+        );
+      }
     }
 
     // BUG #69 — Idempotence métier : 1 seul boost actif par
@@ -91,9 +130,11 @@ export async function POST(request: NextRequest) {
     const nowMs = Date.now();
     const hasActive = activeBoostsSnap.docs.some((d) => {
       const data = d.data();
-      // Si le boost existant cible une AUTRE activity (ou n'a pas d'activityId =
-      // legacy), on autorise un nouveau boost pour activityId courant.
-      if (data.activityId && data.activityId !== activityId) return false;
+      // Si le boost existant vise une AUTRE cible, il n'empêche pas celui-ci.
+      // R3b-2 — la comparaison passe par `memeCible` : un boost d'activité
+      // n'a jamais couvert une offre Afroboost, ni l'inverse. Le boost
+      // historique (compte entier) continue, lui, de tout couvrir.
+      if (!memeCible(lireCibleBoost(data), cible)) return false;
       const exp = data.expiresAt;
       const expMs =
         typeof exp?.toMillis === 'function'
@@ -153,9 +194,12 @@ export async function POST(request: NextRequest) {
       metadata: {
         type: 'boost',
         partnerId,
-        // BUG #69 — activityId persisté dans metadata. Lu par le webhook
-        // handleBoostPayment qui l'écrit dans le doc boosts/{id} après payment.
-        activityId,
+        // BUG #69 / R3b-2 — la cible est persistée dans metadata, sous SON
+        // champ (`activityId` ou `afroboostOfferId`). Le webhook
+        // handleBoostPayment la recopie telle quelle dans boosts/{id} : la
+        // référence à l'offre Afroboost ne se perd nulle part entre le
+        // paiement et le document final.
+        ...champsCibleBoost(cible),
         duration,
         city,
         country: country || 'Suisse',

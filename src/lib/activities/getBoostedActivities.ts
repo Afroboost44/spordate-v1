@@ -37,6 +37,7 @@ import {
   limit as fsLimit,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { classerBoosts } from '@/lib/boost/cible';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type BoostedActivity = Record<string, any> & {
@@ -59,6 +60,16 @@ export interface GetBoostedActivitiesResult {
   /** Sets exposés pour cas où le caller doit afficher "n boosts actifs". */
   boostedActivityIds: Set<string>;
   boostedPartnerIds: Set<string>;
+  /**
+   * R3b-2 — les offres du catalogue Afroboost actuellement boostées.
+   *
+   * EXPOSÉ, MAIS VOLONTAIREMENT INUTILISÉ ICI : ce service filtre des
+   * activités Spordate, et une offre Afroboost n'en est pas une. Ce jeu est
+   * la matière que R3c consommera pour « Où pratiquer ? ». Le rendre dès
+   * maintenant évite qu'un futur appelant réinvente une requête `boosts`
+   * parallèle — la faute déjà commise cinq fois (#146, #155, #186, #203, #204).
+   */
+  boostedAfroboostOfferIds: Set<string>;
 }
 
 /**
@@ -96,12 +107,15 @@ export async function getBoostedActivities(
     activities: [],
     boostedActivityIds: new Set<string>(),
     boostedPartnerIds: new Set<string>(),
+    boostedAfroboostOfferIds: new Set<string>(),
   };
   if (!db) return empty;
 
   // 1. Charge les boosts actifs (active === true ET expiresAt > now).
   let boostedActivityIds = new Set<string>();
   let boostedPartnerIds = new Set<string>();
+  // R3b-2 — collecté séparément, JAMAIS versé dans boostedPartnerIds.
+  let boostedAfroboostOfferIds = new Set<string>();
   try {
     const now = Timestamp.now();
     const boostsRef = collection(db, 'boosts');
@@ -111,17 +125,22 @@ export async function getBoostedActivities(
       where('expiresAt', '>', now),
     );
     const snap = await getDocs(q);
-    snap.forEach((doc) => {
-      const data = doc.data() as {
-        activityId?: string;
-        partnerId?: string;
-      };
-      if (data.activityId) {
-        boostedActivityIds.add(data.activityId);
-      } else if (data.partnerId) {
-        boostedPartnerIds.add(data.partnerId);
-      }
-    });
+    // R3b-2 — le classement est délégué à `classerBoosts`, PURE et partagée.
+    //
+    // C'était le piège : « pas d'activityId » valait « boost du compte
+    // entier ». Un boost visant une offre Afroboost n'a pas d'activityId non
+    // plus — l'ancienne lecture aurait donc rendu visibles, sans contrepartie,
+    // TOUTES les activités Spordate de ce partenaire. La cible est désormais
+    // LUE, jamais déduite d'un champ absent.
+    const classement = classerBoosts(
+      snap.docs.map((d) => d.data() as Record<string, unknown>),
+      Date.now(),
+    );
+    boostedActivityIds = classement.activites;
+    boostedPartnerIds = classement.partenairesLegacy;
+    // Une offre Afroboost n'est pas une activité Spordate : elle n'entre dans
+    // aucun des deux jeux qui filtrent `activities`, ci-dessous.
+    boostedAfroboostOfferIds = classement.offresAfroboost;
   } catch (err) {
     console.warn('[getBoostedActivities] failed to load boosts:', err);
     return empty;
@@ -129,7 +148,9 @@ export async function getBoostedActivities(
 
   // Aucune entrée boostée → retour direct (pas d'affichage).
   if (boostedActivityIds.size === 0 && boostedPartnerIds.size === 0) {
-    return empty;
+    // R3b-2 — aucune ACTIVITÉ boostée, mais des offres Afroboost peuvent
+    // l'être : on rend le jeu collecté plutôt que de le perdre en route.
+    return { ...empty, boostedAfroboostOfferIds };
   }
 
   // 2. Charge les activities actives. On charge tout (cap 500 défensif) puis
@@ -182,5 +203,6 @@ export async function getBoostedActivities(
     activities: result,
     boostedActivityIds,
     boostedPartnerIds,
+    boostedAfroboostOfferIds,
   };
 }

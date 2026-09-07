@@ -1329,6 +1329,11 @@ async function handleBoostPayment(session: Record<string, unknown>) {
   // Persistée sur le doc boosts/ pour permettre au filtre Discovery de cibler
   // uniquement cette activité (et non toutes les activités du partenaire).
   const activityId = meta.activityId || '';
+  // R3b-2 — l'autre sorte de cible : une offre du catalogue Afroboost,
+  // référencée par son identifiant stable. RIEN d'autre de l'offre n'est
+  // recopié ici — ni titre, ni prix, ni lieu, ni propriétaire : le catalogue
+  // Afroboost reste la source de vérité, ce document n'en garde que l'adresse.
+  const afroboostOfferId = meta.afroboostOfferId || '';
 
   if (!partnerId || !BOOST_DURATION_HOURS[duration]) {
     await logErr(
@@ -1367,12 +1372,23 @@ async function handleBoostPayment(session: Record<string, unknown>) {
   };
   // BUG #69 — n'écrit activityId que si présent (backward-compat avec d'anciens
   // boosts payés via flow Stripe pre-fix qui n'ont pas activityId en metadata).
+  // R3b-2 — une cible et une seule : si les deux champs arrivaient (metadata
+  // trafiquée ou rejouée d'une autre version), on écrit l'activité et on
+  // IGNORE l'offre, plutôt que de produire un document ambigu que rien ne
+  // saurait plus lire.
   if (activityId) {
     boostDoc.activityId = activityId;
+  } else if (afroboostOfferId) {
+    boostDoc.afroboostOfferId = afroboostOfferId;
   }
   const ref = await db.collection('boosts').add(boostDoc);
 
-  console.log(`[Boost] Activé doc=${ref.id} partnerId=${partnerId} activityId=${activityId || '(legacy)'} duration=${duration} city=${city}`);
+  const cibleLog = activityId
+    ? `activityId=${activityId}`
+    : afroboostOfferId
+      ? `afroboostOfferId=${afroboostOfferId}`
+      : 'cible=(legacy)';
+  console.log(`[Boost] Activé doc=${ref.id} partnerId=${partnerId} ${cibleLog} duration=${duration} city=${city}`);
 }
 
 // =============================================================

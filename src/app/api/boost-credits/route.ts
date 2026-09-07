@@ -37,6 +37,16 @@ import {
   computeBoostCost,
 } from '@/lib/billing/boostCredits';
 import { getAdminDb } from '@/lib/firebase/admin';
+// R3b-2 — même module de cible que le chemin Stripe : les deux portes d'achat
+// ne peuvent pas diverger sur ce qu'un boost désigne.
+import { cibleDemandee, champsCibleBoost, lireCibleBoost, memeCible } from '@/lib/boost/cible';
+import {
+  autoriserBoostSurOffre,
+  messageDuRefus,
+  statutHttpDuRefus,
+} from '@/lib/boost/autorisationAfroboost';
+import { resoudreProprietaireAfroboost } from '@/lib/afroboost/ownership';
+import { lireOffres } from '@/app/api/afroboost/offers/route';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -64,8 +74,11 @@ export async function POST(request: NextRequest) {
     const duration = body?.duration as string;
     const city = (body?.city as string) || '';
     const country = (body?.country as string) || '';
-    // BUG #69 — activityId obligatoire (1 boost = 1 activité ciblée).
-    const activityId = (body?.activityId as string) || '';
+    // BUG #69 / R3b-2 — une cible obligatoire, et une seule.
+    const cible = cibleDemandee({
+      activityId: body?.activityId,
+      afroboostOfferId: body?.afroboostOfferId,
+    });
 
     if (!duration || !BOOST_CREDITS_COST[duration]) {
       return NextResponse.json(
@@ -76,7 +89,13 @@ export async function POST(request: NextRequest) {
     if (!city) {
       return NextResponse.json({ error: 'invalid-input', detail: 'city required' }, { status: 400 });
     }
-    if (!activityId) {
+    if (cible.genre === 'ambigu') {
+      return NextResponse.json(
+        { error: 'target-ambiguous', detail: 'Choisis soit une activité, soit une offre Afroboost.' },
+        { status: 400 },
+      );
+    }
+    if (cible.genre === 'partenaireLegacy') {
       return NextResponse.json(
         { error: 'activity-required', detail: 'Choisis l\'activité à booster.' },
         { status: 400 },
@@ -89,6 +108,23 @@ export async function POST(request: NextRequest) {
 
     const db = await getAdminDb();
     const { Timestamp, FieldValue } = await import('firebase-admin/firestore');
+
+    // R3b-2 — la validation d'une cible Afroboost se fait AVANT la
+    // transaction : elle demande un appel réseau (le catalogue) et une
+    // lecture hors périmètre transactionnel. Aucun crédit n'a encore bougé à
+    // ce stade, donc un refus ici ne coûte rien à personne.
+    if (cible.genre === 'offreAfroboost') {
+      const proprietaireAfroboost = await resoudreProprietaireAfroboost(db, uid);
+      const { offres } = await lireOffres();
+      const offre = offres.find((o) => o.id === cible.id) || null;
+      const verdict = autoriserBoostSurOffre(offre, proprietaireAfroboost);
+      if (!verdict.ok) {
+        return NextResponse.json(
+          { error: verdict.refus, detail: messageDuRefus(verdict.refus) },
+          { status: statutHttpDuRefus(verdict.refus) },
+        );
+      }
+    }
 
     const userRef = db.collection('users').doc(uid);
     const boostsCol = db.collection('boosts');
@@ -113,17 +149,21 @@ export async function POST(request: NextRequest) {
       }
 
       // BUG #69 — Validation : l'activity existe et appartient au partner.
-      const activityRef = db.collection('activities').doc(activityId);
-      const activitySnap = await tx.get(activityRef);
-      if (!activitySnap.exists) {
-        return { error: 'activity-not-found', status: 404 } as const;
-      }
-      if (activitySnap.data()?.partnerId !== partnerId) {
-        return {
-          error: 'activity-not-owned',
-          status: 403,
-          detail: 'Cette activité ne t\'appartient pas.',
-        } as const;
+      // R3b-2 — uniquement pour une cible native : une offre Afroboost n'a
+      // aucun document ici, sa propriété a été prouvée plus haut par R3b-ID.
+      if (cible.genre === 'activite') {
+        const activityRef = db.collection('activities').doc(cible.id);
+        const activitySnap = await tx.get(activityRef);
+        if (!activitySnap.exists) {
+          return { error: 'activity-not-found', status: 404 } as const;
+        }
+        if (activitySnap.data()?.partnerId !== partnerId) {
+          return {
+            error: 'activity-not-owned',
+            status: 403,
+            detail: 'Cette activité ne t\'appartient pas.',
+          } as const;
+        }
       }
 
       // BUG #69 — Idempotence : aucun boost actif pour (partnerId, activityId, city).
@@ -139,9 +179,11 @@ export async function POST(request: NextRequest) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const hasActive = activeBoostsSnap.docs.some((d: any) => {
         const data = d.data();
-        // Si le boost existant cible une AUTRE activity (ou pas d'activityId =
-        // legacy boost qui boost tout le compte), on autorise le nouveau boost.
-        if (data.activityId && data.activityId !== activityId) return false;
+        // Si le boost existant vise une AUTRE cible, on autorise le nouveau.
+        // R3b-2 — `memeCible` remplace la comparaison sur `activityId` seul :
+        // elle distingue activité et offre Afroboost, et conserve la règle du
+        // boost historique (sans cible) qui couvre tout le compte.
+        if (!memeCible(lireCibleBoost(data), cible)) return false;
         const exp = data.expiresAt;
         const expMs =
           typeof exp?.toMillis === 'function'
@@ -167,7 +209,11 @@ export async function POST(request: NextRequest) {
       tx.set(boostRef, {
         boostId: boostRef.id,
         partnerId,
-        activityId, // BUG #69 — persisté pour filtre Discovery par activité
+        // BUG #69 / R3b-2 — la cible persistée sous son propre champ :
+        // `activityId` pour une activité Spordate, `afroboostOfferId` pour une
+        // offre du catalogue Afroboost. Jamais les deux, jamais une copie de
+        // l'offre : seule la référence est écrite.
+        ...champsCibleBoost(cible),
         city,
         country,
         duration,

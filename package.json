@@ -93,7 +93,8 @@
     "test:discovery:end-of-stack": "npx tsx tests/discovery/end-of-stack.test.ts",
     "test:discovery:attribution": "npx tsx tests/discovery/profile-attribution.test.ts",
     "test:afroboost:offers": "npx tsx tests/afroboost/offers-adapter.test.ts",
-    "test:afroboost:ownership": "npx tsx tests/afroboost/ownership.test.ts"
+    "test:afroboost:ownership": "npx tsx tests/afroboost/ownership.test.ts",
+    "test:boost:cible-afroboost": "npx tsx tests/boost/cible-afroboost.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
