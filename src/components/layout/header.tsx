@@ -311,22 +311,40 @@ export default function Header() {
             {!loading && isLoggedIn ? (
                 <>
                     {user?.displayName && (
-                      <span className="text-sm text-foreground/60 hidden lg:inline">
+                      // F1 — un nom long ne casse plus rien : il se coupe,
+                      // il ne pousse pas. Sans `max-w`, « Association Sportive
+                      // et Culturelle de … » elargissait le groupe a l'infini.
+                      <span
+                        className="text-sm text-foreground/60 hidden lg:inline-block max-w-[10rem] truncate align-middle"
+                        title={user.displayName}
+                      >
                         {user.displayName}
                       </span>
                     )}
                     <CreditsBadge />
                     <NotificationBadge />
                     {isPartner && (
-                      <Button variant="ghost" asChild className="flex items-center gap-2 text-accent hover:text-accent/80">
+                      <Button variant="ghost" asChild className="hidden lg:flex items-center gap-2 text-accent hover:text-accent/80">
                         <Link href="/partner/offers">
                           <Building className="h-4 w-4" />
                           Espace Partenaire
                         </Link>
                       </Button>
                     )}
-                    <AdminMenuLink variant="desktop" />
-                    <Button variant="ghost" onClick={handleLogout} className="flex items-center gap-2">
+                    {/* F1 — LES TROIS BOUTONS LIBELLES NE S'AFFICHENT QU'A
+                        PARTIR DE `lg`. Mesure en production : pour un compte
+                        partenaire ET admin, ce groupe reclame 715 px des 768 —
+                        avec « ← Afroboost / Rencontres » a gauche, la barre
+                        depassait de 200 px a 768, 148 a 820, 39 a 1024. Aucun
+                        d'eux ne cede : ce sont des `whitespace-nowrap`.
+                        RIEN N'EST RETIRE : entre 768 et 1023 les trois vivent
+                        dans le menu deja present — `MenuIntegre` en mode
+                        integre, le Sheet historique en mode autonome. C'est le
+                        MEME menu, pas une seconde navigation. */}
+                    <span className="hidden lg:flex">
+                      <AdminMenuLink variant="desktop" />
+                    </span>
+                    <Button variant="ghost" onClick={handleLogout} className="hidden lg:flex items-center gap-2">
                       <LogOut className="h-4 w-4" />
                       {t('nav_logout') || "Déconnexion"}
                     </Button>
@@ -342,7 +360,14 @@ export default function Header() {
                 </>
             ) : null}
         </div>
-        <div className="md:hidden flex items-center">
+        {/* F1 — CE SHEET EXISTAIT DEJA ET NE S'AFFICHAIT JAMAIS : `md:hidden`
+            dans un header `hidden md:block`, il etait code mort. Il porte
+            pourtant tout ce que les trois boutons libelles portent (liens,
+            Espace Partenaire, Console admin, langue, Deconnexion). Il devient
+            donc le menu tablette — EN MODE AUTONOME UNIQUEMENT : en mode
+            integre `MenuIntegre` occupe deja ce role, et en afficher deux
+            ferait exactement la seconde navigation qu'on veut eviter. */}
+        <div className={`${EN_MODE_INTEGRE ? 'hidden' : 'flex lg:hidden'} items-center`}>
           <Sheet>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon">

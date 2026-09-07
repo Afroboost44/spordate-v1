@@ -103,6 +103,7 @@
     "test:discovery:reservation-afroboost": "npx tsx tests/discovery/reservation-afroboost.test.ts",
     "test:discovery:rencontre": "npx tsx tests/discovery/activites-de-rencontre.test.ts",
     "test:discovery:carte": "npx tsx tests/discovery/carte-ou-pratiquer.test.ts",
+    "test:layout:header": "npx tsx tests/layout/header-responsive.test.ts",
     "test:chat:invitation-afroboost": "npx tsx tests/chat/invitation-afroboost.test.ts"
   },
   "dependencies": {
