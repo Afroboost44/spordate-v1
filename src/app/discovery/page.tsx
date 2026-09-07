@@ -2249,10 +2249,15 @@ END:VCALENDAR`;
             {/* ─── ÉTAPE 1 : Choisis ton activité ───────────────────── */}
             {currentStep === 1 && (
               <div data-testid="wizard-step-1" className="space-y-2 animate-in fade-in duration-200">
-                <Label className="text-sm text-gray-400 flex items-center gap-2">
-                  <Zap className="h-4 w-4 text-accent" />
-                  {t('discovery_choose_activity')}
-                </Label>
+                {/* LOT D — ce titre annonce les activites DU PROFIL. S'il n'en a
+                    aucune, l'afficher au-dessus d'une section « Où vous
+                    retrouver » laisserait croire que celle-ci est la sienne. */}
+                {partnerActivities.length > 0 && (
+                  <Label className="text-sm text-gray-400 flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-accent" />
+                    {t('discovery_choose_activity')}
+                  </Label>
+                )}
                 {partnerActivities.length === 0 && optionsDeRencontre.length === 0 ? (
                   <div className="text-center py-6 text-white/50 text-sm">
                     {t('discovery_no_active_activity_partner')}
