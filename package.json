@@ -95,7 +95,8 @@
     "test:afroboost:offers": "npx tsx tests/afroboost/offers-adapter.test.ts",
     "test:afroboost:ownership": "npx tsx tests/afroboost/ownership.test.ts",
     "test:boost:cible-afroboost": "npx tsx tests/boost/cible-afroboost.test.ts",
-    "test:discovery:offres-afroboost": "npx tsx tests/discovery/offres-afroboost-ou-pratiquer.test.ts"
+    "test:discovery:offres-afroboost": "npx tsx tests/discovery/offres-afroboost-ou-pratiquer.test.ts",
+    "test:discovery:reservation-afroboost": "npx tsx tests/discovery/reservation-afroboost.test.ts"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

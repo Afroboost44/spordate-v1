@@ -64,6 +64,9 @@ import {
   fusionnerSansDoublon,
 } from '@/lib/discovery/offresAfroboostAPratiquer';
 import type { OffrePublique } from '@/lib/afroboost/offers';
+// R4 — l'adresse du VRAI parcours de reservation d'Afroboost. Spordateur ne
+// reserve pas, ne paie pas, ne resout aucune disponibilite : il conduit.
+import { destinationReservationOffre } from '@/lib/discovery/reservationAfroboost';
 import { resolveDiscoveryCardImage, buildProfileHref } from '@/lib/discovery/cardImage';
 import { activitesDuProfil } from '@/lib/discovery/profileActivities';
 import { extractSwipedUids } from '@/lib/discovery/swipedUids';
@@ -2961,6 +2964,16 @@ END:VCALENDAR`;
                       // qui casserait. On ne fabrique surtout pas de session
                       // Firestore juste pour rendre le bouton cliquable.
                       const estAfroboost = a.source === SOURCE_AFROBOOST;
+                      // R4 — la destination, calculee sans rien decider : la
+                      // disponibilite, la seance, le prix reel et le paiement
+                      // sont resolus par Afroboost a l'arrivee. Une offre
+                      // retiree du catalogue entre-temps n'y declenche rien —
+                      // le lien profond ignore un identifiant qu'il ne
+                      // reconnait pas, et le visiteur atterrit sur la vitrine.
+                      const destination = estAfroboost
+                        ? destinationReservationOffre(a)
+                        : null;
+                      const reservable = destination !== null && destination.ok;
                       // Fix #146 — utilise le helper unique getActivityThumbnail
                       // (chaîne unifiée : thumbnailUrl → mediaItems image → video
                       // thumb → imageUrl legacy). Plus jamais de carré rose Zap.
@@ -2981,8 +2994,16 @@ END:VCALENDAR`;
                         <div key={navId} className="flex items-stretch gap-2 rounded-xl bg-white/5 border border-white/10 hover:border-accent/40 hover:bg-accent/5 transition">
                         <button
                           type="button"
-                          disabled={estAfroboost}
+                          disabled={estAfroboost && !reservable}
                           onClick={() => {
+                            // R4 — une offre Afroboost part vers son vrai
+                            // parcours, dans un nouvel onglet : on ne fait pas
+                            // sortir le visiteur de la pile de profils.
+                            if (destination && destination.ok) {
+                              window.open(destination.url, '_blank', 'noopener,noreferrer');
+                              return;
+                            }
+                            if (estAfroboost) return;
                             // BUG #20 — direction modifiée : la modal renvoie vers la
                             // page liste activités (avec hash scroll vers la card
                             // choisie), au lieu de bypass direct vers /activities/[id].
@@ -2992,7 +3013,7 @@ END:VCALENDAR`;
                             setShowWherePracticeModal(false);
                             router.push(buildActivityListUrl(navId));
                           }}
-                          className={`flex-1 text-left p-3 transition ${estAfroboost ? 'cursor-default' : 'active:scale-[0.98]'}`}
+                          className={`flex-1 text-left p-3 transition ${estAfroboost && !reservable ? 'cursor-default' : 'active:scale-[0.98]'}`}
                         >
                           <div className="flex items-start gap-3">
                             {thumb ? (
@@ -3059,13 +3080,28 @@ END:VCALENDAR`;
                             Le ChevronRight est retiré du main button — c'est ce
                             bouton qui sert maintenant de hint visuel "voir plus". */}
                         {estAfroboost ? (
-                          // R3c — CTA neutre, assumé : la réservation d'une offre
-                          // Afroboost appartient à R4. Mieux vaut le dire que
-                          // proposer un bouton qui mènerait nulle part.
+                          destination && destination.ok ? (
+                          // R4 — le vrai parcours Afroboost. `noopener` est
+                          // obligatoire : sans lui, la page ouverte garderait
+                          // une prise sur celle-ci via `window.opener`.
+                          <a
+                            href={destination.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={() => setShowWherePracticeModal(false)}
+                            className="flex-shrink-0 px-2.5 rounded-r-xl text-[11px] text-white/60 hover:text-white hover:bg-white/5 flex items-center gap-1 transition border-l border-white/10"
+                          >
+                            <Calendar className="h-3.5 w-3.5" />
+                            {t('discovery_reserve_button')}
+                          </a>
+                          ) : (
+                          // Repli sûr : une offre dont on ne sait pas construire
+                          // l'adresse ne reçoit AUCUN bouton menant nulle part.
                           <span className="flex-shrink-0 px-2.5 rounded-r-xl text-[11px] text-white/40 flex items-center gap-1 border-l border-white/10">
                             <Info className="h-3.5 w-3.5" />
                             {t('where_practice_booking_soon')}
                           </span>
+                          )
                         ) : (
                         <button
                           type="button"

@@ -147,6 +147,15 @@ export interface ElementAfroboostAPratiquer extends ActivityLike {
   estDejaEligible: true;
   typeOffre: OffrePublique['typeOffre'];
   proprietaire: OffrePublique['proprietaire'];
+  /**
+   * R4 — le prix SOUS SON NOM D'ORIGINE, en plus de `price` que lit le modal.
+   *
+   * Ce n'est pas une redondance décorative : `destinationReservationOffre`
+   * reçoit cet élément et lit `prix`. Sans ce champ, une offre gratuite était
+   * lue comme payante — et le lien profond perdait `&reserver=1`, donc le
+   * formulaire ne s'ouvrait plus. Le banc R4 (cas P4) a attrapé exactement ça.
+   */
+  prix: number | null;
   lieuTexte: string | null;
   latitude: number | null;
   longitude: number | null;
@@ -175,6 +184,7 @@ export function versElementAPratiquer(offre: OffrePublique): ElementAfroboostAPr
     // Seconde ligne de la carte : le lieu, pas une marque.
     partnerName: lieu || '',
     price: offre.prix ?? undefined,
+    prix: offre.prix,
     typeOffre: offre.typeOffre,
     proprietaire: offre.proprietaire,
     lieuTexte: lieu,
