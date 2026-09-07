@@ -108,3 +108,76 @@ export function messageDuRefus(refus: RefusBoostOffre): string {
       return "Cette offre ne t'appartient pas.";
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+ * LOT A — LA MISE EN AVANT : DEUX VOIES, DEUX PREUVES, UNE SEULE PORTE
+ * ═══════════════════════════════════════════════════════════════════════
+ *
+ * `autoriserBoostSurOffre`, au-dessus, N'A PAS BOUGÉ D'UN OCTET — et c'est
+ * délibéré. C'est elle que les deux chemins d'achat interrogent, et elle
+ * continue donc de refuser toute offre `admin` avec le motif `offre-admin`.
+ * Un administrateur ne peut toujours PAS déclencher un achat : il n'a rien à
+ * payer, et lui ouvrir un règlement à somme nulle serait la mauvaise réponse
+ * à la bonne question.
+ *
+ * Ce qui suit prépare la décision du lot B sans l'exécuter. La différence
+ * entre les deux voies n'est pas « qui a le droit d'apparaître » — les deux
+ * doivent choisir explicitement — mais CE QUE ÇA COÛTE et PAR QUELLE PREUVE :
+ *
+ *   ADMINISTRATEUR  preuve serveur (annuaire d'identité + liste
+ *                   d'autorisation + interrupteur), voie gratuite ;
+ *   PARTENAIRE      preuve R3b-ID (liaison d'identité signée) + une mise en
+ *                   avant achetée, active et non expirée.
+ *
+ * Les deux preuves ne se remplacent jamais l'une l'autre : un partenaire ne
+ * devient pas administrateur en payant, un administrateur ne devient pas
+ * propriétaire d'une offre partenaire en étant administrateur.
+ */
+
+export type VoieMiseEnAvant = 'admin-gratuit' | 'partenaire-achete';
+
+export type RefusMiseEnAvant = RefusBoostOffre | 'admin-non-prouve';
+
+export type VerdictMiseEnAvant =
+  | { ok: true; voie: VoieMiseEnAvant }
+  | { ok: false; refus: RefusMiseEnAvant };
+
+/**
+ * « Ce compte peut-il mettre CETTE offre en avant, et à quel titre ? »
+ *
+ * PURE, et volontairement séparée du chemin d'achat : elle ne rend jamais un
+ * verdict qu'une route de règlement pourrait consommer par accident.
+ *
+ * L'ordre des refus reprend celui du chemin d'achat, à une exception près :
+ * une offre `admin` n'est plus rejetée d'emblée, elle attend sa preuve. Le
+ * type, lui, reste jugé AVANT tout — être administrateur n'a jamais permis de
+ * mettre un pack en avant, et ne le permettra pas.
+ */
+export function autoriserMiseEnAvantOffre(
+  offre: Pick<OffrePublique, 'proprietaire' | 'proprietaireId' | 'typeOffre'> | null | undefined,
+  preuves: {
+    /** Résultat de `estAdminAfroboostAutorise`. Jamais une valeur du navigateur. */
+    adminProuve?: boolean;
+    /** Résultat de `resoudreProprietaireAfroboost` (R3b-ID). */
+    proprietaireAfroboost?: string | null;
+  },
+): VerdictMiseEnAvant {
+  if (!offre) return { ok: false, refus: 'offre-introuvable' };
+  if (!estTypeBoostable(offre)) return { ok: false, refus: 'offre-non-boostable' };
+
+  if (offre.proprietaire === 'admin') {
+    // La plateforme ne paie pas — mais elle doit prouver que c'est bien elle.
+    return preuves?.adminProuve === true
+      ? { ok: true, voie: 'admin-gratuit' }
+      : { ok: false, refus: 'admin-non-prouve' };
+  }
+
+  if (offre.proprietaire === 'partner') {
+    return estProprietaireDeLOffre(preuves?.proprietaireAfroboost, offre)
+      ? { ok: true, voie: 'partenaire-achete' }
+      : { ok: false, refus: 'offre-non-possedee' };
+  }
+
+  // `unknown` : une propriété qu'on ne sait pas nommer n'ouvre aucune voie.
+  return { ok: false, refus: 'offre-non-possedee' };
+}
