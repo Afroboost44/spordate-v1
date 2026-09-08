@@ -25,6 +25,9 @@ import {
 import {
   emailDepuisJetonProfil, AUDIENCE_PROFIL, EMETTEUR,
 } from '../../src/lib/bridge/jetonProfil';
+import {
+  versEcritureProfil, CHAMPS_MODIFIABLES, BIO_MAX,
+} from '../../src/lib/bridge/profilSocialEcriture';
 
 let _p = 0, _f = 0;
 function pass(l: string) { console.log(`PASS  ${l}`); _p++; }
@@ -134,7 +137,10 @@ const ROUTE = readFileSync(join(__dirname, '..', '..', 'src', 'app', 'api', 'bri
 const JETON = readFileSync(join(__dirname, '..', '..', 'src', 'lib', 'bridge', 'jetonProfil.ts'), 'utf8');
 
 section('H — LA ROUTE : AUCUNE ÉCRITURE, BRIDGE OBLIGATOIRE (F, G, H, N du GO)');
-faux('H1 la route n\'écrit jamais (aucun set/update/delete/add)', /\.(set|update|delete|add)\s*\(/.test(ROUTE));
+// Le bloc de LECTURE (POST) n'écrit jamais ; l'écriture est isolée dans PATCH
+// (éprouvée en section L). On borne l'assertion au POST.
+const POST_BLOC = ROUTE.slice(ROUTE.indexOf('export async function POST'), ROUTE.indexOf('export async function PATCH'));
+faux('H1 la LECTURE (POST) n\'écrit jamais', /\.(set|update|delete|add)\s*\(/.test(POST_BLOC));
 vrai('H2 elle vérifie le jeton avant toute lecture', ROUTE.indexOf('emailDepuisJetonProfil(jeton') < ROUTE.indexOf('COLLECTION_INDEX).doc'));
 vrai('H3 l\'identité vient du jeton, pas du corps', /emailDepuisJetonProfil\(jeton, secret/.test(ROUTE));
 faux('H4 l\'e-mail n\'est JAMAIS lu du corps de la requête', /corps\.(email|e_mail)/.test(ROUTE));
@@ -149,6 +155,54 @@ vrai('I1 l\'algorithme est exigé (pas d\'alg:none)', /alg !== 'HS256'/.test(JET
 vrai('I2 comparaison en temps constant', /timingSafeEqual/.test(JETON));
 vrai('I3 audience et émetteur vérifiés', /charge\.aud !== AUDIENCE_PROFIL/.test(JETON) && /charge\.iss !== EMETTEUR/.test(JETON));
 vrai('I4 l\'expiration est vérifiée', /exp \* 1000 <= maintenantMs/.test(JETON));
+
+
+section('J — L\'ÉCRITURE : LISTE BLANCHE, PAS DE MASS-ASSIGNMENT (I, J, K, L, M, N du GO)');
+// Un corps hostile : des vrais champs mêlés à tout ce qu'un attaquant tenterait.
+const CORPS_HOSTILE = {
+  bio: 'Nouvelle bio.', city: 'Genève',
+  sports: [{ name: 'Tennis', level: 'advanced' }],
+  // — tentatives d'écriture interdites —
+  credits: 99999, role: 'admin', isPremium: true, fcmToken: 'VOL',
+  uid: 'uid-de-la-victime', spordateUid: 'uid-de-la-victime', email: 'victime@x.y',
+  activeSanctionId: null, leakFlagged: false, displayName: 'USURPÉ',
+  canton: 'VD', photos: ['http://mechant/x.jpg'], photoURL: 'http://mechant/x.jpg',
+};
+const { patch, sansEffet } = versEcritureProfil(CORPS_HOSTILE);
+egal('J1 seules les 3 clés modifiables ressortent', Object.keys(patch).sort(), ['bio', 'city', 'sports']);
+for (const c of ['credits', 'role', 'isPremium', 'fcmToken', 'uid', 'spordateUid', 'email', 'displayName', 'photos', 'photoURL', 'activeSanctionId', 'leakFlagged', 'canton']) {
+  faux(`J.${c} ne peut pas s'écrire`, Object.prototype.hasOwnProperty.call(patch, c));
+}
+vrai('J2 la bio valide passe', patch.bio === 'Nouvelle bio.');
+vrai('J3 la ville valide passe', patch.city === 'Genève');
+faux('J4 rien de sensible dans le patch', JSON.stringify(patch).includes('99999') || JSON.stringify(patch).includes('admin') || JSON.stringify(patch).includes('VOL'));
+
+section('K — VALIDATION DES CHAMPS (mêmes règles que Spordateur)');
+vrai('K1 bio coupée à 300', versEcritureProfil({ bio: 'x'.repeat(500) }).patch.bio!.length === BIO_MAX);
+egal('K2 sport hors liste rejeté', versEcritureProfil({ sports: [{ name: 'Boxe illégale', level: 'x' }] }).patch.sports, []);
+egal('K3 sport valide, niveau inconnu → beginner', versEcritureProfil({ sports: [{ name: 'Yoga', level: 'zzz' }] }).patch.sports, [{ name: 'Yoga', level: 'beginner' }]);
+egal('K4 sport valide conservé', versEcritureProfil({ sports: [{ name: 'Running', level: 'intermediate' }] }).patch.sports, [{ name: 'Running', level: 'intermediate' }]);
+vrai('K5 corps vide → sans effet', versEcritureProfil({}).sansEffet === true);
+vrai('K6 corps sans champ modifiable → sans effet', versEcritureProfil({ credits: 5, role: 'admin' }).sansEffet === true);
+egal('K7 CHAMPS_MODIFIABLES est exactement bio/city/sports', [...CHAMPS_MODIFIABLES].sort(), ['bio', 'city', 'sports']);
+
+section('L — LA ROUTE PATCH : MÊMES GARDES + AUCUN uid CLIENT (C, D, E, F, G, H, O du GO)');
+vrai('L1 PATCH vérifie le jeton avant toute écriture',
+  ROUTE.indexOf('emailDepuisJetonProfil(jeton, secret, Date.now())', ROUTE.indexOf('export async function PATCH')) > 0);
+vrai('L2 le uid vient de l\'index bridge, jamais du corps',
+  /COLLECTION_INDEX\)\.doc\(emailKey\)/.test(ROUTE.slice(ROUTE.indexOf('export async function PATCH'))));
+faux('L3 le corps ne fournit jamais le uid',
+  /corps\.(uid|spordateUid)/.test(ROUTE));
+vrai('L4 sans liaison → pas d\'écriture (fermeture sûre)',
+  /if \(!uid\) \{[\s\S]{0,120}non_lie/.test(ROUTE.slice(ROUTE.indexOf('export async function PATCH'))));
+vrai('L5 l\'écriture passe par le filtre, jamais le corps brut',
+  /versEcritureProfil\(corps\.profil\)/.test(ROUTE));
+faux('L6 aucun set/update du corps brut',
+  /\.(set|update)\(\s*corps/.test(ROUTE));
+vrai('L7 le merge n\'écrit que le patch validé + updatedAt',
+  /\.set\(\s*\{ \.\.\.patch, updatedAt/.test(ROUTE));
+vrai('L8 la réponse repasse par la liste blanche de lecture',
+  (ROUTE.match(/versProfilSocial\(userDoc\)/g) || []).length >= 2);
 
 console.log(`\n${_p} PASS · ${_f} FAIL`);
 process.exit(_f === 0 ? 0 : 1);

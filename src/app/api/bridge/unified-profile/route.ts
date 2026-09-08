@@ -27,6 +27,7 @@ import { getAdminDb } from '@/lib/firebase/admin';
 import { cleIndexEmail, COLLECTION_INDEX } from '@/lib/bridge/identityLink';
 import { emailDepuisJetonProfil } from '@/lib/bridge/jetonProfil';
 import { versProfilSocial, type ReponseProfilUnifie } from '@/lib/bridge/profilSocial';
+import { versEcritureProfil } from '@/lib/bridge/profilSocialEcriture';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -92,6 +93,76 @@ export async function POST(req: NextRequest): Promise<NextResponse> {
 
   // 4 — LA LISTE BLANCHE. C'est ici, et seulement ici, que le document quitte
   //     Spordateur — réduit à sept champs, jamais entier.
+  const reponse: ReponseProfilUnifie = { lie: true, profil: versProfilSocial(userDoc) };
+  return NextResponse.json(reponse, { status: 200 });
+}
+
+
+/**
+ * F3 — ÉCRITURE. Le coach modifie SON profil social depuis afroboost ; on
+ * l'enregistre ICI, dans le vrai `users/{uid}` Spordateur — jamais dans un
+ * profil parallèle.
+ *
+ * MÊMES GARDES QUE LA LECTURE, PLUS UNE. Le jeton signé prouve l'identité,
+ * l'index bridge donne le uid — JAMAIS le client. En plus : `versEcritureProfil`
+ * réduit le corps à trois champs texte validés (bio, city, sports). Un `uid`,
+ * un `credits`, un `role` glissés dans le corps ne sont pas recopiés : ils
+ * n'existent pas pour ce filtre. Aucun mass-assignment possible.
+ */
+export async function PATCH(req: NextRequest): Promise<NextResponse> {
+  const secret = process.env.AFRO_SPORDATE_SHARED_SECRET || '';
+  if (!secret) return NextResponse.json({ error: 'bridge_not_configured' }, { status: 503 });
+
+  let corps: { t?: string; profil?: unknown } = {};
+  try { corps = await req.json(); } catch { corps = {}; }
+  const jeton = (corps.t || '').trim();
+  if (!jeton) return NextResponse.json({ error: 'missing_token' }, { status: 400 });
+
+  const email = emailDepuisJetonProfil(jeton, secret, Date.now());
+  if (!email) return NextResponse.json({ error: 'unauthorized' }, { status: 401 });
+
+  // Le corps modifiable, RÉDUIT et VALIDÉ, avant même de toucher la base.
+  const { patch, sansEffet } = versEcritureProfil(corps.profil);
+
+  const db = await getAdminDb();
+  const emailKey = cleIndexEmail(email);
+  let uid = '';
+  try {
+    const snapIndex = await db.collection(COLLECTION_INDEX).doc(emailKey).get();
+    if (snapIndex.exists) uid = String((snapIndex.data() || {}).spordateUid || '').trim();
+  } catch { return NextResponse.json({ error: 'unavailable' }, { status: 503 }); }
+
+  // PAS DE LIAISON -> PAS D'ÉCRITURE. On ne crée pas de compte, on ne devine pas
+  // de uid : sans liaison prouvée, il n'y a rien à écrire (fermeture sûre).
+  if (!uid) {
+    const nonLie: ReponseProfilUnifie = { lie: false, motif: 'non_lie' };
+    return NextResponse.json(nonLie, { status: 200 });
+  }
+
+  // Rien de valide à écrire : on relit et on renvoie, sans toucher la base.
+  if (!sansEffet) {
+    try {
+      // `set(..., {merge:true})` n'écrit QUE les clés présentes dans `patch` —
+      // les trois champs validés, jamais un de plus.
+      await db.collection(COLLECTION_USERS).doc(uid).set(
+        { ...patch, updatedAt: new Date().toISOString() },
+        { merge: true },
+      );
+    } catch {
+      return NextResponse.json({ error: 'unavailable' }, { status: 503 });
+    }
+  }
+
+  // On relit le document et on renvoie le DTO whitelisté — jamais le brut.
+  let userDoc: Record<string, unknown> | null = null;
+  try {
+    const snapUser = await db.collection(COLLECTION_USERS).doc(uid).get();
+    if (snapUser.exists) userDoc = (snapUser.data() || {}) as Record<string, unknown>;
+  } catch { return NextResponse.json({ error: 'unavailable' }, { status: 503 }); }
+  if (!userDoc) {
+    const introuvable: ReponseProfilUnifie = { lie: false, motif: 'introuvable' };
+    return NextResponse.json(introuvable, { status: 200 });
+  }
   const reponse: ReponseProfilUnifie = { lie: true, profil: versProfilSocial(userDoc) };
   return NextResponse.json(reponse, { status: 200 });
 }
