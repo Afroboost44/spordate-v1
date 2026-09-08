@@ -58,6 +58,7 @@
  */
 import { useEffect } from 'react';
 import { destinationApresPont, drapeauActif } from '@/lib/bridge/destination';
+import { cheminNextSur } from '@/lib/bridge/destinationNext';
 
 /** La destination, décidée par une fonction PURE et éprouvée à part. */
 const DESTINATION = destinationApresPont({
@@ -112,8 +113,12 @@ export default function BridgeAutoLogin() {
         ]);
         if (!auth || annule) { leverLeVoile(); return; }
         await signInWithCustomToken(auth, token);
-        // Session ouverte mais drapeau fermé : on reste ici, donc on montre.
-        if (annule || !DESTINATION) { leverLeVoile(); return; }
+        // F3 — SI afroboost a demandé une page précise (`?next=/profile`), on y
+        // va (après validation stricte : jamais une URL externe). Sinon, la
+        // destination par défaut du pont.
+        const cible = cheminNextSur(params.get('next'), process.env.NEXT_PUBLIC_BASE_PATH) || DESTINATION;
+        // Session ouverte mais aucune cible : on reste ici, donc on montre.
+        if (annule || !cible) { leverLeVoile(); return; }
         // `replace` et non `push` : la landing ne doit pas rester dans
         // l'historique, sinon le « retour » du navigateur y ramène le membre
         // et lui redemande de « Rejoindre » alors qu'il est déjà connecté.
@@ -127,7 +132,7 @@ export default function BridgeAutoLogin() {
         // ferait apparaître la landing pendant la fraction de seconde qui
         // sépare l'ordre de redirection du chargement de la page suivante —
         // c'est-à-dire exactement le flash qu'on corrige.
-        window.location.replace(DESTINATION);
+        window.location.replace(cible);
       } catch {
         /* silencieux : le login normal de Spordate prend le relais */
         leverLeVoile();
