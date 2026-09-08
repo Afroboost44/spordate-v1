@@ -104,7 +104,18 @@ export default function BridgeAutoLogin() {
         });
         if (!r.ok || annule) { leverLeVoile(); return; }
 
-        const { token } = await r.json();
+        const data = await r.json();
+        // F4 — le pont peut répondre « activation requise » (drapeau
+        // SPORDATE_ACTIVATION_REQUIRED) : un membre non lié n'est PLUS créé ni
+        // lié silencieusement. On l'emmène vers le parcours d'activation, sans
+        // ouvrir de session.
+        if (data && data.needs_activation) {
+          if (annule) { leverLeVoile(); return; }
+          const base = (process.env.NEXT_PUBLIC_BASE_PATH || '').replace(/\/+$/, '');
+          window.location.replace(`${base}/activer`);
+          return;
+        }
+        const token = data && data.token;
         if (!token || annule) { leverLeVoile(); return; }
 
         const [{ signInWithCustomToken }, { auth }] = await Promise.all([

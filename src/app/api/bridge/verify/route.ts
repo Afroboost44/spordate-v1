@@ -21,7 +21,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { getAdminAuth, getAdminDb } from '@/lib/firebase/admin';
-import { enregistrerLiaison } from '@/lib/bridge/identityLink';
+import { enregistrerLiaison, cleIndexEmail, COLLECTION_INDEX } from '@/lib/bridge/identityLink';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -107,6 +107,28 @@ export async function POST(req: NextRequest) {
 
   const db = await getAdminDb();
   const auth = await getAdminAuth();
+
+  // ─── F4 — VERROU D'ACTIVATION VOLONTAIRE ──────────────────────────────────
+  // Par défaut (drapeau absent), comportement HISTORIQUE strictement inchangé :
+  // le pont crée/retrouve le compte et laisse entrer. Quand `SPORDATE_ACTIVATION
+  // _REQUIRED` est activé, un membre NON encore lié n'est PLUS créé ni lié
+  // silencieusement à l'entrée : on renvoie `needs_activation`, et c'est le
+  // parcours d'activation (consentement + preuve) qui, LUI SEUL, crée/lie. Un
+  // membre DÉJÀ lié entre comme avant — aucune régression pour l'existant.
+  // Placé AVANT la consommation du jeton : un `needs_activation` ne le gaspille
+  // pas (le membre pourra activer puis réutiliser le pont).
+  if (process.env.SPORDATE_ACTIVATION_REQUIRED === 'true') {
+    try {
+      const idx = await db.collection(COLLECTION_INDEX).doc(cleIndexEmail(email)).get();
+      const dejaLie = idx.exists && String((idx.data() || {}).spordateUid || '').trim();
+      if (!dejaLie) {
+        return NextResponse.json({ needs_activation: true }, { status: 200 });
+      }
+    } catch {
+      // Lecture de l'index impossible : on NE ferme PAS le pont pour l'existant
+      // (leçon V310c). On retombe sur le comportement historique ci-dessous.
+    }
+  }
 
   // Anti-rejeu. `create()` échoue si le document existe déjà : l'écriture est
   // donc atomique côté Firestore, sans lecture-puis-écriture qui laisserait une
