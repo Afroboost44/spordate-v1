@@ -46,6 +46,16 @@ const nextConfig: NextConfig = {
     '@grpc/grpc-js',
     'firebase-admin',
   ],
+  // ─────────── BORNER LE NOMBRE DE WORKERS DE BUILD ───────────────────────
+  // Next parallelise la compilation sur tous les coeurs. Sur l'hote de
+  // production (4 coeurs, 7,6 Go, ~7 applications), chaque worker herite du
+  // plafond de tas de `NODE_OPTIONS` : le pire cas cumule depassait la memoire
+  // de la machine, et les deploiements #35 et #36 sont morts la, sans message.
+  // Deux workers suffisent largement pour ce projet — le build local perd
+  // quelques secondes, la machine gagne des gigaoctets.
+  experimental: {
+    cpus: 2,
+  },
   typescript: {
     ignoreBuildErrors: true,
   },

@@ -12,8 +12,8 @@
 #   docker build -t spordateur:test .
 #   docker run --rm -p 3000:3000 --env-file .env.local spordateur:test
 #
-# Optimisation RAM (Hetzner 4 Go partagés avec Afroboost) :
-#   - `NODE_OPTIONS=--max_old_space_size=3072` injecté au stage builder
+# Optimisation RAM (hote Hetzner : 7,6 Go, 4 coeurs, ~7 applications) :
+#   - `NODE_OPTIONS=--max-old-space-size=2048` injecte au stage builder
 #   - `node:20-alpine` (~50 Mo base vs ~900 Mo node:20)
 #   - Stage runner ne copie QUE le strict nécessaire
 # ---------------------------------------------------------------------------
@@ -85,8 +85,25 @@ ENV NEXT_BASE_PATH=${NEXT_BASE_PATH}
 
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
-# Hetzner 4 Go partagés → cap V8 heap à 3 Go pour laisser de la marge OS/Afroboost
-ENV NODE_OPTIONS=--max-old-space-size=3072
+# ─────────────────── POURQUOI 2048, ET PAS 3072 ───────────────────────────
+# Les deploiements #35 et #36 ont echoue ICI, tous les deux : `npm ci` passe en
+# 43 s, puis `next build` meurt SANS UNE LIGNE d'erreur, juste apres
+# « Creating an optimized production build ». Pas d'erreur de compilation, pas
+# d'erreur TypeScript, exit 255. C'est une mort par le noyau, pas un defaut de
+# code — le meme commit se construit en local, exit 0, en 30 s.
+#
+# LE MULTIPLICATEUR : `NODE_OPTIONS` est herite par CHAQUE processus enfant.
+# Next lance ses workers de compilation en parallele — sur 4 coeurs, 4 fois
+# 3 Go autorises font jusqu'a 12 Go reclamables sur un hote qui en a 7,6 et
+# qui heberge sept applications. Le plafond n'etait pas une marge, c'etait une
+# permission.
+#
+# 2048 est MESURE, pas choisi : le pic reel du build est de 1,5 a 1,8 Go
+# (`/usr/bin/time -l`, deux mesures). 2048 laisse ~15 % de marge au processus
+# principal et divise par 1,5 le pire cas cumule. Combine a `experimental.cpus`
+# dans `next.config.ts`, qui borne le NOMBRE de workers, le pire cas passe
+# d'environ 12 Go a environ 4 Go.
+ENV NODE_OPTIONS=--max-old-space-size=2048
 
 # BUG #50 — cache mount sur .next/cache pour PERSISTER l'incremental cache
 # Next.js entre les builds. Next.js stocke les .js compilés par SWC dans
