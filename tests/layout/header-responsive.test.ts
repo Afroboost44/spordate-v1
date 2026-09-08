@@ -15,7 +15,7 @@
  * était donc INVISIBLE pour un compte ordinaire — c'est pour cela qu'il a
  * survécu si longtemps.
  *
- *   A. les trois boutons libellés sont réservés à `lg`
+ *   A. les trois boutons libellés sont réservés à `xl`
  *   B. rien n'est retiré : le menu déjà présent les porte tous
  *   C. un seul menu par mode — jamais deux hamburgers
  *   D. le nom d'utilisateur se coupe au lieu de pousser
@@ -43,11 +43,11 @@ const D = SRC.indexOf('<div className="hidden items-center space-x-2 md:flex">')
 const F = D >= 0 ? SRC.indexOf('<Sheet>', D) : -1;
 const GROUPE = D >= 0 && F > D ? SRC.slice(D, F) : '';
 
-section('A — les boutons libelles sont reserves au large');
+section('A — les boutons libelles sont reserves au large (xl)');
 vrai('A0 le groupe d\'actions est lisible', GROUPE.length > 0);
-vrai('A1 Espace Partenaire a partir de lg', /className="hidden lg:flex items-center gap-2 text-accent/.test(GROUPE));
-vrai('A2 Console admin a partir de lg', /<span className="hidden lg:flex">[\s\S]{0,60}<AdminMenuLink variant="desktop" \/>/.test(GROUPE));
-vrai('A3 Deconnexion a partir de lg', /onClick=\{handleLogout\} className="hidden lg:flex items-center gap-2"/.test(GROUPE));
+vrai('A1 Espace Partenaire a partir de xl', /className="hidden xl:flex items-center gap-2 text-accent/.test(GROUPE));
+vrai('A2 Console admin a partir de xl', /<span className="hidden xl:flex">[\s\S]{0,60}<AdminMenuLink variant="desktop" \/>/.test(GROUPE));
+vrai('A3 Deconnexion a partir de xl', /onClick=\{handleLogout\} className="hidden xl:flex items-center gap-2"/.test(GROUPE));
 faux('A4 plus aucun bouton libelle visible des md', /<Button variant="ghost" onClick=\{handleLogout\} className="flex items-center gap-2">/.test(GROUPE));
 
 section('B — rien n\'est retire : le menu porte les trois');
@@ -66,12 +66,15 @@ vrai('B7 Sheet autonome → langue', /settings_section_language/.test(SHEET));
 vrai('B8 la variante mobile d\'AdminMenuLink existe toujours', /Console admin/.test(ADMIN));
 
 section('C — un seul menu par mode, jamais deux');
-vrai('C1 le Sheet historique ne s\'ouvre qu\'en mode autonome', /\$\{EN_MODE_INTEGRE \? 'hidden' : 'flex lg:hidden'\} items-center/.test(SRC));
+vrai('C1 le Sheet historique ne s\'ouvre qu\'en mode autonome', /\$\{EN_MODE_INTEGRE \? 'hidden' : 'flex xl:hidden'\} items-center/.test(SRC));
 faux('C2 il n\'est plus code mort', /<div className="md:hidden flex items-center">/.test(SRC));
 vrai('C3 MenuIntegre reste le menu du mode integre', /\{EN_MODE_INTEGRE && isLoggedIn && <MenuIntegre \/>\}/.test(GROUPE));
 
 section('D — un nom long ne pousse plus le header');
 vrai('D1 le nom est borne en largeur', /max-w-\[10rem\] truncate/.test(GROUPE));
+// MESURE : a `lg` (1024) le groupe d'un compte partenaire+admin fait 861 px et
+// debordait encore de 90 px. Le seuil doit etre `xl`.
+faux('D4 aucun reste de seuil `lg` sur les boutons libelles', /hidden lg:(flex|inline-block)/.test(GROUPE));
 vrai('D2 il reste lisible en entier au survol', /title=\{user\.displayName\}/.test(GROUPE));
 faux('D3 l\'ancienne version sans borne a disparu', /className="text-sm text-foreground\/60 hidden lg:inline">/.test(GROUPE));
 
